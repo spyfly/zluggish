@@ -2,7 +2,7 @@ import type { PlayerState } from '#src/protocol/generated/udp-node-msgs_pb';
 import { PlayerStateSchema } from '#src/protocol/generated/udp-node-msgs_pb';
 import { Metric, metrics } from '#src/repositories/metrics.repository';
 import { fromBinary } from '@bufbuild/protobuf';
-import { sizeDelimitedEncode, sizeDelimitedPeek } from '@bufbuild/protobuf/wire';
+import { BinaryWriter, sizeDelimitedPeek } from '@bufbuild/protobuf/wire';
 import { mkdir, open, readFile, rm, stat } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 
@@ -22,9 +22,12 @@ export class RideRecoveryRepository {
     return resolve(this.storage, String(player), 'ride-recovery.bin');
   }
 
-  /** Appends in order for each rider. Past the size limit, nothing more is recorded. */
-  append(player: number, states: PlayerState[]) {
-    const data = Buffer.concat(states.map((state) => sizeDelimitedEncode(PlayerStateSchema, state)));
+  /** Appends encoded states in order for each rider. Past the size limit, nothing more is recorded. */
+  append(player: number, states: readonly Uint8Array[]) {
+    const writer = new BinaryWriter();
+
+    for (const state of states) writer.bytes(state);
+    const data = writer.finish();
 
     const write = (this.writes.get(player) ?? Promise.resolve()).then(() =>
       metrics.timeAsync(Metric.RecoveryAppend, async () => {
