@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readdirSync, readFileSync, truncateSync, utimesSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
+import { StateHistory } from '#src/world/state-history';
 import { Effect, Layer, Schema } from 'effect';
 
 const sample = (id: bigint, index: number, courseId = 6) =>
@@ -95,7 +96,7 @@ await test('a restarted server resumes a recent ride on the same course and its 
   });
 
   const { id: activity } = Schema.decodeUnknownSync(Schema.Struct({ id: Schema.Finite }))(await response.json());
-  f.world.histories.set(id, world.histories.get(id) ?? []);
+  f.world.histories.set(id, world.histories.get(id) ?? new StateHistory());
   services.effects.runSync(
     ActivitiesService.use((service) =>
       service.finalize(

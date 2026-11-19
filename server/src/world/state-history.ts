@@ -1,0 +1,68 @@
+import type { PlayerState } from '#src/protocol/generated/udp-node-msgs_pb';
+import { PlayerStateSchema } from '#src/protocol/generated/udp-node-msgs_pb';
+import { fromBinary, toBinary } from '@bufbuild/protobuf';
+import { BinaryWriter, WireType } from '@bufbuild/protobuf/wire';
+
+const ghostPlayerField = 1;
+const ghostStatesField = 2;
+
+/**
+A rider's ride history, kept as encoded states. A decoded PlayerState costs about 15x its wire size,
+and a history holds up to `limit` samples for every rider who rode since the last restart.
+*/
+export class StateHistory {
+  private encoded: Uint8Array[] = [];
+
+  private times: bigint[] = [];
+
+  constructor(readonly limit = 14_400) {}
+
+  get length() {
+    return this.encoded.length;
+  }
+
+  /** Appends a copy of state, dropping the oldest sample past the limit. */
+  push(state: PlayerState) {
+    this.encoded.push(toBinary(PlayerStateSchema, state));
+    this.times.push(state.worldTime);
+
+    if (this.encoded.length <= this.limit) return;
+    this.encoded.shift();
+    this.times.shift();
+  }
+
+  /** Puts earlier states in front, keeping the newest `limit` samples. */
+  prepend(states: readonly PlayerState[]) {
+    this.encoded = [...states.map((state) => toBinary(PlayerStateSchema, state)), ...this.encoded].slice(-this.limit);
+    this.times = [...states.map((state) => state.worldTime), ...this.times].slice(-this.limit);
+  }
+
+  worldTime(index: number) {
+    return this.times.at(index);
+  }
+
+  /** A fresh, independently mutable copy. */
+  state(index: number) {
+    const bytes = this.encoded.at(index);
+
+    return bytes ? fromBinary(PlayerStateSchema, bytes) : undefined;
+  }
+
+  states() {
+    return this.encoded.map((bytes) => fromBinary(PlayerStateSchema, bytes));
+  }
+
+  /** Encoded samples newer than worldTime, oldest first. */
+  since(worldTime: bigint) {
+    return this.encoded.filter((_, index) => (this.times[index] ?? 0n) > worldTime);
+  }
+
+  /** The history as a Ghost recording, without decoding it. */
+  ghost(playerId: number) {
+    const writer = new BinaryWriter().tag(ghostPlayerField, WireType.Varint).int32(playerId);
+
+    for (const bytes of this.encoded) writer.tag(ghostStatesField, WireType.LengthDelimited).bytes(bytes);
+
+    return writer.finish();
+  }
+}

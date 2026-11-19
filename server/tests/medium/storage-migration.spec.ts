@@ -242,7 +242,21 @@ await test('the storage merge imports every legacy store once and keeps the lega
 
 await test('legacy credentials written with another key are reported and left in place', (t) => {
   const { storage, open } = legacy(t);
-  write(storage, '2/garmin_credentials.bin', crypto.encryptCredentials(crypto.randomBytes(32), ['user', 'pass']));
+  let credentials: Uint8Array;
+
+  // CFB8 has no authentication, so a wrong key can occasionally produce valid UTF-8 with two lines.
+  // Choose a key that this decoder definitely rejects so the migration case is deterministic.
+  while (true) {
+    credentials = crypto.encryptCredentials(crypto.randomBytes(32), ['user', 'pass']);
+
+    try {
+      crypto.decryptCredentials(key, credentials);
+    } catch {
+      break;
+    }
+  }
+
+  write(storage, '2/garmin_credentials.bin', credentials);
   const db = open();
 
   assert.equal(new RiderDocuments(db, storage).has(2, 'garmin_credentials.bin'), false);

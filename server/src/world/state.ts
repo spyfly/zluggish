@@ -2,6 +2,7 @@ import type { PlayerState, ServerToClient, WorldAttribute } from '#src/protocol/
 import { PlayerStateSchema, ServerToClientSchema } from '#src/protocol/generated/udp-node-msgs_pb';
 import { Lifecycle } from '#src/world/lifecycle';
 import type { Simulation } from '#src/world/simulation';
+import { StateHistory } from '#src/world/state-history';
 import { clone, create, toBinary } from '@bufbuild/protobuf';
 
 /** Zwift world time counts milliseconds from this Unix time. */
@@ -110,7 +111,7 @@ export class World {
 
   readonly synthetic = new Map<bigint, PlayerState>();
 
-  readonly histories = new Map<bigint, PlayerState[]>();
+  readonly histories = new Map<bigint, StateHistory>();
 
   private readonly generations = new Map<bigint, number>();
 
@@ -173,12 +174,10 @@ export class World {
 
     if (!previous) this.presence?.(playerId, true);
     this.simulation?.receive(playerId, snapshot);
-    const history = this.histories.get(playerId) ?? [];
+    const history = this.histories.get(playerId) ?? new StateHistory();
 
-    if (history.length === 0 || Number(snapshot.worldTime - (history.at(-1)?.worldTime ?? 0n)) >= 3000)
-      history.push(clone(PlayerStateSchema, snapshot));
-
-    if (history.length > 14_400) history.shift();
+    if (history.length === 0 || Number(snapshot.worldTime - (history.worldTime(-1) ?? 0n)) >= 3000)
+      history.push(snapshot);
 
     this.histories.set(playerId, history);
   }
