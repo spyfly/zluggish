@@ -1,7 +1,7 @@
 import type { Runtime } from '#src/http/runtime';
 import { startHttp } from '#src/node/network/http';
 import { fetchCdn } from '#src/node/network/proxy';
-import { SystemFlag } from '#src/repositories/system-flag.repository';
+import { ZwiftUpdatesService } from '#src/services/zwift-updates.service';
 import { WorkoutsService } from '#src/services/workout.service';
 import { getConnInfo } from '@hono/node-server/conninfo';
 import { Hono } from 'hono';
@@ -24,7 +24,6 @@ const contentTypes = new Map([
 export function createCdn(runtime: Runtime) {
   const app = new Hono();
   const root = resolve(runtime.assets, 'cdn');
-  const flags = runtime.accounts.repositories.systemFlagsRepository;
   app.get('/tp-workouts/intervalsicu/:id', (c) => {
     const file = runtime.effects.runSync(
       WorkoutsService.use((workouts) => workouts.file(c.req.param('id').replace(/\.zwo$/, ''))),
@@ -75,7 +74,10 @@ export function createCdn(runtime: Runtime) {
     if (isUpdate) {
       c.header('Cache-Control', 'no-store');
 
-      if (runtime.config.proxy.mode !== 'disabled' && flags.get(SystemFlag.ZwiftUpdatesAllowed) === 'true') {
+      if (
+        runtime.config.proxy.mode !== 'disabled' &&
+        runtime.effects.runSync(ZwiftUpdatesService.use((updates) => updates.allowed()))
+      ) {
         try {
           const response = await fetchCdn(`${path}${new URL(c.req.url).search}`, c.req.header('Range'));
           response.headers.set('Cache-Control', 'no-store');
