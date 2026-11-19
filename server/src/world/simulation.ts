@@ -2,7 +2,7 @@ import { configSchema } from '#src/config/schema';
 import type { Runtime } from '#src/http/runtime';
 import { PlayerProfileSchema } from '#src/protocol/generated/profile_pb';
 import type { PlayerState } from '#src/protocol/generated/udp-node-msgs_pb';
-import { GhostSchema, PlayerStateSchema, UserBikeAction } from '#src/protocol/generated/udp-node-msgs_pb';
+import { PlayerStateSchema, UserBikeAction } from '#src/protocol/generated/udp-node-msgs_pb';
 import { AssetFiles } from '#src/repositories/files.repository';
 import { Metric, metrics } from '#src/repositories/metrics.repository';
 import { SettingsService } from '#src/services/settings.service';
@@ -11,6 +11,7 @@ import { Random, clamp } from '#src/world/geometry';
 import { GestureDirector, gestureUpdate } from '#src/world/gestures';
 import type { ReplayRider } from '#src/world/peloton';
 import { Peloton } from '#src/world/peloton';
+import { Recording } from '#src/world/recording';
 import { RiderPool, ghostAppearanceSchema } from '#src/world/riders';
 import { course, forward, road, worldTime } from '#src/world/state';
 import { clone, fromBinary, toBinary } from '@bufbuild/protobuf';
@@ -23,14 +24,14 @@ import { botCommand } from '#src/dtos/management.dto';
 const isBikeAction = Schema.is(Schema.Enum(UserBikeAction));
 
 interface GhostPlayback {
-  states: PlayerState[];
+  recording: Recording;
   position: number;
   date: bigint;
   id: bigint;
 }
 
 /** Loading and playback are independent: manual regroup may precede lazy loading.
-Exhaustion is position >= states.length per recording; regroup can revive it.
+Exhaustion is position >= recording.length per recording; regroup can revive it.
 */
 interface RiderGhosts {
   lastRoadTime: number;
@@ -186,13 +187,13 @@ export class Simulation {
 
       try {
         const profile = fromBinary(PlayerProfileSchema, profileBytes);
-        const states = fromBinary(GhostSchema, routeBytes).states;
+        const recording = new Recording(routeBytes);
         profile.ftp = 400;
 
-        if (profile.id > 0n && states.length > 0)
+        if (profile.id > 0n && recording.length > 0)
           replays.set(profile.id, {
             profile,
-            states,
+            recording,
             position: 0,
             pacer: true,
             folder: basename(resolve(file, '..')),
@@ -217,9 +218,9 @@ export class Simulation {
           if (!bytes) continue;
 
           try {
-            const states = fromBinary(GhostSchema, bytes).states;
+            const recording = new Recording(bytes);
 
-            if (states.length === 0) continue;
+            if (recording.length === 0) continue;
 
             for (let copy = 0; copy < this.runtime.config.bots.multiplier; copy++) {
               const id = BigInt(1_000_000 + index + copy * 10_000);
@@ -228,8 +229,8 @@ export class Simulation {
               profile.weightInGrams = owner?.weightInGrams || 80_000;
               replays.set(id, {
                 profile,
-                states,
-                position: Math.floor(this.rng.value() * states.length),
+                recording,
+                position: Math.floor(this.rng.value() * recording.length),
                 pacer: false,
                 folder: '',
               });
@@ -439,7 +440,7 @@ export class Simulation {
   session and ghost state that requested it; a new login retries the load.
   */
   private async loadGhosts(id: bigint, ghosts: RiderGhosts, directories: Set<string>, generation: number) {
-    const recordings: PlayerState[][] = [];
+    const recordings: Recording[] = [];
 
     for (const directory of directories) {
       for (const { name } of await this.files.entriesAsync(directory)) {
@@ -449,9 +450,9 @@ export class Simulation {
         if (!bytes) continue;
 
         try {
-          const states = fromBinary(GhostSchema, bytes).states;
+          const recording = new Recording(bytes);
 
-          if (states.length > 0) recordings.push(states);
+          if (recording.length > 0) recordings.push(recording);
         } catch {
           this.runtime.world.lifecycle.log.warn('simulation.invalid_ghost', 'Skipping an invalid ghost recording');
         }
@@ -468,10 +469,10 @@ export class Simulation {
       return;
     }
 
-    for (const states of recordings) {
+    for (const recording of recordings) {
       const ghostId = id + BigInt(ghosts.playbacks.length + 1) * 10_000_000n;
 
-      ghosts.playbacks.push({ id: ghostId, states, position: 0, date: states[0]?.worldTime ?? 0n });
+      ghosts.playbacks.push({ id: ghostId, recording, position: 0, date: recording.state(0).worldTime });
 
       if (!rider) continue;
       const profile = clone(PlayerProfileSchema, rider);
@@ -494,41 +495,24 @@ export class Simulation {
     ghosts.playback = 'playing';
 
     for (const ghost of ghosts.playbacks) {
-      const index = this.nearest(state, ghost.states);
+      const index = ghost.recording.nearest(state);
 
-      if (index !== null) ghost.position = index + (ahead(state, ghost.states[index]?.roadTime ?? 0) ? 1 : 0);
+      if (index !== null) ghost.position = index + (ahead(state, ghost.recording.roadTime(index)) ? 1 : 0);
     }
 
     ghosts.last = 0;
-  }
-
-  nearest(state: PlayerState, states: PlayerState[]) {
-    let index: number | null = null;
-    let distance = Infinity;
-
-    for (const [i, peer] of states.entries())
-      if (course(state) === course(peer) && road(state) === road(peer) && forward(state) === forward(peer)) {
-        const delta = Math.abs(state.roadTime - peer.roadTime);
-
-        if (delta < distance) {
-          index = i;
-          distance = delta;
-        }
-      }
-
-    return index;
   }
 
   group(id: bigint, all: boolean) {
     const state = this.runtime.world.online.get(id);
 
     if (!state) return;
-    const seen = new Set<PlayerState[]>();
+    const seen = new Set<Recording>();
 
     for (const replay of this.replays.values())
-      if (!replay.pacer && (all || !seen.has(replay.states))) {
-        seen.add(replay.states);
-        const index = this.nearest(state, replay.states);
+      if (!replay.pacer && (all || !seen.has(replay.recording))) {
+        seen.add(replay.recording);
+        const index = replay.recording.nearest(state);
 
         if (index !== null) replay.position = index;
       }
@@ -657,7 +641,7 @@ export class Simulation {
 
       if (name === 'disperse')
         for (const replay of this.replays.values())
-          if (!replay.pacer) replay.position = Math.floor(this.rng.value() * replay.states.length);
+          if (!replay.pacer) replay.position = Math.floor(this.rng.value() * replay.recording.length);
 
       return 'Automatic grouping stopped.';
     }
@@ -709,14 +693,11 @@ export class Simulation {
       const score = (replay: ReplayRider) =>
         replay.profile.id === state.watchingRiderId
           ? -1
-          : Math.hypot(
-              (replay.states[replay.position]?.x ?? 0) - state.x,
-              (replay.states[replay.position]?.z ?? 0) - state.z,
-            );
+          : Math.hypot(replay.recording.x(replay.position) - state.x, replay.recording.z(replay.position) - state.z);
 
       const pacer = this.replays
         .values()
-        .filter((replay) => replay.pacer && course(replay.states[replay.position] ?? state) === course(state))
+        .filter((replay) => replay.pacer && replay.recording.course(replay.position) === course(state))
         .toArray()
         .sort((a, b) => {
           return score(a) - score(b);
@@ -800,11 +781,10 @@ export class Simulation {
 
     for (const [id, replay] of this.replays)
       if ((replay.pacer && pacers) || (!replay.pacer && bots) || !world.synthetic.has(id)) {
-        replay.position = (replay.position + 1) % replay.states.length;
-        const original = replay.states[replay.position];
+        replay.position = (replay.position + 1) % replay.recording.length;
 
-        if (!original) continue;
-        const state = clone(PlayerStateSchema, original);
+        if (replay.position >= replay.recording.length) continue;
+        const state = replay.recording.state(replay.position);
         state.id = id;
         state.worldTime = time - 300n;
         state.groupId = 0n;
@@ -843,14 +823,12 @@ export class Simulation {
         const personal = world.personal.get(id) ?? new Map();
 
         for (const ghost of ghosts.playbacks) {
-          const original = ghost.states[ghost.position++];
-
-          if (!original) {
+          if (ghost.position >= ghost.recording.length) {
             personal.delete(ghost.id);
             continue;
           }
 
-          const state = clone(PlayerStateSchema, original);
+          const state = ghost.recording.state(ghost.position++);
           state.id = ghost.id;
           state.worldTime = time - 300n;
           state.groupId = 0n;
