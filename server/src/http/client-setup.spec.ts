@@ -190,7 +190,7 @@ await test(
     assert.deepEqual(
       calls
         .filter((call) => call.startsWith('delete-certificate'))
-        .map((call) => call.slice('delete-certificate -Z '.length))
+        .map((call) => call.match(/^delete-certificate -Z (\S+)/)?.[1] ?? '')
         .sort((a, b) => a.localeCompare(b)),
       [legacyCertificate.thumbprint, thumbprint(earlier.cert)].sort((a, b) => a.localeCompare(b)),
     );
