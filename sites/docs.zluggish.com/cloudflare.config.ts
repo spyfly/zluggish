@@ -4,8 +4,9 @@ export default defineConfig({
   worker: {
     name: 'zluggish-docs',
     compatibilityDate: '2026-11-18',
-    workersDev: false,
-    domains: [{ hostname: 'docs.zluggish.com', production: true, previews: true }],
+    workersDev: true,
+    previewUrls: true,
+    domains: [{ hostname: 'docs.zluggish.com', production: true, previews: false }],
     observability: {
       enabled: true,
       headSamplingRate: 1,
