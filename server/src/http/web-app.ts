@@ -7,6 +7,7 @@ import { DurabilityService } from '#src/services/durability.service';
 import { FilesService } from '#src/services/files.service';
 import { effectRoutes } from '#src/http/effect';
 import { RecordsService } from '#src/services/records.service';
+import { SystemFlag } from '#src/repositories/system-flag.repository';
 import { webConnectionRoutes } from '#src/http/web-connections';
 import { webProfileRoutes } from '#src/http/web-profile';
 import { Hono } from 'hono';
@@ -42,6 +43,7 @@ export function createWebApp(runtime: HttpRuntime) {
   const app = new Hono<WebEnv>();
   const appRoutes = effectRoutes(app, runtime);
   const accounts = runtime.effects.runSync(AccountsService);
+  const flags = accounts.repositories.systemFlagsRepository;
   const management = runtime.effects.runSync(ManagementService);
   const durability = runtime.effects.runSync(DurabilityService);
   const sessions = runtime.effects.runSync(WebSessionsService);
@@ -622,8 +624,29 @@ export function createWebApp(runtime: HttpRuntime) {
           riderDefaults: runtime.config.riderDefaults,
         }),
         worldSettings: yield* managementService.worldSettings(),
+        zwiftUpdates: {
+          allowed: flags.get(SystemFlag.ZwiftUpdatesAllowed) === 'true',
+          available: runtime.config.proxy.mode !== 'disabled',
+        },
         readOnly: true,
       });
+    }),
+  );
+
+  appRoutes.patch('/api/manage/server/zwift-updates', (c) =>
+    Effect.gen(function* () {
+      const { allowed } = Schema.decodeUnknownSync(Strict({ allowed: Schema.Boolean }))(
+        yield* Effect.promise(() => c.req.json()),
+      );
+
+      const available = runtime.config.proxy.mode !== 'disabled';
+
+      if (allowed && !available) throw new ApplicationError({ status: 409, message: 'The CDN proxy is disabled.' });
+
+      if (allowed) flags.set(SystemFlag.ZwiftUpdatesAllowed, 'true');
+      else flags.clear(SystemFlag.ZwiftUpdatesAllowed);
+
+      return c.json({ allowed, available });
     }),
   );
 
