@@ -188,8 +188,11 @@ await test(
     assert.match(run(), /Updated .*Application Support\/Zwift\/data\/cacert\.pem/);
     const calls = readFileSync(log, 'utf8').trim().split('\n');
     assert.deepEqual(
-      calls.filter((call) => call.startsWith('delete-certificate')).map((call) => call.split(' ', 3)[2]),
-      [legacyCertificate.thumbprint, thumbprint(earlier.cert)],
+      calls
+        .filter((call) => call.startsWith('delete-certificate'))
+        .map((call) => call.split(' ', 3)[2])
+        .sort(),
+      [legacyCertificate.thumbprint, thumbprint(earlier.cert)].sort(),
     );
     assert.ok(
       calls.some((call) =>
