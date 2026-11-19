@@ -539,18 +539,22 @@ const make = Effect.gen(function* () {
     };
   }
 
-  /** A ready image of an own activity. */
-  function ownImage(player: number, activity: string, image: number) {
+  /** The file of a ready image of an own activity. */
+  function ownImagePath(player: number, activity: string, image: number) {
     const ready = Schema.decodeUnknownSync(Schema.Array(Schema.Struct({ id: Schema.Finite, state: Schema.String })))(
       repositories.activitiesRepository.listActivityImage(player, activity),
     ).some((row) => row.id === image && row.state === 'ready');
 
     const path = resolve(context.profiles.folder(player), 'images', `${image}.jpg`);
 
-    if (!ready || !repositories.filesRepository.existsSync(path))
+    if (
+      !ready ||
+      !repositories.filesRepository.existsSync(path) ||
+      !repositories.filesRepository.statSync(path).isFile()
+    )
       throw new ApplicationError({ status: 404, message: 'Image not found.' });
 
-    return repositories.filesRepository.readFileSync(path);
+    return path;
   }
 
   function recentActivities(...values: Parameters<ActivitiesRepository['recentActivities']>) {
@@ -879,9 +883,13 @@ const make = Effect.gen(function* () {
     ownFit: Effect.fn('ActivitiesService.ownFit')(function* (player: number, id: string) {
       return ownFit(player, id);
     }),
-    /** A ready image of an own activity. */
-    ownImage: Effect.fn('ActivitiesService.ownImage')(function* (player: number, activity: string, image: number) {
-      return ownImage(player, activity, image);
+    /** The file of a ready image of an own activity. */
+    ownImagePath: Effect.fn('ActivitiesService.ownImagePath')(function* (
+      player: number,
+      activity: string,
+      image: number,
+    ) {
+      return ownImagePath(player, activity, image);
     }),
 
     recentActivities: Effect.fn('ActivitiesService.recentActivities')(function* (

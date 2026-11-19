@@ -6,6 +6,7 @@ import { ActivitiesService } from '#src/services/activities.service';
 import { DurabilityService } from '#src/services/durability.service';
 import { FilesService } from '#src/services/files.service';
 import { effectRoutes } from '#src/http/effect';
+import { fileResponse } from '#src/http/file-response';
 import { RecordsService } from '#src/services/records.service';
 import { webConnectionRoutes } from '#src/http/web-connections';
 import { webProfileRoutes } from '#src/http/web-profile';
@@ -283,9 +284,9 @@ export function createWebApp(runtime: HttpRuntime) {
         (yield* webSessionsService.require(c.get('sessionId'))).player_id,
       );
 
-      if (!(yield* filesService.exists(path))) throw new ApplicationError({ status: 404, message: 'No photo.' });
+      if (!(yield* filesService.isFile(path))) throw new ApplicationError({ status: 404, message: 'No photo.' });
 
-      return c.body(new Uint8Array(yield* filesService.read(path)), 200, { 'Content-Type': 'image/jpeg' });
+      return yield* fileResponse(c, path, { 'Content-Type': 'image/jpeg' });
     }),
   );
   appRoutes.put('/api/me/avatar', (c) =>
@@ -431,13 +432,13 @@ export function createWebApp(runtime: HttpRuntime) {
         c.req.param('image'),
       );
 
-      const jpg = yield* activitiesService.ownImage(
+      const path = yield* activitiesService.ownImagePath(
         (yield* webSessionsService.require(c.get('sessionId'))).player_id,
         id,
         image,
       );
 
-      return c.body(jpg, 200, {
+      return yield* fileResponse(c, path, {
         'Content-Type': 'image/jpeg',
         ...(c.req.query('download') !== undefined && {
           'Content-Disposition': `attachment; filename="${id}-${image}.jpg"`,
@@ -551,10 +552,10 @@ export function createWebApp(runtime: HttpRuntime) {
 
       const path = yield* managementService.avatarPath(id);
 
-      if (!accounts.get(id) || !(yield* filesService.exists(path)))
+      if (!accounts.get(id) || !(yield* filesService.isFile(path)))
         throw new ApplicationError({ status: 404, message: 'No photo.' });
 
-      return c.body(new Uint8Array(yield* filesService.read(path)), 200, { 'Content-Type': 'image/jpeg' });
+      return yield* fileResponse(c, path, { 'Content-Type': 'image/jpeg' });
     }),
   );
 
@@ -716,7 +717,7 @@ export function createWebApp(runtime: HttpRuntime) {
       if (!/^[\w.-]+\.(?:js|css|woff2|png|jpg|svg)$/.test(name)) return c.notFound();
       const path = resolve(clientRoot, 'assets', name);
 
-      if (!(yield* filesService.exists(path))) return c.notFound();
+      if (!(yield* filesService.isFile(path))) return c.notFound();
       const ext = name.split('.').at(-1)!;
 
       const types = {
@@ -729,7 +730,7 @@ export function createWebApp(runtime: HttpRuntime) {
       };
 
       // SAFETY: the filename extension was restricted to these MIME types above.
-      return c.body(yield* filesService.read(path), 200, { 'Content-Type': types[ext as keyof typeof types]! });
+      return yield* fileResponse(c, path, { 'Content-Type': types[ext as keyof typeof types]! });
     }),
   );
 
