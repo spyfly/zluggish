@@ -4,6 +4,7 @@ import type { DescMessage } from '@bufbuild/protobuf';
 import { create, fromBinary, toBinary } from '@bufbuild/protobuf';
 import {
   closeSync,
+  createReadStream,
   existsSync,
   fsyncSync,
   linkSync,
@@ -198,6 +199,8 @@ export class AssetFiles {
 
     return nested.flat();
   }
+
+  createReadStream = createReadStream;
 
   existsSync = existsSync;
 

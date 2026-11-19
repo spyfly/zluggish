@@ -296,6 +296,50 @@ await test('launcher assets are served safely and game assets redirect to the CD
   assert.equal(redirect.headers.get('Location'), 'http://cdn.zwift.com/gameassets/Game.xml');
 });
 
+await test('mochi files stream in full and by byte range', async (t) => {
+  const f = runtimeFixture(t);
+  const folder = resolve(f.config.storageDir, 'mochi/watopian');
+  const data = Uint8Array.from({ length: 300_000 }, (_, index) => index % 251);
+
+  mkdirSync(folder, { recursive: true });
+  writeFileSync(resolve(folder, 'segment'), data);
+  writeFileSync(resolve(folder, 'empty'), '');
+
+  const full = await f.app.request('/mochi/watopian/segment');
+  assert.equal(full.status, 200);
+  assert.equal(full.headers.get('Accept-Ranges'), 'bytes');
+  assert.equal(full.headers.get('Content-Length'), '300000');
+  assert.deepEqual(new Uint8Array(await full.arrayBuffer()), data);
+
+  const part = await f.app.request('/mochi/watopian/segment', { headers: { Range: 'bytes=1000-1999' } });
+  assert.equal(part.status, 206);
+  assert.equal(part.headers.get('Content-Range'), 'bytes 1000-1999/300000');
+  assert.equal(part.headers.get('Content-Length'), '1000');
+  assert.deepEqual(new Uint8Array(await part.arrayBuffer()), data.slice(1000, 2000));
+
+  const open = await f.app.request('/mochi/watopian/segment', { headers: { Range: 'bytes=299990-' } });
+  assert.equal(open.status, 206);
+  assert.deepEqual(new Uint8Array(await open.arrayBuffer()), data.slice(299_990));
+
+  const suffix = await f.app.request('/mochi/watopian/segment', { headers: { Range: 'bytes=-10' } });
+  assert.equal(suffix.status, 206);
+  assert.equal(suffix.headers.get('Content-Range'), 'bytes 299990-299999/300000');
+
+  const beyond = await f.app.request('/mochi/watopian/segment', { headers: { Range: 'bytes=300000-' } });
+  assert.equal(beyond.status, 416);
+  assert.equal(beyond.headers.get('Content-Range'), 'bytes */300000');
+
+  const ignored = await f.app.request('/mochi/watopian/segment', { headers: { Range: 'bytes=0-1,5-6' } });
+  assert.equal(ignored.status, 200);
+  assert.equal(ignored.headers.get('Content-Length'), '300000');
+  await ignored.arrayBuffer();
+
+  const empty = await f.app.request('/mochi/watopian/empty');
+  assert.equal(empty.status, 200);
+  const emptyBody = await empty.arrayBuffer();
+  assert.equal(emptyBody.byteLength, 0);
+});
+
 await test('the mobile aggregate composes goals, activities, events and invitations', async (t) => {
   const f = runtimeFixture(t);
   const user = await f.accounts.create('Mobile Rider', 'test-password');

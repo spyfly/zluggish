@@ -14,6 +14,18 @@ const make = Effect.gen(function* () {
     return files.existsSync(path) && files.statSync(path).isFile();
   });
 
+  const size = Effect.fn('FilesService.size')(function* (path: string) {
+    return files.statSync(path).size;
+  });
+
+  /** Stream the inclusive byte range of path, for files too large to hold in memory. */
+  const readStream = Effect.fn('FilesService.readStream')(function* (
+    path: string,
+    range: { start: number; end: number },
+  ) {
+    return files.createReadStream(path, range);
+  });
+
   const read = Effect.fn('FilesService.read')(function* (path: string) {
     return files.readFileSync(path);
   });
@@ -27,7 +39,7 @@ const make = Effect.gen(function* () {
     files.writeDurable(path, data, replace);
   });
 
-  return { exists, isFile, read, readText, write };
+  return { exists, isFile, size, readStream, read, readText, write };
 });
 
 /** Files in the asset and storage folders. */
