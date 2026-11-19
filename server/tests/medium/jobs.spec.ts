@@ -4,7 +4,7 @@ import { DocumentsService } from '#src/services/documents.service';
 import { immediate } from '#src/db/transaction';
 import { JobError } from '#src/errors';
 import { ActivitySchema } from '#src/protocol/generated/activity_pb';
-import { JobsRepository, RunningJob } from '#src/repositories/jobs.repository';
+import { JobsRepository } from '#src/repositories/jobs.repository';
 import { JobsService } from '#src/services/jobs.service';
 import { UploadsService } from '#src/services/uploads.service';
 import { binary, mediumFixture } from '#tests/medium/support';
@@ -115,9 +115,8 @@ await test('an old handler after lease expiry and a new claim cannot commit or p
   const stale = repository.claim('fit_export', 1);
   assert.ok(stale);
   await new Promise((resolve) => setTimeout(resolve, 5));
-  const job = new RunningJob(stale, new AbortController().signal, repository);
-  assert.equal(job.valid(), false);
-  assert.equal(job.commit(), false);
+  assert.equal(repository.valid(stale), false);
+  await f.effects.runPromise(JobsService.use((service) => service.run(stale)));
   assert.equal(existsSync(export_), false);
   assert.equal(
     readdirSync(resolve(export_, '..')).some((name) => name.endsWith('.tmp')),

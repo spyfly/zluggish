@@ -69,11 +69,8 @@ async function syncDirectoryAsync(path: string) {
   }
 }
 
-// The same publication steps as publish(); libuv runs each step off the main thread.
-async function publishAsync(path: string, data: string | Uint8Array, replace: boolean) {
-  await mkdir(dirname(path), { recursive: true });
-  const temporary = `${path}.${new CryptoRepository().randomUUID()}.tmp`;
-  const handle = await open(temporary, 'wx', 0o600);
+async function writeSynced(path: string, data: string | Uint8Array) {
+  const handle = await open(path, 'wx', 0o600);
 
   try {
     await handle.writeFile(data, 'utf8');
@@ -81,8 +78,16 @@ async function publishAsync(path: string, data: string | Uint8Array, replace: bo
   } finally {
     await handle.close();
   }
+}
+
+// The same publication steps as publish(); libuv runs each step off the main thread.
+async function publishAsync(path: string, data: string | Uint8Array, replace: boolean) {
+  await mkdir(dirname(path), { recursive: true });
+  const temporary = `${path}.${new CryptoRepository().randomUUID()}.tmp`;
 
   try {
+    await writeSynced(temporary, data);
+
     if (replace) await rename(temporary, path);
     else {
       await link(temporary, path);
@@ -133,6 +138,14 @@ export class AssetFiles {
 
   writeDurableAsync(path: string, data: string | Uint8Array, replace = false) {
     return metrics.timeAsync(Metric.DurableWrite, () => publishAsync(path, data, replace));
+  }
+
+  /** Flush an unpublished attempt's contents. The caller owns cleanup and syncs the directory after publication. */
+  writeStagedAsync(path: string, data: string | Uint8Array) {
+    return metrics.timeAsync(Metric.DurableWrite, async () => {
+      await mkdir(dirname(path), { recursive: true });
+      await writeSynced(path, data);
+    });
   }
 
   async readAsync(path: string) {

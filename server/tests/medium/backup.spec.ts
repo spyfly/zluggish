@@ -1,3 +1,4 @@
+import { BackupSnapshotWorker } from '#src/migrations/backup-snapshot-worker';
 import { readArchivedFile } from '#src/migrations/backup-archive';
 import { JobType } from '#src/enum';
 import { backupDirectory, nightlyBackupName } from '#src/migrations/backup-paths';
@@ -10,7 +11,7 @@ import { decodeOwned } from '#src/schema';
 import { Schema } from 'effect';
 import { openDatabase } from '#src/db/open';
 import { ActivitySchema } from '#src/protocol/generated/activity_pb';
-import { backupStorage, restoreStorage } from '#src/migrations/backup';
+import { backupStorage, publishBackup, restoreStorage } from '#src/migrations/backup';
 import { StorageFile } from '#src/migrations/storage';
 import { AccountsService } from '#src/services/auth.service';
 import { JobsService } from '#src/services/jobs.service';
@@ -256,4 +257,64 @@ await test('nightly jobs run at 02:00 UTC, keep ten complete nights and leave ma
   assert.equal(existsSync(resolve(storage, 'backups')), false);
   assert.equal(repository.pending(JobType.StorageBackup), 1);
   assert.equal(repository.list(JobType.StorageBackup).at(-1)?.next_run_at, Date.UTC(2026, 0, 13, 2));
+});
+
+await test('a failed snapshot can retry and an already published archive is reused', async (t) => {
+  const root = mkdtempSync(resolve(tmpdir(), 'zluggish-backup-worker-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const storage = resolve(root, 'storage');
+  const directory = backupDirectory(storage);
+  const name = `manual-${crypto.randomUUID()}`;
+  const signal = new AbortController().signal;
+
+  await assert.rejects(
+    publishBackup(storage, null, name, signal, () => {}),
+    /open database/i,
+  );
+  assert.deepEqual(readdirSync(directory), []);
+  openDatabase(storage).close();
+  mkdirSync(resolve(directory, `.${name}.tmp-a123bc`));
+  const expired = new Error('Claim expired');
+  await assert.rejects(
+    publishBackup(storage, null, name, signal, () => {
+      throw expired;
+    }),
+    expired,
+  );
+  assert.deepEqual(readdirSync(directory), []);
+
+  await publishBackup(storage, null, name, signal, () => {});
+  const archive = resolve(directory, name + '.tar.gz');
+  const original = readFileSync(archive);
+  rmSync(storage, { recursive: true });
+  await publishBackup(storage, null, name, signal, () => assert.fail('Unexpected publication'));
+  assert.deepEqual(readFileSync(archive), original);
+});
+
+await test('stopping during a backup joins the worker and leaves the job queued', async (t) => {
+  const f = await mediumFixture(t);
+  const service = f.effects.runSync(BackupService);
+  const jobs = f.effects.runSync(JobsService);
+  const operation = crypto.randomUUID();
+  const entered = Promise.withResolvers<void>();
+  const run = BackupSnapshotWorker.prototype.run;
+
+  t.mock.method(
+    BackupSnapshotWorker.prototype,
+    'run',
+    function (this: BackupSnapshotWorker, ...args: Parameters<typeof run>) {
+      const pending = run.apply(this, args);
+      entered.resolve();
+
+      return pending;
+    },
+  );
+
+  f.effects.runSync(service.request(operation));
+  await f.effects.runPromise(jobs.start());
+  await entered.promise;
+  await f.effects.runPromise(jobs.close());
+
+  assert.equal(f.effects.runSync(service.status(operation))?.state, 'queued');
+  assert.deepEqual(readdirSync(backupDirectory(f.config.storageDir)), []);
 });

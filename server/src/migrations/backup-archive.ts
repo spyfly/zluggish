@@ -3,14 +3,20 @@ import { execFile, execFileSync } from 'node:child_process';
 import { mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import { promisify } from 'node:util';
 
 export const archiveSuffix = '.tar.gz';
 
-const runTar = promisify(execFile);
-
 export async function compressBackup(source: string, output: string, signal?: AbortSignal) {
-  await runTar('tar', ['-czf', output, '-C', source, '.'], { signal });
+  const result = Promise.withResolvers<void>();
+
+  const tar = execFile('tar', ['-czf', output, '-C', source, '.'], { signal }, (error) => {
+    if (error) result.reject(error);
+    else result.resolve();
+  });
+
+  // The abort callback can run before tar has closed the staging files.
+  const closed = new Promise<void>((resolve) => tar.once('close', () => resolve()));
+  await result.promise.finally(() => closed);
 }
 
 export function compressBackupSync(source: string, output: string) {

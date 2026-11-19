@@ -1,6 +1,7 @@
 import { archiveSuffix } from '#src/migrations/backup-archive';
 import { RuntimeContext } from '#src/context';
 import { JobType } from '#src/enum';
+import { JobError } from '#src/errors';
 import { publishBackup, pruneNightlyBackups } from '#src/migrations/backup';
 import { nightlyBackupName } from '#src/migrations/backup-paths';
 import { JobsService } from '#src/services/jobs.service';
@@ -40,10 +41,24 @@ const make = Effect.gen(function* () {
 
           // Schedule the next night even if this backup fails all its retries.
           if (nightly) scheduleNightly();
-          await publishBackup(storage, context.configPath ?? null, name, job.signal);
+          const started = performance.now();
+          await publishBackup(storage, context.configPath ?? null, name, job.signal, () => {
+            if (!job.valid()) throw new JobError({ code: 'lease_lost' });
+          });
+          job.signal.throwIfAborted();
 
           if (nightly) await pruneNightlyBackups(storage);
-          context.world.lifecycle.log.info('storage.backup', 'Storage backup finished', { name });
+
+          job.signal.throwIfAborted();
+
+          if (!job.commit()) return;
+
+          context.world.lifecycle.log.info('storage.backup', 'Storage backup finished', {
+            name,
+            jobId: job.claim.id,
+            attempt: job.claim.attempts,
+            durationMs: Math.round(performance.now() - started),
+          });
         },
         catch: (error) => error,
       }),

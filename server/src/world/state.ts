@@ -62,6 +62,15 @@ export class Relay {
   }
 }
 
+/** Encoded size of a `ServerToClient.states` entry (field 8): one tag byte, a varint length, then the state. */
+function embeddedSize(length: number) {
+  let prefix = 1;
+
+  for (let rest = length; rest >= 0x80; rest >>>= 7) prefix++;
+
+  return 1 + prefix + length;
+}
+
 export function fresh(state: PlayerState, now = worldTime()) {
   return now < state.worldTime + 10_000n;
 }
@@ -232,17 +241,24 @@ export class World {
       ctsLatency: worldTime() - clientTime,
     });
 
+    // Track the encoded size instead of re-encoding the growing packet for each peer.
+    let size = toBinary(ServerToClientSchema, message).length;
+
     for (const peer of this.nearby(playerId, state)) {
-      if (toBinary(ServerToClientSchema, message).length + toBinary(PlayerStateSchema, peer).length > 1400) {
+      const length = toBinary(PlayerStateSchema, peer).length;
+
+      if (size + length > 1400) {
         packets.push(message);
         message = create(ServerToClientSchema, {
           serverRealm: 1n,
           playerId,
           worldTime: worldTime(),
         });
+        size = toBinary(ServerToClientSchema, message).length;
       }
 
       message.states.push(peer);
+      size += embeddedSize(length);
     }
 
     packets.push(message);

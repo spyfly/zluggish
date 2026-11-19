@@ -18,6 +18,6 @@ For a server on a different computer, set `server.advertisedIp`. Then open these
 
 :::warning
 
-Keep Zluggish on a local network that you trust. It is not designed for the public internet.
+Keep Zluggish on a local network that you trust. It is not designed for the public internet. To reach it from another place, see [Remote access](../install/remote-access.md).
 
 :::

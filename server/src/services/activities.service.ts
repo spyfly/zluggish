@@ -628,15 +628,21 @@ const make = Effect.gen(function* () {
   */
   async function publish(job: RunningJob, path: string, data: string | Uint8Array, exists: () => boolean) {
     const attempt = `${path}.${job.claim.token}.tmp`;
-    await repositories.filesRepository.writeDurableAsync(attempt, data, true);
+    let published = false;
 
-    const published = job.commit(() => {
-      if (exists()) repositories.filesRepository.renameSync(attempt, path);
-    });
+    try {
+      await repositories.filesRepository.writeStagedAsync(attempt, data);
 
-    await repositories.filesRepository.removeAsync(attempt);
+      job.commit(() => {
+        if (!exists()) return;
+        repositories.filesRepository.renameSync(attempt, path);
+        published = true;
+      });
 
-    if (published) await repositories.filesRepository.syncDirectoryAsync(dirname(path));
+      if (published) await repositories.filesRepository.syncDirectoryAsync(dirname(path));
+    } finally {
+      if (!published) await repositories.filesRepository.removeAsync(attempt);
+    }
   }
 
   /** Register a job handler written as an async function. */

@@ -1,3 +1,4 @@
+import { BackupService } from '#src/services/backup.service';
 import { RideRecoveryService } from '#src/services/ride-recovery.service';
 import { UploadsService } from '#src/services/uploads.service';
 import { JobsService } from '#src/services/jobs.service';
@@ -7,6 +8,7 @@ import { SettingsService } from '#src/services/settings.service';
 // Repeatable persistence and riding-latency load test. Run with `pnpm test:load`.
 // It drives the riding path in process, finishes a group of riders at once while
 // others keep riding, and can add a slow disk, large media and a slow provider.
+// Pass --backup-mb to stage that much data for a backup during the completion phase.
 import { makeAppRuntime } from '#src/layers';
 import { validateConfig } from '#src/config/index';
 import { packageRoot } from '#src/config/load';
@@ -26,7 +28,7 @@ import { Simulation } from '#src/world/simulation';
 import { World, worldTime } from '#src/world/state';
 import { create, fromBinary, toBinary } from '@bufbuild/protobuf';
 import { Encoder, Profile, type RecordMesg } from '@garmin/fitsdk';
-import fs, { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import fs, { closeSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { syncBuiltinESMExports } from 'node:module';
 import { cpus, platform, release, tmpdir, totalmem } from 'node:os';
 import { resolve } from 'node:path';
@@ -43,6 +45,7 @@ const { values } = parseArgs({
     'ghost-files': { type: 'string', default: '4' },
     'slow-disk-ms': { type: 'string', default: '0' },
     'provider-ms': { type: 'string', default: '2000' },
+    'backup-mb': { type: 'string', default: '0' },
     'media-mb': { type: 'string', default: '32' },
     'phase-seconds': { type: 'string', default: '8' },
     'long-reader': { type: 'boolean', default: false },
@@ -62,6 +65,7 @@ const finishers = Math.min(riders, count('finishers'));
 const ghostFiles = count('ghost-files');
 const slowDisk = count('slow-disk-ms');
 const providerDelay = count('provider-ms');
+const backupMiB = count('backup-mb');
 const mediaBytes = count('media-mb') * 1024 * 1024;
 const phaseSeconds = count('phase-seconds');
 const sleep = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
@@ -132,7 +136,8 @@ function riderState(id: bigint, tick: number) {
   });
 }
 
-const storage = values.storage ? resolve(values.storage) : mkdtempSync(resolve(tmpdir(), 'zluggish-load-'));
+const temporaryRoot = values.storage ? null : mkdtempSync(resolve(tmpdir(), 'zluggish-load-'));
+const storage = values.storage ? resolve(values.storage) : resolve(temporaryRoot ?? tmpdir(), 'storage');
 
 mkdirSync(storage, { recursive: true });
 
@@ -190,7 +195,7 @@ type LoadRider = { id: bigint; activity: number; auth: string; tick: number; rid
 const fleet: LoadRider[] = [];
 
 for (let index = 0; index < riders; index++) {
-  const rider = await accounts.create(`Load Rider ${index}`, '');
+  const rider = await accounts.create(`Load Rider ${index}`, 'load-test-password');
   const id = BigInt(rider.player_id);
   runtime.effects.runSync(SettingsService.use((service) => service.save(rider.player_id, { 'ghosts.enabled': true })));
   runtime.effects.runSync(
@@ -222,6 +227,17 @@ for (let index = 0; index < riders; index++) {
 
   const activity = Schema.decodeUnknownSync(Schema.Struct({ id: Schema.Finite }))(await created.json()).id;
   fleet.push({ id, activity, auth, tick: 0, riding: false });
+}
+
+if (backupMiB > 0) {
+  const chunk = accounts.repositories.cryptoRepository.randomBytes(1024 * 1024);
+  const file = openSync(resolve(storage, 'load-backup-input.bin'), 'wx');
+
+  try {
+    for (let index = 0; index < backupMiB; index++) writeFileSync(file, chunk);
+  } finally {
+    closeSync(file);
+  }
 }
 
 if (values['full-fsync']) accounts.db.exec('PRAGMA fullfsync=ON; PRAGMA checkpoint_fullfsync=ON;');
@@ -302,6 +318,29 @@ await phase('join', async () => {
 
 await phase('riding', () => Promise.resolve());
 
+let backupDurationMs: number | null = null;
+
+async function runBackup() {
+  if (backupMiB === 0) return;
+  const backup = effects.runSync(BackupService);
+  const operation = crypto.randomUUID();
+  const start = performance.now();
+  effects.runSync(backup.request(operation));
+
+  for (;;) {
+    const status = effects.runSync(backup.status(operation))?.state;
+
+    if (status === 'done') {
+      backupDurationMs = Math.round(performance.now() - start);
+
+      return;
+    }
+
+    if (status === 'failed' || performance.now() - start > 120_000) throw new Error('Load-test backup did not finish');
+    await sleep(50);
+  }
+}
+
 await phase('completion', async () => {
   const group = fleet.slice(0, finishers);
 
@@ -331,7 +370,7 @@ await phase('completion', async () => {
   const reader = values['long-reader'] ? new DatabaseSync(resolve(storage, 'zluggish.db'), { readOnly: true }) : null;
   reader?.exec('BEGIN');
   reader?.prepare('SELECT count(*) FROM activity').get();
-  await Promise.all([media(), ...group.map((rider) => finish(rider))]);
+  await Promise.all([runBackup(), media(), ...group.map((rider) => finish(rider))]);
   await sleep(phaseSeconds * 500);
   reader?.exec('COMMIT');
   reader?.close();
@@ -373,6 +412,7 @@ const result = {
     slowDisk,
     providerDelay,
     mediaBytes,
+    backupMiB,
     phaseSeconds,
     fitBytes: fit.length,
     longReader: values['long-reader'],
@@ -380,6 +420,7 @@ const result = {
   },
   pendingJobs: accounts.repositories.jobsRepository.list().filter((job) => job.state !== 'done').length,
   providerCalls,
+  backupDurationMs,
   phases,
 };
 
@@ -387,7 +428,7 @@ accounts.close();
 
 runtime.settings.close();
 
-if (!values.storage) rmSync(storage, { recursive: true, force: true });
+if (temporaryRoot) rmSync(temporaryRoot, { recursive: true, force: true });
 
 const text = JSON.stringify(result, null, 2);
 
