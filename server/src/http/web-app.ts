@@ -1,6 +1,6 @@
 import { BackupService } from '#src/services/backup.service';
 import { TlsService } from '#src/services/tls.service';
-import { linuxSetupScript, setupFileName, windowsSetupScript } from '#src/http/client-setup';
+import { linuxSetupScript, macosSetupScript, setupFileName, windowsSetupScript } from '#src/http/client-setup';
 import { AccountsService } from '#src/services/auth.service';
 import { ManagementService } from '#src/services/management.service';
 import { WebSessionsService } from '#src/services/web-session.service';
@@ -391,17 +391,25 @@ export function createWebApp(runtime: HttpRuntime) {
     satisfies((value: string) => value === '' || isIP(value) !== 0, 'Expected an IP address'),
   );
 
+  const setupPlatform = Schema.Literals(['windows', 'linux', 'macos']);
+
   appRoutes.get('/api/tls/setup/:platform', (c) =>
     Effect.gen(function* () {
-      const platform = Schema.decodeUnknownSync(Schema.Literals(['windows', 'linux']))(c.req.param('platform'));
+      const platform = Schema.decodeUnknownSync(setupPlatform)(c.req.param('platform'));
       const address = Schema.decodeUnknownSync(setupAddress)(c.req.query('address') ?? '');
       const { pem, certificate } = yield* installable(c, `${platform} script`);
       const script = { pem, certificate, address, version: packageVersion(), now: new Date() };
-      const windows = platform === 'windows';
 
-      return c.body(windows ? windowsSetupScript(script) : linuxSetupScript(script), 200, {
-        'Content-Type': windows ? 'application/x-bat; charset=us-ascii' : 'application/x-sh; charset=us-ascii',
-        'Content-Disposition': `attachment; filename="${setupFileName(certificate, windows ? 'bat' : 'sh')}"`,
+      if (platform === 'windows') {
+        return c.body(windowsSetupScript(script), 200, {
+          'Content-Type': 'application/x-bat; charset=us-ascii',
+          'Content-Disposition': `attachment; filename="${setupFileName(certificate, 'bat')}"`,
+        });
+      }
+
+      return c.body(platform === 'macos' ? macosSetupScript(script) : linuxSetupScript(script), 200, {
+        'Content-Type': 'application/x-sh; charset=us-ascii',
+        'Content-Disposition': `attachment; filename="${setupFileName(certificate, 'sh')}"`,
       });
     }),
   );

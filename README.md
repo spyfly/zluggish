@@ -33,7 +33,7 @@ Zluggish is a rewrite of [zwift-offline](https://github.com/zoffline/zwift-offli
 - **Activity browser**: rides by month with route map, elevation profile, power and heart rate stats, power curves, and FIT and image downloads.
 - **Climbs page**: every climb portal you have ridden, with ride count, best time and a link to its Strava segment. The launcher marks the climbs you have already done.
 - **A new game launcher**: each rider picks themselves on a _Who's riding?_ screen, then chooses a map and climb before starting Zwift.
-- **A certificate of its own**: each server generates its own key, instead of the shared zwift-offline certificate whose private key is public. Riders set up Windows and Linux computers with a script from the web app.
+- **A certificate of its own**: each server generates its own key, instead of the shared zwift-offline certificate whose private key is public. Riders set up Windows, macOS and Linux computers with a script from the web app.
 - **Guided first-time setup** with a one-time setup key, and proper accounts with administrator roles.
 - **Automatic migration**: point Zluggish at your zwift-offline `storage` folder and it converts your storage on first start.
 - **One SQLite database** instead of scattered files, with durable activity saves and upload retries from the web app.

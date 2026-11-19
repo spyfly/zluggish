@@ -197,37 +197,16 @@ export function windowsSetupScript(script: SetupScript) {
   ].join('\r\n');
 }
 
-/** A POSIX shell script for Zwift in Wine, Lutris, Bottles or Steam on Linux. */
-export function linuxSetupScript(script: SetupScript) {
-  const unit = serverUnit(script.certificate);
-  const legacy = isLegacy(script.certificate);
-
-  const name = legacy
-    ? legacyName
-    : `zluggish-zwift-${unit ? unit.slice('Zluggish server '.length) : script.certificate.thumbprint.slice(0, 12).toLowerCase()}`;
-
-  const warn = legacy ? ['echo', ...legacyWarning.map((line) => `echo '${line}'`)] : [];
-
+/** Shell variables, the switch to root and the certificate itself, checked against its thumbprint. */
+function shellPrelude(script: SetupScript, name: string) {
   return [
-    '#!/bin/sh',
-    '# Zluggish client setup for Linux',
-    ...header(script),
-    '#',
-    '# Run it with:  sh <this file> [Zwift folder]',
-    '# It asks for your password through sudo. Then it:',
-    legacy
-      ? '#   1. Adds the shared zwift.com certificate to the system trust store, without its private key.'
-      : "#   1. Adds this server's certificate to the system trust store.",
-    '#   2. Adds it to data/cacert.pem of each Zwift it finds in a Wine, Lutris, Bottles or Steam prefix,',
-    legacy
-      ? '#      and removes any private key that an older setup added there. Name the Zwift folder to pick one.'
-      : '#      and removes the old shared zwift.com certificate there. Name the Zwift folder to pick one.',
-    ...(script.address ? [`#   3. Points the Zwift host names at ${script.address} in /etc/hosts.`] : []),
     'set -eu',
     '',
     `THUMBPRINT='${script.certificate.thumbprint}'`,
     `NAME='${name}'`,
     `LEGACY_NAME='${legacyName}'`,
+    `LEGACY_THUMBPRINT='${legacyCertificate.thumbprint}'`,
+    `SERVER_UNIT='${serverUnit(script.certificate) ?? ''}'`,
     `SERVER_ADDRESS='${script.address}'`,
     `ZWIFT_HOSTS='${zwiftHostNames.join(' ')}'`,
     `LEGACY_BODY='${legacyCertificate.body}'`,
@@ -250,33 +229,12 @@ export function linuxSetupScript(script: SetupScript) {
     '    exit 1',
     '  fi',
     'fi',
-    '',
-    'TARGET_HOME=$(getent passwd "${SUDO_USER:-root}" | cut -d: -f6)',
-    'TARGET_HOME=${TARGET_HOME:-$HOME}',
-    '',
-    ...warn,
-    'echo',
-    "echo 'System trust store'",
-    'install_anchor() {',
-    '  # A server certificate replaces the shared one that an earlier setup installed.',
-    '  [ "$NAME" = "$LEGACY_NAME" ] || rm -f "$1/$LEGACY_NAME.crt"',
-    '  certificate > "$1/$NAME.crt"',
-    '  shift',
-    '  "$@" >/dev/null',
-    '  echo "  Added certificate $THUMBPRINT"',
-    '}',
-    'if [ -d /etc/pki/ca-trust/source/anchors ] && command -v update-ca-trust >/dev/null 2>&1; then',
-    '  install_anchor /etc/pki/ca-trust/source/anchors update-ca-trust extract',
-    'elif [ -d /etc/ca-certificates/trust-source/anchors ] && command -v update-ca-trust >/dev/null 2>&1; then',
-    '  install_anchor /etc/ca-certificates/trust-source/anchors update-ca-trust',
-    'elif [ -d /etc/pki/trust/anchors ] && command -v update-ca-certificates >/dev/null 2>&1; then',
-    '  install_anchor /etc/pki/trust/anchors update-ca-certificates',
-    'elif [ -d /usr/local/share/ca-certificates ] && command -v update-ca-certificates >/dev/null 2>&1; then',
-    '  install_anchor /usr/local/share/ca-certificates update-ca-certificates',
-    'else',
-    "  echo '  No supported trust store found. Skipped.'",
-    'fi',
-    '',
+  ];
+}
+
+/** Updates each Zwift cacert.pem that find_bundles lists, or prints `notFound` when there is none. */
+function shellBundles(notFound: string[]) {
+  return [
     '# Drop earlier Zluggish blocks, private keys and the shared certificate; then add this certificate.',
     'update_bundle() {',
     '  [ -f "$1.zluggish-backup" ] || cp -p "$1" "$1.zluggish-backup"',
@@ -299,18 +257,7 @@ export function linuxSetupScript(script: SetupScript) {
     '    certificate',
     "    echo '# END Zluggish server certificate'",
     '  } > "$1"',
-    '  rm -f "$kept"',
-    '}',
-    '',
-    'find_bundles() {',
-    '  if [ -n "${1:-}" ]; then',
-    `    printf '%s\\n' "$1/data/cacert.pem"`,
-    '    return',
-    '  fi',
-    '  for root in "$TARGET_HOME/.wine" "$TARGET_HOME/Games" "$TARGET_HOME/.local/share/lutris" \\',
-    '    "$TARGET_HOME/.local/share/bottles" "$TARGET_HOME/.var/app" "$TARGET_HOME/.steam" "$TARGET_HOME/.local/share/Steam"; do',
-    '    if [ -d "$root" ]; then find "$root" -maxdepth 10 -path \'*/drive_c/*/Zwift/data/cacert.pem\' -type f 2>/dev/null || true; fi',
-    '  done | sort -u',
+    '  rm -f "${kept:?}"',
     '}',
     '',
     'echo',
@@ -327,29 +274,196 @@ export function linuxSetupScript(script: SetupScript) {
     '    echo "  Not found: $bundle"',
     '  fi',
     'done < "$bundles"',
-    'rm -f "$bundles"',
+    'rm -f "${bundles:?}"',
     'if [ "$found" -eq 0 ]; then',
-    "  echo '  No Zwift installation found. Run this script again with the Zwift folder, for example:'",
-    `  echo "  sh $0 \\"$TARGET_HOME/.wine/drive_c/Program Files (x86)/Zwift\\""`,
+    ...notFound,
     'fi',
-    ...(script.address
-      ? [
-          '',
-          'echo',
-          "echo 'Hosts file'",
-          '[ -f /etc/hosts.zluggish-backup ] || cp -p /etc/hosts /etc/hosts.zluggish-backup',
-          'hosts=$(mktemp)',
-          `awk -v names="$ZWIFT_HOSTS" 'BEGIN { n = split(names, list, " "); for (i = 1; i <= n; i++) drop[list[i]] = 1 }`,
-          `  { for (i = 1; i <= NF; i++) if ($i in drop) next; print }' /etc/hosts > "$hosts"`,
-          `printf '%s %s\\n' "$SERVER_ADDRESS" "$ZWIFT_HOSTS" >> "$hosts"`,
-          'cat "$hosts" > /etc/hosts',
-          'rm -f "$hosts"',
-          'echo "  The Zwift host names now point at $SERVER_ADDRESS"',
-        ]
-      : []),
+  ];
+}
+
+/** Points the Zwift host names at the server in /etc/hosts, then runs `after`. Without an address, nothing. */
+function shellHosts(script: SetupScript, after: string[]) {
+  if (!script.address) return [];
+
+  return [
+    '',
+    'echo',
+    "echo 'Hosts file'",
+    '[ -f /etc/hosts.zluggish-backup ] || cp -p /etc/hosts /etc/hosts.zluggish-backup',
+    'hosts=$(mktemp)',
+    `awk -v names="$ZWIFT_HOSTS" 'BEGIN { n = split(names, list, " "); for (i = 1; i <= n; i++) drop[list[i]] = 1 }`,
+    `  { for (i = 1; i <= NF; i++) if ($i in drop) next; print }' /etc/hosts > "$hosts"`,
+    `printf '%s %s\\n' "$SERVER_ADDRESS" "$ZWIFT_HOSTS" >> "$hosts"`,
+    'cat "$hosts" > /etc/hosts',
+    'rm -f "${hosts:?}"',
+    ...after,
+    'echo "  The Zwift host names now point at $SERVER_ADDRESS"',
+  ];
+}
+
+function shellWarning(script: SetupScript) {
+  return isLegacy(script.certificate) ? ['echo', ...legacyWarning.map((line) => `echo '${line}'`)] : [];
+}
+
+/** A POSIX shell script for Zwift in Wine, Lutris, Bottles or Steam on Linux. */
+export function linuxSetupScript(script: SetupScript) {
+  const unit = serverUnit(script.certificate);
+  const legacy = isLegacy(script.certificate);
+
+  const name = legacy
+    ? legacyName
+    : `zluggish-zwift-${unit ? unit.slice('Zluggish server '.length) : script.certificate.thumbprint.slice(0, 12).toLowerCase()}`;
+
+  const warn = shellWarning(script);
+
+  return [
+    '#!/bin/sh',
+    '# Zluggish client setup for Linux',
+    ...header(script),
+    '#',
+    '# Run it with:  sh <this file> [Zwift folder]',
+    '# It asks for your password through sudo. Then it:',
+    legacy
+      ? '#   1. Adds the shared zwift.com certificate to the system trust store, without its private key.'
+      : "#   1. Adds this server's certificate to the system trust store.",
+    '#   2. Adds it to data/cacert.pem of each Zwift it finds in a Wine, Lutris, Bottles or Steam prefix,',
+    legacy
+      ? '#      and removes any private key that an older setup added there. Name the Zwift folder to pick one.'
+      : '#      and removes the old shared zwift.com certificate there. Name the Zwift folder to pick one.',
+    ...(script.address ? [`#   3. Points the Zwift host names at ${script.address} in /etc/hosts.`] : []),
+    ...shellPrelude(script, name),
+    '',
+    'TARGET_HOME=$(getent passwd "${SUDO_USER:-root}" | cut -d: -f6)',
+    'TARGET_HOME=${TARGET_HOME:-$HOME}',
+    '',
+    ...warn,
+    'echo',
+    "echo 'System trust store'",
+    'install_anchor() {',
+    '  # A server certificate replaces the shared one that an earlier setup installed.',
+    '  [ "$NAME" = "$LEGACY_NAME" ] || rm -f "${1:?}/${LEGACY_NAME:?}.crt"',
+    '  certificate > "$1/$NAME.crt"',
+    '  shift',
+    '  "$@" >/dev/null',
+    '  echo "  Added certificate $THUMBPRINT"',
+    '}',
+    'if [ -d /etc/pki/ca-trust/source/anchors ] && command -v update-ca-trust >/dev/null 2>&1; then',
+    '  install_anchor /etc/pki/ca-trust/source/anchors update-ca-trust extract',
+    'elif [ -d /etc/ca-certificates/trust-source/anchors ] && command -v update-ca-trust >/dev/null 2>&1; then',
+    '  install_anchor /etc/ca-certificates/trust-source/anchors update-ca-trust',
+    'elif [ -d /etc/pki/trust/anchors ] && command -v update-ca-certificates >/dev/null 2>&1; then',
+    '  install_anchor /etc/pki/trust/anchors update-ca-certificates',
+    'elif [ -d /usr/local/share/ca-certificates ] && command -v update-ca-certificates >/dev/null 2>&1; then',
+    '  install_anchor /usr/local/share/ca-certificates update-ca-certificates',
+    'else',
+    "  echo '  No supported trust store found. Skipped.'",
+    'fi',
+    '',
+    'find_bundles() {',
+    '  if [ -n "${1:-}" ]; then',
+    `    printf '%s\\n' "$1/data/cacert.pem"`,
+    '    return',
+    '  fi',
+    '  for root in "$TARGET_HOME/.wine" "$TARGET_HOME/Games" "$TARGET_HOME/.local/share/lutris" \\',
+    '    "$TARGET_HOME/.local/share/bottles" "$TARGET_HOME/.var/app" "$TARGET_HOME/.steam" "$TARGET_HOME/.local/share/Steam"; do',
+    '    if [ -d "$root" ]; then find "$root" -maxdepth 10 -path \'*/drive_c/*/Zwift/data/cacert.pem\' -type f 2>/dev/null || true; fi',
+    '  done | sort -u',
+    '}',
+    '',
+    ...shellBundles([
+      "  echo '  No Zwift installation found. Run this script again with the Zwift folder, for example:'",
+      `  echo "  sh $0 \\"$TARGET_HOME/.wine/drive_c/Program Files (x86)/Zwift\\""`,
+    ]),
+    ...shellHosts(script, []),
     '',
     'echo',
     "echo 'Done. If Zwift or its Wine prefix is running, close it (wineserver -k), then start Zwift and sign in.'",
+    ...warn,
+    '',
+  ].join('\n');
+}
+
+/** A POSIX shell script for Zwift on macOS. It trusts the certificate in the System keychain, for TLS only. */
+export function macosSetupScript(script: SetupScript) {
+  const legacy = isLegacy(script.certificate);
+  const warn = shellWarning(script);
+
+  return [
+    '#!/bin/sh',
+    '# Zluggish client setup for macOS',
+    ...header(script),
+    '#',
+    '# Run it in Terminal with:  sh <this file> [Zwift folder]',
+    '# It asks for your password through sudo, and macOS asks again before it changes certificate trust. Then it:',
+    legacy
+      ? '#   1. Adds the shared zwift.com certificate to the System keychain and trusts it for TLS.'
+      : "#   1. Adds this server's certificate to the System keychain and trusts it for TLS. It removes the",
+    ...(legacy ? [] : ["#      certificates that this server's setup added before, and the old shared zwift.com one."]),
+    '#   2. Adds it to data/cacert.pem in ~/Library/Application Support/Zwift, or in the Zwift folder you name,',
+    legacy
+      ? '#      and removes any private key that an older setup added there.'
+      : '#      and removes the old shared zwift.com certificate there.',
+    ...(script.address ? [`#   3. Points the Zwift host names at ${script.address} in /etc/hosts.`] : []),
+    ...shellPrelude(script, setupFileName(script.certificate, 'pem').slice(0, -'.pem'.length)),
+    '',
+    `TARGET_HOME=$(dscl . -read "/Users/\${SUDO_USER:-root}" NFSHomeDirectory 2>/dev/null | sed 's/^NFSHomeDirectory: *//')`,
+    'TARGET_HOME=${TARGET_HOME:-$HOME}',
+    'KEYCHAIN=/Library/Keychains/System.keychain',
+    '',
+    ...warn,
+    'echo',
+    "echo 'System keychain'",
+    'work=$(mktemp -d)',
+    '# Each *.zwift.com certificate in the keychain, in a file named after its SHA-1 hash.',
+    `{ security find-certificate -a -c '*.zwift.com' -Z -p "$KEYCHAIN" 2>/dev/null || true; } | awk -v dir="$work" '`,
+    '  /^SHA-1 hash:/ { file = dir "/" $3 ".old"; next }',
+    '  file != "" { print > file }',
+    '  /^-----END CERTIFICATE-----$/ { if (file != "") close(file); file = "" }',
+    `'`,
+    'for old in "$work"/*.old; do',
+    '  [ -f "$old" ] || continue',
+    '  hash=${old##*/}',
+    '  hash=${hash%.old}',
+    '  [ "$hash" != "$THUMBPRINT" ] || continue',
+    '  subject=$(openssl x509 -noout -subject -in "$old" 2>/dev/null || true)',
+    '  remove=0',
+    '  if [ "$hash" = "$LEGACY_THUMBPRINT" ]; then remove=1; fi',
+    '  if [ -n "$SERVER_UNIT" ]; then',
+    '    case "$subject" in *"$SERVER_UNIT"*) remove=1 ;; esac',
+    '  fi',
+    '  if [ "$remove" -eq 1 ]; then',
+    '    security delete-certificate -Z "$hash" "$KEYCHAIN" >/dev/null',
+    '    echo "  Removed certificate $hash"',
+    '  fi',
+    'done',
+    'certificate > "$work/$NAME.pem"',
+    'if ! security add-trusted-cert -d -r trustRoot -p ssl -k "$KEYCHAIN" "$work/$NAME.pem"; then',
+    '  rm -rf "${work:?}"',
+    "  echo 'macOS did not trust the certificate. Run the script again and allow the change when macOS asks.' >&2",
+    '  exit 1',
+    'fi',
+    'rm -rf "${work:?}"',
+    'echo "  Trusted certificate $THUMBPRINT"',
+    '',
+    'find_bundles() {',
+    '  if [ -n "${1:-}" ]; then',
+    `    printf '%s\\n' "$1/data/cacert.pem"`,
+    '  else',
+    `    printf '%s\\n' "$TARGET_HOME/Library/Application Support/Zwift/data/cacert.pem"`,
+    '  fi',
+    '}',
+    '',
+    ...shellBundles([
+      "  echo '  Zwift was not found. Start Zwift once, quit it and run this script again, or name the Zwift folder:'",
+      `  echo "  sh $0 \\"$TARGET_HOME/Library/Application Support/Zwift\\""`,
+    ]),
+    ...shellHosts(script, [
+      'dscacheutil -flushcache 2>/dev/null || true',
+      'killall -HUP mDNSResponder 2>/dev/null || true',
+    ]),
+    '',
+    'echo',
+    "echo 'Done. If Zwift is open, quit it, then start Zwift and sign in.'",
     ...warn,
     '',
   ].join('\n');

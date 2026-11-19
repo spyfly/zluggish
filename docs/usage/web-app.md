@@ -27,7 +27,7 @@ All users have these pages in the menu:
 | Export       | Download your user data.                                                                        |
 | Integrations | Connect Strava, Garmin, Intervals.icu and TrainingPeaks. Follow the status of activity uploads. |
 | Settings     | Turn ghosts on or off. Calculate the power curves again.                                        |
-| Install      | Download the setup script that makes a Windows or Linux computer trust this server.             |
+| Install      | Download the setup script that makes a Windows, macOS or Linux computer trust this server.      |
 
 ![The Profile page with avatar, name, email and birthday](../../media/screenshots/webapp-profile.png)
 

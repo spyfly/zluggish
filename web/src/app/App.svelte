@@ -225,11 +225,13 @@
                               ? 'Climbs'
                               : path === '/install/windows'
                                 ? 'Windows setup'
-                                : path === '/install/linux'
-                                  ? 'Linux setup'
-                                  : installing
-                                    ? 'Install'
-                                    : 'Profile',
+                                : path === '/install/macos'
+                                  ? 'macOS setup'
+                                  : path === '/install/linux'
+                                    ? 'Linux setup'
+                                    : installing
+                                      ? 'Install'
+                                      : 'Profile',
   );
 
   const initials = (r: User) => `${r.first_name.charAt(0)}${r.last_name.charAt(0)}`.toUpperCase();

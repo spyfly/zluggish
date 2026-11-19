@@ -5,34 +5,42 @@ description: Set up a Mac to ride on your Zluggish server.
 
 # macOS
 
-This procedure makes macOS and Zwift trust the [server certificate](../certificate.md) and redirects Zwift to Zluggish. There is no setup script for macOS yet.
+This procedure makes macOS and Zwift trust the [server certificate](../certificate.md) and redirects Zwift to Zluggish.
 
 ## Set up the client
 
-1. Install Zwift, if it is not installed.
-2. Sign in to the Zluggish web app and select **Install** in the menu. If it opens a setup, select **Choose another system**. Under the system buttons, select **certificate** to download it as a `.crt` file.
-3. Open Keychain Access.
-4. Under **Keychains**, select **System**. Under **Category**, select **Certificates**.
-5. Select **File → Import Items…** and import the `.crt` file.
-6. Right-click **\*.zwift.com** and select **Get Info**.
-7. Under **Trust**, set **When using this certificate** to **Always Trust**.
-8. In Terminal, go to the directory with the `.crt` file.
-9. Add the certificate to the Zwift certificate file:
+1. Install Zwift, if it is not installed. Start it once and quit it, so that it creates its data folder.
+2. Sign in to the Zluggish web app and select **Install** in the menu.
+3. On a Mac, **Install** opens the macOS setup. On another device, select **Choose another system**, then **macOS**. Check the IP address of the server, then select **Download setup script**. The address is `server.advertisedIp` from the server configuration.
+
+   ![macOS setup in three steps: download the setup script, run it in Terminal and start Zwift, with the certificate fingerprints below](../../../media/screenshots/webapp-install-macos.png)
+
+4. Quit Zwift. Open Terminal and run the command that the **Install** page shows, for example:
 
    ```sh
-   cat zluggish-zwift-*.crt >> ~/Library/Application\ Support/Zwift/data/cacert.pem
+   sh ~/Downloads/zluggish-zwift-*.sh
    ```
 
-10. Open `/etc/hosts` in a text editor with administrator rights.
-11. Add this line to the end of the file. Replace `<server-ip>` with the IP address of the Zluggish server:
+   The script asks for your password through `sudo`, and macOS asks again before it changes certificate trust. It:
+   - adds the certificate to the System keychain and trusts it for TLS, and removes the certificates that earlier setups of this server added, and the old shared certificate,
+   - adds the certificate to `~/Library/Application Support/Zwift/data/cacert.pem`, and removes the old shared certificate there,
+   - points the Zwift host names at the server in `/etc/hosts`.
 
-    ```text
-    <server-ip> us-or-rly101.zwift.com secure.zwift.com cdn.zwift.com launcher.zwift.com
-    ```
+5. If the script does not find Zwift, run it again with the Zwift folder:
 
-12. Save the file.
+   ```sh
+   sh ~/Downloads/zluggish-zwift-*.sh "$HOME/Library/Application Support/Zwift"
+   ```
 
-If Zluggish and Zwift run on the same computer, use `127.0.0.1` as the IP address.
+Run the script again after a Zwift update, and after the administrator rotates the certificate.
+
+The script saves the original files as `cacert.pem.zluggish-backup` and `/etc/hosts.zluggish-backup`.
+
+Do not import the certificate with Keychain Access instead. Double-clicking the file, or **File → Import Items…**, can add it without any message and without trusting it.
+
+## Check the certificate
+
+The **Install** page shows the thumbprint and the SHA-256 fingerprint of the certificate. The script stops if its certificate does not match its thumbprint. In Keychain Access, the certificate is **\*.zwift.com** in the **System** keychain, and its SHA-1 fingerprint is the thumbprint.
 
 ## Next step
 

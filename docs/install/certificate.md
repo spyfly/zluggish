@@ -34,7 +34,7 @@ The private key of the shared certificate is public. Anyone on your network can 
    ![The Zwift certificate panel for the shared certificate, with a warning that its private key is public and a Generate certificate button](../../media/screenshots/webapp-certificate-shared.png)
 
 2. Under **Zwift certificate**, select **Generate certificate**.
-3. Ask every rider to set up each computer again from **Install** in the web app. See [Windows](clients/windows.md) and [Linux](clients/linux.md).
+3. Ask every rider to set up each computer again from **Install** in the web app. See [Windows](clients/windows.md), [macOS](clients/macos.md) and [Linux](clients/linux.md).
 
 The new certificate takes effect at once. Until a computer is set up again, Zwift on it cannot connect.
 

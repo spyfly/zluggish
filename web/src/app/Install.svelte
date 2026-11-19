@@ -10,15 +10,16 @@
   }: {
     api: <Body>(url: string) => Promise<Body>;
     /** `/install` sets up this browser's own system, or offers the choice; `/install/choose` always offers it;
-    `/install/windows` and `/install/linux` set up that system. */
+    `/install/windows`, `/install/macos` and `/install/linux` set up that system. */
     path: string;
     navigate: (path: string) => Promise<void>;
   } = $props();
 
-  type Platform = 'windows' | 'linux';
+  type Platform = 'windows' | 'macos' | 'linux';
 
   const systems: { id: Platform; name: string; detail: string }[] = [
     { id: 'windows', name: 'Windows', detail: 'Zwift installed from zwift.com' },
+    { id: 'macos', name: 'macOS', detail: 'Zwift installed from zwift.com' },
     { id: 'linux', name: 'Linux', detail: 'Zwift in Wine, Lutris, Bottles or Steam' },
   ];
 
@@ -32,7 +33,7 @@
 
     if (/Windows/.test(agent)) return 'windows';
 
-    if (/Macintosh|Mac OS X/.test(agent)) return 'mac';
+    if (/Macintosh|Mac OS X/.test(agent)) return 'macos';
 
     return /Linux|X11|CrOS/.test(agent) ? 'linux' : 'other';
   }
@@ -71,6 +72,24 @@
   const legacy = $derived(status?.mode === 'legacy');
   const installable = $derived(status?.mode === 'managed' || status?.mode === 'custom' || legacy);
   const blocked = $derived(!!addressError || (legacy && !accepted));
+
+  /** The file name the server gives the shell script, so the page can show the exact command to run. */
+  const command = $derived.by(() => {
+    const thumbprint = status?.certificate?.thumbprint ?? '';
+    const file = legacy ? 'zluggish-zwift-shared.sh' : `zluggish-zwift-${thumbprint.slice(0, 8).toLowerCase()}.sh`;
+
+    return `sh ~/Downloads/${file}`;
+  });
+
+  /** Browsers allow the clipboard only on HTTPS or localhost; elsewhere the command is there to select. */
+  const canCopy = typeof navigator !== 'undefined' && !!navigator.clipboard;
+  let copied = $state(false);
+
+  async function copy() {
+    await navigator.clipboard.writeText(command);
+    copied = true;
+    setTimeout(() => (copied = false), 2000);
+  }
 
   const day = (iso: string) => new Date(iso).toLocaleDateString([], { year: 'numeric', month: 'long', day: 'numeric' });
 
@@ -111,8 +130,8 @@
   <section class="panel unsafe" aria-labelledby="install-ios">
     <h2 id="install-ios">iPhone and iPad are not supported</h2>
     <p>
-      Zwift on iPhone and iPad cannot be set up to use Zluggish. To ride on this server, set up a Windows or Linux
-      computer instead.
+      Zwift on iPhone and iPad cannot be set up to use Zluggish. To ride on this server, set up a Windows, macOS or
+      Linux computer instead.
     </p>
   </section>
 {/if}
@@ -136,8 +155,8 @@
         {/each}
       </div>
       <p class="hint">
-        On a Mac or a rooted Android device? Download the <a href="/api/tls/certificate" download>certificate</a> and follow
-        the guide for your device in the documentation.
+        On a rooted Android device? Download the <a href="/api/tls/certificate" download>certificate</a> and follow the Android
+        guide in the documentation.
       </p>
     </section>
   {:else}
@@ -209,10 +228,23 @@
             </p>
           {:else}
             <p>
-              In a terminal, run <code>sh</code> with the downloaded <strong>.sh</strong> file. It asks for your password
-              through sudo.
+              {platform.id === 'macos'
+                ? 'Open Terminal and run the downloaded file:'
+                : 'In a terminal, run the downloaded file:'}
             </p>
-            <p class="hint">If it does not find Zwift, run it again with the Zwift folder as the last argument.</p>
+            <div class="command">
+              <code>{command}</code>
+              {#if canCopy}
+                <button type="button" class="copy" onclick={copy} aria-live="polite"
+                  >{copied ? 'Copied' : 'Copy'}</button
+                >
+              {/if}
+            </div>
+            <p class="hint">
+              {platform.id === 'macos'
+                ? 'It asks for your password through sudo, then macOS asks once more before it trusts the certificate. If the file was saved under another name, use that name.'
+                : 'It asks for your password through sudo. If it does not find Zwift, run it again with the Zwift folder as the last argument.'}
+            </p>
           {/if}
         </li>
         <li>
@@ -220,7 +252,9 @@
           <p>
             When the script says <strong>Done</strong>, {platform.id === 'linux'
               ? "close Zwift's Wine prefix, then "
-              : ''}start Zwift and sign in.
+              : platform.id === 'macos'
+                ? 'quit Zwift if it is open, then '
+                : ''}start Zwift and sign in.
           </p>
           <p class="hint">
             {legacy
@@ -236,7 +270,9 @@
       <p>
         The script prints the thumbprint it installs.{platform.id === 'windows'
           ? " Windows shows it as Thumbprint in the certificate's details."
-          : ''} It should match this one.
+          : platform.id === 'macos'
+            ? ' Keychain Access shows it as the SHA-1 fingerprint.'
+            : ''} It should match this one.
       </p>
       <div class="prints">
         <Fingerprint label="Thumbprint (SHA-1)" value={status.certificate.thumbprint} />
@@ -294,7 +330,7 @@
   /* Step 1: one large button per system, the whole row is the target. */
   .systems {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
     gap: 0.75rem;
     margin: 1.25rem 0 1rem;
   }
@@ -324,7 +360,7 @@
     font-weight: 800;
   }
   .system .detail {
-    grid-column: 1;
+    grid-column: 1 / -1;
     color: var(--muted);
     font-weight: 600;
   }
@@ -338,9 +374,10 @@
     color: var(--text);
     font-size: 0.75rem;
   }
+  /* The chevron sits beside the name, so the detail below gets the card's full width in three columns. */
   .system svg {
     grid-column: 2;
-    grid-row: 1 / span 3;
+    grid-row: 1;
     align-self: center;
     width: 1.5rem;
     height: 1.5rem;
@@ -481,10 +518,34 @@
   .walk label.check:first-of-type {
     margin-top: 0;
   }
-  code {
-    padding: 0.05rem 0.35rem;
-    border-radius: 4px;
+  /* The command to type, set like the fingerprints: one well, monospace, with the copy action at its end.
+  On a phone the copy action drops below, and the path breaks only where a line ends. */
+  .command {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 0.5rem 0;
+    padding: 0.55rem 0.55rem 0.55rem 1rem;
+    border-radius: 8px;
     background: var(--well);
+  }
+  .command code {
+    flex: 1 1 16rem;
+    min-width: 0;
+    word-break: break-all;
+    font:
+      600 0.9375rem/1.5 ui-monospace,
+      'Cascadia Mono',
+      'DejaVu Sans Mono',
+      monospace;
+    user-select: all;
+  }
+  .walk button.copy {
+    flex: none;
+    margin: 0 0 0 auto;
+    padding: 0.35rem 0.8rem;
+    font-size: 0.75rem;
   }
 
   .prints {

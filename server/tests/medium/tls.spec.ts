@@ -145,5 +145,10 @@ await test('riders download the certificate and setup scripts, and only administ
   assert.ok(linux.startsWith('#!/bin/sh'));
   assert.ok(linux.includes("SERVER_ADDRESS='fd00::20'"));
   assert.equal(await responseStatus(web.request("/api/tls/setup/linux?address=1.2.3.4'; rm -rf /")), 400);
-  assert.equal(await responseStatus(web.request('/api/tls/setup/macos')), 400);
+  const macos = await web.request('/api/tls/setup/macos?address=192.168.1.20');
+  assert.match(macos.headers.get('Content-Disposition')!, /filename="zluggish-zwift-[\da-f]{8}\.sh"/);
+  const mac = await macos.text();
+  assert.ok(mac.includes('# Zluggish client setup for macOS'));
+  assert.ok(mac.includes(`THUMBPRINT='${next.certificate.thumbprint}'`));
+  assert.equal(await responseStatus(web.request('/api/tls/setup/android')), 400);
 });

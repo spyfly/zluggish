@@ -14,6 +14,7 @@ To use the official Zwift service again:
 To remove the server certificate too:
 
 - On Windows, open **Manage computer certificates**. Under **Trusted Root Certification Authorities → Certificates**, delete **\*.zwift.com** with **Zluggish** in the **Friendly Name**. In `data\cacert.pem` in the Zwift folder, delete the lines from `# BEGIN Zluggish` to `# END Zluggish`.
+- On macOS, open Keychain Access. In the **System** keychain, delete **\*.zwift.com** with **Zluggish** in its organizational unit. In `~/Library/Application Support/Zwift/data/cacert.pem`, delete the certificate you appended.
 - On Linux, delete `zluggish-zwift-*.crt` from the trust store directory, such as `/usr/local/share/ca-certificates`, and run `update-ca-certificates` or `update-ca-trust`. In `data/cacert.pem` of Zwift, delete the lines from `# BEGIN Zluggish` to `# END Zluggish`.
 
 On Android, turn off Virtual Hosts, or remove the DNS setting from the Wi-Fi connection.
