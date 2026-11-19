@@ -3,7 +3,7 @@ import { activityMediaSchema } from '#src/dtos/activities.dto';
 import { ApplicationError } from '#src/errors';
 import { ActivitySchema, FitnessPrivacy, type Activity } from '#src/protocol/generated/activity_pb';
 import { ActivityPrivacyType, Sport, StreaksSchema } from '#src/protocol/generated/profile_pb';
-import { GhostSchema, WA_TYPE, WorldAttributeSchema } from '#src/protocol/generated/udp-node-msgs_pb';
+import { WA_TYPE, WorldAttributeSchema } from '#src/protocol/generated/udp-node-msgs_pb';
 import { ActivitiesRepository } from '#src/repositories/activities.repository';
 import { immediate } from '#src/db/transaction';
 import { Metric, metrics } from '#src/repositories/metrics.repository';
@@ -16,6 +16,7 @@ import { SettingsService } from '#src/services/settings.service';
 import { StreakService } from '#src/services/streak.service';
 import { UploadsService } from '#src/services/uploads.service';
 import { course, worldTime } from '#src/world/state';
+import { StateHistory } from '#src/world/state-history';
 import { clearField, clone, create, toBinary } from '@bufbuild/protobuf';
 import { dirname, resolve } from 'node:path';
 import { Context, Effect, Layer, Option, Schema } from 'effect';
@@ -240,7 +241,7 @@ const make = Effect.gen(function* () {
   function complete(activity: Activity) {
     const player = Number(activity.playerId);
     const id = Number(activity.id);
-    const history = context.world.histories.get(activity.playerId) ?? [];
+    const history = context.world.histories.get(activity.playerId) ?? new StateHistory();
 
     const settings = SettingsService.resolveRiderSettings(context.config.riderDefaults, context.settings.read(player));
 
@@ -285,7 +286,7 @@ const make = Effect.gen(function* () {
 
     // The ghost recording is an optional artifact from memory: written after the
     // commit, off the main thread. A crash before the write loses only the recording.
-    const state = history.at(-1);
+    const state = history.state(-1);
 
     if (state && settings.ghosts.enabled)
       void repositories.filesRepository
@@ -299,7 +300,7 @@ const make = Effect.gen(function* () {
               : [String((state.aux3 >>> 8) & 0xff_ff), ...(state.f19 & 4 ? [] : ['reverse'])]),
             `activity-${activity.id}.bin`,
           ),
-          toBinary(GhostSchema, create(GhostSchema, { playerId: player, states: history })),
+          history.ghost(player),
           true,
         )
         .catch(() => {
@@ -539,18 +540,22 @@ const make = Effect.gen(function* () {
     };
   }
 
-  /** A ready image of an own activity. */
-  function ownImage(player: number, activity: string, image: number) {
+  /** The file of a ready image of an own activity. */
+  function ownImagePath(player: number, activity: string, image: number) {
     const ready = Schema.decodeUnknownSync(Schema.Array(Schema.Struct({ id: Schema.Finite, state: Schema.String })))(
       repositories.activitiesRepository.listActivityImage(player, activity),
     ).some((row) => row.id === image && row.state === 'ready');
 
     const path = resolve(context.profiles.folder(player), 'images', `${image}.jpg`);
 
-    if (!ready || !repositories.filesRepository.existsSync(path))
+    if (
+      !ready ||
+      !repositories.filesRepository.existsSync(path) ||
+      !repositories.filesRepository.statSync(path).isFile()
+    )
       throw new ApplicationError({ status: 404, message: 'Image not found.' });
 
-    return repositories.filesRepository.readFileSync(path);
+    return path;
   }
 
   function recentActivities(...values: Parameters<ActivitiesRepository['recentActivities']>) {
@@ -879,9 +884,13 @@ const make = Effect.gen(function* () {
     ownFit: Effect.fn('ActivitiesService.ownFit')(function* (player: number, id: string) {
       return ownFit(player, id);
     }),
-    /** A ready image of an own activity. */
-    ownImage: Effect.fn('ActivitiesService.ownImage')(function* (player: number, activity: string, image: number) {
-      return ownImage(player, activity, image);
+    /** The file of a ready image of an own activity. */
+    ownImagePath: Effect.fn('ActivitiesService.ownImagePath')(function* (
+      player: number,
+      activity: string,
+      image: number,
+    ) {
+      return ownImagePath(player, activity, image);
     }),
 
     recentActivities: Effect.fn('ActivitiesService.recentActivities')(function* (

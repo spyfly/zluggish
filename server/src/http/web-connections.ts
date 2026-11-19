@@ -1,3 +1,4 @@
+import { IntervalsAthleteId } from '#src/dtos/intervals.dto';
 import { AccountsService } from '#src/services/auth.service';
 import { WebSessionsService } from '#src/services/web-session.service';
 import { UploadsService } from '#src/services/uploads.service';
@@ -104,8 +105,7 @@ export function webConnectionRoutes(app: Hono<WebEnv>, runtime: HttpRuntime) {
       const name = Schema.decodeUnknownSync(provider)(c.req.param('provider'));
       const input = Schema.decodeUnknownSync(credentials)(yield* Effect.promise(() => c.req.json()));
 
-      if (name === 'intervals')
-        Schema.decodeUnknownSync(Schema.String.check(Schema.isPattern(/^\d+$/)))(input.username);
+      if (name === 'intervals') Schema.decodeUnknownSync(IntervalsAthleteId)(input.username);
       const secret = input.secret || (yield* connectionsService.inspect(player, name)).credentials?.[1];
 
       if (!secret) throw new ApplicationError({ status: 400, message: 'Enter a secret.' });

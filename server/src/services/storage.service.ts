@@ -164,19 +164,18 @@ const make = Effect.gen(function* () {
     repositories.storageRepository.deleteZfile(row.id);
   });
 
-  const download = Effect.fn('StorageService.download')(function* (id: number, fileId: string) {
+  const downloadPath = Effect.fn('StorageService.downloadPath')(function* (id: number, fileId: string) {
     const row = owned(id, fileId);
 
-    const contents = repositories.filesRepository.read(
-      resolve(context.profiles.folder(id), safeName(row.folder), safeName(row.filename)),
-    );
+    const path = resolve(context.profiles.folder(id), safeName(row.folder), safeName(row.filename));
 
-    if (!contents) return yield* new ApplicationError({ status: 404 });
+    if (!repositories.filesRepository.existsSync(path) || !repositories.filesRepository.statSync(path).isFile())
+      return yield* new ApplicationError({ status: 404 });
 
-    return contents;
+    return path;
   });
 
-  return { achievements, unlock, attributes, saveAttributes, upload, list, delete: deleteEntry, download };
+  return { achievements, unlock, attributes, saveAttributes, upload, list, delete: deleteEntry, downloadPath };
 });
 
 export class StorageService extends Context.Service<StorageService, Effect.Success<typeof make>>()(

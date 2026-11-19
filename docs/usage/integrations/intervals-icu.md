@@ -8,7 +8,7 @@ description: Get planned workouts from Intervals.icu and TrainingPeaks, and uplo
 ## Intervals.icu
 
 1. Open the [Intervals.icu settings](https://intervals.icu/settings) and go to **Developer Settings**.
-2. Copy the athlete ID and the API key.
+2. Copy the athlete ID, including its `i` prefix if shown, and the API key.
 3. In the web app, go to **Integrations → Intervals.icu**.
 4. Save the athlete ID and the API key.
 

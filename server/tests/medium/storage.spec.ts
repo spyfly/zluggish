@@ -87,6 +87,12 @@ for (const companion of [false, true])
         assert.equal(response2.status, 404);
       }
 
+      // Downloads stream from disk, so a byte range is answered directly.
+      const range = await f.request(`/api/zfiles/${metadata.id}/download`, { headers: { Range: 'bytes=2-4' } });
+      assert.equal(range.status, 206);
+      assert.equal(range.headers.get('Content-Range'), 'bytes 2-4/11');
+      assert.equal(await range.text(), 'pla');
+
       const response3 = await f.request(`/api/zfiles/${metadata.id}`, { method: 'DELETE' }, f.other);
       assert.equal(response3.status, 404);
       const response4 = await f.request(`/api/zfiles/${metadata.id}`, { method: 'DELETE' });

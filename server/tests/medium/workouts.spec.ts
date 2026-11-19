@@ -24,7 +24,7 @@ await test('F07 browser home and Android login share one refresh; saved-token lo
   const f = await mediumFixture(t);
   const browser = await mediumBrowser(f);
   f.effects.runSync(
-    ConnectionsService.use((service) => service.save(f.rider.player_id, 'intervals', ['123', 'medium-key'])),
+    ConnectionsService.use((service) => service.save(f.rider.player_id, 'intervals', ['i123', 'medium-key'])),
   );
   const calls: { url: URL; signal: AbortSignal | null | undefined }[] = [];
 
@@ -37,8 +37,13 @@ await test('F07 browser home and Android login share one refresh; saved-token lo
     );
     await Promise.resolve();
 
-    if (url.pathname.endsWith('/download.zwo')) return new Response(xml);
-    assert.equal(url.pathname, '/api/v1/athlete/123/events');
+    if (url.pathname.endsWith('/download.zwo')) {
+      assert.equal(url.pathname, '/api/v1/athlete/i123/events/42/download.zwo');
+
+      return new Response(xml);
+    }
+
+    assert.equal(url.pathname, '/api/v1/athlete/i123/events');
     assert.equal(url.searchParams.get('oldest'), day);
     assert.equal(url.searchParams.get('newest'), day);
 

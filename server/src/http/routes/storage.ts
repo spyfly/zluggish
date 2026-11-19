@@ -1,4 +1,5 @@
 import { effectRoutes } from '#src/http/effect';
+import { fileResponse } from '#src/http/file-response';
 import { StorageService } from '#src/services/storage.service';
 import { fileUploadSchema } from '#src/dtos/storage.dto';
 import { Effect, Schema } from 'effect';
@@ -139,7 +140,7 @@ export function storageRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
         return c.body(null, 200);
       }
 
-      return c.body(yield* storageService.download(user.player_id, c.req.param('id')));
+      return yield* fileResponse(c, yield* storageService.downloadPath(user.player_id, c.req.param('id')));
     }),
   );
 }

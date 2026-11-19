@@ -241,6 +241,7 @@ await test('synthetic riders carry an FTP: pacers 400, bots and blobs from their
   const owner = f.profiles.get(rider.player_id);
   owner.ftp = 250;
   owner.weightInGrams = 70_000;
+  owner.privacyBits |= 4n;
   f.profiles.save(rider.player_id, owner);
 
   const pacer = resolve(f.accounts.storage, 'robopacers/demo');
@@ -287,14 +288,18 @@ await test('synthetic riders carry an FTP: pacers 400, bots and blobs from their
   const bots = simulation.replays
     .values()
     .filter((replay) => !replay.pacer)
-    .map((replay) => [replay.profile.ftp, replay.profile.weightInGrams] as const)
+    .map((replay) => f.profiles.get(Number(replay.profile.id)))
     .toArray()
-    .sort((a, b) => a[0] - b[0]);
+    .sort((a, b) => a.ftp - b.ftp);
 
-  assert.deepEqual(bots, [
-    [250, 70_000],
-    [300, 80_000],
-  ]);
+  assert.deepEqual(
+    bots.map((bot) => bot.ftp),
+    [250, 300],
+  );
+  assert.equal(bots[0]?.weightInGrams, 70_000);
+  const orphan = bots[1];
+  assert.ok(orphan);
+  assert.equal(orphan.weightInGrams, simulation.replays.get(orphan.id)?.profile.weightInGrams);
 
   const peloton = simulation.pelotons.get('demo');
   assert.ok(peloton);
@@ -310,4 +315,48 @@ await test('synthetic riders carry an FTP: pacers 400, bots and blobs from their
   assert.equal(blob.riders.length, 3);
 
   for (const bot of blob.riders) assert.equal(bot.profile.ftp, 250);
+});
+
+await test('replay bot weights follow changes to the owner’s weight privacy', async (t) => {
+  const f = runtimeFixture(t);
+  const rider = await f.accounts.create('Owner Rider', 'test-password');
+  const owner = f.profiles.get(rider.player_id);
+  owner.weightInGrams = 90_000;
+  owner.privacyBits |= 4n;
+  f.profiles.save(rider.player_id, owner);
+
+  new AssetFiles().writeDurable(
+    resolve(f.profiles.folder(rider.player_id), 'ghosts/6/1/a.bin'),
+    toBinary(
+      GhostSchema,
+      create(GhostSchema, { playerId: 1, states: [create(PlayerStateSchema, { id: 1n, roadTime: 1 })] }),
+    ),
+  );
+
+  const simulation = new Simulation(
+    { ...f, config: validateConfig({ storageDir: f.config.storageDir, bots: { enabled: true } }) },
+    () => 100,
+  );
+
+  t.after(() => simulation.close());
+  await simulation.ready;
+
+  const bot = simulation.replays.values().find((replay) => !replay.pacer);
+  assert.ok(bot);
+  const botId = Number(bot.profile.id);
+  const fallback = bot.profile.weightInGrams;
+  assert.ok(fallback >= 62_000 && fallback <= 86_000);
+  assert.equal(f.profiles.get(botId).weightInGrams, 90_000);
+
+  owner.privacyBits &= ~4n;
+  f.profiles.save(rider.player_id, owner);
+
+  const hidden = f.profiles.get(botId);
+  assert.equal(hidden.weightInGrams, fallback);
+  assert.equal(hidden.privacyBits & 4n, 4n);
+
+  owner.weightInGrams = 95_000;
+  owner.privacyBits |= 4n;
+  f.profiles.save(rider.player_id, owner);
+  assert.equal(f.profiles.get(botId).weightInGrams, 95_000);
 });

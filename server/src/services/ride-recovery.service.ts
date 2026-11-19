@@ -3,6 +3,7 @@ import { RuntimeContext } from '#src/context';
 import type { PlayerState } from '#src/protocol/generated/udp-node-msgs_pb';
 import { RideRecoveryRepository } from '#src/repositories/ride-recovery.repository';
 import { course } from '#src/world/state';
+import { StateHistory } from '#src/world/state-history';
 
 const make = Effect.gen(function* () {
   const context = yield* RuntimeContext;
@@ -42,11 +43,11 @@ const make = Effect.gen(function* () {
 
     for (const [id, history] of context.world.histories) {
       const last = written.get(id) ?? -1n;
-      const fresh = history.filter((state) => state.worldTime > last);
-      const newest = fresh.at(-1);
+      const fresh = history.since(last);
+      const newest = history.worldTime(-1);
 
-      if (!newest) continue;
-      written.set(id, newest.worldTime);
+      if (fresh.length === 0 || newest === undefined) continue;
+      written.set(id, newest);
       appends.push(
         recordings.append(Number(id), fresh).catch(() => {
           context.world.lifecycle.log.warn('ride.recovery_failed', 'Ride recovery checkpoint failed', {
@@ -110,10 +111,11 @@ const make = Effect.gen(function* () {
         continue;
       }
 
-      const current = world.histories.get(id) ?? [];
-      const first = current[0]?.worldTime;
+      const current = world.histories.get(id) ?? new StateHistory();
+      const first = current.worldTime(0);
       const earlier = pending.states.filter((state) => first === undefined || state.worldTime < first);
-      world.histories.set(id, [...earlier, ...current].slice(-14_400));
+      current.prepend(earlier);
+      world.histories.set(id, current);
       const newest = earlier.at(-1);
 
       if (newest) written.set(id, newest.worldTime);

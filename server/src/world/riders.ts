@@ -106,6 +106,7 @@ export class RiderPool {
       lastName: String(id),
       isMale: rng.value() > 0.5,
       weightInGrams: Math.round(rng.between(62, 86) * 1000),
+      privacyBits: 4n,
       heightInMillimeters: Math.round(rng.between(165, 192) * 10),
     });
 

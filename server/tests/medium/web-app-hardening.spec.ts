@@ -473,6 +473,7 @@ await test('riders list, inspect and download only their own activities in the w
   assert.equal(jpg.headers.get('Content-Type'), 'image/jpeg');
   assert.match(jpg.headers.get('Content-Disposition') ?? '', /attachment/);
   assert.deepEqual([...new Uint8Array(await jpg.arrayBuffer())], [0xff, 0xd8, 1]);
+  assert.equal(jpg.headers.get('Content-Length'), '3');
 
   for (const path of [
     `/api/me/activities/${id}`,

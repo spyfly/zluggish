@@ -2,6 +2,7 @@ import { AccountsService } from '#src/services/auth.service';
 import { ImportsService } from '#src/services/profile-import.service';
 import { FilesService } from '#src/services/files.service';
 import { effectRoutes } from '#src/http/effect';
+import { fileResponse } from '#src/http/file-response';
 import { ProfilesService } from '#src/services/profile.service';
 import { profileUpdateSchema } from '#src/dtos/profiles.dto';
 import { parseProtobuf } from '#src/http/protobuf';
@@ -32,9 +33,9 @@ export function profileRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
 
       const path = resolve(yield* profilesService.folder(id), 'avatarLarge.jpg');
 
-      if (!(yield* filesService.exists(path))) throw new HTTPException(404);
+      if (!(yield* filesService.isFile(path))) throw new HTTPException(404);
 
-      return c.body(yield* filesService.read(path), 200, { 'Content-Type': 'image/jpeg' });
+      return yield* fileResponse(c, path, { 'Content-Type': 'image/jpeg' });
     }),
   );
 

@@ -54,6 +54,23 @@ await test('web connections require web authentication and CSRF, isolate riders 
   }
 
   assert.equal(
+    await responseStatus(
+      request('/api/me/connections/intervals', 'PUT', { username: ' i12345 ', secret: 'private-password' }),
+    ),
+    200,
+  );
+  assert.deepEqual(
+    f.effects.runSync(ConnectionsService.use((service) => service.read(f.rider.player_id, 'intervals'))),
+    ['i12345', 'private-password'],
+  );
+  assert.equal(
+    await responseStatus(
+      request('/api/me/connections/intervals', 'PUT', { username: 'abc', secret: 'private-password' }),
+    ),
+    400,
+  );
+
+  assert.equal(
     await responseStatus(request('/api/me/connections/strava/cookie', 'PUT', { cookie: 'private-cookie' })),
     200,
   );
@@ -62,6 +79,7 @@ await test('web connections require web authentication and CSRF, isolate riders 
   assert.ok(!body.includes('private-password'));
   assert.ok(!body.includes('private-cookie'));
   assert.equal(JSON.parse(body).strava.cookie, true);
+  assert.equal(JSON.parse(body).intervals.username, 'i12345');
   assert.deepEqual(f.effects.runSync(ConnectionsService.use((service) => service.read(f.rider.player_id, 'garmin'))), [
     '12345',
     'private-password',

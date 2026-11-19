@@ -1,3 +1,4 @@
+import { isIntervalsAthleteId } from '#src/dtos/intervals.dto';
 import { uuid, metadataSchema, storedEntrySchema, type StoredEntry } from '#src/dtos/workout.dto';
 import { RuntimeContext } from '#src/context';
 import { UnreadableCredentialsError } from '#src/errors';
@@ -355,7 +356,7 @@ const make = Effect.gen(function* () {
     if (!credentials) return 'Intervals.icu credentials are missing.';
     const [athlete, key] = credentials;
 
-    if (!/^\d+$/.test(athlete)) throw new Error('Invalid athlete ID');
+    if (!isIntervalsAthleteId(athlete)) throw new Error('Invalid athlete ID');
 
     const headers = {
       Authorization: `Basic ${Buffer.from(`API_KEY:${key}`).toString('base64')}`,
