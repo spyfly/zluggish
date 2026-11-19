@@ -191,8 +191,8 @@ await test(
       calls
         .filter((call) => call.startsWith('delete-certificate'))
         .map((call) => call.split(' ', 3)[2])
-        .sort(),
-      [legacyCertificate.thumbprint, thumbprint(earlier.cert)].sort(),
+        .sort((a, b) => a.localeCompare(b)),
+      [legacyCertificate.thumbprint, thumbprint(earlier.cert)].sort((a, b) => a.localeCompare(b)),
     );
     assert.ok(
       calls.some((call) =>
