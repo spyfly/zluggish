@@ -212,6 +212,7 @@ try {
         const url = new URL(reference, `http://127.0.0.1:24443${path}`);
         const bundled = await uiRequest(url.pathname);
         assert.equal(bundled.status, 200, `${reference} from ${path}`);
+        await bundled.arrayBuffer();
       }
   }
 
