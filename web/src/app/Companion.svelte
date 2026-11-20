@@ -1,7 +1,8 @@
 <script lang="ts">
+  import type { z } from 'zod';
   import { onMount } from 'svelte';
   import type { CompanionStatus } from './companion';
-  import { megabytes } from './companion';
+  import { companionStatus, megabytes } from './companion';
 
   let {
     api,
@@ -9,7 +10,7 @@
     navigate,
     administrator,
   }: {
-    api: <Body>(url: string) => Promise<Body>;
+    api: <Schema extends z.ZodType>(schema: Schema, url: string) => Promise<z.output<Schema>>;
     /** `/companion` offers the choice, or opens this phone's own system; `/companion/choose` always offers it;
     `/companion/android` and `/companion/ios` open that system. */
     path: string;
@@ -23,7 +24,9 @@
   function detect(): Platform | null {
     const agent = navigator.userAgent;
 
-    if (/iPhone|iPad|iPod/.test(agent) || (/Macintosh/.test(agent) && navigator.maxTouchPoints > 1)) return 'ios';
+    if (/iPhone|iPad|iPod/.test(agent) || (/Macintosh/.test(agent) && navigator.maxTouchPoints > 1)) {
+      return 'ios';
+    }
 
     return /Android/.test(agent) ? 'android' : null;
   }
@@ -62,7 +65,7 @@
 
   onMount(async () => {
     try {
-      status = await api<CompanionStatus>('/api/companion');
+      status = await api(companionStatus, '/api/companion');
     } catch (error) {
       failure = error instanceof Error ? error.message : 'The Companion app could not be loaded.';
     }

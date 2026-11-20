@@ -1,56 +1,60 @@
-/** The Zwift Companion app on this server, as GET /api/companion reports it. */
-export type CompanionStatus = {
-  app: {
-    versionName: string;
-    versionCode: number;
-    bytes: number;
-    createdAt: string;
-    /** False when the server certificate changed since the app was patched. */
-    current: boolean;
-  } | null;
-  tlsMode: 'managed' | 'legacy' | 'custom' | 'disabled';
-  /** The address riders point the Zwift names at. */
-  serverAddress: string;
-};
+import { z } from 'zod';
 
-export type CompanionStep =
-  | 'upload'
-  | 'runtime'
-  | 'editor'
-  | 'inspect'
-  | 'merge'
-  | 'decode'
-  | 'patch'
-  | 'build'
-  | 'sign'
-  | 'publish';
+export const companionStatus = z.object({
+  app: z
+    .object({
+      versionName: z.string(),
+      versionCode: z.number(),
+      bytes: z.number(),
+      createdAt: z.string(),
+      current: z.boolean(),
+    })
+    .nullable(),
+  tlsMode: z.enum(['managed', 'legacy', 'custom', 'disabled']),
+  serverAddress: z.string(),
+});
 
-export type CompanionActivity = {
-  kind: 'toolchain' | 'patch' | 'rekey';
-  /** `waiting`: an upload needs the Java tools, and holds until they are downloaded or it is discarded. */
-  state: 'running' | 'waiting' | 'done' | 'failed';
-  steps: CompanionStep[];
-  step: CompanionStep;
-  progress: number | null;
-  message: string | null;
-  startedAt: string;
-  finishedAt: string | null;
-};
+const companionStep = z.enum([
+  'upload',
+  'runtime',
+  'editor',
+  'inspect',
+  'merge',
+  'decode',
+  'patch',
+  'build',
+  'sign',
+  'publish',
+]);
 
-/** What the administrator sees, from GET /api/manage/companion. */
-export type CompanionAdminStatus = CompanionStatus & {
-  toolchain: {
-    java: { source: 'managed' | 'system'; command: string; version: string } | null;
-    editor: boolean;
-    downloadBytes: number;
-    supported: boolean;
-    folder: string;
-  };
-  activity: CompanionActivity | null;
-  /** True while an upload waits for the Java tools. */
-  pending: boolean;
-  uploadLimit: number;
-};
+const companionActivity = z.object({
+  kind: z.enum(['toolchain', 'patch', 'rekey']),
+  state: z.enum(['running', 'waiting', 'done', 'failed']),
+  steps: z.array(companionStep),
+  step: companionStep,
+  progress: z.number().nullable(),
+  message: z.string().nullable(),
+  startedAt: z.string(),
+  finishedAt: z.string().nullable(),
+});
+
+export const companionAdminStatus = companionStatus.extend({
+  toolchain: z.object({
+    java: z.object({ source: z.enum(['managed', 'system']), command: z.string(), version: z.string() }).nullable(),
+    editor: z.boolean(),
+    downloadBytes: z.number(),
+    supported: z.boolean(),
+    folder: z.string(),
+  }),
+  activity: companionActivity.nullable(),
+  pending: z.boolean(),
+  uploadLimit: z.number(),
+});
+
+export type CompanionStatus = z.infer<typeof companionStatus>;
+export type CompanionStep = z.infer<typeof companionStep>;
+export type CompanionActivity = z.infer<typeof companionActivity>;
+export type CompanionAdminStatus = z.infer<typeof companionAdminStatus>;
 
 /** A file size as riders read it: whole megabytes, or gigabytes from 1 GB. */
 export function megabytes(bytes: number) {

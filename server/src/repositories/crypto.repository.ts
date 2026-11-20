@@ -213,10 +213,12 @@ export class CryptoRepository {
   }
 
   /** The SHA-256 digest of the parts in order, as bytes. */
-  sha256Bytes(...parts: Uint8Array[]) {
+  sha256Bytes(...parts: Array<Uint8Array>) {
     const hash = createHash('sha256');
 
-    for (const part of parts) hash.update(part);
+    for (const part of parts) {
+      hash.update(part);
+    }
 
     return hash.digest();
   }

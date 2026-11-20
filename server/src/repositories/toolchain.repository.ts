@@ -72,7 +72,7 @@ export interface ToolchainState {
 export type ToolchainProgress = (step: 'runtime' | 'editor', fraction: number | null) => void;
 
 /** Runs a command and resolves with its output, or rejects with its last lines. */
-function execute(command: string, args: readonly string[], options: { cwd?: string; signal?: AbortSignal } = {}) {
+function execute(command: string, args: ReadonlyArray<string>, options: { cwd?: string; signal?: AbortSignal } = {}) {
   return new Promise<string>((done, fail) => {
     const child = spawn(command, args, {
       cwd: options.cwd,
@@ -91,8 +91,11 @@ function execute(command: string, args: readonly string[], options: { cwd?: stri
     child.stderr.on('data', keep);
     child.on('error', fail);
     child.on('close', (code) => {
-      if (code === 0) done(output);
-      else fail(new Error(`${command} exited with code ${code}: ${output.trim().split('\n').slice(-8).join('\n')}`));
+      if (code === 0) {
+        done(output);
+      } else {
+        fail(new Error(`${command} exited with code ${code}: ${output.trim().split('\n').slice(-8).join('\n')}`));
+      }
     });
   });
 }
@@ -109,8 +112,7 @@ export class ToolchainRepository {
   private get runtime(): Download | undefined {
     const key = `${platform()}-${arch()}`;
 
-    // SAFETY: Object.hasOwn checked that the key names one of the runtimes.
-    return Object.hasOwn(runtimes, key) ? runtimes[key as keyof typeof runtimes] : undefined;
+    return Object.entries(runtimes).find(([name]) => name === key)?.[1];
   }
 
   private get editorPath() {
@@ -125,9 +127,11 @@ export class ToolchainRepository {
   private async managedJava(): Promise<string | null> {
     const name = platform() === 'win32' ? 'java.exe' : 'java';
 
-    for (const entry of await readdir(this.runtimeFolder, { recursive: true, withFileTypes: true }).catch(() => []))
-      if (entry.name === name && entry.isFile() && entry.parentPath.endsWith('bin'))
+    for (const entry of await readdir(this.runtimeFolder, { recursive: true, withFileTypes: true }).catch(() => [])) {
+      if (entry.name === name && entry.isFile() && entry.parentPath.endsWith('bin')) {
         return join(entry.parentPath, name);
+      }
+    }
 
     return null;
   }
@@ -138,7 +142,9 @@ export class ToolchainRepository {
       const output = await execute(command, ['-version']);
       const version = /version "([^"]+)"/.exec(output)?.[1];
 
-      if (!version) return null;
+      if (!version) {
+        return null;
+      }
       const major = Number(version.startsWith('1.') ? version.split('.', 2)[1] : version.split(/[.+-]/, 1)[0]);
 
       return major >= minimumJava ? version : null;
@@ -153,7 +159,9 @@ export class ToolchainRepository {
     if (managed) {
       const version = await this.probe(managed);
 
-      if (version) return { source: 'managed', command: managed, version };
+      if (version) {
+        return { source: 'managed', command: managed, version };
+      }
     }
 
     this.system ??= this.probe('java').then((version) =>
@@ -188,8 +196,9 @@ export class ToolchainRepository {
     if (!(await this.java())) {
       const runtime = this.runtime;
 
-      if (!runtime)
+      if (!runtime) {
         throw new Error(`No Java runtime is published for ${platform()} on ${arch()}. Install Java 11 or later.`);
+      }
       const archive = resolve(this.folder, runtime.url.endsWith('.zip') ? 'jre.zip' : 'jre.tar.gz');
       const staging = resolve(this.folder, 'jre.staging');
 
@@ -207,10 +216,14 @@ export class ToolchainRepository {
         await rm(staging, { recursive: true, force: true });
       }
 
-      if (!(await this.java())) throw new Error('The downloaded Java runtime does not start on this server.');
+      if (!(await this.java())) {
+        throw new Error('The downloaded Java runtime does not start on this server.');
+      }
     }
 
-    if (await this.exists(this.editorPath)) return;
+    if (await this.exists(this.editorPath)) {
+      return;
+    }
     const temporary = `${this.editorPath}.download`;
 
     try {
@@ -228,10 +241,12 @@ export class ToolchainRepository {
   }
 
   /** Run APKEditor with the arguments, in the folder. */
-  async editor(args: readonly string[], options: { cwd: string; signal: AbortSignal }) {
+  async editor(args: ReadonlyArray<string>, options: { cwd: string; signal: AbortSignal }) {
     const java = await this.java();
 
-    if (!java || !(await this.exists(this.editorPath))) throw new Error('The Java tools are not installed.');
+    if (!java || !(await this.exists(this.editorPath))) {
+      throw new Error('The Java tools are not installed.');
+    }
 
     return execute(java.command, ['-Djava.awt.headless=true', '-jar', this.editorPath, ...args], options);
   }
@@ -239,8 +254,9 @@ export class ToolchainRepository {
   private async download(file: Download, target: string, signal: AbortSignal, progress: (fraction: number) => void) {
     const response = await fetch(file.url, { signal });
 
-    if (!response.ok || !response.body)
+    if (!response.ok || !response.body) {
       throw new Error(`Downloading ${file.url} failed with status ${response.status}.`);
+    }
     let received = 0;
 
     const count = new Transform({
@@ -259,11 +275,12 @@ export class ToolchainRepository {
     });
 
     // SAFETY: fetch returns a WHATWG byte stream; Node and DOM stream declarations differ in their BYOB overloads.
-    await pipeline(Readable.fromWeb(response.body as never), count, createWriteStream(target, { mode: 0o644 }), {
+    await pipeline(Readable.from(response.body), count, createWriteStream(target, { mode: 0o644 }), {
       signal,
     });
 
-    if ((await this.crypto.sha256FileAsync(target)) !== file.sha256)
+    if ((await this.crypto.sha256FileAsync(target)) !== file.sha256) {
       throw new Error(`${file.url} does not match its pinned checksum.`);
+    }
   }
 }

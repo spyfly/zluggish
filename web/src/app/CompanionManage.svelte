@@ -2,14 +2,19 @@
   import { onDestroy, onMount } from 'svelte';
   import { z } from 'zod';
   import type { CompanionActivity, CompanionAdminStatus, CompanionStep } from './companion';
-  import { megabytes } from './companion';
+  import { companionAdminStatus, megabytes } from './companion';
 
   let {
     api,
     navigate,
     csrf,
   }: {
-    api: <Body>(url: string, method?: string, data?: Record<string, never>) => Promise<Body>;
+    api: <Schema extends z.ZodType>(
+      schema: Schema,
+      url: string,
+      method?: string,
+      data?: Record<string, never>,
+    ) => Promise<z.output<Schema>>;
     navigate: (path: string) => Promise<void>;
     /** The current CSRF token, for the upload that bypasses the JSON helper to report progress. */
     csrf: () => string;
@@ -51,7 +56,7 @@
 
   /** What the tracker shows: the upload in flight, or the server's job with the upload done before it. */
   const tracker = $derived.by((): (CompanionActivity & { upload?: boolean }) | null => {
-    if (upload)
+    if (upload) {
       return {
         kind: 'patch',
         state: 'running',
@@ -63,10 +68,13 @@
         finishedAt: null,
         upload: true,
       };
+    }
 
     const activity = admin?.activity;
 
-    if (!activity) return null;
+    if (!activity) {
+      return null;
+    }
 
     return activity.kind === 'patch' ? { ...activity, steps: ['upload', ...activity.steps] } : activity;
   });
@@ -74,23 +82,30 @@
   const summary = $derived.by(() => {
     const activity = tracker;
 
-    if (!activity) return '';
+    if (!activity) {
+      return '';
+    }
 
-    if (activity.state === 'failed') return activity.message ?? 'The job failed.';
+    if (activity.state === 'failed') {
+      return activity.message ?? 'The job failed.';
+    }
 
-    if (activity.state === 'waiting') return 'Waiting for the Java tools';
+    if (activity.state === 'waiting') {
+      return 'Waiting for the Java tools';
+    }
 
-    if (activity.state === 'done')
+    if (activity.state === 'done') {
       return activity.kind === 'toolchain'
         ? 'The Java tools are ready.'
         : `Published Companion ${admin?.app?.versionName ?? ''}. Riders can download it now.`;
+    }
 
     return `${labels[activity.step]}…`;
   });
 
   async function refresh() {
     try {
-      admin = await api<CompanionAdminStatus>('/api/manage/companion');
+      admin = await api(companionAdminStatus, '/api/manage/companion');
     } catch (error) {
       failure = error instanceof Error ? error.message : 'The Companion app could not be loaded.';
     }
@@ -102,15 +117,18 @@
   $effect(() => {
     const running = admin?.activity?.state === 'running';
 
-    if (running && !timer) timer = setInterval(() => void refresh(), 1000);
-    else if (!running && timer) {
+    if (running && !timer) {
+      timer = setInterval(() => void refresh(), 1000);
+    } else if (!running && timer) {
       clearInterval(timer);
       timer = null;
     }
   });
 
   async function act(work: () => Promise<CompanionAdminStatus>, done = '') {
-    if (working) return;
+    if (working) {
+      return;
+    }
     working = true;
     notice = '';
     failure = '';
@@ -125,7 +143,7 @@
     }
   }
 
-  const installTools = () => act(() => api('/api/manage/companion/toolchain', 'POST', {}));
+  const installTools = () => act(() => api(companionAdminStatus, '/api/manage/companion/toolchain', 'POST', {}));
 
   /** Send the file as raw bytes, so the server streams it to disk, with progress from the upload events. */
   function send(file: File) {
@@ -152,7 +170,9 @@
     xhr.setRequestHeader('X-CSRF-Token', csrf());
     xhr.responseType = 'json';
     xhr.upload.onprogress = (event) => {
-      if (upload && event.lengthComputable) upload = { ...upload, progress: event.loaded / event.total };
+      if (upload && event.lengthComputable) {
+        upload = { ...upload, progress: event.loaded / event.total };
+      }
     };
 
     xhr.onload = () => {
@@ -160,8 +180,11 @@
       request = null;
 
       // The job started, or waits for the Java tools: the next status shows which.
-      if (xhr.status === 202) void refresh();
-      else uploadError = failureMessage.safeParse(xhr.response).data?.message ?? `The upload failed (${xhr.status}).`;
+      if (xhr.status === 202) {
+        void refresh();
+      } else {
+        uploadError = failureMessage.safeParse(xhr.response).data?.message ?? `The upload failed (${xhr.status}).`;
+      }
     };
 
     xhr.onerror = () => {
@@ -185,13 +208,17 @@
     dragging = false;
     const file = event.dataTransfer?.files[0];
 
-    if (file && !busy) send(file);
+    if (file && !busy) {
+      send(file);
+    }
   }
 
   onMount(refresh);
 
   onDestroy(() => {
-    if (timer) clearInterval(timer);
+    if (timer) {
+      clearInterval(timer);
+    }
     request?.abort();
   });
 </script>
@@ -322,7 +349,8 @@
           <button
             type="button"
             disabled={working}
-            onclick={() => act(() => api('/api/manage/companion/cancel', 'POST', {}))}>Stop</button
+            onclick={() => act(() => api(companionAdminStatus, '/api/manage/companion/cancel', 'POST', {}))}
+            >Stop</button
           >
         {/if}
       </div>
@@ -349,8 +377,11 @@
         <button
           type="button"
           disabled={working}
-          onclick={() => act(() => api('/api/manage/companion/pending', 'DELETE', {}), 'Discarded the upload.')}
-          >Discard upload</button
+          onclick={() =>
+            act(
+              () => api(companionAdminStatus, '/api/manage/companion/pending', 'DELETE', {}),
+              'Discarded the upload.',
+            )}>Discard upload</button
         >
       </div>
     {/if}
@@ -359,8 +390,11 @@
       <button
         type="button"
         disabled={working || busy}
-        onclick={() => act(() => api('/api/manage/companion/app', 'DELETE', {}), 'Removed the app from this server.')}
-        >Remove the app</button
+        onclick={() =>
+          act(
+            () => api(companionAdminStatus, '/api/manage/companion/app', 'DELETE', {}),
+            'Removed the app from this server.',
+          )}>Remove the app</button
       >
     {/if}
     {#if notice}<p class="hint" role="status">{notice}</p>{/if}
@@ -379,8 +413,11 @@
       <button
         type="button"
         disabled={working || busy}
-        onclick={() => act(() => api('/api/manage/companion/toolchain', 'DELETE', {}), 'Removed the Java tools.')}
-        >Remove Java tools</button
+        onclick={() =>
+          act(
+            () => api(companionAdminStatus, '/api/manage/companion/toolchain', 'DELETE', {}),
+            'Removed the Java tools.',
+          )}>Remove Java tools</button
       >
     {:else if !admin.toolchain.supported}
       <p>

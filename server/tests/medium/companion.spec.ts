@@ -1,3 +1,4 @@
+import { Schema } from 'effect';
 import { ManagementService } from '#src/services/management.service';
 import { TlsService } from '#src/services/tls.service';
 import { mediumWeb } from '#tests/medium/support';
@@ -44,18 +45,39 @@ async function administrator(f: ReturnType<typeof runtimeFixture>) {
   );
 }
 
+const app = Schema.NullOr(Schema.Struct({ versionName: Schema.String, current: Schema.Boolean }));
+const companionStatus = Schema.decodeUnknownSync(Schema.Struct({ app }));
+const companionAdminStatus = Schema.decodeUnknownSync(
+  Schema.Struct({
+    app,
+    activity: Schema.NullOr(
+      Schema.Struct({
+        state: Schema.String,
+        kind: Schema.String,
+        steps: Schema.Array(Schema.String),
+        message: Schema.NullOr(Schema.String),
+      }),
+    ),
+    pending: Schema.Boolean,
+  }),
+);
+
 async function json(request: Response | Promise<Response>) {
   const response = await request;
 
-  return response.json();
+  const body: unknown = await response.json();
+
+  return body;
 }
 
 /** The administrator's status once the running job ends. */
 async function settled(admin: ReturnType<typeof mediumWeb>) {
   for (let attempt = 0; attempt < 200; attempt++) {
-    const status = await json(admin.request('/api/manage/companion'));
+    const status = companionAdminStatus(await json(admin.request('/api/manage/companion')));
 
-    if (status.activity?.state !== 'running') return status;
+    if (status.activity?.state !== 'running') {
+      return status;
+    }
     await sleep(25);
   }
 
@@ -70,7 +92,7 @@ await test('the administrator patches the Companion app and every rider download
   const web = mediumWeb(f, rider);
   const tls = f.effects.runSync(TlsService);
 
-  const empty = await json(web.request('/api/companion'));
+  const empty = companionStatus(await json(web.request('/api/companion')));
   assert.deepEqual(empty.app, null);
   assert.equal(await responseStatus(web.request('/api/companion/app')), 404);
   assert.equal(await responseStatus(web.request('/api/manage/companion')), 403);
@@ -92,11 +114,13 @@ await test('the administrator patches the Companion app and every rider download
   const started = await admin.request('/api/manage/companion/app', 'PUT', patched);
   assert.equal(started.status, 202);
   const done = await settled(admin);
-  assert.equal(done.activity.state, 'done', done.activity.message);
+  assert.ok(done.activity);
+  assert.equal(done.activity.state, 'done', done.activity.message ?? 'The Companion job did not complete');
   assert.deepEqual(done.activity.steps, ['inspect', 'sign', 'publish']);
   assert.ok(existsSync(resolve(f.config.storageDir, 'companion', 'signer.pem')));
 
-  const status = await json(web.request('/api/companion'));
+  const status = companionStatus(await json(web.request('/api/companion')));
+  assert.ok(status.app);
   assert.equal(status.app.versionName, '3.91.0');
   assert.equal(status.app.current, true);
   const download = await web.request('/api/companion/app');
@@ -111,6 +135,8 @@ await test('the administrator patches the Companion app and every rider download
   const second = await f.effects.runPromise(tls.rotate(crypto.randomUUID()));
   await sleep(25);
   const after = await settled(admin);
+  assert.ok(after.activity);
+  assert.ok(after.app);
   assert.equal(after.activity.kind, 'rekey');
   assert.equal(after.app.current, true);
   const again = await web.request('/api/companion/app');
@@ -121,14 +147,16 @@ await test('the administrator patches the Companion app and every rider download
   );
 
   // An app that was never patched needs the Java tools. The server never downloads them unasked: the upload waits.
-  const held = await json(admin.request('/api/manage/companion/app', 'PUT', unpatched));
+  const held = companionAdminStatus(await json(admin.request('/api/manage/companion/app', 'PUT', unpatched)));
+  assert.ok(held.activity);
+  assert.ok(held.app);
   assert.equal(held.activity.state, 'waiting');
   assert.equal(held.pending, true);
   assert.deepEqual(held.activity.steps, ['inspect', 'decode', 'patch', 'build', 'sign', 'publish']);
   assert.equal(held.app.versionName, '3.91.0', 'the published app stays');
   assert.equal(await responseStatus(web.request('/api/manage/companion/pending', 'DELETE', {})), 403);
 
-  const discarded = await json(admin.request('/api/manage/companion/pending', 'DELETE', {}));
+  const discarded = companionAdminStatus(await json(admin.request('/api/manage/companion/pending', 'DELETE', {})));
   assert.equal(discarded.pending, false);
   assert.equal(discarded.activity, null);
 

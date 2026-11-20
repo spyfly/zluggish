@@ -112,8 +112,11 @@ export function mediumWeb(f: ReturnType<typeof runtimeFixture>, rider: User) {
     });
 
     // Fetch sets the multipart boundary itself; raw bytes go up as a file.
-    if (data instanceof Uint8Array) headers.set('Content-Type', 'application/octet-stream');
-    else if (!(data instanceof FormData)) headers.set('Content-Type', 'application/json');
+    if (data instanceof Uint8Array) {
+      headers.set('Content-Type', 'application/octet-stream');
+    } else if (!(data instanceof FormData)) {
+      headers.set('Content-Type', 'application/json');
+    }
 
     return app.request(`http://local:8080${path}`, {
       method,

@@ -79,7 +79,9 @@ export function createWebApp(runtime: HttpRuntime) {
   app.use('*', async (c: Context<WebEnv, string>, next: Next) => {
     const upload = c.req.method === 'POST' && c.req.path === '/api/me/import';
 
-    if (companionUpload(c)) return bodyLimit({ maxSize: companionUploadLimit })(c, next);
+    if (companionUpload(c)) {
+      return bodyLimit({ maxSize: companionUploadLimit })(c, next);
+    }
 
     const avatar =
       c.req.method === 'PUT' &&
@@ -461,7 +463,9 @@ export function createWebApp(runtime: HttpRuntime) {
       const user = yield* sessions.require(c.get('sessionId'));
       const app = yield* companion.download();
 
-      if (!app) throw new ApplicationError({ status: 404, message: 'There is no Companion app on this server yet.' });
+      if (!app) {
+        throw new ApplicationError({ status: 404, message: 'There is no Companion app on this server yet.' });
+      }
       runtime.world.lifecycle.log.info('companion.download', 'A rider downloaded the Zwift Companion app', {
         player: user.player_id,
       });
@@ -824,7 +828,9 @@ export function createWebApp(runtime: HttpRuntime) {
       const companion = yield* CompanionService;
       const body = c.req.raw.body;
 
-      if (!body) throw new ApplicationError({ status: 400, message: 'Choose an APK file to upload.' });
+      if (!body) {
+        throw new ApplicationError({ status: 400, message: 'Choose an APK file to upload.' });
+      }
 
       return c.json(yield* companion.upload(body), 202);
     }),

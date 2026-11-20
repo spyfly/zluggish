@@ -31,8 +31,8 @@ export function binaryManifest(packageName: string, versionName: string, version
   ];
 
   const index = (value: string) => strings.indexOf(value);
-  const offsets: Buffer[] = [];
-  const data: Buffer[] = [];
+  const offsets: Array<Buffer> = [];
+  const data: Array<Buffer> = [];
   let length = 0;
 
   for (const value of strings) {
@@ -72,7 +72,7 @@ export function binaryManifest(packageName: string, versionName: string, version
       u32(value),
     ]);
 
-  const element = (name: string, attributes: Buffer[]) => {
+  const element = (name: string, attributes: Array<Buffer>) => {
     const content = Buffer.concat([
       u32(0xff_ff_ff_ff),
       u32(index(name)),
@@ -103,9 +103,9 @@ export function binaryManifest(packageName: string, versionName: string, version
 }
 
 /** A zip archive. Deflated entries use a data descriptor, as many tools write them, to check that copies drop it. */
-export function zip(entries: [name: string, data: Buffer, deflate: boolean][]) {
-  const local: Buffer[] = [];
-  const central: Buffer[] = [];
+export function zip(entries: Array<[name: string, data: Buffer, deflate: boolean]>) {
+  const local: Array<Buffer> = [];
+  const central: Array<Buffer> = [];
   let offset = 0;
 
   for (const [name, data, deflate] of entries) {

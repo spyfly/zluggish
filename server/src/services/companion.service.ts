@@ -37,7 +37,7 @@ export interface CompanionActivity {
   readonly kind: 'toolchain' | 'patch' | 'rekey';
   /** `waiting`: an upload needs the Java tools, and holds until the administrator downloads them or discards it. */
   readonly state: 'running' | 'waiting' | 'done' | 'failed';
-  readonly steps: readonly CompanionStep[];
+  readonly steps: ReadonlyArray<CompanionStep>;
   readonly step: CompanionStep;
   /** How far the current step is, from 0 to 1, when it can tell. */
   readonly progress: number | null;
@@ -89,7 +89,7 @@ export interface CompanionAdminStatus extends CompanionStatus {
 /** What an upload needs: the certificate entries to swap, or none when its resources must be rebuilt. */
 interface Plan {
   readonly upload: Exclude<ApkUpload, { kind: 'unknown' }>;
-  readonly rekey: readonly string[];
+  readonly rekey: ReadonlyArray<string>;
 }
 
 const make = Effect.gen(function* () {
@@ -117,7 +117,9 @@ const make = Effect.gen(function* () {
   async function published(): Promise<Published | null> {
     const text = await files.readAsync(metaPath);
 
-    if (!text || (await apk.size(appPath)) === null) return null;
+    if (!text || (await apk.size(appPath)) === null) {
+      return null;
+    }
 
     try {
       return Schema.decodeUnknownSync(publishedSchema)(JSON.parse(text.toString('utf8')));
@@ -131,22 +133,27 @@ const make = Effect.gen(function* () {
     const mode = tls.mode();
     const material = tls.material();
 
-    if (mode === 'legacy')
+    if (mode === 'legacy') {
       throw new ApplicationError({
         status: 409,
         message:
           'This server still uses the shared Zwift certificate. Generate a server certificate under Manage → Server first.',
       });
+    }
 
-    if (mode === 'disabled' || !material)
+    if (mode === 'disabled' || !material) {
       throw new ApplicationError({
         status: 409,
         message: 'The Zwift API serves plain HTTP on this server, so there is no certificate for the app to trust.',
       });
+    }
 
-    const pem = /-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/.exec(material.cert)![0] + '\n';
+    const pem = /-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/.exec(material.cert)?.[0];
+    if (!pem) {
+      throw new ApplicationError({ status: 409, message: 'The server certificate contains no PEM certificate.' });
+    }
 
-    return { pem, fingerprint: crypto.certificateFacts(pem).fingerprint256 };
+    return { pem: pem + '\n', fingerprint: crypto.certificateFacts(pem).fingerprint256 };
   }
 
   /** The key that signs every app this server builds, made on first use. Android updates an app only when the
@@ -205,15 +212,20 @@ const make = Effect.gen(function* () {
     };
   }
 
-  function begin(kind: CompanionActivity['kind'], steps: readonly CompanionStep[]) {
-    if (activity?.state === 'running')
+  function begin(kind: CompanionActivity['kind'], steps: ReadonlyArray<CompanionStep>) {
+    if (activity?.state === 'running') {
       throw new ApplicationError({ status: 409, message: 'Wait for the current Companion job to finish.' });
+    }
+    const step = steps[0];
+    if (!step) {
+      throw new Error('A Companion job needs at least one step.');
+    }
     abort = new AbortController();
     activity = {
       kind,
       state: 'running',
       steps,
-      step: steps[0]!,
+      step,
       progress: null,
       message: null,
       startedAt: new Date().toISOString(),
@@ -224,12 +236,16 @@ const make = Effect.gen(function* () {
   }
 
   function advance(step: CompanionStep, progress: number | null = null) {
-    if (activity) activity = { ...activity, step, progress };
+    if (activity) {
+      activity = { ...activity, step, progress };
+    }
   }
 
   /** End the job: done, or failed with the reason the administrator reads. */
   function finish(failure?: string) {
-    if (!activity) return;
+    if (!activity) {
+      return;
+    }
 
     activity = {
       ...activity,
@@ -249,7 +265,7 @@ const make = Effect.gen(function* () {
   }
 
   /** Sign `input` into place as the published app, with the certificate entries replaced. */
-  async function sign(input: string, certificatesIn: readonly string[], pem: string, workspace: string) {
+  async function sign(input: string, certificatesIn: ReadonlyArray<string>, pem: string, workspace: string) {
     const output = resolve(workspace, 'signed.apk');
     const replace = new Map(certificatesIn.map((name) => [name, Buffer.from(pem, 'utf8')]));
 
@@ -257,7 +273,9 @@ const make = Effect.gen(function* () {
 
     const trusted = await apk.trustedCertificates(output);
 
-    if (trusted.length === 0) throw new Error('The rebuilt app does not hold the server certificate.');
+    if (trusted.length === 0) {
+      throw new Error('The rebuilt app does not hold the server certificate.');
+    }
 
     return output;
   }
@@ -292,27 +310,34 @@ const make = Effect.gen(function* () {
   async function inspect(path: string): Promise<Plan> {
     const upload = await apk.inspect(path);
 
-    if (upload.kind === 'unknown')
+    if (upload.kind === 'unknown') {
       throw new ApplicationError({ status: 400, message: 'This is not an APK, APKS, XAPK or APKM file.' });
+    }
 
-    if (upload.kind === 'bundle') return { upload, rekey: [] };
+    if (upload.kind === 'bundle') {
+      return { upload, rekey: [] };
+    }
     const manifest = await apk.manifest(path);
 
-    if (manifest.packageName !== companionPackage)
+    if (manifest.packageName !== companionPackage) {
       throw new ApplicationError({
         status: 400,
         message: `This APK is ${manifest.packageName || 'an unknown app'}, not Zwift Companion (${companionPackage}).`,
       });
+    }
 
-    if (manifest.minSdk < 24)
+    if (manifest.minSdk < 24) {
       throw new ApplicationError({ status: 400, message: 'This Companion version is too old. Upload a newer one.' });
+    }
 
     return { upload, rekey: await apk.trustedCertificates(path) };
   }
 
   /** The steps a job takes for an upload, after it is received. */
-  function stepsFor(plan: Plan): CompanionStep[] {
-    if (plan.rekey.length > 0) return ['inspect', 'sign', 'publish'];
+  function stepsFor(plan: Plan): Array<CompanionStep> {
+    if (plan.rekey.length > 0) {
+      return ['inspect', 'sign', 'publish'];
+    }
 
     return [
       'inspect',
@@ -334,9 +359,13 @@ const make = Effect.gen(function* () {
     const held = pending;
     pending = null;
 
-    if (activity?.state === 'waiting') activity = null;
+    if (activity?.state === 'waiting') {
+      activity = null;
+    }
 
-    if (held) await apk.removeTree(held.workspace);
+    if (held) {
+      await apk.removeTree(held.workspace);
+    }
   }
 
   async function patch(path: string, workspace: string, plan: Plan, signal: AbortSignal) {
@@ -354,8 +383,9 @@ const make = Effect.gen(function* () {
 
       const tools = await toolchain.state();
 
-      if (!tools.java || !tools.editor)
+      if (!tools.java || !tools.editor) {
         throw new Error('The Java tools are no longer installed. Upload the app again.');
+      }
 
       let source = path;
 
@@ -367,10 +397,13 @@ const make = Effect.gen(function* () {
         await toolchain.editor(['m', '-i', splits, '-o', source, '-f'], { cwd: workspace, signal });
         const merged = await apk.manifest(source);
 
-        if (merged.packageName !== companionPackage)
+        if (merged.packageName !== companionPackage) {
           throw new Error(`The bundle holds ${merged.packageName || 'an unknown app'}, not Zwift Companion.`);
+        }
 
-        if (merged.minSdk < 24) throw new Error('This Companion version is too old. Upload a newer one.');
+        if (merged.minSdk < 24) {
+          throw new Error('This Companion version is too old. Upload a newer one.');
+        }
       }
 
       advance('decode');
@@ -399,7 +432,9 @@ const make = Effect.gen(function* () {
   async function rekeyPublished() {
     const app = await published();
 
-    if (!app) return;
+    if (!app) {
+      return;
+    }
 
     if (activity?.state === 'running') {
       rekeyAfter = true;
@@ -415,7 +450,9 @@ const make = Effect.gen(function* () {
       return;
     }
 
-    if (app.certificate === current.fingerprint) return;
+    if (app.certificate === current.fingerprint) {
+      return;
+    }
     begin('rekey', ['sign', 'publish']);
     const workspace = await apk.workspace();
 
@@ -457,8 +494,9 @@ const make = Effect.gen(function* () {
     needs the Java tools waits for them instead: the server never downloads them unasked.
     */
     upload: Effect.fn('CompanionService.upload')(function* (body: ReadableStream<Uint8Array>) {
-      if (activity?.state === 'running')
+      if (activity?.state === 'running') {
         throw new ApplicationError({ status: 409, message: 'Wait for the current Companion job to finish.' });
+      }
       serverCertificate();
       yield* Effect.promise(discardPending);
 
@@ -496,13 +534,16 @@ const make = Effect.gen(function* () {
           startedAt: new Date().toISOString(),
           finishedAt: null,
         };
-      } else start({ path, workspace, plan });
+      } else {
+        start({ path, workspace, plan });
+      }
 
       return yield* Effect.promise(adminStatus);
     }),
     remove: Effect.fn('CompanionService.remove')(function* () {
-      if (activity?.state === 'running')
+      if (activity?.state === 'running') {
         throw new ApplicationError({ status: 409, message: 'Wait for the current Companion job to finish.' });
+      }
       yield* Effect.promise(async () => {
         await files.removeAsync(appPath);
         await files.removeAsync(metaPath);
@@ -526,7 +567,9 @@ const make = Effect.gen(function* () {
           const held = pending;
           pending = null;
 
-          if (held) start(held);
+          if (held) {
+            start(held);
+          }
         } catch (error) {
           log.warn('companion.toolchain_failed', 'Downloading the Java tools failed', {
             error: error instanceof Error ? error : String(error),
@@ -539,15 +582,17 @@ const make = Effect.gen(function* () {
     }),
     /** Drop the upload that waits for the Java tools. */
     discard: Effect.fn('CompanionService.discard')(function* () {
-      if (activity?.state === 'running' && activity.kind !== 'toolchain')
+      if (activity?.state === 'running' && activity.kind !== 'toolchain') {
         throw new ApplicationError({ status: 409, message: 'Wait for the current Companion job to finish.' });
+      }
       yield* Effect.promise(discardPending);
 
       return yield* Effect.promise(adminStatus);
     }),
     removeToolchain: Effect.fn('CompanionService.removeToolchain')(function* () {
-      if (activity?.state === 'running')
+      if (activity?.state === 'running') {
         throw new ApplicationError({ status: 409, message: 'Wait for the current Companion job to finish.' });
+      }
       yield* Effect.promise(() => toolchain.remove());
       activity = null;
       log.info('companion.toolchain_removed', 'Removed the Java tools', { folder: toolchain.folder });

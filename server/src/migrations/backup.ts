@@ -131,7 +131,9 @@ async function copyTree(
     }
     const from = resolve(source, entry.name);
 
-    if (excludedBackupPath(relative(root, from))) continue;
+    if (excludedBackupPath(relative(root, from))) {
+      continue;
+    }
     const to = resolve(target, entry.name);
 
     if (entry.isDirectory()) {

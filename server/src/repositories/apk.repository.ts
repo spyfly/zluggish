@@ -50,7 +50,7 @@ export interface RewriteOptions {
 }
 
 /** What an uploaded file holds: one APK, or a bundle of split APKs (.apks, .xapk or .apkm). */
-export type ApkUpload = { kind: 'apk' } | { kind: 'bundle'; apks: readonly string[] } | { kind: 'unknown' };
+export type ApkUpload = { kind: 'apk' } | { kind: 'bundle'; apks: ReadonlyArray<string> } | { kind: 'unknown' };
 
 const eocdSignature = 0x06_05_4b_50;
 const centralSignature = 0x02_01_4b_50;
@@ -93,7 +93,7 @@ const u64 = (value: number) => {
 };
 
 /** A length-prefixed value, as every field of a v2 signature block is. */
-const prefixed = (...parts: Uint8Array[]) => {
+const prefixed = (...parts: Array<Uint8Array>) => {
   const body = Buffer.concat(parts);
 
   return Buffer.concat([u32(body.length), body]);
@@ -107,7 +107,9 @@ async function readAt(handle: FileHandle, position: number, length: number) {
   const buffer = Buffer.alloc(length);
   const { bytesRead } = await handle.read(buffer, 0, length, position);
 
-  if (bytesRead !== length) throw new Error('The archive ends early');
+  if (bytesRead !== length) {
+    throw new Error('The archive ends early');
+  }
 
   return buffer;
 }
@@ -118,26 +120,32 @@ async function centralDirectory(handle: FileHandle) {
   const tail = await readAt(handle, size - tailLength, tailLength);
   let at = -1;
 
-  for (let index = tail.length - 22; index >= 0; index--)
+  for (let index = tail.length - 22; index >= 0; index--) {
     if (tail.readUInt32LE(index) === eocdSignature) {
       at = index;
       break;
     }
+  }
 
-  if (at === -1) throw new Error('The file is not a zip archive');
+  if (at === -1) {
+    throw new Error('The file is not a zip archive');
+  }
   const count = tail.readUInt16LE(at + 10);
   const length = tail.readUInt32LE(at + 12);
   const offset = tail.readUInt32LE(at + 16);
 
-  if (count === 0xff_ff || length === 0xff_ff_ff_ff || offset === 0xff_ff_ff_ff)
+  if (count === 0xff_ff || length === 0xff_ff_ff_ff || offset === 0xff_ff_ff_ff) {
     throw new Error('Zip64 archives are not supported');
+  }
 
   const directory = await readAt(handle, offset, length);
-  const entries: ZipEntry[] = [];
+  const entries: Array<ZipEntry> = [];
   let position = 0;
 
   for (let index = 0; index < count; index++) {
-    if (directory.readUInt32LE(position) !== centralSignature) throw new Error('The zip directory is damaged');
+    if (directory.readUInt32LE(position) !== centralSignature) {
+      throw new Error('The zip directory is damaged');
+    }
     const nameLength = directory.readUInt16LE(position + 28);
     const extraLength = directory.readUInt16LE(position + 30);
     const commentLength = directory.readUInt16LE(position + 32);
@@ -169,7 +177,9 @@ async function centralDirectory(handle: FileHandle) {
 async function dataOffset(handle: FileHandle, entry: ZipEntry) {
   const header = await readAt(handle, entry.localOffset, 30);
 
-  if (header.readUInt32LE(0) !== localSignature) throw new Error(`The zip entry ${entry.name} is damaged`);
+  if (header.readUInt32LE(0) !== localSignature) {
+    throw new Error(`The zip entry ${entry.name} is damaged`);
+  }
 
   return entry.localOffset + 30 + header.readUInt16LE(26) + header.readUInt16LE(28);
 }
@@ -177,18 +187,22 @@ async function dataOffset(handle: FileHandle, entry: ZipEntry) {
 async function readEntry(handle: FileHandle, entry: ZipEntry) {
   const raw = await readAt(handle, await dataOffset(handle, entry), entry.compressedSize);
 
-  if (entry.method === 0) return raw;
+  if (entry.method === 0) {
+    return raw;
+  }
 
-  if (entry.method === 8) return inflateRawSync(raw);
+  if (entry.method === 8) {
+    return inflateRawSync(raw);
+  }
 
   throw new Error(`The zip entry ${entry.name} uses an unsupported compression method`);
 }
 
 /** A reader for Android's binary XML, enough for the manifest's package, version and minimum SDK. */
 function readBinaryXml(buffer: Buffer) {
-  let strings: string[] = [];
-  let resourceIds: number[] = [];
-  const elements: { name: string; attributes: Map<string | number, string | number> }[] = [];
+  let strings: Array<string> = [];
+  let resourceIds: Array<number> = [];
+  const elements: Array<{ name: string; attributes: Map<string | number, string | number> }> = [];
   let position = 8;
 
   while (position + 8 <= buffer.length) {
@@ -196,7 +210,9 @@ function readBinaryXml(buffer: Buffer) {
     const headerSize = buffer.readUInt16LE(position + 2);
     const size = buffer.readUInt32LE(position + 4);
 
-    if (size < 8) break;
+    if (size < 8) {
+      break;
+    }
 
     switch (type) {
       case 0x00_01: {
@@ -216,7 +232,9 @@ function readBinaryXml(buffer: Buffer) {
             if (length & 0x80) {
               length = ((length & 0x7f) << 8) | (buffer[at + 1] ?? 0);
               at += 2;
-            } else at += 1;
+            } else {
+              at += 1;
+            }
             strings.push(buffer.toString('utf8', at, at + length));
           } else {
             let length = buffer.readUInt16LE(at);
@@ -237,7 +255,9 @@ function readBinaryXml(buffer: Buffer) {
       case 0x01_80: {
         resourceIds = [];
 
-        for (let at = position + 8; at < position + size; at += 4) resourceIds.push(buffer.readUInt32LE(at));
+        for (let at = position + 8; at < position + size; at += 4) {
+          resourceIds.push(buffer.readUInt32LE(at));
+        }
 
         break;
       }
@@ -258,7 +278,9 @@ function readBinaryXml(buffer: Buffer) {
           // Obfuscated manifests may blank attribute names; their resource IDs remain.
           const id = resourceIds[nameIndex];
 
-          if (id !== undefined) attributes.set(id, value);
+          if (id !== undefined) {
+            attributes.set(id, value);
+          }
           attributes.set(strings[nameIndex] ?? '', value);
         }
 
@@ -287,7 +309,9 @@ export class ApkRepository {
       const entries = await centralDirectory(handle);
       const names = entries.map((entry) => entry.name);
 
-      if (names.includes('AndroidManifest.xml')) return { kind: 'apk' };
+      if (names.includes('AndroidManifest.xml')) {
+        return { kind: 'apk' };
+      }
       const apks = names.filter((name) => name.endsWith('.apk') && !name.includes('/'));
 
       return apks.length > 0 ? { kind: 'bundle', apks } : { kind: 'unknown' };
@@ -306,7 +330,9 @@ export class ApkRepository {
       await mkdir(folder, { recursive: true });
 
       for (const entry of await centralDirectory(handle)) {
-        if (!entry.name.endsWith('.apk') || entry.name.includes('/')) continue;
+        if (!entry.name.endsWith('.apk') || entry.name.includes('/')) {
+          continue;
+        }
         const start = await dataOffset(handle, entry);
         const target = resolve(folder, entry.name);
 
@@ -334,7 +360,9 @@ export class ApkRepository {
       const entries = await centralDirectory(handle);
       const entry = entries.find((candidate) => candidate.name === 'AndroidManifest.xml');
 
-      if (!entry) throw new Error('The APK has no manifest');
+      if (!entry) {
+        throw new Error('The APK has no manifest');
+      }
       const elements = readBinaryXml(await readEntry(handle, entry));
       const root = elements.find((element) => element.name === 'manifest');
       const sdk = elements.find((element) => element.name === 'uses-sdk');
@@ -358,14 +386,18 @@ export class ApkRepository {
     const handle = await open(path, 'r');
 
     try {
-      const found: string[] = [];
+      const found: Array<string> = [];
 
       for (const entry of await centralDirectory(handle)) {
-        if (!entry.name.startsWith('res/raw/') || entry.size > 16_384) continue;
+        if (!entry.name.startsWith('res/raw/') || entry.size > 16_384) {
+          continue;
+        }
 
         const contents = await readEntry(handle, entry);
 
-        if (contents.includes('-----BEGIN CERTIFICATE-----')) found.push(entry.name);
+        if (contents.includes('-----BEGIN CERTIFICATE-----')) {
+          found.push(entry.name);
+        }
       }
 
       return found;
@@ -389,7 +421,7 @@ export class ApkRepository {
     try {
       const entries = await centralDirectory(source);
       const replace = options.replace ?? new Map<string, Uint8Array>();
-      const central: Buffer[] = [];
+      const central: Array<Buffer> = [];
       let position = 0;
 
       const write = async (data: Uint8Array) => {
@@ -431,8 +463,13 @@ export class ApkRepository {
           ]),
         );
 
-        if (data instanceof Uint8Array) await write(data);
-        else for await (const chunk of data) await write(chunk);
+        if (data instanceof Uint8Array) {
+          await write(data);
+        } else {
+          for await (const chunk of data) {
+            await write(chunk);
+          }
+        }
 
         central.push(
           Buffer.concat([
@@ -459,7 +496,9 @@ export class ApkRepository {
       };
 
       for (const entry of entries) {
-        if (replace.has(entry.name) || options.drop?.(entry.name) || isJarSignature(entry.name)) continue;
+        if (replace.has(entry.name) || options.drop?.(entry.name) || isJarSignature(entry.name)) {
+          continue;
+        }
 
         const mustStore =
           entry.name === 'resources.arsc' || (entry.name.startsWith('lib/') && entry.name.endsWith('.so'));
@@ -534,19 +573,22 @@ export class ApkRepository {
   }
 
   /** The CHUNKED_SHA256 digest of the zip entries (read from the file) and the given trailing sections. */
-  private async digest(handle: FileHandle, entriesLength: number, sections: readonly Buffer[]) {
-    const chunks: Buffer[] = [];
+  private async digest(handle: FileHandle, entriesLength: number, sections: ReadonlyArray<Buffer>) {
+    const chunks: Array<Buffer> = [];
 
     const chunk = (bytes: Uint8Array) => {
       chunks.push(this.crypto.sha256Bytes(Buffer.from([0xa5]), u32(bytes.length), bytes));
     };
 
-    for (let offset = 0; offset < entriesLength; offset += chunkSize)
+    for (let offset = 0; offset < entriesLength; offset += chunkSize) {
       chunk(await readAt(handle, offset, Math.min(chunkSize, entriesLength - offset)));
+    }
 
-    for (const section of sections)
-      for (let offset = 0; offset < section.length; offset += chunkSize)
+    for (const section of sections) {
+      for (let offset = 0; offset < section.length; offset += chunkSize) {
         chunk(section.subarray(offset, offset + chunkSize));
+      }
+    }
 
     return this.crypto.sha256Bytes(Buffer.from([0x5a]), u32(chunks.length), ...chunks);
   }
@@ -585,7 +627,9 @@ export class ApkRepository {
     let manifest = await readFile(manifestPath, 'utf8');
     const res = await this.resourceFolder(folder);
 
-    if (!res) throw new Error('The decoded APK has no res/values/public.xml');
+    if (!res) {
+      throw new Error('The decoded APK has no res/values/public.xml');
+    }
     const publicPath = resolve(res, 'values', 'public.xml');
     let publicXml = await readFile(publicPath, 'utf8');
     const config = /android:networkSecurityConfig="@xml\/([\w.]+)"/.exec(manifest)?.[1];
@@ -598,7 +642,9 @@ export class ApkRepository {
 
     /** Declare a new resource with the next free ID of its type, or of a new type after the last one. */
     const declare = (type: string, name: string) => {
-      if (declared(type, name)) return;
+      if (declared(type, name)) {
+        return;
+      }
 
       const ids = publicXml
         .matchAll(/<public\b[^>]*>/g)
@@ -663,11 +709,12 @@ export class ApkRepository {
     const remoteConfig = resolve(res, 'xml', 'remote_config_defaults.xml');
     const defaults = await readFile(remoteConfig, 'utf8').catch(() => null);
 
-    if (defaults !== null)
+    if (defaults !== null) {
       await writeFile(
         remoteConfig,
         defaults.replace(/(<key>react_native_fitness_view<\/key>\s*<value>)false(<\/value>)/, '$1true$2'),
       );
+    }
   }
 
   /** The res folder of a decoded APK: the one holding values/public.xml. */
@@ -679,7 +726,9 @@ export class ApkRepository {
 
       const values = join(entry.parentPath, '..');
 
-      if (entry.parentPath.endsWith('values')) return resolve(values);
+      if (entry.parentPath.endsWith('values')) {
+        return resolve(values);
+      }
     }
 
     return null;
@@ -707,7 +756,7 @@ export class ApkRepository {
 
     try {
       // SAFETY: Hono hands over a WHATWG byte stream; Node and DOM stream declarations differ in their BYOB overloads.
-      await pipeline(Readable.fromWeb(body as never), count, createWriteStream(path, { flags: 'wx', mode: 0o600 }));
+      await pipeline(Readable.from(body), count, createWriteStream(path, { flags: 'wx', mode: 0o600 }));
     } catch (error) {
       await rm(path, { force: true });
       throw error;
@@ -723,7 +772,9 @@ export class ApkRepository {
     try {
       await rename(from, to);
     } catch (error) {
-      if (!(error instanceof Error && 'code' in error && error.code === 'EXDEV')) throw error;
+      if (!(error instanceof Error && 'code' in error && error.code === 'EXDEV')) {
+        throw error;
+      }
       const staged = `${to}.${this.crypto.randomUUID()}.tmp`;
 
       try {

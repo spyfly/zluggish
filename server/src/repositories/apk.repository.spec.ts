@@ -50,9 +50,9 @@ function verifyV2(archive: Buffer) {
   const digest = prefixed(prefixed(prefixed(signedData.value, 0).value, 0).value, 4).value;
   const end = Buffer.from(archive.subarray(eocd));
   end.writeUInt32LE(block, 16);
-  const chunks: Buffer[] = [];
+  const chunks: Array<Buffer> = [];
 
-  for (const section of [archive.subarray(0, block), archive.subarray(directory, eocd), end])
+  for (const section of [archive.subarray(0, block), archive.subarray(directory, eocd), end]) {
     for (let at = 0; at < section.length; at += 1024 * 1024) {
       const chunk = section.subarray(at, at + 1024 * 1024);
       chunks.push(
@@ -63,6 +63,7 @@ function verifyV2(archive: Buffer) {
           .digest(),
       );
     }
+  }
 
   const expected = createHash('sha256')
     .update(Buffer.from([0x5a]))
@@ -162,10 +163,15 @@ await test('swaps the trusted certificate, aligns stored entries and signs with 
   for (const [name, entry] of entries) {
     assert.equal(entry.flags & 0x08, 0, `${name} needs no data descriptor`);
 
-    if (name.endsWith('.so') || name === 'resources.arsc') assert.equal(entry.method, 0, `${name} is stored`);
+    if (name.endsWith('.so') || name === 'resources.arsc') {
+      assert.equal(entry.method, 0, `${name} is stored`);
+    }
 
-    if (name.endsWith('.so')) assert.equal(entry.start % 16_384, 0, `${name} starts on a 16 KB page`);
-    else if (entry.method === 0) assert.equal(entry.start % 4, 0, `${name} is 4-byte aligned`);
+    if (name.endsWith('.so')) {
+      assert.equal(entry.start % 16_384, 0, `${name} starts on a 16 KB page`);
+    } else if (entry.method === 0) {
+      assert.equal(entry.start % 4, 0, `${name} is 4-byte aligned`);
+    }
   }
 
   // A second pass over its own output, as after a certificate rotation, keeps the signer.
