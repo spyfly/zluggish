@@ -1,5 +1,5 @@
 import { UnreadableCredentialsError } from '#src/errors';
-import * as argon2 from 'argon2';
+import { argon2id, hash as argon2Hash, verify as argon2Verify } from 'argon2';
 import {
   createHash,
   createHmac,
@@ -79,7 +79,7 @@ export class CryptoRepository {
     if (!hash?.startsWith('$argon2id$') || !password) return false;
 
     try {
-      return await argon2.verify(hash, password);
+      return await argon2Verify(hash, password);
     } catch {
       return false;
     }
@@ -102,7 +102,7 @@ export class CryptoRepository {
   }
 
   async hashPassword(password: string) {
-    return argon2.hash(password, { type: argon2.argon2id, memoryCost: 65_536, timeCost: 3, parallelism: 1 });
+    return argon2Hash(password, { type: argon2id, memoryCost: 65_536, timeCost: 3, parallelism: 1 });
   }
 
   encryptCredentials(key: Uint8Array, credentials: readonly [string, string], iv = randomBytes(16)) {

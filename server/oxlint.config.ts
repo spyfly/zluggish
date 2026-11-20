@@ -5,7 +5,6 @@ const migrationRules = {
   '@nkzw/no-instanceof': 'off', // Temporary during migration
   curly: 'off', // Temporary during migration
   'import/consistent-type-specifier-style': 'off', // Temporary during migration
-  'import/no-namespace': 'off', // Temporary during migration
   'no-console': 'off', // Temporary during migration
   'no-promise-executor-return': 'off', // Temporary during migration
   'no-undef': 'off', // Temporary during migration
