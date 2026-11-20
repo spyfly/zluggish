@@ -2,7 +2,6 @@ import cloudflare from '@cloudflare/oxlint-config';
 import { defineConfig } from 'oxlint';
 
 const migrationRules = {
-  '@nkzw/no-instanceof': 'off', // Temporary during migration
   curly: 'off', // Temporary during migration
   'no-promise-executor-return': 'off', // Temporary during migration
   'typescript/array-type': 'off', // Temporary during migration
@@ -42,6 +41,8 @@ export default defineConfig({
     'unicorn/prefer-single-call': 'off',
     // The project has no React; this flags Effect's Service.use and local use callbacks.
     'react-hooks/rules-of-hooks': 'off',
+    // File, Blob, FormData, Uint8Array and Error checks have no structural alternative.
+    '@nkzw/no-instanceof': 'off',
     ...migrationRules,
   },
   overrides: [
