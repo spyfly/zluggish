@@ -12,4 +12,4 @@ IPv6 is optional. It is not fully tested on all platforms.
 3. Make the firewall rules and the client host entries agree with that address.
 4. Start the server again.
 
-The old `ZOFFLINE_SERVER_HOST` variable and the Python `run_ipv6.bat` script do not apply to Zluggish.
+The old `ZOFFLINE_SERVER_HOST` variable and the `run_ipv6.bat` script do not apply to Zluggish.

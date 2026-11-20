@@ -1,24 +1,25 @@
 ---
-sidebar_position: 4
+sidebar_position: 5
 description: Set up a rooted Android device to ride on your Zluggish server.
 ---
 
 # Android (rooted)
 
-This procedure redirects Zwift to Zluggish and makes Zwift accept the self-signed Zluggish certificate. You can make your own certificates and use them in the same way.
+This procedure makes Zwift trust the [server certificate](../certificate.md) and redirects Zwift to Zluggish.
 
 ## Add the certificate
 
 1. Install Zwift on the device.
 2. Start Zwift once, so that it downloads all the extra files. The file `cacert.pem` exists only after this first start.
-3. Add the contents of [cert-zwift-com.pem](https://github.com/zluggish/zluggish/raw/main/assets/ssl/cert-zwift-com.pem) to the end of `/data/data/com.zwift.zwiftgame/dataES/cacert.pem`.
+3. In the Zluggish web app, select **Install** in the menu. If it opens a setup, select **Choose another system**. Under the system buttons, select **certificate** to download it as a `.crt` file.
+4. Add the contents of the `.crt` file to the end of `/data/data/com.zwift.zwiftgame/dataES/cacert.pem`.
 
 If the device has no text editor, use `adb`:
 
 1. Copy the certificate to the device:
 
    ```sh
-   adb push assets/ssl/cert-zwift-com.pem /data/data/com.zwift.zwiftgame/dataES/
+   adb push zluggish-zwift-*.crt /data/data/com.zwift.zwiftgame/dataES/zluggish.crt
    ```
 
 2. Open a shell on the device with `adb shell`.
@@ -31,7 +32,7 @@ If the device has no text editor, use `adb`:
 4. Add the certificate to the file:
 
    ```sh
-   cat cert-zwift-com.pem >> cacert.pem
+   cat zluggish.crt >> cacert.pem
    ```
 
 :::warning

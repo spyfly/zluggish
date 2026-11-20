@@ -25,6 +25,7 @@ import { JobsService } from '#src/services/jobs.service';
 import { ImportsService } from '#src/services/profile-import.service';
 import { DurabilityService } from '#src/services/durability.service';
 import { BackupService } from '#src/services/backup.service';
+import { TlsService } from '#src/services/tls.service';
 import { RetentionService } from '#src/services/retention.service';
 import { UploadsService } from '#src/services/uploads.service';
 import { ActivitiesService } from '#src/services/activities.service';
@@ -54,6 +55,7 @@ const foundationLayer = Layer.mergeAll(
   ProfileJsonService.layer,
   FilesService.layer,
   DocumentsService.layer,
+  TlsService.layer,
 );
 
 /** Uploads, which the account and activity services cancel and query, and the chat that bridges share. */
@@ -106,6 +108,7 @@ export type AppServices =
   | DurabilityService
   | RetentionService
   | BackupService
+  | TlsService
   | StreakService
   | FitService
   | AchievementService

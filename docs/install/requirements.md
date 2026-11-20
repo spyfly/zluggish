@@ -21,10 +21,11 @@ To run from source without Docker, use Node.js 26 and pnpm 12. See [Run the CLI 
 
 ## Client
 
-You must patch the Zwift client. Windows and macOS are the easiest platforms.
+You must patch the Zwift client. Windows, macOS and Linux have a setup script in the web app.
 
 - [Windows](clients/windows.md)
 - [macOS](clients/macos.md)
+- [Linux](clients/linux.md)
 - [Android](clients/android.md). Android needs manual patching.
 
 iPhone and iPad clients are not supported.

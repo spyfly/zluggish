@@ -42,6 +42,8 @@ export interface GamePageModel {
   back?: { href: string; label: string };
   message?: string;
   failed?: boolean;
+  /** A security problem with the server that every rider should see, such as the shared certificate. */
+  warning?: string;
   errorStatus?: 400 | 403 | 409;
 }
 
