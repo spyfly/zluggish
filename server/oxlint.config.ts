@@ -28,7 +28,6 @@ const migrationRules = {
   'unicorn/prefer-import-meta-properties': 'off', // Temporary during migration
   'unicorn/prefer-single-call': 'off', // Temporary during migration
   'unicorn/prefer-string-raw': 'off', // Temporary during migration
-  'unicorn/prefer-structured-clone': 'off', // Temporary during migration
 } as const;
 
 export default defineConfig({

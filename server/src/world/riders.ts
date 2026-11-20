@@ -89,6 +89,8 @@ export class RiderPool {
         mergeFromJson(PlayerProfileSchema, profile, { [field]: body[field] });
     }
 
+    // The JSON round trip yields the JSON form mergeFromJson expects; structuredClone would keep non-JSON values.
+    // oxlint-disable-next-line unicorn/prefer-structured-clone
     mergeFromJson(PlayerProfileSchema, profile, JSON.parse(JSON.stringify(equipment)));
   }
 
