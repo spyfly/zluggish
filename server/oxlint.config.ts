@@ -1,20 +1,13 @@
 import cloudflare from '@cloudflare/oxlint-config';
 import { defineConfig } from 'oxlint';
 
-const migrationRules = {} as const;
-
 export default defineConfig({
   ...cloudflare,
-  ignorePatterns: [
-    ...(cloudflare.ignorePatterns ?? []),
-    '**/dist/**',
-    'src/protocol/generated/**',
-    '.agents/**',
-    '.codex/**',
-  ],
+  ignorePatterns: [...(cloudflare.ignorePatterns ?? []), '**/dist/**', 'src/protocol/generated/**'],
   options: {
     ...cloudflare.options,
-    reportUnusedDisableDirectives: 'off', // Temporary during migration
+    // ESLint still runs Unicorn rules Oxlint lacks, and it reports its own unused eslint-disable directives.
+    reportUnusedDisableDirectives: 'off',
   },
   rules: {
     ...cloudflare.rules,
@@ -31,7 +24,6 @@ export default defineConfig({
     '@nkzw/no-instanceof': 'off',
     // ESLint's Unicorn rule covers server code; this port also reports closures over Svelte component state.
     'unicorn/consistent-function-scoping': 'off',
-    ...migrationRules,
   },
   overrides: [
     ...(cloudflare.overrides ?? []),
@@ -76,7 +68,5 @@ export default defineConfig({
         $state: 'readonly',
       },
     },
-    // Inherited overrides re-enable some migration rules for TypeScript and test files.
-    { files: ['**/*'], rules: migrationRules },
   ],
 });
