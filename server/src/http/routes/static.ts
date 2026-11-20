@@ -25,16 +25,21 @@ export function staticRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
     ),
   );
 
-  for (const route of routes)
+  for (const route of routes) {
     app.on([...route.methods], route.path, (c) => {
-      if (route.authenticated) authenticated(c);
+      if (route.authenticated) {
+        authenticated(c);
+      }
 
-      if (route.status === 204) return c.body(null, 204);
+      if (route.status === 204) {
+        return c.body(null, 204);
+      }
 
       return c.body(route.mode === 'json' ? JSON.stringify(route.body) : String(route.body), route.status, {
         'Content-Type': route.mode === 'json' ? 'application/json' : 'text/html; charset=utf-8',
       });
     });
+  }
 
   app.get('/api/head-unit-bff/*', (c) => {
     const path = c.req.path.slice('/api/head-unit-bff/'.length);

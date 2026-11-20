@@ -21,7 +21,6 @@ export default defineConfig([
           '**/dist/**',
           '**/node_modules/**',
           'server/src/protocol/generated/**',
-          'server/tools/**',
           'assets/**',
           'server/scripts/**',
           'examples/**',
@@ -67,6 +66,8 @@ export default defineConfig([
           '@typescript-eslint/explicit-function-return-type': 'off',
           '@typescript-eslint/explicit-module-boundary-types': 'off',
           '@typescript-eslint/no-explicit-any': 'off',
+          // Oxlint's type-aware backend infers unannotated Effect.fn parameter defaults as any.
+          '@typescript-eslint/no-inferrable-types': ['error', { ignoreParameters: true }],
           '@typescript-eslint/no-floating-promises': 'error',
           'unicorn/name-replacements': 'off',
           'unicorn/filename-case': 'off',
@@ -157,6 +158,13 @@ export default defineConfig([
     basePath: fileURLToPath(new URL('..', import.meta.url)),
     files: ['web/**/*.ts'],
     plugins: { '@typescript-eslint': typescriptEslint.plugin, 'import-x': importX },
+    settings: {
+      'import-x/resolver-next': [
+        createTypeScriptImportResolver({
+          project: [fileURLToPath(new URL('../web/tsconfig.json', import.meta.url))],
+        }),
+      ],
+    },
     languageOptions: { parser: typescriptEslint.parser, globals: { ...globals.browser, ...globals.node } },
     rules: {
       ...typescriptEslint.configs.recommended[2].rules,

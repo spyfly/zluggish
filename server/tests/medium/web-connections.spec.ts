@@ -169,8 +169,9 @@ await test('web uploads, workout sync and Strava session tests stay with the sig
     ['/api/me/uploads/retry', 'POST', 403],
     ['/api/me/workouts/sync', 'POST', 403],
     ['/api/me/connections/strava/test', 'POST', 403],
-  ] as const)
+  ] as const) {
     assert.equal(await responseStatus(anonymous.request(`http://local:8080${path}`, { method })), expected, path);
+  }
 
   const status = t.mock.method(f.effects.runSync(UploadsService), 'status', (id: number) => {
     assert.equal(id, f.rider.player_id);

@@ -16,7 +16,8 @@ export type SettingKey = keyof Overrides;
 
 export const settingKeySchema = Schema.Literals(
   // SAFETY: the keys of overrideSchema.fields are exactly the SettingKey union.
-  Object.keys(overrideSchema.fields) as [SettingKey, ...SettingKey[]],
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+  Object.keys(overrideSchema.fields) as [SettingKey, ...Array<SettingKey>],
 );
 
 export const preferenceSchema = Schema.Struct({

@@ -10,15 +10,21 @@ import {
 import { isFieldSet, toJson } from '@bufbuild/protobuf';
 import { Context, Layer, Schema } from 'effect';
 
-function attributes(items: Attribute[]) {
+function attributes(items: Array<Attribute>) {
   const result: Record<string, string | number> = {};
 
   for (const item of items) {
-    if (isFieldSet(item, AttributeSchema.field.numberValue)) result[String(item.id)] = String(item.numberValue);
+    if (isFieldSet(item, AttributeSchema.field.numberValue)) {
+      result[String(item.id)] = String(item.numberValue);
+    }
 
-    if (isFieldSet(item, AttributeSchema.field.floatValue)) result[String(item.id)] = item.floatValue;
+    if (isFieldSet(item, AttributeSchema.field.floatValue)) {
+      result[String(item.id)] = item.floatValue;
+    }
 
-    if (isFieldSet(item, AttributeSchema.field.stringValue)) result[String(item.id)] = item.stringValue;
+    if (isFieldSet(item, AttributeSchema.field.stringValue)) {
+      result[String(item.id)] = item.stringValue;
+    }
   }
 
   return result;
@@ -27,7 +33,9 @@ function attributes(items: Attribute[]) {
 function profileAge(profile: PlayerProfile) {
   const match = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(profile.dob);
 
-  if (!match) return profile.age;
+  if (!match) {
+    return profile.age;
+  }
 
   const month = Number(match[1]),
     day = Number(match[2]),
@@ -35,8 +43,9 @@ function profileAge(profile: PlayerProfile) {
 
   const birth = new Date(Date.UTC(year, month - 1, day));
 
-  if (birth.getUTCFullYear() !== year || birth.getUTCMonth() !== month - 1 || birth.getUTCDate() !== day)
+  if (birth.getUTCFullYear() !== year || birth.getUTCMonth() !== month - 1 || birth.getUTCDate() !== day) {
     return profile.age;
+  }
   const now = new Date();
 
   return (

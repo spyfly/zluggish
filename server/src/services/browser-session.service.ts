@@ -1,6 +1,6 @@
 import { ApplicationError } from '#src/errors';
 import type { User } from '#src/repositories/accounts.repository';
-import { AccountsService } from '#src/services/auth.service';
+import type { AccountsService } from '#src/services/auth.service';
 import { resolve } from 'node:path';
 import { Context, Schema } from 'effect';
 
@@ -31,8 +31,9 @@ function openSessions(accounts: AccountsService['Service']) {
   let secret: Buffer;
   const path = resolve(accounts.storage, 'secret-key.txt');
 
-  if (repositories.filesRepository.existsSync(path)) secret = repositories.filesRepository.readFileSync(path);
-  else {
+  if (repositories.filesRepository.existsSync(path)) {
+    secret = repositories.filesRepository.readFileSync(path);
+  } else {
     secret = repositories.cryptoRepository.randomBytes(32);
     repositories.filesRepository.writeDurable(path, secret);
   }
@@ -40,7 +41,11 @@ function openSessions(accounts: AccountsService['Service']) {
   function open(id?: string): OpenedSession {
     const now = Date.now();
 
-    for (const [key, session] of browsers) if (now - session.touched > 86_400_000) end(key);
+    for (const [key, session] of browsers) {
+      if (now - session.touched > 86_400_000) {
+        end(key);
+      }
+    }
     const previous = id ? browsers.get(id) : undefined;
 
     if (id && previous) {
@@ -53,13 +58,18 @@ function openSessions(accounts: AccountsService['Service']) {
       let oldest: string | undefined;
       let touched = Infinity;
 
-      for (const [key, session] of browsers)
-        if (!session.identity && session.touched < touched) {
-          oldest = key;
-          touched = session.touched;
+      for (const [key, session] of browsers) {
+        if (session.identity || !(session.touched < touched)) {
+          continue;
         }
 
-      if (oldest === undefined) throw new ApplicationError({ status: 503, message: 'Too many browser sessions' });
+        oldest = key;
+        touched = session.touched;
+      }
+
+      if (oldest === undefined) {
+        throw new ApplicationError({ status: 503, message: 'Too many browser sessions' });
+      }
       end(oldest);
     }
 
@@ -103,7 +113,9 @@ function openSessions(accounts: AccountsService['Service']) {
   }
 
   function validCsrf(session: BrowserSession, token: string) {
-    if (!session.csrf) return false;
+    if (!session.csrf) {
+      return false;
+    }
     const expected = Buffer.from(session.csrf);
     const supplied = Buffer.from(token);
 
@@ -120,7 +132,9 @@ function openSessions(accounts: AccountsService['Service']) {
   function remembered(token: string, playerId: number, now = Date.now()) {
     const match = /^remember:(\d+:\d+):(\d+)$/.exec(repositories.cryptoRepository.verifyIdentity(token, secret) ?? '');
 
-    if (!match?.[1] || Number(match[2]) * 1000 < now) return null;
+    if (!match?.[1] || Number(match[2]) * 1000 < now) {
+      return null;
+    }
     const rider = accounts.identity(match[1]);
 
     return rider?.player_id === playerId ? rider : null;
@@ -133,7 +147,9 @@ function openSessions(accounts: AccountsService['Service']) {
   function bearer(token: string) {
     const payload = token.split('.', 2)[1];
 
-    if (!payload) return null;
+    if (!payload) {
+      return null;
+    }
 
     try {
       const parsed = Schema.decodeUnknownSync(identityPayload)(
@@ -149,9 +165,9 @@ function openSessions(accounts: AccountsService['Service']) {
   }
 
   function token(identity: string, template: string) {
-    const payload = JSON.parse(Buffer.from(template.split('.', 2)[1] ?? '', 'base64url').toString());
-
-    const values = Schema.decodeUnknownSync(Schema.Record(Schema.String, Schema.Json))(payload);
+    const values = Schema.decodeUnknownSync(Schema.fromJsonString(Schema.Record(Schema.String, Schema.Json)))(
+      Buffer.from(template.split('.', 2)[1] ?? '', 'base64url').toString(),
+    );
 
     const body = Buffer.from(
       JSON.stringify({
@@ -173,8 +189,9 @@ function openSessions(accounts: AccountsService['Service']) {
   ) {
     const identity = accounts.identityOf(rider);
 
-    if (!accounts.identity(identity))
+    if (!accounts.identity(identity)) {
       throw new ApplicationError({ status: 401, message: 'Account changed. Sign in again.' });
+    }
 
     return {
       access_token: token(identity, templates.access),

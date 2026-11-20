@@ -25,7 +25,9 @@ export class Resources {
   }
 
   defer(dispose: () => void | Promise<void>) {
-    if (this.state.status !== 'open') throw new Error('Resource owner is closing');
+    if (this.state.status !== 'open') {
+      throw new Error('Resource owner is closing');
+    }
     Effect.runSync(
       Scope.addFinalizer(
         this.scope,
@@ -37,9 +39,13 @@ export class Resources {
   }
 
   close() {
-    if (this.state.status === 'closing') return this.state.promise;
+    if (this.state.status === 'closing') {
+      return this.state.promise;
+    }
 
-    if (this.state.status === 'closed') return Promise.resolve();
+    if (this.state.status === 'closed') {
+      return Promise.resolve();
+    }
 
     // Install the closing state before any release runs, including a reentrant close.
     // eslint-disable-next-line unicorn/prefer-promise-try -- Install closing state before running any release.
@@ -48,7 +54,9 @@ export class Resources {
       .then((exit) => {
         this.state = { status: 'closed' };
 
-        if (Exit.isFailure(exit)) throw new AggregateError(releaseErrors(exit.cause), 'Resource cleanup failed');
+        if (Exit.isFailure(exit)) {
+          throw new AggregateError(releaseErrors(exit.cause), 'Resource cleanup failed');
+        }
       });
 
     this.state = { status: 'closing', promise };

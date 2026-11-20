@@ -41,7 +41,9 @@ export class Relay {
   constructor(readonly key: Buffer) {}
 
   acceptUdp(connection: number, explicitConnection?: number, sequence?: number) {
-    if (explicitConnection !== undefined && explicitConnection !== this.udpConnection) this.udpWrite = 0;
+    if (explicitConnection !== undefined && explicitConnection !== this.udpConnection) {
+      this.udpWrite = 0;
+    }
     this.udpConnection = connection;
     this.udpRead = sequence ?? this.udpRead + 1;
   }
@@ -51,7 +53,9 @@ export class Relay {
       this.tcpConnection = connection;
       this.tcpRead = 1;
       this.tcpWrite = 0;
-    } else this.tcpRead++;
+    } else {
+      this.tcpRead++;
+    }
   }
 
   nextUdp() {
@@ -67,7 +71,9 @@ export class Relay {
 function embeddedSize(length: number) {
   let prefix = 1;
 
-  for (let rest = length; rest >= 0x80; rest >>>= 7) prefix++;
+  for (let rest = length; rest >= 0x80; rest >>>= 7) {
+    prefix++;
+  }
 
   return 1 + prefix + length;
 }
@@ -103,7 +109,7 @@ export class World {
 
   readonly relays = new Map<bigint, Relay>();
 
-  readonly updates = new Map<bigint, WorldAttribute[]>();
+  readonly updates = new Map<bigint, Array<WorldAttribute>>();
 
   readonly mapOverrides = new Map<string, string>();
 
@@ -131,7 +137,9 @@ export class World {
   }
 
   login(playerId: bigint, key: Uint8Array) {
-    if (![16, 24, 32].includes(key.length)) throw new Error('Invalid relay key');
+    if (![16, 24, 32].includes(key.length)) {
+      throw new Error('Invalid relay key');
+    }
 
     const relay = new Relay(Buffer.from(key));
 
@@ -151,7 +159,9 @@ export class World {
     this.simulation?.logout(playerId);
     const wasOnline = this.online.delete(playerId);
 
-    if (wasOnline) this.presence?.(playerId, false);
+    if (wasOnline) {
+      this.presence?.(playerId, false);
+    }
     this.relays.delete(playerId);
     this.updates.delete(playerId);
     this.news.delete(playerId);
@@ -160,35 +170,46 @@ export class World {
   }
 
   receive(playerId: bigint, state: PlayerState) {
-    if (state.id && state.id !== playerId) throw new Error('State identity does not match relay');
+    if (state.id && state.id !== playerId) {
+      throw new Error('State identity does not match relay');
+    }
     const previous = this.online.get(playerId);
 
-    if (previous && previous.worldTime > state.worldTime) return;
+    if (previous && previous.worldTime > state.worldTime) {
+      return;
+    }
 
-    if (!(state.roadTime && (previous || fresh(state)))) return;
+    if (!(state.roadTime && (previous || fresh(state)))) {
+      return;
+    }
 
     const snapshot = clone(PlayerStateSchema, state);
     snapshot.id = playerId;
     this.online.set(playerId, snapshot);
     this.lifecycle.receive(playerId, snapshot.distance, course(snapshot), BigInt(snapshot.route), snapshot.sport);
 
-    if (!previous) this.presence?.(playerId, true);
+    if (!previous) {
+      this.presence?.(playerId, true);
+    }
     this.simulation?.receive(playerId, snapshot);
     const history = this.histories.get(playerId) ?? new StateHistory();
 
-    if (history.length === 0 || Number(snapshot.worldTime - (history.worldTime(-1) ?? 0n)) >= 3000)
+    if (history.length === 0 || Number(snapshot.worldTime - (history.worldTime(-1) ?? 0n)) >= 3000) {
       history.push(snapshot);
+    }
 
     this.histories.set(playerId, history);
   }
 
   // Queue admission is bounded; the TCP owner takes/deletes a batch before sending.
   // nearby separately checkpoints each peer timestamp, suppressing unchanged snapshots.
-  enqueue(update: WorldAttribute, recipients: bigint[] = this.online.keys().toArray()) {
+  enqueue(update: WorldAttribute, recipients: Array<bigint> = this.online.keys().toArray()) {
     for (const id of recipients) {
       const queue = this.updates.get(id) ?? [];
 
-      if (queue.length >= 1000) queue.shift();
+      if (queue.length >= 1000) {
+        queue.shift();
+      }
 
       queue.push(update);
       this.updates.set(id, queue);
@@ -209,15 +230,23 @@ export class World {
     this.news.set(playerId, news);
 
     for (const [id, peer] of [...this.online, ...this.synthetic, ...personal]) {
-      if (id === playerId || course(watching) !== course(peer)) continue;
+      if (id === playerId || course(watching) !== course(peer)) {
+        continue;
+      }
 
-      if (this.online.has(id) && !fresh(peer)) continue;
+      if (this.online.has(id) && !fresh(peer)) {
+        continue;
+      }
 
-      if (news.get(id) === peer.worldTime) continue;
+      if (news.get(id) === peer.worldTime) {
+        continue;
+      }
 
       const distance = Math.hypot(peer.x - watching.x, peer.z - watching.z, peer.yAltitude - watching.yAltitude);
 
-      if (distance <= 100_000 || road(peer) === road(watching)) candidates.push({ peer, distance });
+      if (distance <= 100_000 || road(peer) === road(watching)) {
+        candidates.push({ peer, distance });
+      }
     }
 
     return candidates

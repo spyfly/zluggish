@@ -21,8 +21,9 @@ export function removeLegacyAccountFields(db: DatabaseSync, storage: string) {
 
         const overrides = settings.read(rider.player_id);
 
-        if (overrides['ghosts.enabled'] === undefined)
+        if (overrides['ghosts.enabled'] === undefined) {
           settings.save(rider.player_id, { ...overrides, 'ghosts.enabled': rider.enable_ghosts !== 0 });
+        }
       }
     } finally {
       settings.close();
@@ -30,6 +31,8 @@ export function removeLegacyAccountFields(db: DatabaseSync, storage: string) {
   }
 
   for (const column of ['remember', 'enable_ghosts']) {
-    if (columns.has(column)) db.exec(`ALTER TABLE user DROP COLUMN ${column}`);
+    if (columns.has(column)) {
+      db.exec(`ALTER TABLE user DROP COLUMN ${column}`);
+    }
   }
 }

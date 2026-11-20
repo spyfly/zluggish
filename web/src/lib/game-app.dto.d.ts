@@ -11,15 +11,15 @@ export interface GameField {
   matches?: string;
   autofocus?: boolean;
   when?: { field: string; value: string | boolean };
-  options?: { value: string; label: string }[];
+  options?: Array<{ value: string; label: string }>;
 }
 
 export interface GameForm {
   id: string;
   action: string;
   title?: string;
-  fields: GameField[];
-  buttons: { label: string; name?: string; value?: string; skipValidation?: boolean }[];
+  fields: Array<GameField>;
+  buttons: Array<{ label: string; name?: string; value?: string; skipValidation?: boolean }>;
   navigation?: boolean;
   confirmation?: string;
   /** The page's main action, highlighted in Zwift orange. */
@@ -37,7 +37,7 @@ export interface GamePageModel {
   /** The server's release version, shown in the top bar. */
   version: string;
   zwiftVersion?: string;
-  forms: GameForm[];
+  forms: Array<GameForm>;
   /** Shown as a back button beside the title; it navigates and never signs out. */
   back?: { href: string; label: string };
   message?: string;
@@ -49,7 +49,7 @@ export interface GamePageModel {
 
 export type FormResult<T> =
   | { ok: true; data: T; message?: string; redirectTo?: string }
-  | { ok: false; message: string; fieldErrors?: Record<string, string[]>; reload?: boolean };
+  | { ok: false; message: string; fieldErrors?: Record<string, Array<string>>; reload?: boolean };
 
 export interface GameSaved {
   page?: GamePageModel;

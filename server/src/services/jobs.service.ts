@@ -33,7 +33,9 @@ const make = Effect.gen(function* () {
 
   /** Poll soon, after the current transaction commits. Kicks in one turn share one poll. */
   function kick() {
-    if (status !== 'running' || kicked) return;
+    if (status !== 'running' || kicked) {
+      return;
+    }
     kicked = true;
     setImmediate(() => {
       kicked = false;
@@ -42,16 +44,22 @@ const make = Effect.gen(function* () {
   }
 
   function poll() {
-    if (status !== 'running') return;
+    if (status !== 'running') {
+      return;
+    }
     const ready = jobs.ready();
 
     for (const [type, handler] of handlers) {
-      if (!ready.has(type) || paused(type)) continue;
+      if (!ready.has(type) || paused(type)) {
+        continue;
+      }
 
       while ((active.get(type) ?? 0) < handler.concurrency) {
         const claim = jobs.claim(type, leaseMs);
 
-        if (!claim) break;
+        if (!claim) {
+          break;
+        }
         launch(claim, handler);
       }
     }
@@ -77,7 +85,9 @@ const make = Effect.gen(function* () {
     // Renew while the handler runs. A failed renewal stops the handler: another claim
     // may own the job now.
     const renewal = setInterval(() => {
-      if (!jobs.renew(claim, leaseMs)) controller.abort(new JobError({ code: 'lease_lost' }));
+      if (!jobs.renew(claim, leaseMs)) {
+        controller.abort(new JobError({ code: 'lease_lost' }));
+      }
     }, leaseMs / 3);
 
     const timeout = setTimeout(() => controller.abort(new JobError({ code: 'timeout' })), handler.timeoutMs);
@@ -85,16 +95,21 @@ const make = Effect.gen(function* () {
     try {
       await Effect.runPromise(handler.run(job));
 
-      if (!job.done) job.commit();
+      if (!job.done) {
+        job.commit();
+      }
     } catch (error) {
       const code = error instanceof JobError ? error.code : error instanceof Error ? error.name : 'error';
       const retry = !(error instanceof JobError) || error.retry;
 
       // A stop is not a failure: the job runs again after the next start.
-      if (status === 'stopped') jobs.retry(claim, code, 0);
-      else if (retry && claim.attempts < handler.attempts)
+      if (status === 'stopped') {
+        jobs.retry(claim, code, 0);
+      } else if (retry && claim.attempts < handler.attempts) {
         jobs.retry(claim, code, Math.min(3_600_000, 1000 * 4 ** claim.attempts));
-      else jobs.fail(claim, code);
+      } else {
+        jobs.fail(claim, code);
+      }
 
       context.world.lifecycle.log.warn('job.failed', 'Background job failed', {
         jobId: claim.id,
@@ -118,11 +133,15 @@ const make = Effect.gen(function* () {
       for (;;) {
         poll();
 
-        if (running.size === 0) return;
+        if (running.size === 0) {
+          return;
+        }
         await Promise.all(running);
       }
     } finally {
-      if (status === 'running') status = before;
+      if (status === 'running') {
+        status = before;
+      }
     }
   }
 
@@ -133,13 +152,15 @@ const make = Effect.gen(function* () {
       handlers.set(type, handler);
     }),
 
-    enqueue: Effect.fn('JobsService.enqueue')(function* (type: JobType, payload: JobPayload, delayMs = 0) {
+    enqueue: Effect.fn('JobsService.enqueue')(function* (type: JobType, payload: JobPayload, delayMs: number = 0) {
       return jobs.enqueue(type, payload, delayMs);
     }),
 
     /** Poll for ready jobs every interval until close. */
-    start: Effect.fn('JobsService.start')(function* (intervalMs = 1000) {
-      if (status === 'stopped' || poller) return;
+    start: Effect.fn('JobsService.start')(function* (intervalMs: number = 1000) {
+      if (status === 'stopped' || poller) {
+        return;
+      }
       status = 'running';
       poller = yield* Effect.sleep(intervalMs).pipe(
         Effect.andThen(Effect.sync(poll)),
@@ -151,7 +172,9 @@ const make = Effect.gen(function* () {
 
     /** True while a handler runs or a ready job waits. */
     busy: Effect.fn('JobsService.busy')(function* () {
-      if (running.size > 0) return true;
+      if (running.size > 0) {
+        return true;
+      }
       const ready = jobs.ready();
 
       return handlers.keys().some((type) => ready.has(type) && !paused(type));
@@ -165,7 +188,9 @@ const make = Effect.gen(function* () {
     run: Effect.fn('JobsService.run')(function* (claim: Claim) {
       const handler = handlers.get(claim.type);
 
-      if (!handler) return yield* Effect.die(new Error('No handler for this job type'));
+      if (!handler) {
+        return yield* Effect.die(new Error('No handler for this job type'));
+      }
 
       yield* Effect.promise(() => execute(claim, handler));
     }),
@@ -179,10 +204,14 @@ const make = Effect.gen(function* () {
     close: Effect.fn('JobsService.close')(function* () {
       status = 'stopped';
 
-      if (poller) yield* Fiber.interrupt(poller);
+      if (poller) {
+        yield* Fiber.interrupt(poller);
+      }
       poller = null;
 
-      for (const controller of controllers) controller.abort(new JobError({ code: 'shutdown' }));
+      for (const controller of controllers) {
+        controller.abort(new JobError({ code: 'shutdown' }));
+      }
       yield* Effect.promise(() => Promise.allSettled(running));
     }),
   };

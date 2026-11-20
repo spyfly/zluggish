@@ -20,7 +20,9 @@ export function migrateAccounts(storage: string, soloPlayer?: number) {
   const legacyPath = resolve(storage, 'zwift-offline.db');
   const path = existsSync(destination) || !existsSync(legacyPath) ? destination : legacyPath;
 
-  if (readdirSync(storage).some((name) => name !== '.server.lock')) backupLegacyStorage(storage, 'accounts-migration');
+  if (readdirSync(storage).some((name) => name !== '.server.lock')) {
+    backupLegacyStorage(storage, 'accounts-migration');
+  }
   const db = new DatabaseSync(path);
 
   try {
@@ -32,8 +34,9 @@ export function migrateAccounts(storage: string, soloPlayer?: number) {
         db.prepare('SELECT version FROM version LIMIT 1').get(),
       ).version;
 
-      if (found > SCHEMA_VERSION || found < 3)
+      if (found > SCHEMA_VERSION || found < 3) {
         throw new ConfigError('Unsupported activity database version; migrate with the original release first');
+      }
 
       // A current account schema is already migrated. Never recreate legacy permissions.
       if (found >= 8) {
@@ -79,7 +82,9 @@ export function migrateAccounts(storage: string, soloPlayer?: number) {
           `INSERT INTO user_accounts_new SELECT * FROM user; DROP TABLE user; ALTER TABLE user_accounts_new RENAME TO user;`,
         );
 
-        for (const index of indexes) db.exec(Schema.decodeUnknownSync(Schema.String)(index.sql));
+        for (const index of indexes) {
+          db.exec(Schema.decodeUnknownSync(Schema.String)(index.sql));
+        }
       }
 
       for (const [name, sql] of Object.entries({
@@ -87,7 +92,9 @@ export function migrateAccounts(storage: string, soloPlayer?: number) {
         official_player_id: 'ALTER TABLE user ADD COLUMN official_player_id INTEGER',
         is_admin: 'ALTER TABLE user ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0',
       })) {
-        if (!names.has(name)) db.exec(sql);
+        if (!names.has(name)) {
+          db.exec(sql);
+        }
       }
     }
 
@@ -108,17 +115,22 @@ export function migrateAccounts(storage: string, soloPlayer?: number) {
 
     const selected = soloPlayer ?? (users.length === 0 && profiles.length === 1 ? profiles[0] : undefined);
 
-    if (orphans.length > 0 && selected === undefined)
+    if (orphans.length > 0 && selected === undefined) {
       throw new ConfigError('Ambiguous legacy riders; select --solo-player ID explicitly');
+    }
 
     if (selected !== undefined) {
-      if (!profiles.includes(selected)) throw new ConfigError('Selected legacy profile is missing');
+      if (!profiles.includes(selected)) {
+        throw new ConfigError('Selected legacy profile is missing');
+      }
 
       const profile = fromBinary(PlayerProfileSchema, readFileSync(resolve(storage, String(selected), 'profile.bin')));
 
-      if (!profile.firstName.trim()) throw new ConfigError('Legacy profile has no name');
+      if (!profile.firstName.trim()) {
+        throw new ConfigError('Legacy profile has no name');
+      }
 
-      if (!ids.has(selected))
+      if (!ids.has(selected)) {
         db.prepare(
           `INSERT INTO user (player_id,username,first_name,last_name,pass_hash,auth_version,is_admin) VALUES (?,?,?,?,NULL,1,?)`,
         ).run(
@@ -128,10 +140,12 @@ export function migrateAccounts(storage: string, soloPlayer?: number) {
           profile.lastName,
           users.length > 0 ? 0 : 1,
         );
+      }
     }
 
-    if (!db.prepare('SELECT 1 FROM user WHERE is_admin=1').get())
+    if (!db.prepare('SELECT 1 FROM user WHERE is_admin=1').get()) {
       db.prepare('UPDATE user SET is_admin=1 WHERE player_id=(SELECT MIN(player_id) FROM user)').run();
+    }
 
     db.prepare('INSERT OR IGNORE INTO account_state VALUES (1, ?)').run(
       db.prepare('SELECT 1 FROM user LIMIT 1').get() ? 1 : 0,
@@ -142,14 +156,22 @@ export function migrateAccounts(storage: string, soloPlayer?: number) {
     db.prepare('INSERT INTO version VALUES (?)').run(version);
     db.exec('COMMIT');
 
-    if (path !== destination) db.exec('PRAGMA journal_mode=DELETE');
+    if (path !== destination) {
+      db.exec('PRAGMA journal_mode=DELETE');
+    }
     db.close();
 
-    if (path !== destination) renameSync(path, destination);
+    if (path !== destination) {
+      renameSync(path, destination);
+    }
   } catch (error) {
-    if (db.isTransaction) db.exec('ROLLBACK');
+    if (db.isTransaction) {
+      db.exec('ROLLBACK');
+    }
     throw error;
   } finally {
-    if (db.isOpen) db.close();
+    if (db.isOpen) {
+      db.close();
+    }
   }
 }

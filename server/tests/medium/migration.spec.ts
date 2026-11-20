@@ -29,10 +29,12 @@ import { test } from 'node:test';
 function fixture(t: TestContext) {
   const root = mkdtempSync(resolve(tmpdir(), 'zluggish-migrate-'));
   const storage = resolve(root, 'storage');
-  const stores: SettingsStore[] = [];
+  const stores: Array<SettingsStore> = [];
   mkdirSync(storage);
   t.after(() => {
-    for (const store of stores) store.close();
+    for (const store of stores) {
+      store.close();
+    }
     rmSync(root, { recursive: true, force: true });
   });
 
@@ -62,7 +64,9 @@ function addRiders(storage: string) {
 function snapshot(root: string) {
   return readdirSync(root, { recursive: true, withFileTypes: true })
     .flatMap((entry) => {
-      if (!entry.isFile()) return [];
+      if (!entry.isFile()) {
+        return [];
+      }
       const path = resolve(entry.parentPath, entry.name);
 
       return [[relative(root, path), readFileSync(path).toString('hex')]];
@@ -126,7 +130,9 @@ await test('direct migration generates loadable TS and preferences with no JSONC
     assert.notEqual(path, undefined);
     assert.notEqual(hex, undefined);
 
-    if (path === undefined || hex === undefined) throw new Error('Invalid snapshot');
+    if (path === undefined || hex === undefined) {
+      throw new Error('Invalid snapshot');
+    }
     assert.equal(readFileSync(resolve(f.storage, path)).toString('hex'), hex);
   }
 
@@ -200,7 +206,9 @@ await test('independent Node processes contend on the storage OS lock', async (t
     { cwd: packageRoot() },
   );
 
-  const exited = new Promise<void>((done) => child.once('close', () => done()));
+  const exited = new Promise<void>((done) => {
+    child.once('close', () => done());
+  });
   t.after(async () => {
     child.stdin.end();
     await exited;
@@ -209,7 +217,9 @@ await test('independent Node processes contend on the storage OS lock', async (t
     child.stdout.once('data', () => done());
     child.once('error', fail);
     child.once('exit', (code) => {
-      if (code) fail(new Error('Lock contender failed'));
+      if (code) {
+        fail(new Error('Lock contender failed'));
+      }
     });
   });
   await assert.rejects(new LockRepository().acquireStorageLock(f.storage), /busy/);
@@ -217,7 +227,7 @@ await test('independent Node processes contend on the storage OS lock', async (t
 
 await test('CLI migrates directly, validates and typechecks the externally generated module', async (t) => {
   const f = fixture(t);
-  const messages: string[] = [];
+  const messages: Array<string> = [];
   assert.equal(
     await run(['--storage-dir', f.storage, 'config', 'migrate', '--output', f.output], (message) => {
       messages.push(message);

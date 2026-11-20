@@ -1,7 +1,8 @@
 import { LoggingRepository } from '#src/repositories/logging.repository';
 import type { Answer } from 'dns-packet';
 import { decode, encode, RECURSION_DESIRED } from 'dns-packet';
-import { createSocket, type RemoteInfo } from 'node:dgram';
+import { createSocket } from 'node:dgram';
+import type { RemoteInfo } from 'node:dgram';
 import { Resolver } from 'node:dns/promises';
 import { isIP } from 'node:net';
 
@@ -16,17 +17,23 @@ export function startDns(advertisedIp: string, host: string, port = 53, log = ne
   let pending = 0;
 
   async function handleMessage(bytes: Buffer, peer: RemoteInfo) {
-    if (bytes.length > 4096 || pending >= 64) return;
+    if (bytes.length > 4096 || pending >= 64) {
+      return;
+    }
     pending++;
 
     try {
       const query = decode(bytes);
 
-      if (query.type !== 'query' || !query.questions?.length || query.questions.length > 16) return;
-      const answers: Answer[] = [];
+      if (query.type !== 'query' || !query.questions?.length || query.questions.length > 16) {
+        return;
+      }
+      const answers: Array<Answer> = [];
 
       for (const question of query.questions) {
-        if (question.type !== 'A' && question.type !== 'AAAA') continue;
+        if (question.type !== 'A' && question.type !== 'AAAA') {
+          continue;
+        }
         const name = question.name.toLowerCase().replace(/\.$/, '');
         let ip = redirected.has(name) ? advertisedIp : undefined;
 
@@ -43,13 +50,15 @@ export function startDns(advertisedIp: string, host: string, port = 53, log = ne
             }
 
             if (ip) {
-              if (cache.size >= 10_000) cache.clear();
+              if (cache.size >= 10_000) {
+                cache.clear();
+              }
               cache.set(key, { ip, expires: Date.now() + 3_600_000 });
             }
           }
         }
 
-        if (ip && isIP(ip) === (question.type === 'A' ? 4 : 6))
+        if (ip && isIP(ip) === (question.type === 'A' ? 4 : 6)) {
           answers.push({
             type: question.type,
             name: question.name,
@@ -57,6 +66,7 @@ export function startDns(advertisedIp: string, host: string, port = 53, log = ne
             ttl: 3600,
             data: ip,
           });
+        }
       }
 
       socket.send(
@@ -85,7 +95,9 @@ export function startDns(advertisedIp: string, host: string, port = 53, log = ne
     listening = true;
   });
   socket.on('error', (error) => {
-    if (listening) log.error('network.dns_failed', 'DNS listener failed', { error });
+    if (listening) {
+      log.error('network.dns_failed', 'DNS listener failed', { error });
+    }
   });
   socket.bind(port, host);
 
@@ -94,7 +106,9 @@ export function startDns(advertisedIp: string, host: string, port = 53, log = ne
     close: () => {
       resolver.cancel();
 
-      return new Promise<void>((resolve) => socket.close(resolve));
+      return new Promise<void>((resolve) => {
+        socket.close(resolve);
+      });
     },
   };
 }

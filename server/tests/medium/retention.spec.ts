@@ -88,11 +88,13 @@ async function storage(t: TestContext) {
     ['a.bin', 3],
     ['b.bin', 2],
     ['c.bin', 1],
-  ] as const)
+  ] as const) {
     write(resolve(folder, 'ghosts', '6', '1', name), 'ghost', age * day);
+  }
 
-  for (const name of ['storage-v6-2026-01-01', 'storage-v6-2026-02-01', 'storage-v6-2026-03-01'])
+  for (const name of ['storage-v6-2026-01-01', 'storage-v6-2026-02-01', 'storage-v6-2026-03-01']) {
     write(resolve(root, 'backups', name, 'zluggish.db'));
+  }
 
   db.prepare("UPDATE job SET finished_at=? WHERE state='done'").run(old);
   db.prepare(
@@ -136,7 +138,9 @@ await test('a cleanup preview lists the candidates and removes nothing', async (
   assert.equal(plan.deliveries, 1);
   assert.deepEqual(plan.media, [{ table: 'activity_media', id: reserved }]);
 
-  for (const path of reasons.keys()) assert.ok(existsSync(path), `the preview keeps ${path}`);
+  for (const path of reasons.keys()) {
+    assert.ok(existsSync(path), `the preview keeps ${path}`);
+  }
   assert.equal(f.accounts.db.prepare('SELECT count(*) AS n FROM activity_upload').get()?.n, 2);
 });
 
@@ -181,7 +185,9 @@ await test('a cleanup that stops between file removals completes on the next run
   const original = AssetFiles.prototype.removeTreeAsync;
 
   const stop = t.mock.method(AssetFiles.prototype, 'removeTreeAsync', async function (this: AssetFiles, path: string) {
-    if (++removals > 2) throw new Error('stopped');
+    if (++removals > 2) {
+      throw new Error('stopped');
+    }
     await original.call(this, path);
   });
 

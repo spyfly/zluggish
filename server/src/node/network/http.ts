@@ -15,7 +15,9 @@ export function startHttp(app: Pick<Hono, 'fetch'>, options: HttpListenerOptions
     port: options.port,
   };
 
-  if (options.tls) return serve({ ...common, createServer, serverOptions: options.tls });
+  if (options.tls) {
+    return serve({ ...common, createServer, serverOptions: options.tls });
+  }
 
   return serve(common);
 }

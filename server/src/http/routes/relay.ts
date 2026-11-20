@@ -54,15 +54,23 @@ export function relayRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
         new Uint8Array(yield* Effect.promise(() => c.req.arrayBuffer())),
       );
 
-      if (runtime.world.active(user.player_id)) throw new HTTPException(409);
+      if (runtime.world.active(user.player_id)) {
+        throw new HTTPException(409);
+      }
 
-      if (![16, 24, 32].includes(request.key.length)) throw new HTTPException(400);
+      if (![16, 24, 32].includes(request.key.length)) {
+        throw new HTTPException(400);
+      }
 
-      if (c.req.header('User-Agent')?.toLowerCase().includes('android'))
+      if (c.req.header('User-Agent')?.toLowerCase().includes('android')) {
         yield* workoutsService.syncWorkoutsAutomatically(user.player_id, true);
+      }
 
-      if (!runtime.effects.runSync(AccountsService).identity(runtime.effects.runSync(AccountsService).identityOf(user)))
+      if (
+        !runtime.effects.runSync(AccountsService).identity(runtime.effects.runSync(AccountsService).identityOf(user))
+      ) {
         throw new HTTPException(401);
+      }
       runtime.world.login(BigInt(user.player_id), request.key);
 
       const imported = yield* documentsService.text(user.player_id, 'economy_config.txt');
@@ -86,7 +94,11 @@ export function relayRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
 
           const transitionEnd = levels.findLast((level) => level.xp <= profile.totalXp)?.level ?? currentLevel;
 
-          for (const level of economy.cyclingLevels) if (level.level >= currentLevel) level.xp += offset;
+          for (const level of economy.cyclingLevels) {
+            if (level.level >= currentLevel) {
+              level.xp += offset;
+            }
+          }
 
           if (transitionEnd > currentLevel) {
             economy.transitionStart = currentLevel;
@@ -95,8 +107,11 @@ export function relayRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
         } else if (first && profile.totalXp < first.xp) {
           const offset = first.xp - profile.totalXp;
 
-          for (const level of economy.cyclingLevels)
-            if (level.level <= currentLevel) level.xp = Math.max(0, level.xp - offset);
+          for (const level of economy.cyclingLevels) {
+            if (level.level <= currentLevel) {
+              level.xp = Math.max(0, level.xp - offset);
+            }
+          }
         }
 
         yield* documentsService.put(user.player_id, 'economy_config.txt', toJsonString(EconomyConfigSchema, economy));
@@ -133,7 +148,9 @@ export function relayRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
   app.post('/relay/session/:action', (c) => {
     const user = authenticated(c);
 
-    if (!['refresh', 'renew'].includes(c.req.param('action'))) throw new HTTPException(404);
+    if (!['refresh', 'renew'].includes(c.req.param('action'))) {
+      throw new HTTPException(404);
+    }
 
     return c.body(
       toBinary(
@@ -168,9 +185,13 @@ export function relayRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
   app.on('GET', ['/relay/worlds', '/relay/dropin'], async (c) => {
     const user = authenticated(c);
 
-    const bookmarks = (await runtime.world.simulation?.loadBookmarks(BigInt(user.player_id))) ?? new Map();
+    const bookmarks =
+      (await runtime.world.simulation?.loadBookmarks(BigInt(user.player_id))) ??
+      new Map<bigint, { state: PlayerState; name: string }>();
 
-    if (c.req.header('Accept')?.includes('application/json')) return c.json([worldJSON(1)]);
+    if (c.req.header('Accept')?.includes('application/json')) {
+      return c.json([worldJSON(1)]);
+    }
 
     return c.body(toBinary(DropInWorldListSchema, worlds(bookmarks)));
   });
@@ -202,7 +223,9 @@ export function relayRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
     const read = async <T extends Schema.ConstraintDecoder<unknown>>(path: string, schema: T) => {
       const response = await app.request(path, { headers });
 
-      if (!response.ok) throw new HTTPException(502);
+      if (!response.ok) {
+        throw new HTTPException(502);
+      }
 
       return Schema.decodeUnknownSync(schema)(await response.json());
     };
@@ -246,7 +269,9 @@ export function relayRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
     const sport = c.req.query('eventSport');
     const eventQuery = new URLSearchParams({ limit: String(eventCount) });
 
-    if (sport) eventQuery.set('sport', sport);
+    if (sport) {
+      eventQuery.set('sport', sport);
+    }
 
     const [goals, activities, events, pending, accepted] = await Promise.all([
       goalCount
@@ -285,10 +310,14 @@ export function relayRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
       c.req.param('realm'),
     );
 
-    if (c.req.header('Accept')?.includes('application/json')) return c.json(worldJSON(realm));
+    if (c.req.header('Accept')?.includes('application/json')) {
+      return c.json(worldJSON(realm));
+    }
     const world = worlds(new Map()).worlds.at(-1);
 
-    if (!world) throw new HTTPException(404);
+    if (!world) {
+      throw new HTTPException(404);
+    }
     world.id = BigInt(realm);
 
     return c.body(toBinary(DropInWorldSchema, world));
@@ -305,7 +334,9 @@ export function relayRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
       runtime.world.personal.get(BigInt(user.player_id))?.get(id) ??
       runtime.world.simulation?.bookmarks.get(BigInt(user.player_id))?.get(id)?.state;
 
-    if (!state) throw new HTTPException(404);
+    if (!state) {
+      throw new HTTPException(404);
+    }
 
     return c.body(toBinary(PlayerStateSchema, state));
   });
@@ -315,23 +346,34 @@ export function relayRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
     const targets = create(TeleportTargetsSchema);
 
     for (const [id, state] of [...runtime.world.online, ...runtime.world.synthetic]) {
-      if (id === BigInt(user.player_id) || course(state) !== revision) continue;
+      if (id === BigInt(user.player_id) || course(state) !== revision) {
+        continue;
+      }
       const pacer = runtime.world.simulation?.replays.get(id)?.pacer;
 
-      if (!pacer && !runtime.world.online.has(id)) continue;
+      if (!pacer && !runtime.world.online.has(id)) {
+        continue;
+      }
       const target = player(state);
       target.ridePower = state.power;
       target.speed = state.speed;
 
-      if (pacer) targets.pacerGroups.push(target);
-      else targets.friends.push(target);
+      if (pacer) {
+        targets.pacerGroups.push(target);
+      } else {
+        targets.friends.push(target);
+      }
     }
 
     const bookmarks = runtime.world.simulation?.bookmarks.get(BigInt(user.player_id));
 
-    if (bookmarks)
-      for (const bookmark of bookmarks.values())
-        if (course(bookmark.state) === revision) targets.friends.push(player(bookmark.state, bookmark.name));
+    if (bookmarks) {
+      for (const bookmark of bookmarks.values()) {
+        if (course(bookmark.state) === revision) {
+          targets.friends.push(player(bookmark.state, bookmark.name));
+        }
+      }
+    }
 
     return c.body(toBinary(TeleportTargetsSchema, targets));
   });
@@ -389,24 +431,36 @@ export function relayRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
         zwifters: 0n,
       });
 
-      for (const state of runtime.world.online.values())
-        if (course(state) === id) {
-          world.followees.push(player(state));
-          world.zwifters++;
+      for (const state of runtime.world.online.values()) {
+        if (course(state) !== id) {
+          continue;
         }
 
-      for (const [key, state] of runtime.world.synthetic)
-        if (course(state) === id) {
-          if (runtime.world.simulation?.replays.get(key)?.pacer) world.pacerBots.push(player(state));
-          else world.others.push(player(state));
-          world.zwifters++;
+        world.followees.push(player(state));
+        world.zwifters++;
+      }
+
+      for (const [key, state] of runtime.world.synthetic) {
+        if (course(state) !== id) {
+          continue;
         }
 
-      for (const bookmark of bookmarks.values())
-        if (course(bookmark.state) === id) {
-          world.proPlayers.push(player(bookmark.state, bookmark.name));
-          world.zwifters++;
+        if (runtime.world.simulation?.replays.get(key)?.pacer) {
+          world.pacerBots.push(player(state));
+        } else {
+          world.others.push(player(state));
         }
+        world.zwifters++;
+      }
+
+      for (const bookmark of bookmarks.values()) {
+        if (course(bookmark.state) !== id) {
+          continue;
+        }
+
+        world.proPlayers.push(player(bookmark.state, bookmark.name));
+        world.zwifters++;
+      }
 
       worlds.worlds.push(world);
     }

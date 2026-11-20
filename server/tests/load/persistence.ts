@@ -27,7 +27,8 @@ import { SessionsService } from '#src/services/browser-session.service';
 import { Simulation } from '#src/world/simulation';
 import { World, worldTime } from '#src/world/state';
 import { create, fromBinary, toBinary } from '@bufbuild/protobuf';
-import { Encoder, Profile, type RecordMesg } from '@garmin/fitsdk';
+import { Encoder, Profile } from '@garmin/fitsdk';
+import type { RecordMesg } from '@garmin/fitsdk';
 import fs, { closeSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { syncBuiltinESMExports } from 'node:module';
 import { cpus, platform, release, tmpdir, totalmem } from 'node:os';
@@ -68,7 +69,10 @@ const providerDelay = count('provider-ms');
 const backupMiB = count('backup-mb');
 const mediaBytes = count('media-mb') * 1024 * 1024;
 const phaseSeconds = count('phase-seconds');
-const sleep = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
+const sleep = (ms: number) =>
+  new Promise<void>((done) => {
+    setTimeout(done, ms);
+  });
 
 // A slow disk delays every flush. Synchronous flushes block the caller, just as a
 // slow fsync does; asynchronous flushes wait off the main thread.
@@ -82,6 +86,7 @@ if (slowDisk > 0) {
   };
 
   // SAFETY: The load test replaces only the callback form; promisify is unused.
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   fs.fsync = ((fd: number, callback: fs.NoParamCallback) => {
     setTimeout(() => fsync(fd, callback), slowDisk);
   }) as typeof fs.fsync;
@@ -89,7 +94,7 @@ if (slowDisk > 0) {
   syncBuiltinESMExports();
   const handle = await fs.promises.open(resolve(tmpdir(), 'zluggish-load-probe'), 'w');
   const prototype = Object.getPrototypeOf(handle);
-  const sync = prototype.sync;
+  const sync: (this: typeof handle) => Promise<void> = prototype.sync;
   prototype.sync = async function (this: typeof handle) {
     await sleep(slowDisk);
 
@@ -192,7 +197,7 @@ const ghost = toBinary(
 
 type LoadRider = { id: bigint; activity: number; auth: string; tick: number; riding: boolean };
 
-const fleet: LoadRider[] = [];
+const fleet: Array<LoadRider> = [];
 
 for (let index = 0; index < riders; index++) {
   const rider = await accounts.create(`Load Rider ${index}`, 'load-test-password');
@@ -234,13 +239,17 @@ if (backupMiB > 0) {
   const file = openSync(resolve(storage, 'load-backup-input.bin'), 'wx');
 
   try {
-    for (let index = 0; index < backupMiB; index++) writeFileSync(file, chunk);
+    for (let index = 0; index < backupMiB; index++) {
+      writeFileSync(file, chunk);
+    }
   } finally {
     closeSync(file);
   }
 }
 
-if (values['full-fsync']) accounts.db.exec('PRAGMA fullfsync=ON; PRAGMA checkpoint_fullfsync=ON;');
+if (values['full-fsync']) {
+  accounts.db.exec('PRAGMA fullfsync=ON; PRAGMA checkpoint_fullfsync=ON;');
+}
 
 const simulation = new Simulation(runtime);
 
@@ -267,7 +276,9 @@ const driver = setInterval(() => {
   const slot = Math.floor(performance.now() / 50) % 20;
 
   for (const [index, rider] of fleet.entries()) {
-    if (!rider.riding || index % 20 !== slot) continue;
+    if (!rider.riding || index % 20 !== slot) {
+      continue;
+    }
     rider.tick++;
     const state: PlayerState = riderState(rider.id, rider.tick);
     world.receive(rider.id, state);
@@ -297,7 +308,9 @@ async function finish(rider: LoadRider) {
     body: toBinary(ActivitySchema, activity),
   });
 
-  if (response.status !== 200) throw new Error(`Completion failed with HTTP ${response.status}`);
+  if (response.status !== 200) {
+    throw new Error(`Completion failed with HTTP ${response.status}`);
+  }
 }
 
 const phases: Record<string, ReturnType<typeof metrics.summary>> = {};
@@ -321,7 +334,9 @@ await phase('riding', () => Promise.resolve());
 let backupDurationMs: number | null = null;
 
 async function runBackup() {
-  if (backupMiB === 0) return;
+  if (backupMiB === 0) {
+    return;
+  }
   const backup = effects.runSync(BackupService);
   const operation = crypto.randomUUID();
   const start = performance.now();
@@ -336,7 +351,9 @@ async function runBackup() {
       return;
     }
 
-    if (status === 'failed' || performance.now() - start > 120_000) throw new Error('Load-test backup did not finish');
+    if (status === 'failed' || performance.now() - start > 120_000) {
+      throw new Error('Load-test backup did not finish');
+    }
     await sleep(50);
   }
 }
@@ -345,10 +362,14 @@ await phase('completion', async () => {
   const group = fleet.slice(0, finishers);
 
   const media = async () => {
-    if (mediaBytes === 0) return;
+    if (mediaBytes === 0) {
+      return;
+    }
     const rider = fleet.at(-1);
 
-    if (!rider) return;
+    if (!rider) {
+      return;
+    }
 
     const issued = await app.request(`/api/profiles/${rider.id}/activities/${rider.activity}/medias`, {
       method: 'POST',
@@ -378,7 +399,9 @@ await phase('completion', async () => {
 
 // Post-commit work (power curves, exports, charts, deliveries) runs while riders ride.
 await phase('jobs', async () => {
-  while (runtime.effects.runSync(JobsService.use((jobs) => jobs.busy()))) await sleep(100);
+  while (runtime.effects.runSync(JobsService.use((jobs) => jobs.busy()))) {
+    await sleep(100);
+  }
 });
 
 clearInterval(driver);
@@ -428,10 +451,14 @@ accounts.close();
 
 runtime.settings.close();
 
-if (temporaryRoot) rmSync(temporaryRoot, { recursive: true, force: true });
+if (temporaryRoot) {
+  rmSync(temporaryRoot, { recursive: true, force: true });
+}
 
 const text = JSON.stringify(result, null, 2);
 
-if (values.output) writeFileSync(values.output, `${text}\n`);
+if (values.output) {
+  writeFileSync(values.output, `${text}\n`);
+}
 
 process.stdout.write(`${text}\n`);

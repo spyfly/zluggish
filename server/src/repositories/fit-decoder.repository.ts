@@ -16,31 +16,35 @@ const recordSchema = Schema.Struct({
 });
 
 export type ActivityChart = {
-  powerInWatts: number[];
-  cadencePerMin: number[];
-  heartRate: number[];
-  distanceInCm: number[];
-  speedInCmPerSec: number[];
-  timeInSec: number[];
-  altitudeInCm: number[];
-  latlng: number[][];
+  powerInWatts: Array<number>;
+  cadencePerMin: Array<number>;
+  heartRate: Array<number>;
+  distanceInCm: Array<number>;
+  speedInCmPerSec: Array<number>;
+  timeInSec: Array<number>;
+  altitudeInCm: Array<number>;
+  latlng: Array<Array<number>>;
 };
 
-export type PowerBests = { timestamp: number; bests: { time: number; power: number }[] };
+export type PowerBests = { timestamp: number; bests: Array<{ time: number; power: number }> };
 
 /** Pure FIT computations. The FIT worker and synchronous callers share them. */
 export class FitDecoder {
   decode(bytes: Uint8Array) {
     const decoder = new Decoder(Stream.fromByteArray(bytes));
 
-    if (!decoder.isFIT()) throw new Error('Invalid FIT activity');
+    if (!decoder.isFIT()) {
+      throw new Error('Invalid FIT activity');
+    }
 
     const { messages, errors } = decoder.read({
       convertDateTimesToDates: false,
       convertTypesToStrings: false,
     });
 
-    if (errors.length > 0) throw new AggregateError(errors, 'Invalid FIT activity', { cause: errors[0] });
+    if (errors.length > 0) {
+      throw new AggregateError(errors, 'Invalid FIT activity', { cause: errors[0] });
+    }
 
     return {
       records: Schema.decodeUnknownSync(Schema.Array(recordSchema))(messages.recordMesgs ?? []),
@@ -71,10 +75,14 @@ export class FitDecoder {
     for (let index = 0; index < records.length; index++) {
       const record = records[index];
 
-      if (!record || record.timestamp === undefined) continue;
+      if (!record || record.timestamp === undefined) {
+        continue;
+      }
       start ??= record.timestamp;
 
-      if (index % step) continue;
+      if (index % step) {
+        continue;
+      }
       const altitude = record.enhancedAltitude ?? record.altitude;
       const speed = record.enhancedSpeed ?? record.speed;
 
@@ -101,7 +109,9 @@ export class FitDecoder {
     const bests = [];
 
     for (const time of [5, 60, 300, 1200]) {
-      if (power.length < time) continue;
+      if (power.length < time) {
+        continue;
+      }
       let sum = power.slice(0, time).reduce((total, value) => total + value, 0);
       let best = Math.floor(sum / time);
 

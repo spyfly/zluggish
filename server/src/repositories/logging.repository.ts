@@ -1,6 +1,4 @@
 import type { LogLevel } from '#src/enum';
-// Serialization is the logging boundary: runtime checks safely encode recursive values.
-/* oxlint-disable anti-slop/no-runtime-typeof */
 import type { ResolvedConfig } from '#src/config/index';
 import { inspect } from 'node:util';
 
@@ -19,10 +17,10 @@ type LogValue =
   | null
   | undefined
   | Error
-  | LogValue[]
+  | Array<LogValue>
   | { [key: string]: LogValue };
 
-type Serialized = string | number | boolean | null | undefined | Serialized[] | { [key: string]: Serialized };
+type Serialized = string | number | boolean | null | undefined | Array<Serialized> | { [key: string]: Serialized };
 
 type Fields = Record<string, LogValue>;
 
@@ -34,13 +32,19 @@ type Options = Partial<Pick<ResolvedConfig['logging'], 'level' | 'format'>> & {
 // Errors keep their message, stack and cause: an operator cannot fix a failure the log hides.
 // Fields whose names suggest credentials are still redacted.
 function safe(value: LogValue, seen = new WeakSet<object>(), depth = 0): Serialized {
-  // eslint-disable-next-line no-control-regex
-  if (typeof value === 'string') return value.replaceAll(/[\u{0000}-\u{001F}\u{007F}]/gu, ' ').slice(0, 500);
+  if (typeof value === 'string') {
+    // eslint-disable-next-line no-control-regex
+    return value.replaceAll(/[\u{0000}-\u{001F}\u{007F}]/gu, ' ').slice(0, 500);
+  }
 
-  if (typeof value === 'bigint') return String(value);
+  if (typeof value === 'bigint') {
+    return String(value);
+  }
 
   if (value instanceof Error) {
-    if (seen.has(value) || depth >= 4) return '[truncated]';
+    if (seen.has(value) || depth >= 4) {
+      return '[truncated]';
+    }
     seen.add(value);
 
     // SAFETY: a cause can be any thrown value; safe() checks its runtime type and drops what it does not know.
@@ -48,18 +52,27 @@ function safe(value: LogValue, seen = new WeakSet<object>(), depth = 0): Seriali
       type: value.name,
       message: safe(value.message),
       stack: value.stack === undefined ? undefined : multiline(value.stack),
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion
       cause: value.cause === undefined ? undefined : safe(value.cause as LogValue, seen, depth + 1),
     };
   }
 
-  if (value === null || typeof value === 'boolean' || typeof value === 'number') return value;
+  if (value === null || typeof value === 'boolean' || typeof value === 'number') {
+    return value;
+  }
 
-  if (typeof value !== 'object') return undefined;
+  if (typeof value !== 'object') {
+    return undefined;
+  }
 
-  if (seen.has(value) || depth >= 4) return '[truncated]';
+  if (seen.has(value) || depth >= 4) {
+    return '[truncated]';
+  }
   seen.add(value);
 
-  if (Array.isArray(value)) return value.slice(0, 30).map((item) => safe(item, seen, depth + 1));
+  if (Array.isArray(value)) {
+    return value.slice(0, 30).map((item) => safe(item, seen, depth + 1));
+  }
 
   return Object.fromEntries(
     Object.entries(value)
@@ -82,7 +95,7 @@ export class LoggingRepository {
   constructor(
     private readonly options: Options = {},
     private readonly context: Fields = {},
-    private readonly history: string[] = [],
+    private readonly history: Array<string> = [],
   ) {}
 
   configure(options: Options) {
@@ -112,10 +125,15 @@ export class LoggingRepository {
   critical = (event: string, message: string, fields?: Fields) => this.write('CRITICAL', event, message, fields);
 
   private sink(line: string, level: Level) {
-    if (this.options.sink) this.options.sink(line, level);
-    else if (level === 'WARN') console.warn(line);
-    else if (levels[level] >= levels.ERROR) console.error(line);
-    else console.log(line);
+    if (this.options.sink) {
+      this.options.sink(line, level);
+    } else if (level === 'WARN') {
+      console.warn(line);
+    } else if (levels[level] >= levels.ERROR) {
+      console.error(line);
+    } else {
+      console.log(line);
+    }
   }
 
   private remember(line: string) {
@@ -125,11 +143,15 @@ export class LoggingRepository {
 
     this.history.push(entry);
 
-    if (this.history.length > recentEntryLimit) this.history.shift();
+    if (this.history.length > recentEntryLimit) {
+      this.history.shift();
+    }
   }
 
   private write(level: Level, event: string, message: string, fields: Fields = {}) {
-    if (!this.isLevelEnabled(level)) return;
+    if (!this.isLevelEnabled(level)) {
+      return;
+    }
 
     try {
       const all = { ...this.context, ...fields };

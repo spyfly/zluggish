@@ -40,9 +40,11 @@ const make = Effect.gen(function* () {
   ) {
     const weight = repositories.profileRepository.get(playerId).weightInGrams / 1000;
 
-    if (weight <= 0) return;
+    if (weight <= 0) {
+      return;
+    }
 
-    for (const { time, power } of curve.bests)
+    for (const { time, power } of curve.bests) {
       repositories.fitnessRepository.insertPowerCurve(
         playerId,
         String(time),
@@ -51,6 +53,7 @@ const make = Effect.gen(function* () {
         curve.timestamp,
         activity,
       );
+    }
   });
 
   return { savePowerCurve, insertPowerBests };

@@ -78,7 +78,7 @@ export type JsonValue =
   | string
   | number
   | boolean
-  | readonly JsonValue[]
+  | ReadonlyArray<JsonValue>
   | { [key: string]: JsonValue }
   | null
   | undefined;

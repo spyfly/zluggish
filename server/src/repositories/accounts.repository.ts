@@ -48,7 +48,7 @@ export class AccountsRepository {
       ]);
   }
 
-  list(): User[] {
+  list(): Array<User> {
     return this.executor
       .all(
         this.selection()
@@ -71,10 +71,12 @@ export class AccountsRepository {
   byUsername(username: string): User | null {
     const exact = this.executor.get(this.selection().where('username', '=', username));
 
-    if (exact) return Schema.decodeUnknownSync(riderSchema)(exact);
+    if (exact) {
+      return Schema.decodeUnknownSync(riderSchema)(exact);
+    }
     const matches = this.sameLoginName(username);
 
-    return matches.length === 1 ? matches[0]! : null;
+    return matches.length === 1 ? (matches[0] ?? null) : null;
   }
 
   /** Every rider whose login name normalizes to the same value. */
@@ -90,7 +92,9 @@ export class AccountsRepository {
 
   // Offline recovery preserves disabled state unless administrator access is requested.
   setPassword(id: number, hash: string | null, admin: boolean) {
-    if (!hash) throw new Error('A password is required');
+    if (!hash) {
+      throw new Error('A password is required');
+    }
     atomic(this.db, () => {
       this.executor.run(
         query
@@ -110,7 +114,9 @@ export class AccountsRepository {
           .where('name', 'in', ['encryption_key.bin', 'relay-auth-version']),
       );
 
-      if (admin) this.executor.run(query.updateTable('web_setup_state').set({ state: 'complete' }).where('id', '=', 1));
+      if (admin) {
+        this.executor.run(query.updateTable('web_setup_state').set({ state: 'complete' }).where('id', '=', 1));
+      }
     });
   }
 

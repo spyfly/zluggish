@@ -20,13 +20,15 @@ export async function fetchCdn(path: string): Promise<Response> {
               return;
             }
 
-            if (options.all)
+            if (options.all) {
               callback(
                 null,
                 addresses.map((address) => ({ address, family: 4 })),
                 4,
               );
-            else callback(null, addresses[0], 4);
+            } else {
+              callback(null, addresses[0], 4);
+            }
           });
         },
       },
@@ -37,10 +39,17 @@ export async function fetchCdn(path: string): Promise<Response> {
           const headers = new Headers();
 
           for (const [name, value] of Object.entries(response.headers)) {
-            if (['connection', 'transfer-encoding', 'keep-alive'].includes(name) || value === undefined) continue;
+            if (['connection', 'transfer-encoding', 'keep-alive'].includes(name) || value === undefined) {
+              continue;
+            }
 
-            if (Array.isArray(value)) for (const item of value) headers.append(name, item);
-            else headers.set(name, value);
+            if (Array.isArray(value)) {
+              for (const item of value) {
+                headers.append(name, item);
+              }
+            } else {
+              headers.set(name, value);
+            }
           }
 
           const status = response.statusCode ?? 502;
@@ -50,6 +59,7 @@ export async function fetchCdn(path: string): Promise<Response> {
             done(new Response(null, { status, headers }));
           } else {
             // SAFETY: Node returns a WHATWG byte stream; Node and DOM stream declarations differ in their BYOB overloads.
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion
             const body = Readable.toWeb(response) as ReadableStream<Uint8Array>;
             done(new Response(body, { status, headers }));
           }

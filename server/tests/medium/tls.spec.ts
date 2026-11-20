@@ -10,7 +10,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
 
-async function json(request: Response | Promise<Response>) {
+async function json(request: Response | Promise<Response>): Promise<any> {
   const response = await request;
 
   return response.json();
@@ -50,7 +50,7 @@ await test('a server without riders generates its own certificate on first start
   const status = await f.effects.runPromise(tls.status());
   assert.equal(status.certificate?.key, 'ECDSA P-256');
   assert.deepEqual(status.certificate?.hosts, ['*.zwift.com', 'zwift.com']);
-  assert.equal(new Date(status.certificate!.notAfter).getUTCFullYear(), new Date().getUTCFullYear() + 5);
+  assert.equal(new Date(status.certificate.notAfter).getUTCFullYear(), new Date().getUTCFullYear() + 5);
   assert.equal(warnings.mock.callCount(), 0);
 });
 
@@ -80,7 +80,7 @@ await test('riders download the certificate and setup scripts, and only administ
   const admin = mediumWeb(f, owner);
   const web = mediumWeb(f, rider);
   const tls = f.effects.runSync(TlsService);
-  const applied: string[] = [];
+  const applied: Array<string> = [];
   tls.subscribe((material) => {
     applied.push(material.cert);
   });

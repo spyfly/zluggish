@@ -64,9 +64,13 @@ export class SocialRepository {
       .where('segment_id', '=', segment)
       .where('type', '=', type);
 
-    if (!ignoreStart) selection = selection.where('world_time', '>', start);
+    if (!ignoreStart) {
+      selection = selection.where('world_time', '>', start);
+    }
 
-    if (!ignoreEnd) selection = selection.where('world_time', '<', end);
+    if (!ignoreEnd) {
+      selection = selection.where('world_time', '<', end);
+    }
 
     return this.executor.get(selection.orderBy(fastest ? sql`time` : sql`-world_time`).limit(1), true);
   }

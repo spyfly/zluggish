@@ -36,17 +36,19 @@ export class SqliteExecutor {
 
     // SAFETY: Parameters come from typed SQLite query values or parameterized
     // sql expressions; node:sqlite validates their runtime representation.
-    return { statement, parameters: compiled.parameters as SQLInputValue[] };
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+    return { statement, parameters: compiled.parameters as Array<SQLInputValue> };
   }
 
-  all<Row>(builder: Compilable<Row>): NumberRow<Row>[];
-  all<Row>(builder: Compilable<Row>, bigints: true): BigIntRow<Row>[];
-  all<Row>(builder: Compilable<Row>, bigints = false): NumberRow<Row>[] | BigIntRow<Row>[] {
+  all<Row>(builder: Compilable<Row>): Array<NumberRow<Row>>;
+  all<Row>(builder: Compilable<Row>, bigints: true): Array<BigIntRow<Row>>;
+  all<Row>(builder: Compilable<Row>, bigints = false): Array<NumberRow<Row>> | Array<BigIntRow<Row>> {
     const { statement, parameters } = this.prepare(builder, bigints);
 
     // SAFETY: Kysely infers the selected columns; setReadBigInts determines
     // the integer representation and SQLite leaves REAL columns as numbers.
-    return statement.all(...parameters) as NumberRow<Row>[] | BigIntRow<Row>[];
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+    return statement.all(...parameters) as Array<NumberRow<Row>> | Array<BigIntRow<Row>>;
   }
 
   get<Row>(builder: Compilable<Row>): NumberRow<Row> | undefined;
@@ -56,6 +58,7 @@ export class SqliteExecutor {
 
     // SAFETY: The compiled selection defines the row and setReadBigInts
     // controls integer decoding, just as in all().
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
     return statement.get(...parameters) as NumberRow<Row> | BigIntRow<Row> | undefined;
   }
 

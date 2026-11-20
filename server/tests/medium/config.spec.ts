@@ -6,8 +6,9 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
+import type { TestContext } from 'node:test';
 
-function fixture(t: import('node:test').TestContext) {
+function fixture(t: TestContext) {
   const root = mkdtempSync(resolve(tmpdir(), 'zluggish-config-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
 
@@ -119,7 +120,9 @@ await test('runtime TypeErrors identify the config or imported file and original
     const failingPath = imported ? resolve(root, 'values.ts') : path;
     writeFileSync(failingPath, `const value = undefined;\nexport default value.trim();`);
 
-    if (imported) writeFileSync(path, `import value from './values.ts';\nexport default value;`);
+    if (imported) {
+      writeFileSync(path, `import value from './values.ts';\nexport default value;`);
+    }
     await assert.rejects(loadConfig({ path }), (error) => {
       assert.ok(error instanceof Error);
       assert.match(error.message, /TypeError.*Cannot read properties of undefined/);
@@ -266,7 +269,9 @@ await test('invalid real config files stop the server before creating runtime st
       const path = resolve(root, 'zluggish.config.ts');
       const storage = resolve(root, 'state');
 
-      if (source !== null) writeFileSync(path, source);
+      if (source !== null) {
+        writeFileSync(path, source);
+      }
 
       const result = spawnSync(
         process.execPath,

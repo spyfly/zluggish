@@ -10,10 +10,10 @@ import { HTTPException } from 'hono/http-exception';
 export function workoutRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
   const appRoutes = effectRoutes(app, runtime);
 
-  const selected = Effect.fn('workouts.selected')(function* (id: number, sport = 'CYCLING') {
+  const selected = Effect.fn('workouts.selected')(function* (id: number, sport?: string) {
     const workouts = yield* WorkoutsService;
 
-    return sport.toUpperCase() === 'CYCLING' ? yield* workouts.list(id) : [];
+    return sport === undefined || sport.toUpperCase() === 'CYCLING' ? yield* workouts.list(id) : [];
   });
 
   appRoutes.get('/api/workout/schedule/list', (c) =>
@@ -65,7 +65,9 @@ export function workoutRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
         (item) => item.id === c.req.param('id'),
       );
 
-      if (!workout) throw new HTTPException(404);
+      if (!workout) {
+        throw new HTTPException(404);
+      }
       c.header('Cache-Control', 'private, no-store');
 
       return c.json(workout.schedule.workoutSummary);
@@ -79,7 +81,9 @@ export function workoutRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
 
       const file = yield* workoutsService.file(c.req.param('id').replace(/\.zwo$/, ''));
 
-      if (!file || !(yield* filesService.exists(file))) throw new HTTPException(404);
+      if (!file || !(yield* filesService.exists(file))) {
+        throw new HTTPException(404);
+      }
 
       return c.body(yield* filesService.read(file), 200, {
         'Content-Type': 'application/xml',

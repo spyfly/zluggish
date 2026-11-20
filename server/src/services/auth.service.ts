@@ -13,7 +13,9 @@ function identityOf(rider: User) {
 never reach the lookup.
 */
 function resolveIdentity(identity: string, get: (id: number) => User | null): User | null {
-  if (!/^\d+:\d+$/.test(identity)) return null;
+  if (!/^\d+:\d+$/.test(identity)) {
+    return null;
+  }
   const [id = 0, version] = identity.split(':').map(Number);
   const rider = get(id);
 
@@ -53,10 +55,14 @@ function open(storage: string) {
   async function create(name: string, password: string, username?: string): Promise<User> {
     const displayName = name.trim();
 
-    if (!displayName || displayName.length > 100) throw new ConfigError('Enter a name between 1 and 100 characters');
+    if (!displayName || displayName.length > 100) {
+      throw new ConfigError('Enter a name between 1 and 100 characters');
+    }
 
     // Every rider has a password; the launcher can remember it per computer instead.
-    if (!password) throw new ConfigError('Choose a password for this rider');
+    if (!password) {
+      throw new ConfigError('Choose a password for this rider');
+    }
     const passwordHash = await repositories.cryptoRepository.hashPassword(password);
     let created: string | null = null;
     db.exec('BEGIN IMMEDIATE');
@@ -73,7 +79,9 @@ function open(storage: string) {
       // TODO: migrate to uuid before we release the first version
       const id = Math.max(0, ...occupied) + 1;
 
-      if (!Number.isSafeInteger(id) || id > 2_147_483_647) throw new ConfigError('Rider ID space exhausted');
+      if (!Number.isSafeInteger(id) || id > 2_147_483_647) {
+        throw new ConfigError('Rider ID space exhausted');
+      }
       const folder = resolve(storage, String(id));
       repositories.filesRepository.mkdirSync(folder);
       created = folder;
@@ -90,15 +98,21 @@ function open(storage: string) {
 
       const user = get(id);
 
-      if (!user) throw new Error('Created rider unavailable');
+      if (!user) {
+        throw new Error('Created rider unavailable');
+      }
 
       db.exec('COMMIT');
 
       return user;
     } catch (error) {
-      if (db.isTransaction) db.exec('ROLLBACK');
+      if (db.isTransaction) {
+        db.exec('ROLLBACK');
+      }
 
-      if (created) repositories.filesRepository.rmSync(created, { recursive: true, force: true });
+      if (created) {
+        repositories.filesRepository.rmSync(created, { recursive: true, force: true });
+      }
 
       throw error;
     }
@@ -125,7 +139,9 @@ function open(storage: string) {
   }
 
   async function changePassword(id: number, password: string, admin = false, live: () => boolean = () => true) {
-    if (!password) throw new ConfigError('Password must not be empty');
+    if (!password) {
+      throw new ConfigError('Password must not be empty');
+    }
     const before = get(id);
     const hash = await repositories.cryptoRepository.hashPassword(password);
     const current = get(id);
@@ -136,14 +152,17 @@ function open(storage: string) {
       !current ||
       current.auth_version !== before.auth_version ||
       current.pass_hash !== before.pass_hash
-    )
+    ) {
       throw new ConfigError('Account changed. Retry.');
+    }
     repository.setPassword(id, hash, admin);
     onRevoke?.(id);
   }
 
   function close() {
-    if (db.isOpen) db.close();
+    if (db.isOpen) {
+      db.close();
+    }
   }
 
   return {
