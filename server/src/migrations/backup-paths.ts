@@ -1,20 +1,12 @@
 import { ConfigError } from '#src/config/index';
-import { basename, dirname, resolve } from 'node:path';
+import { basename, resolve } from 'node:path';
 
 export const backupManifest = 'backup-manifest.json';
 
 export const legacyDatabases: ReadonlyArray<string> = ['zluggish.db', 'zwift-offline.db', 'settings.db'];
 
 export function backupDirectory(storage: string) {
-  const source = resolve(storage);
-  const parent = dirname(source);
-  const directory = resolve(parent, 'backups');
-
-  if (source === parent || source === directory) {
-    throw new ConfigError('Storage and backups must be separate directories');
-  }
-
-  return directory;
+  return resolve(storage, 'backups');
 }
 
 export function excludedStorageEntry(name: string) {
@@ -41,11 +33,21 @@ export function excludedBackupPath(path: string) {
 }
 
 export function nightlyBackupName(date: Date) {
-  return `nightly-${date.toISOString().slice(0, 10)}`;
+  const timestamp = date.toISOString().slice(0, 19).replaceAll(':', '-');
+
+  return `${timestamp}Z-nightly`;
 }
 
-export function isNightlyBackup(name: string) {
-  return /^nightly-\d{4}-\d{2}-\d{2}$/.test(name);
+export function nightlyBackupTimestamp(name: string) {
+  const timestamp = /^(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z)-nightly$/.exec(name)?.[1];
+
+  if (timestamp) {
+    return timestamp;
+  }
+
+  const legacyDate = /^nightly-(\d{4}-\d{2}-\d{2})$/.exec(name)?.[1];
+
+  return legacyDate && `${legacyDate}T02-00-00Z`;
 }
 
 /** Backup names are also used as directory names. */

@@ -20,8 +20,8 @@ These commands run offline. Stop the server first. They use the storage of the s
 | `uploads resume --confirm`                     | Allow the automatic deliveries again.                                                                                                                                                 |
 
 ```sh
-node server/dist/src/cli/bin.js --storage-dir ./storage storage backup --output /backups/zluggish-2026-11-16.tar.gz
-node server/dist/src/cli/bin.js --storage-dir ./storage storage restore --input /backups/zluggish-2026-11-16.tar.gz
+node server/dist/src/cli/bin.js --storage-dir ./storage storage backup --output ./storage/backups/zluggish-2026-11-16.tar.gz
+node server/dist/src/cli/bin.js --storage-dir ./storage storage restore --input ./storage/backups/zluggish-2026-11-16.tar.gz
 node server/dist/src/cli/bin.js --storage-dir ./storage uploads list
 node server/dist/src/cli/bin.js --storage-dir ./storage uploads resume --confirm
 ```

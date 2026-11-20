@@ -26,7 +26,7 @@ If you use legacy zwift-offline now, do the steps in [Migrate from zwift-offline
 
 The server makes the `storage` directory on the first start. This directory holds the configuration, the users and the activities.
 
-The Compose file mounts `backups` beside `storage` so backups persist when the container is replaced. If you use an older Compose file, add the backups mount from the current file.
+Backups are saved in `storage/backups/` on the host through the existing storage mount.
 
 The [ports reference](../reference/ports.md) tells what each port is for.
 

@@ -102,7 +102,7 @@ await test('direct migration generates loadable TS and preferences with no JSONC
   writeFileSync(resolve(f.storage, 'solo_blob.txt'), JSON.stringify({ enabled: true, riders: 12 }));
   const original = snapshot(f.storage);
   await migrateConfig(f);
-  const directory = resolve(f.root, 'backups');
+  const directory = resolve(f.storage, 'backups');
   const [name] = readdirSync(directory);
   assert.match(name!, /^config-migration-.*\.tar\.gz$/);
   const archive = resolve(directory, name!);

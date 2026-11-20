@@ -294,8 +294,8 @@ await test('a legacy backup preserves the storage tree and the original schema',
     JSON.parse(readFileSync(resolve(storage, StorageFile.Manifest), 'utf8')),
   );
 
-  assert.equal(resolve(manifest.backup, '..'), resolve(storage, '..', 'backups'));
-  assert.equal(existsSync(resolve(storage, 'backups')), false);
+  assert.equal(resolve(manifest.backup, '..'), resolve(storage, 'backups'));
+  assert.equal(existsSync(resolve(storage, '..', 'backups')), false);
   write(storage, 'custom/local.cfg', 'changed setting');
   assert.match(manifest.backup, /\.tar\.gz$/);
   assert.equal(readArchivedFile(manifest.backup, 'custom/local.cfg'), 'original setting');
@@ -315,9 +315,9 @@ await test('a legacy backup preserves the storage tree and the original schema',
 await test('a repeated start does not migrate again', (t) => {
   const { storage, open } = legacy(t);
   open().close();
-  const before = readdirSync(resolve(storage, '..', 'backups'));
+  const before = readdirSync(resolve(storage, 'backups'));
   const db = open();
-  assert.deepEqual(readdirSync(resolve(storage, '..', 'backups')), before);
+  assert.deepEqual(readdirSync(resolve(storage, 'backups')), before);
   assert.equal(db.prepare('SELECT count(*) AS n FROM rider_document').get()?.n, 6);
 });
 
@@ -545,7 +545,7 @@ await test('a failed initial archive leaves existing legacy storage byte-for-byt
         }),
     );
 
-  writeFileSync(resolve(storage, '..', 'backups'), 'blocks backup directory');
+  writeFileSync(resolve(storage, 'backups'), 'blocks backup directory');
   const before = snapshot();
 
   assert.throws(() => open(), /backup/i);
@@ -564,10 +564,10 @@ await test('a failed initial archive creates no database when only legacy settin
   settings.close();
   const settingsPath = resolve(storage, StorageFile.Settings);
   const before = readFileSync(settingsPath);
-  writeFileSync(resolve(root, 'backups'), 'blocks backup directory');
+  writeFileSync(resolve(storage, 'backups'), 'blocks backup directory');
 
   assert.throws(() => openDatabase(storage), /backup/i);
-  assert.deepEqual(readdirSync(storage), [StorageFile.Settings]);
+  assert.deepEqual(readdirSync(storage).toSorted(), ['backups', StorageFile.Settings].toSorted());
   assert.deepEqual(readFileSync(settingsPath), before);
 });
 
@@ -582,7 +582,7 @@ await test('an unreadable legacy database leaves no partial archive or migration
   assert.throws(() => open(), /not a database/i);
   assert.deepEqual(readFileSync(database), original);
   assert.equal(readFileSync(settings, 'utf8'), invalid);
-  assert.deepEqual(readdirSync(resolve(storage, '..', 'backups')), []);
+  assert.deepEqual(readdirSync(resolve(storage, 'backups')), []);
   assert.equal(existsSync(resolve(storage, StorageFile.Manifest)), false);
   assert.equal(existsSync(resolve(storage, StorageFile.Temporary)), false);
 });

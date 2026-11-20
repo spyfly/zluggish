@@ -9,7 +9,8 @@ description: Update the Zluggish server and keep the Zwift client compatible.
 
 1. Read the [CHANGELOG](https://github.com/zluggish/zluggish/blob/main/CHANGELOG). Some changes need an action from the operator.
 2. Back up the storage. See [Back up and restore](backup-and-restore.md).
-3. In the directory with `docker-compose.yml`, get the new image and start it:
+3. If the old container has backups in a Docker volume, [copy them to the host](backup-and-restore.md#recover-backups-from-an-older-docker-container) before recreating it.
+4. In the directory with `docker-compose.yml`, get the new image and start it:
 
    ```sh
    docker compose pull && docker compose up -d
