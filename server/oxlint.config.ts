@@ -11,7 +11,6 @@ const migrationRules = {
   'typescript/no-unsafe-member-access': 'off', // Temporary during migration
   'typescript/no-unsafe-return': 'off', // Temporary during migration
   'typescript/no-unsafe-type-assertion': 'off', // Temporary during migration
-  'unicorn/consistent-function-scoping': 'off', // Temporary during migration
 } as const;
 
 export default defineConfig({
@@ -40,6 +39,8 @@ export default defineConfig({
     'react-hooks/rules-of-hooks': 'off',
     // File, Blob, FormData, Uint8Array and Error checks have no structural alternative.
     '@nkzw/no-instanceof': 'off',
+    // ESLint's Unicorn rule covers server code; this port also reports closures over Svelte component state.
+    'unicorn/consistent-function-scoping': 'off',
     ...migrationRules,
   },
   overrides: [
