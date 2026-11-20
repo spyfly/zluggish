@@ -149,9 +149,9 @@ function openSessions(accounts: AccountsService['Service']) {
   }
 
   function token(identity: string, template: string) {
-    const payload = JSON.parse(Buffer.from(template.split('.', 2)[1] ?? '', 'base64url').toString());
-
-    const values = Schema.decodeUnknownSync(Schema.Record(Schema.String, Schema.Json))(payload);
+    const values = Schema.decodeUnknownSync(Schema.fromJsonString(Schema.Record(Schema.String, Schema.Json)))(
+      Buffer.from(template.split('.', 2)[1] ?? '', 'base64url').toString(),
+    );
 
     const body = Buffer.from(
       JSON.stringify({

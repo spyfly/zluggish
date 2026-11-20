@@ -188,6 +188,8 @@ export function backupLegacyStorage(storage: string, prefix: string) {
 
   try {
     mkdirSync(snapshot);
+    // A null prototype keeps file names such as __proto__ ordinary keys; Object.create returns any.
+    // oxlint-disable-next-line typescript/no-unsafe-assignment
     const checksums: Record<string, string> = Object.create(null);
     copyLegacyTree(source, snapshot, checksums, source);
     writeDurable(resolve(snapshot, backupManifest), `${JSON.stringify({ version: 1, checksums }, null, 2)}\n`);

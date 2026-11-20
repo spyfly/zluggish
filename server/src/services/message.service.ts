@@ -11,7 +11,7 @@ const make = Effect.gen(function* () {
   const sendMessage = Effect.fn('MessageService.sendMessage')(function* (
     message: string,
     recipients?: bigint[],
-    sender = 'Server',
+    sender: string = 'Server',
   ) {
     if (sender === 'Server' && recipients === undefined)
       for (const bridge of context.bridges ?? []) bridge.send(message);

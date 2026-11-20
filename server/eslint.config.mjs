@@ -66,6 +66,8 @@ export default defineConfig([
           '@typescript-eslint/explicit-function-return-type': 'off',
           '@typescript-eslint/explicit-module-boundary-types': 'off',
           '@typescript-eslint/no-explicit-any': 'off',
+          // Oxlint's type-aware backend infers unannotated Effect.fn parameter defaults as any.
+          '@typescript-eslint/no-inferrable-types': ['error', { ignoreParameters: true }],
           '@typescript-eslint/no-floating-promises': 'error',
           'unicorn/name-replacements': 'off',
           'unicorn/filename-case': 'off',

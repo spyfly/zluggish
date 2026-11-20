@@ -168,6 +168,8 @@ async function writeSnapshot(
 
   if (entries.length > 0) throw new ConfigError('The backup directory is not empty');
 
+  // A null prototype keeps file names such as __proto__ ordinary keys; Object.create returns any.
+  // oxlint-disable-next-line typescript/no-unsafe-assignment
   const checksums: Record<string, string> = Object.create(null);
   const database = resolve(output, StorageFile.Database);
   const schemaVersion = await snapshotDatabase(resolve(storage, StorageFile.Database), database, signal, true);

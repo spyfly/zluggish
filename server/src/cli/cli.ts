@@ -312,7 +312,7 @@ export async function run(argv: string[], output: (message: string) => void = co
   if (action === 'set' && raw === undefined) throw new ConfigError('Provide a JSON setting value');
 
   if (action === 'reset' && raw !== undefined) throw new ConfigError('Unexpected reset value');
-  const value = action === 'set' ? JSON.parse(raw ?? '') : null;
+  const value: unknown = action === 'set' ? JSON.parse(raw ?? '') : null;
 
   const change = (overrides: Overrides) => {
     const candidate: Overrides = {

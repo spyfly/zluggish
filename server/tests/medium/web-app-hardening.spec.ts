@@ -356,7 +356,10 @@ await test('imported activities without completion records rebuild missing chart
   );
 
   assert.equal(detail.chartPending, false);
-  assert.ok(detail.chart.timeInSec.length > 0);
+  const { timeInSec } = Schema.decodeUnknownSync(Schema.Struct({ timeInSec: Schema.Array(Schema.Finite) }))(
+    detail.chart,
+  );
+  assert.ok(timeInSec.length > 0);
 });
 
 await test('web app lists an activity whose Strava ids exceed 32 bits', async (t) => {
@@ -446,13 +449,7 @@ await test('riders list, inspect and download only their own activities in the w
   const list: { activities: Array<{ id: string; name: string; fit: boolean; images: number; world: number }> } =
     await json(owner('/api/me/activities'));
   assert.deepEqual(
-    list.activities.map((a) => [
-      a.id,
-      a.name,
-      a.fit,
-      a.images,
-      a.world,
-    ]),
+    list.activities.map((a) => [a.id, a.name, a.fit, a.images, a.world]),
     [[String(id), 'Volcano loop', true, 1, 6]],
   );
   const others = await json(other('/api/me/activities'));

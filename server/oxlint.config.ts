@@ -5,7 +5,6 @@ const migrationRules = {
   curly: 'off', // Temporary during migration
   'typescript/array-type': 'off', // Temporary during migration
   'typescript/no-unsafe-argument': 'off', // Temporary during migration
-  'typescript/no-unsafe-assignment': 'off', // Temporary during migration
   'typescript/no-unsafe-return': 'off', // Temporary during migration
 } as const;
 
@@ -63,6 +62,11 @@ export default defineConfig({
       // Kysely's expression builder callbacks destructure bound helpers such as eb, and, or and exists.
       files: ['src/repositories/**'],
       rules: { 'typescript/unbound-method': 'off' },
+    },
+    {
+      // Retried management operations return the JSON recorded with their first response, untyped.
+      files: ['src/services/management.service.ts'],
+      rules: { 'typescript/no-unsafe-assignment': 'off' },
     },
     {
       // Svelte compiles runes away, so they are not imported.

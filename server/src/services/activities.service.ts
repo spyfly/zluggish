@@ -77,6 +77,8 @@ function forViewer(activity: Activity, viewer: number) {
   });
 }
 
+const decodeJson = Schema.decodeUnknownSync(Schema.fromJsonString(Schema.Json));
+
 const make = Effect.gen(function* () {
   const context = yield* RuntimeContext;
   const repositories = context.accounts.repositories;
@@ -523,7 +525,7 @@ const make = Effect.gen(function* () {
     const fileId = activity.fit ? chartFile(BigInt(id)) : null;
 
     const chart =
-      fileId === null ? null : JSON.parse(repositories.filesRepository.readFileSync(chartPath(fileId), 'utf8'));
+      fileId === null ? null : decodeJson(repositories.filesRepository.readFileSync(chartPath(fileId), 'utf8'));
 
     return { ...activity, imageIds: images, chart, chartPending: activity.fit && chart === null };
   }

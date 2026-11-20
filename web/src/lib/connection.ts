@@ -52,10 +52,13 @@ export async function requestJson(url: string, init: RequestInit = {}) {
   const response = await request(url, init);
 
   try {
+    // The client reads its own server's JSON untyped; typing each endpoint's body is separate work.
+    // oxlint-disable-next-line typescript/no-unsafe-assignment
     const body = await response.json();
 
     z.record(z.string(), z.json()).parse(body);
 
+    // oxlint-disable-next-line typescript/no-unsafe-assignment
     return { response, body };
   } catch {
     disconnected();
