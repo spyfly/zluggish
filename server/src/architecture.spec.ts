@@ -60,7 +60,7 @@ for (const layer of ['http', 'services', 'repositories']) {
 }
 
 await test('cryptography is centralized in the crypto repository', () => {
-  for (const file of sources(fileURLToPath(new URL('./', import.meta.url)))) {
+  for (const file of sources(import.meta.dirname)) {
     if (file === fileURLToPath(new URL('repositories/crypto.repository.ts', import.meta.url))) continue;
     const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true);
 

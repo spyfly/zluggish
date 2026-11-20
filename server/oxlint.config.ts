@@ -24,7 +24,6 @@ const migrationRules = {
   'typescript/use-unknown-in-catch-callback-variable': 'off', // Temporary during migration
   'unicorn/consistent-function-scoping': 'off', // Temporary during migration
   'unicorn/no-abusive-eslint-disable': 'off', // Temporary during migration
-  'unicorn/prefer-import-meta-properties': 'off', // Temporary during migration
   'unicorn/prefer-single-call': 'off', // Temporary during migration
   'unicorn/prefer-string-raw': 'off', // Temporary during migration
 } as const;

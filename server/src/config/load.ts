@@ -10,7 +10,7 @@ import { Predicate, Schema } from 'effect';
 export const CONFIG_NAME = 'zluggish.config.ts';
 
 export function packageRoot(): string {
-  let current = dirname(fileURLToPath(import.meta.url));
+  let current = import.meta.dirname;
 
   while (dirname(current) !== current) {
     const manifest = resolve(current, 'package.json');
