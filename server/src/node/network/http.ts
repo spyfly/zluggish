@@ -5,7 +5,7 @@ import type { Hono } from 'hono';
 export interface HttpListenerOptions {
   host: string;
   port: number;
-  tls?: { cert: Buffer; key: Buffer };
+  tls?: { cert: Buffer | string; key: Buffer | string };
 }
 
 export function startHttp(app: Pick<Hono, 'fetch'>, options: HttpListenerOptions) {

@@ -19,6 +19,7 @@ import { MatrixService } from '#src/services/matrix.service';
 import { MetricsService } from '#src/services/metrics.service';
 import { ImportsService } from '#src/services/profile-import.service';
 import { BackupService } from '#src/services/backup.service';
+import { TlsService } from '#src/services/tls.service';
 import { RetentionService } from '#src/services/retention.service';
 import { RideCompletionService } from '#src/services/ride-completion.service';
 import { RideRecoveryService } from '#src/services/ride-recovery.service';
@@ -123,6 +124,7 @@ const acquireRuntime = Effect.fn('runtime.acquire')(function* (
     Effect.forkScoped,
   );
 
+  yield* effects.runSync(TlsService).start();
   yield* durability.start();
   yield* recovery.start();
   yield* effects.runSync(UploadsService).start();

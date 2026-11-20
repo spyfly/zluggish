@@ -62,6 +62,7 @@ Most features have their settings on their own page:
 
 | Setting                           | Page                                                       |
 | --------------------------------- | ---------------------------------------------------------- |
+| `tls`                             | [Server certificate](../install/certificate.md)            |
 | `dns.enabled`                     | [Android](../install/clients/android.md)                   |
 | `network.host` and listener hosts | [IPv6](../install/ipv6.md)                                 |
 | `bots`                            | [Bots](../usage/features/bots.md)                          |

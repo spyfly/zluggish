@@ -221,7 +221,12 @@ export const configSchema = Schema.Struct({
     migrationBackups: PositiveInt.pipe(withDefault(2)),
     temporaryFileHours: PositiveInt.pipe(withDefault(24)),
   }),
-  tls: section({ certFile: optionalPath.pipe(withDefault('')), keyFile: optionalPath.pipe(withDefault('')) }),
+  tls: section({
+    certFile: optionalPath.pipe(withDefault('')),
+    keyFile: optionalPath.pipe(withDefault('')),
+    /** Lifetime of the certificate the server generates for itself. */
+    lifetimeYears: IntBetween(1, 20).pipe(withDefault(5)),
+  }),
   pelotons: Schema.Array(peloton).pipe(withDefault([])),
   soloBlob: section({
     enabled: flag(false),
