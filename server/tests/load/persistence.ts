@@ -94,7 +94,7 @@ if (slowDisk > 0) {
   syncBuiltinESMExports();
   const handle = await fs.promises.open(resolve(tmpdir(), 'zluggish-load-probe'), 'w');
   const prototype = Object.getPrototypeOf(handle);
-  const sync = prototype.sync;
+  const sync: (this: typeof handle) => Promise<void> = prototype.sync;
   prototype.sync = async function (this: typeof handle) {
     await sleep(slowDisk);
 

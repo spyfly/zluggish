@@ -392,10 +392,10 @@ await test('web app lists an activity whose Strava ids exceed 32 bits', async (t
   });
 
   assert.equal(list.status, 200);
-  const body = await json(list);
+  const body: { activities: Array<{ id: string; name: string }> } = await json(list);
 
   assert.deepEqual(
-    body.activities.map((a: { id: string; name: string }) => [a.id, a.name]),
+    body.activities.map((a) => [a.id, a.name]),
     [[String(id), 'Strava synced']],
   );
 });
@@ -443,9 +443,10 @@ await test('riders list, inspect and download only their own activities in the w
   const owner = as(f.rider);
   const other = as(f.other);
 
-  const list = await json(owner('/api/me/activities'));
+  const list: { activities: Array<{ id: string; name: string; fit: boolean; images: number; world: number }> } =
+    await json(owner('/api/me/activities'));
   assert.deepEqual(
-    list.activities.map((a: { id: string; name: string; fit: boolean; images: number; world: number }) => [
+    list.activities.map((a) => [
       a.id,
       a.name,
       a.fit,

@@ -2,7 +2,6 @@ import cloudflare from '@cloudflare/oxlint-config';
 import { defineConfig } from 'oxlint';
 
 const migrationRules = {
-  'typescript/no-unsafe-call': 'off', // Temporary during migration
   curly: 'off', // Temporary during migration
   'typescript/array-type': 'off', // Temporary during migration
   'typescript/no-unsafe-argument': 'off', // Temporary during migration

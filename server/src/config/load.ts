@@ -156,8 +156,10 @@ export async function loadConfig(options: LoadOptions = {}): Promise<LoadedConfi
 
     const value = module.default;
 
+    // A configuration function returns its config; decodeConfigInput validates whatever it returns.
     const evaluated: unknown = Predicate.isFunction(value)
-      ? value({ env: { ...env }, configDir: dirname(path) })
+      ? // oxlint-disable-next-line typescript/no-unsafe-call
+        value({ env: { ...env }, configDir: dirname(path) })
       : value;
 
     if (Predicate.isPromise(evaluated)) throw new ConfigError('Async configuration is not supported');
