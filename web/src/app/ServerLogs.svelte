@@ -3,17 +3,17 @@
 
   let open = $state(false);
   let loading = $state(false);
-  let error = $state('');
+  let errorMessage = $state('');
   let entries = $state<string[]>([]);
 
   async function refresh() {
     loading = true;
-    error = '';
+    errorMessage = '';
 
     try {
       entries = (await load()).entries;
-    } catch (cause) {
-      error = cause instanceof Error ? cause.message : 'Could not load server logs.';
+    } catch (error) {
+      errorMessage = error instanceof Error ? error.message : 'Could not load server logs.';
     } finally {
       loading = false;
     }
@@ -38,13 +38,13 @@
   {#if open}
     <p>Recent entries from this server process, newest first.</p>
     {#if loading}<p role="status">Loading logs…</p>{/if}
-    {#if error}<p role="alert">{error}</p>{/if}
+    {#if errorMessage}<p role="alert">{errorMessage}</p>{/if}
     {#if entries.length}
       <!-- svelte-ignore a11y_no_noninteractive_tabindex (the scroll region needs keyboard focus) -->
       <div class="output" role="region" tabindex="0" aria-label="Server log entries">
         <pre>{entries.join('\n')}</pre>
       </div>
-    {:else if !loading && !error}
+    {:else if !loading && !errorMessage}
       <p>No server logs yet.</p>
     {/if}
   {/if}
