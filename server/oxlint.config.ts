@@ -6,7 +6,6 @@ const migrationRules = {
   curly: 'off', // Temporary during migration
   'import/consistent-type-specifier-style': 'off', // Temporary during migration
   'no-promise-executor-return': 'off', // Temporary during migration
-  'no-undef': 'off', // Temporary during migration
   'react-hooks/rules-of-hooks': 'off', // Temporary during migration
   'typescript/array-type': 'off', // Temporary during migration
   'typescript/consistent-type-imports': 'off', // Temporary during migration
@@ -52,6 +51,19 @@ export default defineConfig({
       // Entry points print startup and CLI output; the logging repository is the console sink.
       files: ['src/main.ts', 'src/cli/**', 'src/repositories/logging.repository.ts'],
       rules: { 'no-console': 'off' },
+    },
+    {
+      // Svelte compiles runes away, so they are not imported.
+      files: ['**/*.svelte'],
+      globals: {
+        $bindable: 'readonly',
+        $derived: 'readonly',
+        $effect: 'readonly',
+        $host: 'readonly',
+        $inspect: 'readonly',
+        $props: 'readonly',
+        $state: 'readonly',
+      },
     },
     // Inherited overrides re-enable some migration rules for TypeScript and test files.
     { files: ['**/*'], rules: migrationRules },
