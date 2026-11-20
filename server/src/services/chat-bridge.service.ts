@@ -65,7 +65,7 @@ const make = Effect.gen(function* () {
 
       send,
 
-      online(id: bigint, joining: boolean) {
+      online: (id: bigint, joining: boolean) => {
         transport.presence(context.world.online.size);
 
         if (!settings().announcePlayers) return;
@@ -73,7 +73,7 @@ const make = Effect.gen(function* () {
         send(joining ? 'Riding' : 'Leaving', `${profile.firstName} ${profile.lastName}`);
       },
 
-      async close() {
+      close: async () => {
         stopped = true;
         await transport.close();
       },

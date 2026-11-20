@@ -13,7 +13,6 @@ const migrationRules = {
   'typescript/no-unsafe-member-access': 'off', // Temporary during migration
   'typescript/no-unsafe-return': 'off', // Temporary during migration
   'typescript/no-unsafe-type-assertion': 'off', // Temporary during migration
-  'typescript/unbound-method': 'off', // Temporary during migration
   'unicorn/consistent-function-scoping': 'off', // Temporary during migration
 } as const;
 
@@ -51,6 +50,11 @@ export default defineConfig({
       // Entry points print startup and CLI output; the logging repository is the console sink.
       files: ['src/main.ts', 'src/cli/**', 'src/repositories/logging.repository.ts'],
       rules: { 'no-console': 'off' },
+    },
+    {
+      // Kysely's expression builder callbacks destructure bound helpers such as eb, and, or and exists.
+      files: ['src/repositories/**'],
+      rules: { 'typescript/unbound-method': 'off' },
     },
     {
       // Svelte compiles runes away, so they are not imported.
