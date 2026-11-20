@@ -1,6 +1,6 @@
 import { DocumentsService } from '#src/services/documents.service';
 import { responseStatus, inputValue } from '#tests/support/html';
-import { createGameApp } from '#src/http/app';
+import type { createGameApp } from '#src/http/app';
 import { DeliveryRefusedError } from '#src/errors';
 import { UploadsService } from '#src/services/uploads.service';
 import { ActivitySchema } from '#src/protocol/generated/activity_pb';

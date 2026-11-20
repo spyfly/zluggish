@@ -5,7 +5,7 @@ import { ActivitySchema, FitnessPrivacy } from '#src/protocol/generated/activity
 import type { Activity } from '#src/protocol/generated/activity_pb';
 import { ActivityPrivacyType, Sport, StreaksSchema } from '#src/protocol/generated/profile_pb';
 import { WA_TYPE, WorldAttributeSchema } from '#src/protocol/generated/udp-node-msgs_pb';
-import { ActivitiesRepository } from '#src/repositories/activities.repository';
+import type { ActivitiesRepository } from '#src/repositories/activities.repository';
 import { immediate } from '#src/db/transaction';
 import { Metric, metrics } from '#src/repositories/metrics.repository';
 import type { RunningJob } from '#src/repositories/jobs.repository';

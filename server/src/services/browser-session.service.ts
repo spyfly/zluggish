@@ -1,6 +1,6 @@
 import { ApplicationError } from '#src/errors';
 import type { User } from '#src/repositories/accounts.repository';
-import { AccountsService } from '#src/services/auth.service';
+import type { AccountsService } from '#src/services/auth.service';
 import { resolve } from 'node:path';
 import { Context, Schema } from 'effect';
 

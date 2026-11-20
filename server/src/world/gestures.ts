@@ -1,7 +1,7 @@
 import type { GesturePhase } from '#src/enum';
 import type { PlayerState, UserBikeAction } from '#src/protocol/generated/udp-node-msgs_pb';
 import { WA_TYPE, WorldAttributeSchema } from '#src/protocol/generated/udp-node-msgs_pb';
-import { Random } from '#src/world/geometry';
+import type { Random } from '#src/world/geometry';
 import { create } from '@bufbuild/protobuf';
 
 interface SignallingRider {

@@ -1,12 +1,13 @@
 import { RuntimeContext } from '#src/context';
-import { notificationPayloadSchema, notificationEventSchema, notificationUpdateSchema } from '#src/dtos/events.dto';
+import type { notificationUpdateSchema } from '#src/dtos/events.dto';
+import { notificationPayloadSchema, notificationEventSchema } from '#src/dtos/events.dto';
 import type { Meetup, MeetupInput } from '#src/dtos/meetup.dto';
 import { decodeMeetup } from '#src/dtos/meetup.dto';
 import { ApplicationError } from '#src/errors';
 import { EventSchema, PlayerJoinedEventSchema, PlayerLeftEventSchema } from '#src/protocol/generated/events_pb';
 import { WA_TYPE, WorldAttributeSchema } from '#src/protocol/generated/udp-node-msgs_pb';
 import type { User } from '#src/repositories/accounts.repository';
-import { EventsRepository } from '#src/repositories/events.repository';
+import type { EventsRepository } from '#src/repositories/events.repository';
 import { EventCatalogService } from '#src/services/event-catalog.service';
 import { worldTime } from '#src/world/state';
 import { create, toBinary } from '@bufbuild/protobuf';

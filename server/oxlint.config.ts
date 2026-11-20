@@ -7,7 +7,6 @@ const migrationRules = {
   'no-promise-executor-return': 'off', // Temporary during migration
   'react-hooks/rules-of-hooks': 'off', // Temporary during migration
   'typescript/array-type': 'off', // Temporary during migration
-  'typescript/consistent-type-imports': 'off', // Temporary during migration
   'typescript/no-non-null-assertion': 'off', // Temporary during migration
   'typescript/no-unnecessary-type-assertion': 'off', // Temporary during migration
   'typescript/no-unsafe-argument': 'off', // Temporary during migration

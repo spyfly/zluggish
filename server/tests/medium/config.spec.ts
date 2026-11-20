@@ -6,8 +6,9 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
+import type { TestContext } from 'node:test';
 
-function fixture(t: import('node:test').TestContext) {
+function fixture(t: TestContext) {
   const root = mkdtempSync(resolve(tmpdir(), 'zluggish-config-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
 
