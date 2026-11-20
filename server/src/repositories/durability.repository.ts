@@ -39,11 +39,17 @@ export class DurabilityRepository {
     // A running flush may have started before the caller's commit: queue one more,
     // shared by every caller that arrives while it runs.
     if (this.current) {
-      this.next ??= this.current.then(() => {
-        this.next = null;
+      this.next ??= this.current.then(
+        () => {
+          this.next = null;
 
-        return this.flush();
-      });
+          return this.flush();
+        },
+        (error: unknown) => {
+          this.next = null;
+          throw error;
+        },
+      );
 
       return this.next;
     }
