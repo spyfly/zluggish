@@ -365,7 +365,7 @@ await test('the mobile aggregate composes goals, activities, events and invitati
 
   const body = Schema.decodeUnknownSync(
     Schema.Struct({
-      events: Schema.Array(Schema.Json).check(Schema.isMaxLength(1)),
+      events: Schema.Array(Schema.Struct({ sport: Schema.Literal('CYCLING') })).check(Schema.isMaxLength(1)),
       goals: Schema.Array(Schema.Json),
       activities: Schema.Array(Schema.Json),
       pendingPrivateEventFeed: Schema.Array(Schema.Json),
