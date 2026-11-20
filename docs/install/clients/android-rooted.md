@@ -11,7 +11,7 @@ This procedure makes Zwift trust the [server certificate](../certificate.md) and
 
 1. Install Zwift on the device.
 2. Start Zwift once, so that it downloads all the extra files. The file `cacert.pem` exists only after this first start.
-3. In the Zluggish web app, select **Install** in the menu. If it opens a setup, select **Choose another system**. Under the system buttons, select **certificate** to download it as a `.crt` file.
+3. In the Zluggish web app, select **Apps** in the menu, then **Client**. If it opens a setup, select **Choose another system**. Under the system buttons, select **certificate** to download it as a `.crt` file.
 4. Add the contents of the `.crt` file to the end of `/data/data/com.zwift.zwiftgame/dataES/cacert.pem`.
 
 If the device has no text editor, use `adb`:

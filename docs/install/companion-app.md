@@ -6,7 +6,7 @@ description: Use the Zwift Companion app with Zluggish on an Android device.
 # Zwift Companion app
 
 Zwift Companion connects only to servers it trusts. Zluggish makes a copy of the Android app that trusts your
-server's certificate, and every rider downloads it from the web app under **Companion**.
+server's certificate, and every rider downloads it from the web app under **Apps → Companion**.
 
 Zluggish does not distribute the app. The administrator uploads Zwift Companion, and the server patches that copy
 for its own riders.
@@ -57,7 +57,7 @@ does. Otherwise the server downloads them again after an update.
 
 ## Install the app on a phone
 
-The web app walks every rider through these steps under **Companion → Android**:
+The web app walks every rider through these steps under **Apps → Companion → Android**:
 
 1. Uninstall Zwift Companion if it came from the Play Store or another site. Android does not update an app with one
    signed by a different key.

@@ -10,8 +10,8 @@ This procedure makes macOS and Zwift trust the [server certificate](../certifica
 ## Set up the client
 
 1. Install Zwift, if it is not installed. Start it once and quit it, so that it creates its data folder.
-2. Sign in to the Zluggish web app and select **Install** in the menu.
-3. On a Mac, **Install** opens the macOS setup. On another device, select **Choose another system**, then **macOS**. Check the IP address of the server, then select **Download setup script**. The address is `server.advertisedIp` from the server configuration.
+2. Sign in to the Zluggish web app and select **Apps** in the menu, then **Client**.
+3. On a Mac, **Client** opens the macOS setup. On another device, select **Choose another system**, then **macOS**. Check the IP address of the server, then select **Download setup script**. The address is `server.advertisedIp` from the server configuration.
 
    ![macOS setup in three steps: download the setup script, run it in Terminal and start Zwift, with the certificate fingerprints below](../../../media/screenshots/webapp-install-macos.png)
 

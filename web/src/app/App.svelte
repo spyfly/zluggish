@@ -219,7 +219,9 @@
                                           ? 'Android setup'
                                           : companion
                                             ? 'Companion'
-                                            : 'Profile',
+                                            : path === '/apps'
+                                              ? 'Apps'
+                                              : 'Profile',
   );
 
   const initials = (r: User) => `${r.first_name.charAt(0)}${r.last_name.charAt(0)}`.toUpperCase();
@@ -895,8 +897,7 @@
       {@render link('/export', 'Export', path === '/export')}
       {@render link('/integrations', 'Integrations', path === '/integrations')}
       {@render link('/settings', 'Settings', path === '/settings')}
-      {@render link('/install', 'Install', installing)}
-      {@render link('/companion', 'Companion', companion)}
+      {@render link('/apps', 'Apps', path === '/apps' || installing || companion)}
       {#if administrator}
         <p class="group">Manage</p>
         {@render link('/manage', 'Users', manage && path !== '/manage/server' && path !== '/manage/companion')}
@@ -1588,6 +1589,11 @@
         <Activities {path} {api} {go} />
       {:else if path === '/climbs'}
         <Climbs {api} />
+      {:else if path === '/apps'}
+        <div class="actions">
+          <button type="button" onclick={() => navigate('/install')}>Client</button>
+          <button type="button" onclick={() => navigate('/companion')}>Companion</button>
+        </div>
       {:else if installing}
         <Install {api} {path} {navigate} />
       {:else if companion}
