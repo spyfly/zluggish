@@ -1,4 +1,5 @@
 import { ManagementService } from '#src/services/management.service';
+import { TlsService } from '#src/services/tls.service';
 import { Resources } from '#src/node/lifecycle/resources';
 import { ConfigError } from '#src/config/index';
 import type { LoadOptions } from '#src/config/load';
@@ -97,13 +98,22 @@ const serve = Effect.fn('server.start')(function* () {
   const host = api.host ?? config.network.host;
   const listener: HttpListenerOptions = { port: api.port, host };
 
-  if (api.useCert)
-    listener.tls = {
-      cert: readFileSync(config.tls.certFile || resolve(assets, 'ssl/cert-zwift-com.pem')),
-      key: readFileSync(config.tls.keyFile || resolve(assets, 'ssl/key-zwift-com.pem')),
-    };
+  const tls = owner.runtime.effects.runSync(TlsService);
+  const material = tls.material();
+
+  if (material) listener.tls = material;
 
   const server = yield* listening(() => startHttp(app, listener), closeHttp);
+
+  // A rotated certificate applies to new connections at once; open ones keep the old one until they close.
+  yield* Effect.acquireRelease(
+    Effect.sync(() =>
+      tls.subscribe((next) => {
+        if ('setSecureContext' in server) server.setSecureContext(next);
+      }),
+    ),
+    (stop) => Effect.sync(stop),
+  );
 
   const setupKey = webConfig.enabled
     ? owner.runtime.effects.runSync(ManagementService.use((management) => management.issueSetupKey()))
@@ -177,7 +187,7 @@ const serve = Effect.fn('server.start')(function* () {
   log.info('server.ready', 'Zluggish is ready', {
     host,
     port: api.port,
-    tls: api.useCert,
+    tls: tls.mode(),
     dns: !!dns,
     cdnPort: config.network.cdn.port,
     tcpPort: config.network.tcp.port,

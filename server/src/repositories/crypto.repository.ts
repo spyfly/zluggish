@@ -5,12 +5,46 @@ import {
   createHmac,
   createCipheriv,
   createDecipheriv,
+  createPrivateKey,
+  generateKeyPair,
   randomBytes,
   randomInt,
   randomUUID,
+  sign,
   timingSafeEqual,
+  X509Certificate,
 } from 'node:crypto';
+import { promisify } from 'node:util';
 import { closeSync, createReadStream, openSync, readSync } from 'node:fs';
+
+const generateKeyPairAsync = promisify(generateKeyPair);
+
+/** What a TLS certificate says about itself, as the web app shows it. */
+export interface CertificateFacts {
+  readonly fingerprint256: string;
+  readonly thumbprint: string;
+  readonly subject: string;
+  readonly serialNumber: string;
+  readonly notBefore: Date;
+  readonly notAfter: Date;
+  readonly hosts: readonly string[];
+  /** The key algorithm and size, such as `ECDSA P-256` or `RSA 2048-bit`. */
+  readonly key: string;
+}
+
+const curves = new Map([
+  ['prime256v1', 'P-256'],
+  ['secp384r1', 'P-384'],
+  ['secp521r1', 'P-521'],
+]);
+
+function describeKey(type: string | undefined, details: { modulusLength?: number; namedCurve?: string } | undefined) {
+  if (type === 'ec') return `ECDSA ${curves.get(details?.namedCurve ?? '') ?? details?.namedCurve ?? ''}`.trim();
+
+  if (type === 'rsa' || type === 'rsa-pss') return `RSA ${details?.modulusLength ?? ''}-bit`;
+
+  return (type ?? 'unknown').toUpperCase();
+}
 
 function packetAlgorithm(key: Uint8Array) {
   switch (key.length) {
@@ -157,6 +191,47 @@ export class CryptoRepository {
 
   sha1(data: Uint8Array | string) {
     return createHash('sha1').update(data).digest();
+  }
+
+  /** A new ECDSA P-256 key pair: the public key as DER SubjectPublicKeyInfo, the private key as PKCS #8 PEM. */
+  async generateEcKeyPair() {
+    const { publicKey, privateKey } = await generateKeyPairAsync('ec', {
+      namedCurve: 'prime256v1',
+      publicKeyEncoding: { type: 'spki', format: 'der' },
+      privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+    });
+
+    return { publicKey, privateKey };
+  }
+
+  /** A DER-encoded ECDSA signature over SHA-256, as ecdsa-with-SHA256 certificates carry. */
+  signEcdsaSha256(data: Uint8Array, privateKeyPem: string) {
+    return sign('sha256', data, createPrivateKey(privateKeyPem));
+  }
+
+  /** Parse a PEM certificate. Throws when the PEM is not one. */
+  certificateFacts(pem: string): CertificateFacts {
+    const certificate = new X509Certificate(pem);
+    const details = certificate.publicKey.asymmetricKeyDetails;
+
+    return {
+      fingerprint256: certificate.fingerprint256,
+      thumbprint: certificate.fingerprint.replaceAll(':', ''),
+      subject: certificate.subject.replaceAll('\n', ', '),
+      serialNumber: certificate.serialNumber,
+      notBefore: certificate.validFromDate,
+      notAfter: certificate.validToDate,
+      hosts: (certificate.subjectAltName ?? '')
+        .split(', ')
+        .filter((entry) => entry.startsWith('DNS:'))
+        .map((entry) => entry.slice(4)),
+      key: describeKey(certificate.publicKey.asymmetricKeyType, details),
+    };
+  }
+
+  /** True when the private key belongs to the certificate. */
+  certificateMatchesKey(certificatePem: string, privateKeyPem: string) {
+    return new X509Certificate(certificatePem).checkPrivateKey(createPrivateKey(privateKeyPem));
   }
 
   signToken(data: string) {

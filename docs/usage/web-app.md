@@ -27,6 +27,7 @@ All users have these pages in the menu:
 | Export       | Download your user data.                                                                        |
 | Integrations | Connect Strava, Garmin, Intervals.icu and TrainingPeaks. Follow the status of activity uploads. |
 | Settings     | Turn ghosts on or off. Calculate the power curves again.                                        |
+| Install      | Download the setup script that makes a Windows, macOS or Linux computer trust this server.      |
 
 ![The Profile page with avatar, name, email and birthday](../../media/screenshots/webapp-profile.png)
 
@@ -37,7 +38,7 @@ All users have these pages in the menu:
 Administrators also have **Users** and **Server** under **Manage**:
 
 - **Users**: make, enable, disable and delete users. Give or remove the administrator role. Set passwords, end sessions and edit the settings of a user.
-- **Server**: reload or control bots, and edit stored world settings, such as blob and peloton overrides. Edit and delete events. Show the effective configuration.
+- **Server**: see and rotate the [server certificate](../install/certificate.md). Make a backup. Reload or control bots, and edit stored world settings, such as blob and peloton overrides. Edit and delete events. Show the effective configuration.
 
 Changes to `zluggish.config.ts` need a server restart.
 

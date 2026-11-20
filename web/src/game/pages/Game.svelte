@@ -67,6 +67,10 @@
   version={current.version}
   zwiftVersion={current.zwiftVersion}
 >
+  {#if current.warning}<p class="security" role="alert">
+      <strong>Unsafe connection.</strong>
+      {current.warning}
+    </p>{/if}
   {#key failures}{#if current.message}<p class="notice" role={current.failed ? 'alert' : 'status'}>
         {current.message}
       </p>{/if}{/key}
@@ -105,6 +109,22 @@
 </Layout>
 
 <style>
+  /* Sized for the small launcher window: one compact strip above the page. */
+  .security {
+    max-width: none;
+    margin: 0 0 0.75rem;
+    padding: 0.5rem 0.75rem;
+    border-left: 3px solid #ff6b57;
+    border-radius: 0 8px 8px 0;
+    background: rgb(255 90 70 / 0.16);
+    color: var(--alarm);
+    font-size: 0.8125rem;
+    line-height: 1.35;
+  }
+  .security strong {
+    color: var(--text);
+    font-weight: 800;
+  }
   .settings-note {
     color: var(--muted);
   }
