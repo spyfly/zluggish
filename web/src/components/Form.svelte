@@ -2,7 +2,9 @@
   import { untrack } from 'svelte';
   import { requestJson } from '../lib/connection';
   import type { Snippet } from 'svelte';
-  import type { FormResult, GameForm, GamePageModel, GameSaved } from '../lib/game-app.dto';
+  import { decode } from '../lib/api';
+  import { savedFormResult } from '../lib/game-app';
+  import type { GameForm, GamePageModel } from '../lib/game-app.dto';
   import { safeNavigation, validation, values, visible } from '../lib/forms.js';
   import UserRow from './UserRow.svelte';
 
@@ -151,8 +153,7 @@
         signal: controller.signal,
       });
 
-      // SAFETY: this route's same-origin server wrapper owns the FormResult contract.
-      const result = resultBody as FormResult<GameSaved>;
+      const result = decode(savedFormResult, resultBody);
 
       if (!alive || controller.signal.aborted || locked) {
         return;
