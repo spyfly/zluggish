@@ -6,7 +6,6 @@ const migrationRules = {
   'no-promise-executor-return': 'off', // Temporary during migration
   'typescript/array-type': 'off', // Temporary during migration
   'typescript/no-non-null-assertion': 'off', // Temporary during migration
-  'typescript/no-unnecessary-type-assertion': 'off', // Temporary during migration
   'typescript/no-unsafe-argument': 'off', // Temporary during migration
   'typescript/no-unsafe-assignment': 'off', // Temporary during migration
   'typescript/no-unsafe-call': 'off', // Temporary during migration

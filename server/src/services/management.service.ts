@@ -180,9 +180,9 @@ const make = Effect.gen(function* () {
         if (
           !current ||
           !current.enabled ||
-          current.auth_version !== existing!.auth_version ||
-          current.pass_hash !== existing!.pass_hash ||
-          current.username !== existing!.username
+          current.auth_version !== existing.auth_version ||
+          current.pass_hash !== existing.pass_hash ||
+          current.username !== existing.username
         )
           throw new ApplicationError({ status: 409, message: 'Account changed. Retry.' });
         target = current;

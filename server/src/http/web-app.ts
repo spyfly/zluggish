@@ -823,7 +823,7 @@ export function createWebApp(runtime: HttpRuntime) {
       };
 
       // SAFETY: the filename extension was restricted to these MIME types above.
-      return yield* fileResponse(c, path, { 'Content-Type': types[ext as keyof typeof types]! });
+      return yield* fileResponse(c, path, { 'Content-Type': types[ext as keyof typeof types] });
     }),
   );
 
