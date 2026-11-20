@@ -24,7 +24,6 @@ const migrationRules = {
   'typescript/use-unknown-in-catch-callback-variable': 'off', // Temporary during migration
   'unicorn/consistent-function-scoping': 'off', // Temporary during migration
   'unicorn/no-abusive-eslint-disable': 'off', // Temporary during migration
-  'unicorn/prefer-single-call': 'off', // Temporary during migration
   'unicorn/prefer-string-raw': 'off', // Temporary during migration
 } as const;
 
@@ -46,6 +45,8 @@ export default defineConfig({
     // Effect.fn and Effect.gen bodies are generators even when a step has nothing to yield.
     'require-yield': 'off',
     'oxc/no-accumulating-spread': 'error',
+    // Syntax-only: it also flags Readable#push and StateHistory#push, where its autofix changes argument meaning.
+    'unicorn/prefer-single-call': 'off',
     ...migrationRules,
   },
   overrides: [
