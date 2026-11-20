@@ -50,7 +50,7 @@ Config files are trusted executable code. Editing operator config requires resta
 JSONC is not read or produced. The Node server is still under compatibility development.
 `;
 
-export async function run(argv: string[], output: (message: string) => void = console.log): Promise<number> {
+export async function run(argv: Array<string>, output: (message: string) => void = console.log): Promise<number> {
   const { values, positionals } = parseArgs({
     args: argv,
     allowPositionals: true,
@@ -80,7 +80,9 @@ export async function run(argv: string[], output: (message: string) => void = co
     return 0;
   }
 
-  if (extra.length > 0) throw new ConfigError('Unexpected arguments');
+  if (extra.length > 0) {
+    throw new ConfigError('Unexpected arguments');
+  }
   const containerStorage = process.env.ZLUGGISH_CONTAINER_STORAGE_DIR;
 
   const containerConfig = containerStorage
@@ -121,14 +123,20 @@ export async function run(argv: string[], output: (message: string) => void = co
 
         const passwordFile = values['password-file'];
 
-        if (!passwordFile) throw new ConfigError('Choose --password-file PATH');
+        if (!passwordFile) {
+          throw new ConfigError('Choose --password-file PATH');
+        }
         const accounts = AccountsService.open(storage);
 
         try {
-          if (!accounts.get(playerId)) throw new ConfigError('Unknown user');
+          if (!accounts.get(playerId)) {
+            throw new ConfigError('Unknown user');
+          }
           const password = readFileSync(passwordFile, 'utf8').replace(/\r?\n$/, '');
 
-          if (password === '') throw new ConfigError('Password must not be empty');
+          if (password === '') {
+            throw new ConfigError('Password must not be empty');
+          }
 
           await accounts.changePassword(playerId, password, values.admin ?? false);
           output(
@@ -139,7 +147,9 @@ export async function run(argv: string[], output: (message: string) => void = co
         } finally {
           accounts.close();
         }
-      } else throw new ConfigError('Unknown accounts command');
+      } else {
+        throw new ConfigError('Unknown accounts command');
+      }
     } finally {
       await release();
     }
@@ -148,16 +158,20 @@ export async function run(argv: string[], output: (message: string) => void = co
   }
 
   if (group === 'storage' || group === 'uploads') {
-    if (key !== undefined || raw !== undefined) throw new ConfigError(`Unexpected ${group} arguments`);
+    if (key !== undefined || raw !== undefined) {
+      throw new ConfigError(`Unexpected ${group} arguments`);
+    }
     const options: LoadOptions = { path: selected };
 
-    if (values['storage-dir'] !== undefined) options.storageDir = storage;
+    if (values['storage-dir'] !== undefined) {
+      options.storageDir = storage;
+    }
     const loaded = existsSync(selected) ? await loadConfig(options) : null;
     const directory = loaded?.config.storageDir ?? storage;
     const release = await new LockRepository().acquireStorageLock(directory);
 
     try {
-      if (group === 'storage')
+      if (group === 'storage') {
         return await storageCommand(
           action,
           directory,
@@ -166,6 +180,7 @@ export async function run(argv: string[], output: (message: string) => void = co
           values,
           output,
         );
+      }
 
       return uploadsCommand(action, directory, values, output);
     } finally {
@@ -174,7 +189,9 @@ export async function run(argv: string[], output: (message: string) => void = co
   }
 
   if (group === 'config') {
-    if (key !== undefined || raw !== undefined) throw new ConfigError('Unexpected config arguments');
+    if (key !== undefined || raw !== undefined) {
+      throw new ConfigError('Unexpected config arguments');
+    }
 
     switch (action) {
       case 'init': {
@@ -246,11 +263,14 @@ export async function run(argv: string[], output: (message: string) => void = co
       case 'show': {
         const options: LoadOptions = { path: selected };
 
-        if (values['storage-dir'] !== undefined) options.storageDir = storage;
+        if (values['storage-dir'] !== undefined) {
+          options.storageDir = storage;
+        }
         const loaded = await loadConfig(options);
 
-        if (action === 'validate') output(`Valid: ${loaded.path}`);
-        else
+        if (action === 'validate') {
+          output(`Valid: ${loaded.path}`);
+        } else {
           output(
             JSON.stringify(
               {
@@ -269,6 +289,7 @@ export async function run(argv: string[], output: (message: string) => void = co
               2,
             ),
           );
+        }
 
         return 0;
       }
@@ -279,17 +300,22 @@ export async function run(argv: string[], output: (message: string) => void = co
     }
   }
 
-  if (group !== 'settings' || !['show', 'set', 'reset'].includes(action ?? ''))
+  if (group !== 'settings' || !['show', 'set', 'reset'].includes(action ?? '')) {
     throw new ConfigError('Unknown command');
+  }
   const playerId = decodeId(values.user);
   const options: LoadOptions = { path: selected };
 
-  if (values['storage-dir'] !== undefined) options.storageDir = storage;
+  if (values['storage-dir'] !== undefined) {
+    options.storageDir = storage;
+  }
   const { config } = await loadConfig(options);
   new RiderRepository().checkRider(config.storageDir, playerId);
 
   if (action === 'show') {
-    if (key !== undefined) throw new ConfigError('Unexpected settings show arguments');
+    if (key !== undefined) {
+      throw new ConfigError('Unexpected settings show arguments');
+    }
     const store = SettingsStore.openReadOnly(config.storageDir);
 
     try {
@@ -309,17 +335,23 @@ export async function run(argv: string[], output: (message: string) => void = co
 
   const setting = decodeSettingKey(key);
 
-  if (action === 'set' && raw === undefined) throw new ConfigError('Provide a JSON setting value');
+  if (action === 'set' && raw === undefined) {
+    throw new ConfigError('Provide a JSON setting value');
+  }
 
-  if (action === 'reset' && raw !== undefined) throw new ConfigError('Unexpected reset value');
-  const value = action === 'set' ? JSON.parse(raw ?? '') : null;
+  if (action === 'reset' && raw !== undefined) {
+    throw new ConfigError('Unexpected reset value');
+  }
+  const value: unknown = action === 'set' ? JSON.parse(raw ?? '') : null;
 
   const change = (overrides: Overrides) => {
     const candidate: Overrides = {
       ...decodeOverrides(action === 'set' ? { ...overrides, [setting]: value } : overrides),
     };
 
-    if (action === 'reset') delete candidate[setting];
+    if (action === 'reset') {
+      delete candidate[setting];
+    }
 
     return candidate;
   };
@@ -389,12 +421,16 @@ async function storageCommand(
       const plan = await Effect.runPromise(service.plan());
       const bytes = plan.files.reduce((total, file) => total + file.bytes, 0);
 
-      for (const file of plan.files) output(`${file.reason}: ${file.path} (${file.bytes} bytes)`);
+      for (const file of plan.files) {
+        output(`${file.reason}: ${file.path} (${file.bytes} bytes)`);
+      }
       output(
         `${plan.files.length} files (${bytes} bytes), ${plan.jobs} finished jobs, ${plan.deliveries} delivery records, ${plan.media.length} abandoned uploads`,
       );
 
-      if (values['dry-run']) return 0;
+      if (values['dry-run']) {
+        return 0;
+      }
       await Effect.runPromise(service.apply(plan));
       output('Cleanup complete');
 
@@ -407,9 +443,13 @@ async function storageCommand(
   if (action === 'clean-legacy') {
     const plan = legacyPlan(storage);
 
-    for (const file of plan.removable) output(`remove: ${file.path} (${file.bytes} bytes)`);
+    for (const file of plan.removable) {
+      output(`remove: ${file.path} (${file.bytes} bytes)`);
+    }
 
-    for (const file of plan.kept) output(`keep: ${file.path} (${file.reason})`);
+    for (const file of plan.kept) {
+      output(`keep: ${file.path} (${file.reason})`);
+    }
 
     if (!values.confirm) {
       output(`${plan.removable.length} legacy files can be removed; run again with --confirm to remove them`);
@@ -424,7 +464,9 @@ async function storageCommand(
   }
 
   if (action === 'backup') {
-    if (!values.output) throw new ConfigError('Choose a directory or .tar.gz file with --output PATH');
+    if (!values.output) {
+      throw new ConfigError('Choose a directory or .tar.gz file with --output PATH');
+    }
     // Opening the database applies pending migrations, so the backup has the current schema.
     openDatabase(storage).close();
     const path = resolve(values.output);
@@ -436,7 +478,9 @@ async function storageCommand(
   }
 
   if (action === 'restore') {
-    if (!values.input) throw new ConfigError('Choose a directory or .tar.gz file with --input PATH');
+    if (!values.input) {
+      throw new ConfigError('Choose a directory or .tar.gz file with --input PATH');
+    }
     restoreStorage(storage, resolve(values.input), config);
     output('Restore complete. Uploads stay paused: review them with uploads list, then run uploads resume --confirm');
 
@@ -466,8 +510,9 @@ function uploadsCommand(
     const flags = repositories.systemFlagsRepository;
 
     const list = () => {
-      for (const delivery of repositories.uploadsRepository.waiting())
+      for (const delivery of repositories.uploadsRepository.waiting()) {
         output(`activity ${delivery.activity_id} ${delivery.provider} ${delivery.state}`);
+      }
     };
 
     switch (action) {
@@ -494,8 +539,9 @@ function uploadsCommand(
         const activity = decodeId(values.activity);
         const provider = Schema.decodeUnknownSync(Schema.NonEmptyString)(values.provider);
 
-        if (!repositories.uploadsRepository.cancel(activity, provider))
+        if (!repositories.uploadsRepository.cancel(activity, provider)) {
           throw new ConfigError('No pending, failed or ambiguous delivery matches');
+        }
         output('Delivery cancelled');
 
         return 0;

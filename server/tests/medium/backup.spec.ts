@@ -30,9 +30,11 @@ const fit = readFileSync(new URL('../fixtures/ride.fit', import.meta.url));
 
 /** A storage directory with one completed activity and one pending delivery, backed up. */
 async function backedUp(t: TestContext) {
-  const cleanup: (() => Promise<void>)[] = [];
+  const cleanup: Array<() => Promise<void>> = [];
   t.after(async () => {
-    for (const close of cleanup) await close();
+    for (const close of cleanup) {
+      await close();
+    }
   });
   const f = await mediumFixture(t);
   f.effects.runSync(DocumentsService.use((service) => service.put(f.rider.player_id, 'runalyze_token.txt', 'token')));
@@ -63,7 +65,7 @@ async function backedUp(t: TestContext) {
   return { f, backup, cleanup };
 }
 
-function reopen(cleanup: (() => Promise<void>)[], f: Awaited<ReturnType<typeof mediumFixture>>) {
+function reopen(cleanup: Array<() => Promise<void>>, f: Awaited<ReturnType<typeof mediumFixture>>) {
   const accounts = AccountsService.open(f.config.storageDir);
   const context = { ...f, accounts, settings: accounts.repositories.settingsRepository };
   const effects = makeAppRuntime(context);
@@ -147,7 +149,7 @@ await test('a changed backup file stops the restore before it changes storage', 
   assert.throws(() => restoreStorage(f.config.storageDir, backup, null), /missing or changed/);
 });
 
-for (const step of ['marked', 'prepared', 'published', 'copied'] as const)
+for (const step of ['marked', 'prepared', 'published', 'copied'] as const) {
   await test(`a restore stopped after the ${step} step blocks startup until it runs again`, async (t) => {
     const { f, backup, cleanup } = await backedUp(t);
     const sends = t.mock.method(globalThis, 'fetch', () => Promise.resolve(new Response(null, { status: 200 })));
@@ -156,7 +158,9 @@ for (const step of ['marked', 'prepared', 'published', 'copied'] as const)
     assert.throws(
       () =>
         restoreStorage(f.config.storageDir, backup, null, (reached) => {
-          if (reached === step) throw new Error('stopped');
+          if (reached === step) {
+            throw new Error('stopped');
+          }
         }),
       /stopped/,
     );
@@ -169,6 +173,7 @@ for (const step of ['marked', 'prepared', 'published', 'copied'] as const)
     assert.equal(sends.mock.callCount(), 0);
     assert.equal(restored.effects.runSync(restored.uploads.status(f.rider.player_id))[0]?.state, 'pending');
   });
+}
 
 await test('only web administrators can create a restorable manual backup', async (t) => {
   const f = await mediumFixture(t);

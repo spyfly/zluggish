@@ -44,7 +44,9 @@ export function assetRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
 
         const file = inside(root, c.req.path.slice(prefix.length));
 
-        if (!file || !(yield* filesService.isFile(file))) return c.notFound();
+        if (!file || !(yield* filesService.isFile(file))) {
+          return c.notFound();
+        }
 
         return yield* fileResponse(c, file, { 'Content-Type': types.get(extname(file)) ?? 'application/octet-stream' });
       }),
@@ -59,8 +61,9 @@ export function assetRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
         c.req.path.slice('/static/launcher-ui/assets'.length),
       );
 
-      if (!file || !c.req.path.startsWith('/static/launcher-ui/assets/') || !(yield* filesService.isFile(file)))
+      if (!file || !c.req.path.startsWith('/static/launcher-ui/assets/') || !(yield* filesService.isFile(file))) {
         return c.notFound();
+      }
 
       return yield* fileResponse(c, file, {
         'Content-Type': types.get(extname(file)) ?? 'application/octet-stream',

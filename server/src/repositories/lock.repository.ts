@@ -13,7 +13,7 @@ export class LockRepository {
       const descriptor = openSync(resolve(storage, '.server.lock'), 'a+', 0o600);
 
       try {
-        if (process.platform === 'win32')
+        if (process.platform === 'win32') {
           lockFileExSync(
             descriptor,
             constants.LOCKFILE_EXCLUSIVE_LOCK | constants.LOCKFILE_FAIL_IMMEDIATELY,
@@ -22,7 +22,9 @@ export class LockRepository {
             1,
             0,
           );
-        else flockSync(descriptor, 'exnb');
+        } else {
+          flockSync(descriptor, 'exnb');
+        }
       } catch {
         closeSync(descriptor);
         throw new ConfigError('Storage is busy or cannot be locked; stop the server before changing it');
@@ -32,12 +34,17 @@ export class LockRepository {
 
       return () =>
         Promise.try(() => {
-          if (closed) return;
+          if (closed) {
+            return;
+          }
           closed = true;
 
           try {
-            if (process.platform === 'win32') unlockFileExSync(descriptor, 0, 0, 1, 0);
-            else flockSync(descriptor, 'un');
+            if (process.platform === 'win32') {
+              unlockFileExSync(descriptor, 0, 0, 1, 0);
+            } else {
+              flockSync(descriptor, 'un');
+            }
           } finally {
             closeSync(descriptor);
           }

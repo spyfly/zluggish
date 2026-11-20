@@ -33,7 +33,9 @@ export class DurabilityRepository {
 
   /** Resolves when every commit made before the call is durable. */
   flush(): Promise<void> {
-    if (!this.active) return Promise.resolve();
+    if (!this.active) {
+      return Promise.resolve();
+    }
 
     // A running flush may have started before the caller's commit: queue one more,
     // shared by every caller that arrives while it runs.
@@ -63,7 +65,9 @@ export class DurabilityRepository {
       handle = await open(`${this.path}-wal`, 'r+');
     } catch (error) {
       // No WAL file: no commit waits for a flush.
-      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return;
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+        return;
+      }
       throw error;
     }
 
@@ -76,10 +80,14 @@ export class DurabilityRepository {
 
   /** Back to a flush at each commit, for shutdown and offline work. */
   async close() {
-    if (!this.active) return;
+    if (!this.active) {
+      return;
+    }
     await this.flush();
     this.active = false;
 
-    if (this.db.isOpen) this.db.exec('PRAGMA synchronous=FULL');
+    if (this.db.isOpen) {
+      this.db.exec('PRAGMA synchronous=FULL');
+    }
   }
 }

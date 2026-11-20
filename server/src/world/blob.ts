@@ -42,19 +42,19 @@ let generation = Math.floor(Date.now() / 1000) % 33;
 export class Blob {
   readonly trail: Trail;
 
-  readonly riders: BlobRider[] = [];
+  readonly riders: Array<BlobRider> = [];
 
-  slots: [number, number][] = [];
+  slots: Array<[number, number]> = [];
 
-  readonly steps: number[];
+  readonly steps: Array<number>;
 
-  readonly front: [number, number][] = [];
+  readonly front: Array<[number, number]> = [];
 
-  readonly tail: [number, number][] = [];
+  readonly tail: Array<[number, number]> = [];
 
   readonly roadLimits: Record<string, [number, number]>;
 
-  readonly roadWidths: Record<string, [number, number, number][]>;
+  readonly roadWidths: Record<string, Array<[number, number, number]>>;
 
   readonly reach = new Map<string, [number, number]>();
 
@@ -89,7 +89,9 @@ export class Blob {
   static roads(assets: string) {
     const cached = Blob.assets.get(assets);
 
-    if (cached) return cached;
+    if (cached) {
+      return cached;
+    }
 
     const roads = {
       roadLimits: decodeOwned(Schema.Record(Schema.String, Schema.Tuple([Schema.Finite, Schema.Finite])))(
@@ -176,7 +178,7 @@ export class Blob {
     return Math.max(5, base * this.rng.between(1 - spread, 1 + spread));
   }
 
-  scatterPool(points: [number, number][], obstacles: [number, number][], start: number, depth: number) {
+  scatterPool(points: Array<[number, number]>, obstacles: Array<[number, number]>, start: number, depth: number) {
     const cfg = this.config;
 
     const longitudinal = Math.max(1.7, cfg.scatterGap, cfg.keepApartLong * 1.05);
@@ -203,7 +205,9 @@ export class Blob {
         if (free) {
           points.push([gap, lat]);
           fails = 0;
-        } else fails++;
+        } else {
+          fails++;
+        }
       }
     }
   }
@@ -246,7 +250,7 @@ export class Blob {
       // No default
     }
 
-    const slots: [number, number][] = [];
+    const slots: Array<[number, number]> = [];
 
     if (cfg.scatter) {
       const front = this.front.slice(0, Math.min(leaders, count));
@@ -262,10 +266,16 @@ export class Blob {
 
       const maxLead = clamp(cfg.maxLead, 2, 11);
 
-      if (lead > maxLead) for (const slot of slots) slot[0] *= maxLead / lead;
+      if (lead > maxLead) {
+        for (const slot of slots) {
+          slot[0] *= maxLead / lead;
+        }
+      }
       const remaining = count - slots.length;
 
-      if (remaining === 1) slots.push([2.2, 0]);
+      if (remaining === 1) {
+        slots.push([2.2, 0]);
+      }
 
       if (remaining >= 2) {
         slots.push([2.2, -cfg.lateralSpacing], [2.2, cfg.lateralSpacing]);
@@ -277,11 +287,12 @@ export class Blob {
         for (let row = 1; slots.length < count; row++) {
           const width = cfg.raggedRows ? clamp(columns + (((row + indexHash(this.playerId)) % 3) - 1), 2, 5) : columns;
 
-          for (let col = 0; col < width && slots.length < count; col++)
+          for (let col = 0; col < width && slots.length < count; col++) {
             slots.push([
               2.2 + row * rowGap,
               (col - (width - 1) / 2) * cfg.lateralSpacing + cfg.lateralSpacing * 0.25 * (row % 2 ? 1 : -1),
             ]);
+          }
         }
       }
     }
@@ -289,7 +300,7 @@ export class Blob {
     this.assign(slots);
   }
 
-  assign(slots: [number, number][]) {
+  assign(slots: Array<[number, number]>) {
     const free = new Set(slots.map((_, i) => i));
     // Keep unchanged scattered positions with their riders before assigning new slots.
     const pending = [];
@@ -302,7 +313,9 @@ export class Blob {
       if (this.config.scatter && index >= 0 && free.has(index)) {
         rider.slot = index;
         free.delete(index);
-      } else pending.push(rider);
+      } else {
+        pending.push(rider);
+      }
     }
 
     const costs = pending
@@ -317,12 +330,15 @@ export class Blob {
 
     const used = new Set<BlobRider>();
 
-    for (const entry of costs)
-      if (!used.has(entry.rider) && free.has(entry.index)) {
-        entry.rider.slot = entry.index;
-        used.add(entry.rider);
-        free.delete(entry.index);
+    for (const entry of costs) {
+      if (used.has(entry.rider) || !free.has(entry.index)) {
+        continue;
       }
+
+      entry.rider.slot = entry.index;
+      used.add(entry.rider);
+      free.delete(entry.index);
+    }
 
     this.slots = slots;
   }
@@ -333,16 +349,20 @@ export class Blob {
 
     const seen = this.reach.get(side.key) ?? [Math.abs(side.you), Math.abs(side.you)];
 
-    if (side.you > 0 === side.positive && side.you !== 0)
+    if (side.you > 0 === side.positive && side.you !== 0) {
       this.reach.set(side.key, [Math.min(seen[0], Math.abs(side.you)), Math.max(seen[1], Math.abs(side.you))]);
+    }
   }
 
   side(state: PlayerState) {
     let positive = forward(state) !== [7, 11, 13, 17].includes(course(state));
     const you = (state.roadPosition - 10_000_000) / 100_000;
 
-    if (positive && you < -0.5) positive = false;
-    else if (!positive && you > 0.5) positive = true;
+    if (positive && you < -0.5) {
+      positive = false;
+    } else if (!positive && you > 0.5) {
+      positive = true;
+    }
 
     return {
       positive,
@@ -355,12 +375,15 @@ export class Blob {
     const cfg = this.config;
     const head = this.trail.entries.at(-1);
 
-    if (cfg.roadHalfWidth <= 0 || !head) return null;
+    if (cfg.roadHalfWidth <= 0 || !head) {
+      return null;
+    }
 
-    if (cfg.roadLimits === 'off')
+    if (cfg.roadLimits === 'off') {
       return cfg.roadAxisSide > 0
         ? [-cfg.roadHalfWidth, cfg.roadAxisLimit > 0 ? cfg.roadAxisLimit : cfg.roadHalfWidth]
         : [-(cfg.roadAxisLimit > 0 ? cfg.roadAxisLimit : cfg.roadHalfWidth), cfg.roadHalfWidth];
+    }
     const side = this.side(head.state);
 
     let [inner, outer] = this.roadLimits[side.key] ?? [1, Math.max(cfg.roadHalfWidth, 4.4)];
@@ -373,7 +396,9 @@ export class Blob {
 
     const factor = factors.length > 0 ? Math.min(...factors) : 1;
 
-    if (factor !== 1) outer = clamp(outer * factor, Math.max(inner + 1, 2.3), 6);
+    if (factor !== 1) {
+      outer = clamp(outer * factor, Math.max(inner + 1, 2.3), 6);
+    }
 
     const seen = this.reach.get(side.key) ?? [Math.abs(side.you), Math.abs(side.you)];
 
@@ -387,12 +412,16 @@ export class Blob {
     const edges = this.edges();
     const head = this.trail.entries.at(-1);
 
-    if (!edges || !head) return null;
+    if (!edges || !head) {
+      return null;
+    }
     const you = (head.state.roadPosition - 10_000_000) / 100_000;
     let low = edges[0] - you + 0.25;
     let high = edges[1] - you - 0.25;
 
-    if (head.sign < 0) [low, high] = [-high, -low];
+    if (head.sign < 0) {
+      [low, high] = [-high, -low];
+    }
 
     return [low - this.shift, high - this.shift];
   }
@@ -429,7 +458,9 @@ export class Blob {
         this.behavior.enter('toast', now + this.config.toastTime);
         this.nextPull = now + this.config.toastTime;
 
-        for (const rider of this.riders) rider.phase = null;
+        for (const rider of this.riders) {
+          rider.phase = null;
+        }
 
         break;
       }
@@ -463,7 +494,9 @@ export class Blob {
 
     const front = ordered[0];
 
-    if (!front || ordered.length < 3) return;
+    if (!front || ordered.length < 3) {
+      return;
+    }
 
     if (this.config.scatter) {
       const path = [front];
@@ -474,7 +507,9 @@ export class Blob {
         const last = path.at(-1);
         const slot = last ? this.slots[last.slot] : undefined;
 
-        if (!slot) break;
+        if (!slot) {
+          break;
+        }
 
         const next = ordered
           .filter(
@@ -493,17 +528,23 @@ export class Blob {
             return cost(a) - cost(b);
           })[0];
 
-        if (!next) break;
+        if (!next) {
+          break;
+        }
         path.push(next);
       }
 
-      if (path.length < 2) return;
+      if (path.length < 2) {
+        return;
+      }
       const slots = path.map((rider) => rider.slot);
 
       for (let i = 1; i < path.length; i++) {
         const rider = path[i];
 
-        if (rider) rider.slot = slots[i - 1] ?? 0;
+        if (rider) {
+          rider.slot = slots[i - 1] ?? 0;
+        }
       }
 
       front.slot = slots.at(-1) ?? 0;
@@ -512,7 +553,9 @@ export class Blob {
       ordered.push(front);
       ordered.shift();
 
-      for (const [i, rider] of ordered.entries()) rider.slot = slots[i] ?? 0;
+      for (const [i, rider] of ordered.entries()) {
+        rider.slot = slots[i] ?? 0;
+      }
     }
 
     front.dropping = true;
@@ -525,7 +568,9 @@ export class Blob {
   }
 
   tick(time: bigint, seconds = 0.5) {
-    if (!this.trail.ready()) return [];
+    if (!this.trail.ready()) {
+      return [];
+    }
     const now = this.now();
     const cfg = this.config;
 
@@ -583,7 +628,9 @@ export class Blob {
           attacker.phase = 'approach';
           attacker.side = attacker.lateral >= 0 ? 1.3 : -1.3;
         }
-      } else if (cfg.rotate) this.rotate();
+      } else if (cfg.rotate) {
+        this.rotate();
+      }
       this.nextPull =
         now + this.wait(cfg.pullInterval * (this.mode === 'hammer' ? 0.55 : this.mode === 'attack' ? 0.7 : 1), 0.6);
     }
@@ -617,12 +664,17 @@ export class Blob {
 
       let wanted = (low > high ? (low + high) / 2 : clamp(0, low, high)) * head.sign;
 
-      if (cfg.roadLimits !== 'off')
+      if (cfg.roadLimits !== 'off') {
         wanted = clamp(wanted, -clamp(cfg.maxRoadShift, 0, 4), clamp(cfg.maxRoadShift, 0, 4));
+      }
       this.shift += clamp(wanted - this.shift, -seconds, seconds);
-    } else this.shift *= 0.9;
+    } else {
+      this.shift *= 0.9;
+    }
 
-    for (const rider of this.riders) this.updateRider(rider, motion.speed, stretch, now, time, seconds);
+    for (const rider of this.riders) {
+      this.updateRider(rider, motion.speed, stretch, now, time, seconds);
+    }
 
     return this.riders.flatMap((rider) => (rider.state ? [rider.state] : []));
   }
@@ -631,7 +683,9 @@ export class Blob {
     const cfg = this.config;
     const slot = this.slots[rider.slot];
 
-    if (!slot) return;
+    if (!slot) {
+      return;
+    }
     rider.noise = clamp(rider.noise - rider.noise * 0.1 + this.rng.gaussian(0.03), -0.1, 0.1);
 
     let gap =
@@ -647,7 +701,9 @@ export class Blob {
 
       const room = Math.max(0, lateral >= 0 ? limits[1] : -limits[0]);
 
-      if (reach > 0) lateral *= Math.min(1, room / reach);
+      if (reach > 0) {
+        lateral *= Math.min(1, room / reach);
+      }
     }
 
     lateral += this.rng.gaussian(0.05);
@@ -700,14 +756,18 @@ export class Blob {
       if (leader) {
         gap = leader.gap - 1.7;
 
-        if (rider.gap - leader.gap < 6) rate = passRate;
+        if (rider.gap - leader.gap < 6) {
+          rate = passRate;
+        }
 
         if (rider.gap <= leader.gap - 1.2) {
           const slots = this.slots.map((slot, index) => ({ gap: slot[0], index })).sort((a, b) => a.gap - b.gap);
 
           const order = [rider, ...ordered.slice(1), leader];
 
-          for (const [index, peer] of order.entries()) peer.slot = slots[index]?.index ?? 0;
+          for (const [index, peer] of order.entries()) {
+            peer.slot = slots[index]?.index ?? 0;
+          }
           leader.dropping = true;
           leader.dropSide = rider.side > 0 ? -1.3 : 1.3;
           rider.phase = 'pull';
@@ -717,24 +777,32 @@ export class Blob {
               (this.mode === 'hammer' ? 1.6 : this.mode === 'attack' ? 1.3 : 1) *
               this.rng.between(0.7, 1.4);
         }
-      } else rider.phase = null;
+      } else {
+        rider.phase = null;
+      }
     } else if (rider.phase === 'pull') {
       rate = passRate;
 
-      if (now >= rider.until) rider.phase = null;
+      if (now >= rider.until) {
+        rider.phase = null;
+      }
     }
 
     if (rider.dropping) {
       rate = 0.7;
       lateral = rider.dropSide;
 
-      if (rider.gap >= gap - 1) rider.dropping = false;
+      if (rider.gap >= gap - 1) {
+        rider.dropping = false;
+      }
     }
 
     if (Math.abs(gap - rider.gap) > 0.5 && rider.gap > -4 && rider.gap < 3.2) {
       const side = rider.lateral >= 0 ? 1 : -1;
 
-      if (Math.abs(lateral) < 0.9 || lateral * side < 0) lateral = 0.9 * side;
+      if (Math.abs(lateral) < 0.9 || lateral * side < 0) {
+        lateral = 0.9 * side;
+      }
     }
 
     const previous = rider.gap;
@@ -774,10 +842,11 @@ export class Blob {
 
         let side = this.fit(clamp(rider.lateral + direction * 0.45 * seconds, -2.6, 2.6));
 
-        if (Math.abs(side - rider.lateral) < 0.2 * 0.45 * seconds)
+        if (Math.abs(side - rider.lateral) < 0.2 * 0.45 * seconds) {
           side = this.fit(clamp(rider.lateral - direction * 0.45 * seconds, -2.6, 2.6));
+        }
 
-        const options: [number, number][] = [
+        const options: Array<[number, number]> = [
           [nextGap, side],
           [rider.gap, side],
           [rider.gap, rider.lateral],
@@ -793,14 +862,20 @@ export class Blob {
           nextGap = best[0] ?? 0;
           nextLat = best[1] ?? 0;
         }
-      } else rider.blocked = 0;
-    } else rider.blocked = 0;
+      } else {
+        rider.blocked = 0;
+      }
+    } else {
+      rider.blocked = 0;
+    }
     rider.gap = nextGap;
     rider.lateral = this.fit(nextLat);
     rider.rate += 0.35 * ((rider.gap - previous) / seconds - rider.rate);
     const sample = this.trail.sample(rider.gap);
 
-    if (!sample) return;
+    if (!sample) {
+      return;
+    }
     const state = sample.state;
     let offset = rider.lateral * clamp(cfg.lateralScale, 0.2, 4) + this.shift;
     const edges = this.edges();
@@ -824,10 +899,11 @@ export class Blob {
       state.z += sample.hx * offset * 100;
     }
 
-    if (cfg.lateralVia === 'road' || cfg.lateralVia === 'both')
+    if (cfg.lateralVia === 'road' || cfg.lateralVia === 'both') {
       state.roadPosition = Math.round(
         clamp(state.roadPosition + sample.sign * offset * 100_000, 9_300_000, 10_700_000),
       );
+    }
     state.speed = Math.max(0, Math.trunc((speed - rider.rate) * 3_600_000));
 
     const effort =

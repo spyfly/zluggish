@@ -22,22 +22,26 @@ export interface CertificateRequest {
 // DER encoding of the few ASN.1 types an X.509 certificate needs.
 
 function length(size: number) {
-  if (size < 0x80) return Buffer.from([size]);
-  const bytes: number[] = [];
+  if (size < 0x80) {
+    return Buffer.from([size]);
+  }
+  const bytes: Array<number> = [];
 
-  for (let rest = size; rest > 0; rest = Math.floor(rest / 256)) bytes.unshift(rest % 256);
+  for (let rest = size; rest > 0; rest = Math.floor(rest / 256)) {
+    bytes.unshift(rest % 256);
+  }
 
   return Buffer.from([0x80 | bytes.length, ...bytes]);
 }
 
-function element(tag: number, ...parts: Uint8Array[]) {
+function element(tag: number, ...parts: Array<Uint8Array>) {
   const body = Buffer.concat(parts);
 
   return Buffer.concat([Buffer.from([tag]), length(body.length), body]);
 }
 
-const sequence = (...parts: Uint8Array[]) => element(0x30, ...parts);
-const set = (...parts: Uint8Array[]) => element(0x31, ...parts);
+const sequence = (...parts: Array<Uint8Array>) => element(0x30, ...parts);
+const set = (...parts: Array<Uint8Array>) => element(0x31, ...parts);
 const octets = (bytes: Uint8Array) => element(0x04, bytes);
 const utf8 = (text: string) => element(0x0c, Buffer.from(text, 'utf8'));
 const critical = element(0x01, Buffer.from([0xff]));
@@ -48,7 +52,9 @@ const bits = (bytes: Uint8Array, unused = 0) => element(0x03, Buffer.from([unuse
 function integer(bytes: Uint8Array) {
   let start = 0;
 
-  while (start < bytes.length - 1 && bytes[start] === 0) start++;
+  while (start < bytes.length - 1 && bytes[start] === 0) {
+    start++;
+  }
   const trimmed = bytes.subarray(start);
 
   return element(0x02, (trimmed[0] ?? 0) & 0x80 ? Buffer.concat([Buffer.from([0]), trimmed]) : trimmed);
@@ -61,8 +67,9 @@ function oid(dotted: string) {
   for (const arc of rest) {
     const groups = [arc % 128];
 
-    for (let value = Math.floor(arc / 128); value > 0; value = Math.floor(value / 128))
+    for (let value = Math.floor(arc / 128); value > 0; value = Math.floor(value / 128)) {
       groups.unshift(0x80 | value % 128);
+    }
     bytes.push(...groups);
   }
 
@@ -89,7 +96,9 @@ function bounds(der: Uint8Array, at: number) {
   const lengthBytes = first < 0x80 ? 0 : first & 0x7f;
   let size = first < 0x80 ? first : 0;
 
-  for (let index = 0; index < lengthBytes; index++) size = size * 256 + (der[at + 2 + index] ?? 0);
+  for (let index = 0; index < lengthBytes; index++) {
+    size = size * 256 + (der[at + 2 + index] ?? 0);
+  }
   const start = at + 2 + lengthBytes;
 
   return { start, end: start + size };
@@ -170,13 +179,16 @@ export class CertificateRepository {
 
   /** The stored key and certificate, or null when the server has none yet. Throws on a damaged file. */
   read(path: string): CertificateMaterial | null {
-    if (!existsSync(path)) return null;
+    if (!existsSync(path)) {
+      return null;
+    }
     const text = readFileSync(path, 'utf8');
     const key = /-----BEGIN PRIVATE KEY-----[\s\S]+?-----END PRIVATE KEY-----\n?/.exec(text)?.[0];
     const cert = /-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----\n?/.exec(text)?.[0];
 
-    if (!key || !cert || !this.crypto.certificateMatchesKey(cert, key))
+    if (!key || !cert || !this.crypto.certificateMatchesKey(cert, key)) {
       throw new Error(`${path} does not hold a matching private key and certificate`);
+    }
 
     return { cert, key };
   }

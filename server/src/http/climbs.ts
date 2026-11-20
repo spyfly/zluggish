@@ -25,9 +25,11 @@ export const readClimbSegments = Effect.fn('climbs.segments')(function* (runtime
 export function climbFacts(label: string) {
   const match = /^(?<name>.+) \((?<km>\d+(?:\.\d+)?) km \/ (?<m>\d+) m\)$/.exec(label);
 
-  if (!match?.groups) return { name: label, distanceKm: null, elevationM: null };
+  if (!match?.groups) {
+    return { name: label, distanceKm: null, elevationM: null };
+  }
 
-  return { name: match.groups.name!, distanceKm: Number(match.groups.km), elevationM: Number(match.groups.m) };
+  return { name: match.groups.name ?? label, distanceKm: Number(match.groups.km), elevationM: Number(match.groups.m) };
 }
 
 /** The climb portal roads the launcher offers, with their display names. */

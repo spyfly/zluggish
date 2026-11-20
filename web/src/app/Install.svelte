@@ -1,14 +1,16 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import Fingerprint from '../components/Fingerprint.svelte';
+  import { tlsStatus } from './tls';
   import type { TlsStatus } from './tls';
+  import type { Api } from '../lib/api';
 
   let {
     api,
     path,
     navigate,
   }: {
-    api: <Body>(url: string) => Promise<Body>;
+    api: Api;
     /** `/install` sets up this browser's own system, or offers the choice; `/install/choose` always offers it;
     `/install/windows`, `/install/macos` and `/install/linux` set up that system. */
     path: string;
@@ -17,7 +19,7 @@
 
   type Platform = 'windows' | 'macos' | 'linux';
 
-  const systems: { id: Platform; name: string; detail: string }[] = [
+  const systems: Array<{ id: Platform; name: string; detail: string }> = [
     { id: 'windows', name: 'Windows', detail: 'Zwift installed from zwift.com' },
     { id: 'macos', name: 'macOS', detail: 'Zwift installed from zwift.com' },
     { id: 'linux', name: 'Linux', detail: 'Zwift in Wine, Lutris, Bottles or Steam' },
@@ -27,13 +29,21 @@
   function detect() {
     const agent = navigator.userAgent;
 
-    if (/iPhone|iPad|iPod/.test(agent) || (/Macintosh/.test(agent) && navigator.maxTouchPoints > 1)) return 'ios';
+    if (/iPhone|iPad|iPod/.test(agent) || (/Macintosh/.test(agent) && navigator.maxTouchPoints > 1)) {
+      return 'ios';
+    }
 
-    if (/Android/.test(agent)) return 'android';
+    if (/Android/.test(agent)) {
+      return 'android';
+    }
 
-    if (/Windows/.test(agent)) return 'windows';
+    if (/Windows/.test(agent)) {
+      return 'windows';
+    }
 
-    if (/Macintosh|Mac OS X/.test(agent)) return 'macos';
+    if (/Macintosh|Mac OS X/.test(agent)) {
+      return 'macos';
+    }
 
     return /Linux|X11|CrOS/.test(agent) ? 'linux' : 'other';
   }
@@ -95,7 +105,7 @@
 
   onMount(async () => {
     try {
-      status = await api<TlsStatus>('/api/tls');
+      status = await api(tlsStatus, '/api/tls');
       // The advertised IP as the server is configured, even 127.0.0.1: the web app's own address may differ.
       address = status.serverAddress;
     } catch (error) {

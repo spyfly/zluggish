@@ -22,8 +22,9 @@ await test('credentials from another key or damaged bytes are unreadable, never 
   const credentials = crypto.encryptCredentials(key, ['example-user', 'example-password']);
 
   // CFB8 is unauthenticated: only the strict UTF-8 check tells a wrong key from real credentials.
-  for (let attempt = 0; attempt < 200; attempt++)
+  for (let attempt = 0; attempt < 200; attempt++) {
     assert.throws(() => crypto.decryptCredentials(crypto.randomBytes(32), credentials), UnreadableCredentialsError);
+  }
 
   assert.throws(() => crypto.decryptCredentials(key, credentials.subarray(0, 10)), UnreadableCredentialsError);
   assert.throws(

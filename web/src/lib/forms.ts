@@ -11,18 +11,23 @@ export function visible(field: GameField, draft: Record<string, string | boolean
 }
 
 export function validation(form: GameForm, draft: Record<string, string | boolean>) {
-  const errors: Record<string, string[]> = {};
+  const errors: Record<string, Array<string>> = {};
 
   for (const field of form.fields) {
-    if (!visible(field, draft) || field.type === 'hidden') continue;
+    if (!visible(field, draft) || field.type === 'hidden') {
+      continue;
+    }
     const value = draft[field.name];
 
-    if (field.required && !value) errors[field.name] = ['This field is required.'];
-    else if (field.maxLength && String(value).length > field.maxLength)
+    if (field.required && !value) {
+      errors[field.name] = ['This field is required.'];
+    } else if (field.maxLength && String(value).length > field.maxLength) {
       errors[field.name] = [`Use at most ${field.maxLength} characters.`];
-    else if (field.pattern && value && !new RegExp(field.pattern).test(String(value)))
+    } else if (field.pattern && value && !new RegExp(field.pattern).test(String(value))) {
       errors[field.name] = ['Enter a valid value.'];
-    else if (field.matches && value !== draft[field.matches]) errors[field.name] = ['Passwords did not match.'];
+    } else if (field.matches && value !== draft[field.matches]) {
+      errors[field.name] = ['Passwords did not match.'];
+    }
   }
 
   return errors;

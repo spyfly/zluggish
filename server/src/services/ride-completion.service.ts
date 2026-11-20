@@ -37,8 +37,9 @@ const make = Effect.gen(function* () {
     immediate(context.accounts.db, () => {
       const rider = context.accounts.get(player);
 
-      if (!rider?.enabled || rider.auth_version !== version)
+      if (!rider?.enabled || rider.auth_version !== version) {
         throw new ApplicationError({ status: 401, message: 'Relay revoked.' });
+      }
       repositories.riderDocuments.put(player, 'encryption_key.bin', key);
       repositories.riderDocuments.put(player, 'relay-auth-version', String(version));
     });
@@ -47,7 +48,9 @@ const make = Effect.gen(function* () {
   function register(player: number, activity: bigint, bearer: string) {
     const relay = context.world.relays.get(BigInt(player));
 
-    if (!relay || !bearer) return;
+    if (!relay || !bearer) {
+      return;
+    }
     active.set(player, {
       activity,
       token: repositories.cryptoRepository.sha256(bearer),
@@ -59,7 +62,9 @@ const make = Effect.gen(function* () {
   function capture(player: number) {
     const ride = active.get(player);
 
-    if (!ride || context.world.generation(BigInt(player)) !== ride.generation) return null;
+    if (!ride || context.world.generation(BigInt(player)) !== ride.generation) {
+      return null;
+    }
 
     return { ...ride, deadline: Date.now() + 4 * 60 * 60_000, lastSeen: Date.now() };
   }
@@ -67,8 +72,11 @@ const make = Effect.gen(function* () {
   function grant(player: number, permission: Permission | null) {
     cancel(player, false);
 
-    if (permission) permissions.set(player, permission);
-    else context.world.logout(BigInt(player));
+    if (permission) {
+      permissions.set(player, permission);
+    } else {
+      context.world.logout(BigInt(player));
+    }
   }
 
   function cancel(player: number, close = true) {
@@ -76,13 +84,17 @@ const make = Effect.gen(function* () {
     permissions.delete(player);
     receipts.delete(player);
 
-    if (close) context.world.logout(BigInt(player));
+    if (close) {
+      context.world.logout(BigInt(player));
+    }
   }
 
   function permissionNow(player: number) {
     const permission = permissions.get(player);
 
-    if (!permission) return null;
+    if (!permission) {
+      return null;
+    }
 
     if (
       Date.now() >= permission.deadline ||
@@ -107,7 +119,9 @@ const make = Effect.gen(function* () {
   function touch(player: number) {
     const permission = permissionNow(player);
 
-    if (permission) permission.lastSeen = Date.now();
+    if (permission) {
+      permission.lastSeen = Date.now();
+    }
   }
 
   function authorize(player: number, activity: bigint, bearer: string, bytes: Uint8Array) {
@@ -116,15 +130,18 @@ const make = Effect.gen(function* () {
     const body = repositories.cryptoRepository.sha256(bytes);
 
     if (receipt && receipt.until > Date.now() && receipt.token === digest && receipt.activity === activity) {
-      if (receipt.body !== body) throw new ApplicationError({ status: 409, message: 'Final save data changed.' });
+      if (receipt.body !== body) {
+        throw new ApplicationError({ status: 409, message: 'Final save data changed.' });
+      }
 
       return { receipt: receipt.result };
     }
 
     const permission = permissionNow(player);
 
-    if (!permission || permission.token !== digest || permission.activity !== activity)
+    if (!permission || permission.token !== digest || permission.activity !== activity) {
       throw new ApplicationError({ status: 401, message: 'Ride completion permission expired.' });
+    }
 
     return { receipt: null };
   }
@@ -137,9 +154,15 @@ const make = Effect.gen(function* () {
   }
 
   function sweep() {
-    for (const player of permissions.keys()) permissionNow(player);
+    for (const player of permissions.keys()) {
+      permissionNow(player);
+    }
 
-    for (const [player, receipt] of receipts) if (receipt.until <= Date.now()) receipts.delete(player);
+    for (const [player, receipt] of receipts) {
+      if (receipt.until <= Date.now()) {
+        receipts.delete(player);
+      }
+    }
   }
 
   context.accounts.onRevoke = (id) => cancel(id);
@@ -165,7 +188,7 @@ const make = Effect.gen(function* () {
       return grant(player, permission);
     }),
 
-    cancel: Effect.fn('RideCompletionService.cancel')(function* (player: number, close = true) {
+    cancel: Effect.fn('RideCompletionService.cancel')(function* (player: number, close: boolean = true) {
       return cancel(player, close);
     }),
 

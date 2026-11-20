@@ -32,7 +32,9 @@ const make = Effect.gen(function* () {
       Schema.NullOr(Schema.Struct({ csrf: Schema.String, identity: Schema.String, expires: Schema.Finite })),
     )(accounts.db.prepare('SELECT csrf, identity, expires FROM web_session WHERE id_hash = ?').get(hash(id)) ?? null);
 
-    if (!row) return;
+    if (!row) {
+      return;
+    }
     const session: WebSession = { ...row, confirmedUntil: 0 };
     sessions.set(id, session);
 
@@ -40,10 +42,14 @@ const make = Effect.gen(function* () {
   }
 
   function find(id: string | undefined) {
-    if (!id) return null;
+    if (!id) {
+      return null;
+    }
     const session = sessions.get(id) ?? restore(id);
 
-    if (!session) return null;
+    if (!session) {
+      return null;
+    }
 
     if (session.expires <= Date.now()) {
       end(id);
@@ -57,10 +63,16 @@ const make = Effect.gen(function* () {
   function create(identity: string, confirmedUntil = 0) {
     const now = Date.now();
 
-    for (const [key, value] of sessions) if (value.expires <= now) sessions.delete(key);
+    for (const [key, value] of sessions) {
+      if (value.expires <= now) {
+        sessions.delete(key);
+      }
+    }
     accounts.db.prepare('DELETE FROM web_session WHERE expires <= ?').run(now);
 
-    if (sessions.size >= 10_000) throw new ApplicationError({ status: 503, message: 'Too many web sessions' });
+    if (sessions.size >= 10_000) {
+      throw new ApplicationError({ status: 503, message: 'Too many web sessions' });
+    }
     const id = token();
     const session: WebSession = { csrf: token(), identity, expires: now + 86_400_000, confirmedUntil };
     sessions.set(id, session);
@@ -74,17 +86,23 @@ const make = Effect.gen(function* () {
   function end(id: string) {
     sessions.delete(id);
 
-    if (id) accounts.db.prepare('DELETE FROM web_session WHERE id_hash = ?').run(hash(id));
+    if (id) {
+      accounts.db.prepare('DELETE FROM web_session WHERE id_hash = ?').run(hash(id));
+    }
   }
 
   function userNow(id: string) {
     const session = find(id);
 
-    if (!session) return null;
+    if (!session) {
+      return null;
+    }
     const user = accounts.identity(session.identity);
 
     // An identity change (password, role, enabled state, revocation) ends the session and its confirmation.
-    if (!user) end(id);
+    if (!user) {
+      end(id);
+    }
 
     return user;
   }
@@ -92,10 +110,13 @@ const make = Effect.gen(function* () {
   function requireUser(id: string, manage = false, _confirm = true) {
     const user = userNow(id);
 
-    if (!user) throw new ApplicationError({ status: 401, message: 'Sign in again.' });
+    if (!user) {
+      throw new ApplicationError({ status: 401, message: 'Sign in again.' });
+    }
 
-    if (manage && user.role !== 'administrator')
+    if (manage && user.role !== 'administrator') {
       throw new ApplicationError({ status: 403, message: 'Administrator role required.' });
+    }
 
     return user;
   }
@@ -115,7 +136,17 @@ const make = Effect.gen(function* () {
       return find(id);
     }),
 
-    create: Effect.fn('WebSessionsService.create')(function* (identity: string, confirmedUntil = 0) {
+    session: Effect.fn('WebSessionsService.session')(function* (id: string) {
+      const session = find(id);
+
+      if (!session) {
+        throw new ApplicationError({ status: 401, message: 'Sign in again.' });
+      }
+
+      return session;
+    }),
+
+    create: Effect.fn('WebSessionsService.create')(function* (identity: string, confirmedUntil: number = 0) {
       return create(identity, confirmedUntil);
     }),
 
@@ -127,7 +158,11 @@ const make = Effect.gen(function* () {
       return userNow(id);
     }),
 
-    require: Effect.fn('WebSessionsService.require')(function* (id: string, manage = false, _confirm = true) {
+    require: Effect.fn('WebSessionsService.require')(function* (
+      id: string,
+      manage: boolean = false,
+      _confirm: boolean = true,
+    ) {
       return requireUser(id, manage, _confirm);
     }),
 

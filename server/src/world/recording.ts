@@ -34,8 +34,8 @@ export class Recording {
   /** Throws on invalid input, like decoding the Ghost message. */
   constructor(file: Uint8Array) {
     this.bytes = new Uint8Array(file);
-    const offsets: number[] = [];
-    const sizes: number[] = [];
+    const offsets: Array<number> = [];
+    const sizes: Array<number> = [];
     const reader = new BinaryReader(this.bytes);
 
     while (reader.pos < reader.len) {
@@ -45,7 +45,9 @@ export class Recording {
         const slice = reader.bytes();
         offsets.push(slice.byteOffset - this.bytes.byteOffset);
         sizes.push(slice.byteLength);
-      } else reader.skip(wireType);
+      } else {
+        reader.skip(wireType);
+      }
     }
 
     this.length = offsets.length;
@@ -74,7 +76,9 @@ export class Recording {
     const offset = this.offsets[index];
     const size = this.sizes[index];
 
-    if (offset === undefined || size === undefined) throw new RangeError(`No state at ${index}`);
+    if (offset === undefined || size === undefined) {
+      throw new RangeError(`No state at ${index}`);
+    }
 
     return fromBinary(PlayerStateSchema, this.bytes.subarray(offset, offset + size));
   }
@@ -103,15 +107,20 @@ export class Recording {
     let index: number | null = null;
     let distance = Infinity;
 
-    for (let i = 0; i < this.length; i++)
-      if (this.courses[i] === wantedCourse && this.roads[i] === wantedRoad && this.forwards[i] === wantedForward) {
-        const delta = Math.abs(state.roadTime - (this.roadTimes[i] ?? 0));
-
-        if (delta < distance) {
-          index = i;
-          distance = delta;
-        }
+    for (let i = 0; i < this.length; i++) {
+      if (!(this.courses[i] === wantedCourse && this.roads[i] === wantedRoad && this.forwards[i] === wantedForward)) {
+        continue;
       }
+
+      const delta = Math.abs(state.roadTime - (this.roadTimes[i] ?? 0));
+
+      if (!(delta < distance)) {
+        continue;
+      }
+
+      index = i;
+      distance = delta;
+    }
 
     return index;
   }

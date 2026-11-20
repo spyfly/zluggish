@@ -145,7 +145,9 @@ export class JobsRepository {
           .limit(1),
       );
 
-      if (!candidate) return null;
+      if (!candidate) {
+        return null;
+      }
 
       this.executor.run(
         query
@@ -205,7 +207,9 @@ export class JobsRepository {
   */
   finish(claim: Claim, commit: () => void = () => {}) {
     return immediate(this.db, () => {
-      if (!this.valid(claim)) return false;
+      if (!this.valid(claim)) {
+        return false;
+      }
       commit();
       this.executor.run(
         this.current(claim).set({ state: 'done', finished_at: this.now(), lease_expires_at: null, last_error: null }),
@@ -258,7 +262,9 @@ export class JobsRepository {
   list(type?: JobType) {
     let selection = query.selectFrom('job').selectAll().orderBy('id');
 
-    if (type) selection = selection.where('type', '=', type);
+    if (type) {
+      selection = selection.where('type', '=', type);
+    }
 
     return this.executor.all(selection).map((job) => Schema.decodeUnknownSync(jobSchema)(job));
   }
@@ -286,7 +292,9 @@ export class RunningJob {
   number(key: string) {
     const value = this.claim.payload[key];
 
-    if (!Number.isSafeInteger(value)) throw new JobError({ code: 'invalid_payload', retry: false });
+    if (!Number.isSafeInteger(value)) {
+      throw new JobError({ code: 'invalid_payload', retry: false });
+    }
 
     return Number(value);
   }
@@ -294,7 +302,9 @@ export class RunningJob {
   text(key: string) {
     const value = this.claim.payload[key];
 
-    if (value === undefined) throw new JobError({ code: 'invalid_payload', retry: false });
+    if (value === undefined) {
+      throw new JobError({ code: 'invalid_payload', retry: false });
+    }
 
     return String(value);
   }

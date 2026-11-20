@@ -35,7 +35,11 @@ const make = Effect.gen(function* () {
   });
 
   /** Write path durably; an existing file is kept unless replace is set. */
-  const write = Effect.fn('FilesService.write')(function* (path: string, data: string | Uint8Array, replace = false) {
+  const write = Effect.fn('FilesService.write')(function* (
+    path: string,
+    data: string | Uint8Array,
+    replace: boolean = false,
+  ) {
     files.writeDurable(path, data, replace);
   });
 

@@ -56,18 +56,23 @@ export function createCdn(runtime: Runtime) {
 
     const file = resolve(root, `.${decodeURIComponent(path)}`);
 
-    if (relative(root, file).startsWith('..')) return c.notFound();
+    if (relative(root, file).startsWith('..')) {
+      return c.notFound();
+    }
 
-    if (existsSync(file) && statSync(file).isFile())
+    if (existsSync(file) && statSync(file).isFile()) {
       return c.body(readFileSync(file), 200, {
         'Content-Type': contentTypes.get(extname(file)) ?? 'application/octet-stream',
       });
+    }
 
     if (runtime.config.proxy.mode !== 'disabled' && path.startsWith('/gameassets/') && !path.endsWith('_ver_cur.xml')) {
       try {
         return await fetchCdn(path);
       } catch (error) {
-        if (runtime.config.proxy.mode === 'enabled') throw error;
+        if (runtime.config.proxy.mode === 'enabled') {
+          throw error;
+        }
       }
     }
 

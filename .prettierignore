@@ -9,7 +9,6 @@ dist/
 *.egg-info/
 .venv/
 assets/
-server/tools/oxlint/anti-slop/
 server/src/protocol/generated/
 server/node_modules/
 server/dist/

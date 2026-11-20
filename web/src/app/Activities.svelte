@@ -1,40 +1,73 @@
 <script lang="ts">
-  import ActivityChart, { type Chart } from './ActivityChart.svelte';
+  import ActivityChart from './ActivityChart.svelte';
+  import { z } from 'zod';
+  import type { Api } from '../lib/api';
 
-  type Summary = {
-    id: string;
-    name: string;
-    world: number;
-    sport: 'cycling' | 'running';
-    startDate: string | null;
-    endDate: string | null;
-    distanceInMeters: number;
-    totalElevation: number;
-    movingTimeInMs: number;
-    calories: number;
-    avgWatts: number;
-    maxWatts: number;
-    normalizedPower: number;
-    tss: number;
-    avgHeartRate: number;
-    maxHeartRate: number;
-    avgCadence: number;
-    maxCadence: number;
-    avgSpeed: number;
-    maxSpeed: number;
-    fit: boolean;
-    images: number;
-  };
+  const summarySchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    world: z.number(),
+    sport: z.enum(['cycling', 'running']),
+    startDate: z.string().nullable(),
+    endDate: z.string().nullable(),
+    distanceInMeters: z.number(),
+    totalElevation: z.number(),
+    movingTimeInMs: z.number(),
+    calories: z.number(),
+    avgWatts: z.number(),
+    maxWatts: z.number(),
+    normalizedPower: z.number(),
+    tss: z.number(),
+    avgHeartRate: z.number(),
+    maxHeartRate: z.number(),
+    avgCadence: z.number(),
+    maxCadence: z.number(),
+    avgSpeed: z.number(),
+    maxSpeed: z.number(),
+    fit: z.boolean(),
+    images: z.number(),
+  });
 
-  type Detail = Summary & { imageIds: number[]; chart: Chart | null; chartPending: boolean };
+  type Summary = z.infer<typeof summarySchema>;
 
-  type Provider = 'strava' | 'freeStrava' | 'garmin' | 'runalyze' | 'intervals' | 'zwift';
+  const series = z.array(z.number());
 
-  type Upload = {
-    provider: Provider;
-    state: 'pending' | 'sending' | 'sent' | 'failed' | 'ambiguous' | 'cancelled' | null;
-    error: string | null;
-  };
+  const detailResponse = summarySchema.extend({
+    imageIds: z.array(z.number()),
+    chart: z
+      .object({
+        powerInWatts: series,
+        cadencePerMin: series,
+        heartRate: series,
+        distanceInCm: series,
+        speedInCmPerSec: series,
+        timeInSec: series,
+        altitudeInCm: series,
+        latlng: z.array(z.tuple([z.number(), z.number()])),
+      })
+      .nullable(),
+    chartPending: z.boolean(),
+  });
+
+  type Detail = z.infer<typeof detailResponse>;
+
+  const provider = z.enum(['strava', 'freeStrava', 'garmin', 'runalyze', 'intervals', 'zwift']);
+
+  type Provider = z.infer<typeof provider>;
+
+  const uploadsResponse = z.object({
+    uploads: z.array(
+      z.object({
+        provider,
+        state: z.enum(['pending', 'sending', 'sent', 'failed', 'ambiguous', 'cancelled']).nullable(),
+        error: z.string().nullable(),
+      }),
+    ),
+  });
+
+  type Upload = z.infer<typeof uploadsResponse>['uploads'][number];
+
+  const listResponse = z.object({ activities: z.array(summarySchema), hasMore: z.boolean() });
 
   let {
     path,
@@ -42,7 +75,7 @@
     go,
   }: {
     path: string;
-    api: <Body>(url: string, method?: string, data?: Record<string, string | boolean>) => Promise<Body>;
+    api: Api;
     go: (next: string) => void;
   } = $props();
 
@@ -62,15 +95,15 @@
     [17, 'Scotland'],
   ]);
 
-  let activities = $state<Summary[] | null>(null);
+  let activities = $state<Array<Summary> | null>(null);
   let detail = $state<Detail | null>(null);
   let failure = $state('');
   let chartWaitExpired = $state(false);
 
   /** The open activity's deliveries, one per connected service. */
-  let uploads = $state<{ id: string; list: Upload[] } | null>(null);
+  let uploads = $state<{ id: string; list: Array<Upload> } | null>(null);
   let chooser = $state(false);
-  let chosen = $state<Provider[]>([]);
+  let chosen = $state<Array<Provider>>([]);
   let sending = $state(false);
   let uploadFailure = $state('');
 
@@ -97,7 +130,8 @@
 
   /** Newest first, grouped by the month the activity started, with that month's totals. */
   const months = $derived.by(() => {
-    const groups: { key: string; label: string; activities: Summary[]; distance: number; time: number }[] = [];
+    const groups: Array<{ key: string; label: string; activities: Array<Summary>; distance: number; time: number }> =
+      [];
 
     for (const activity of ordered) {
       const date = started(activity);
@@ -224,7 +258,7 @@
   }
 
   /** One sentence for the closed section, so the state is visible without opening the chooser. */
-  function summary(list: Upload[]) {
+  function summary(list: Array<Upload>) {
     const names = (match: (u: Upload) => boolean) => {
       const found = [...new Set(list.flatMap((u) => (match(u) ? [services[u.provider]] : [])))];
 
@@ -244,34 +278,43 @@
 
   async function loadUploads(id: string) {
     try {
-      const body = await api<{ uploads: Upload[] }>(`/api/me/activities/${id}/uploads`);
+      const body = await api(uploadsResponse, `/api/me/activities/${id}/uploads`);
 
-      if (detail?.id === id) uploads = { id, list: body.uploads };
+      if (detail?.id === id) {
+        uploads = { id, list: body.uploads };
+      }
     } catch {
       /* The section stays as it was; the next open or poll tries again. */
     }
   }
 
-  function toggleChooser(list: Upload[]) {
+  function toggleChooser(list: Array<Upload>) {
     chooser = !chooser;
     uploadFailure = '';
 
     // Services that do not have the activity yet start ticked; uploading again is a deliberate choice.
-    if (chooser) chosen = list.flatMap((u) => (uploaded(u) || inFlight(u) ? [] : [u.provider]));
+    if (chooser) {
+      chosen = list.flatMap((u) => (uploaded(u) || inFlight(u) ? [] : [u.provider]));
+    }
   }
 
-  async function upload(id: string, list: Upload[]) {
+  async function upload(id: string, list: Array<Upload>) {
     sending = true;
     uploadFailure = '';
-    const failures: string[] = [];
+    const failures: Array<string> = [];
 
     for (const provider of chosen) {
       const again = list.some((u) => u.provider === provider && uploaded(u));
 
       try {
-        const body = await api<{ uploads: Upload[] }>(`/api/me/activities/${id}/uploads`, 'POST', { provider, again });
+        const body = await api(uploadsResponse, `/api/me/activities/${id}/uploads`, 'POST', {
+          provider,
+          again,
+        });
 
-        if (detail?.id === id) uploads = { id, list: body.uploads };
+        if (detail?.id === id) {
+          uploads = { id, list: body.uploads };
+        }
       } catch (error) {
         failures.push(
           `${services[provider]}: ${error instanceof Error ? error.message : 'the upload could not start.'}`,
@@ -283,37 +326,48 @@
     uploadFailure = failures.join(' ');
 
     // The chooser stays open, so each row shows its upload on the way.
-    if (!failures.length) chosen = [];
+    if (!failures.length) {
+      chosen = [];
+    }
   }
 
   async function loadList(currentPage: number) {
     const version = ++requestVersion;
 
     try {
-      const body = await api<{ activities: Summary[]; hasMore: boolean }>(`/api/me/activities?page=${currentPage}`);
+      const body = await api(listResponse, `/api/me/activities?page=${currentPage}`);
 
-      if (version !== requestVersion) return;
+      if (version !== requestVersion) {
+        return;
+      }
       activities = body.activities;
       hasMore = body.hasMore;
     } catch (error) {
-      if (version === requestVersion)
+      if (version === requestVersion) {
         failure = error instanceof Error ? error.message : 'Activities could not be loaded.';
+      }
     }
   }
 
   /** The chart is made by a job after the activity is saved; ask again a few times while it runs. */
   async function loadDetail(id: string, attempt = 0) {
     try {
-      const body = await api<Detail>(`/api/me/activities/${id}`);
+      const body = await api(detailResponse, `/api/me/activities/${id}`);
 
-      if (selectedId !== id) return;
+      if (selectedId !== id) {
+        return;
+      }
       const retry = body.chartPending && attempt < 8;
       detail = body;
       chartWaitExpired = body.chartPending && !retry;
 
-      if (retry) setTimeout(() => void loadDetail(id, attempt + 1), 1500 * (attempt + 1));
+      if (retry) {
+        setTimeout(() => void loadDetail(id, attempt + 1), 1500 * (attempt + 1));
+      }
     } catch (error) {
-      if (selectedId !== id) return;
+      if (selectedId !== id) {
+        return;
+      }
       detail = null;
       failure = error instanceof Error ? error.message : 'The activity could not be loaded.';
     }
@@ -331,17 +385,23 @@
     chooser = false;
     uploadFailure = '';
 
-    if (id) void loadUploads(id);
+    if (id) {
+      void loadUploads(id);
+    }
   });
 
   // Deliveries run in the background, so the section refreshes while any is still on its way.
   $effect(() => {
     const id = uploads?.id;
 
-    if (!id || !uploads?.list.some(inFlight)) return;
+    if (!id || !uploads?.list.some(inFlight)) {
+      return;
+    }
 
     const timer = setInterval(() => {
-      if (!document.hidden) void loadUploads(id);
+      if (!document.hidden) {
+        void loadUploads(id);
+      }
     }, 3000);
 
     return () => clearInterval(timer);
@@ -351,11 +411,15 @@
     const id = selectedId;
     failure = '';
 
-    if (id) void loadDetail(id);
+    if (id) {
+      void loadDetail(id);
+    }
   });
 
   function open(event: MouseEvent, href: string) {
-    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+      return;
+    }
     event.preventDefault();
     showList = href === '/activities';
     go(href);

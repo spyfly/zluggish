@@ -20,8 +20,15 @@ export async function mediumFixture(t: TestContext) {
   const other = await f.accounts.create('Other Rider', 'test-password');
   const headers = (user = rider) => ({ Authorization: `Bearer ${f.sessions.tokens(user, f.tokens).access_token}` });
 
-  const request = (path: string, init: RequestInit = {}, user = rider) =>
-    f.app.request(path, { ...init, headers: { ...headers(user), ...init.headers } });
+  const request = (path: string, init: RequestInit = {}, user = rider) => {
+    const requestHeaders = new Headers(headers(user));
+
+    for (const [name, value] of new Headers(init.headers)) {
+      requestHeaders.set(name, value);
+    }
+
+    return f.app.request(path, { ...init, headers: requestHeaders });
+  };
 
   return { ...f, rider, other, headers, request };
 }
@@ -100,7 +107,9 @@ export function mediumWeb(f: ReturnType<typeof runtimeFixture>, rider: User) {
     });
 
     // Fetch sets the multipart boundary itself.
-    if (!(data instanceof FormData)) headers.set('Content-Type', 'application/json');
+    if (!(data instanceof FormData)) {
+      headers.set('Content-Type', 'application/json');
+    }
 
     return app.request(`http://local:8080${path}`, {
       method,

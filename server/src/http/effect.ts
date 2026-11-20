@@ -13,7 +13,7 @@ export type EffectHandler<E extends Env, P extends string> = (
 failure reaches `app.onError` as the original error.
 */
 export function effectRoutes<E extends Env>(app: Hono<E>, runtime: { readonly effects: AppRuntime }) {
-  const on = <P extends string>(method: Method | Method[], path: P | P[], handler: EffectHandler<E, P>) =>
+  const on = <P extends string>(method: Method | Array<Method>, path: P | Array<P>, handler: EffectHandler<E, P>) =>
     app.on(method, [path].flat(), (c) =>
       // SAFETY: Hono matched one of `path`, so the context carries that path's parameters.
       runtime.effects.runPromise(handler(c as Context<E, P>)),

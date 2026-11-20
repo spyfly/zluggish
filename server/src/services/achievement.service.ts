@@ -22,9 +22,11 @@ const make = Effect.gen(function* () {
       if (saved.length > 0x1_50 && saved[0x1_08] === 2) {
         const bits = saved.subarray(0x1_10, 0x1_50);
 
-        for (let badge = 0; badge < bits.length * 8; badge++)
-          if (((bits[Math.floor(badge / 8)] ?? 0) >> badge % 8) & 1)
+        for (let badge = 0; badge < bits.length * 8; badge++) {
+          if (((bits[Math.floor(badge / 8)] ?? 0) >> badge % 8) & 1) {
             achievements.achievements.push(create(AchievementEntrySchema, { id: badge }));
+          }
+        }
       }
     }
 
@@ -34,13 +36,18 @@ const make = Effect.gen(function* () {
       [1, 211],
       [10, 212],
       [25, 213],
-    ] as const)
-      if (count >= minimum && achievements.achievements.every((item) => item.id !== badge)) {
-        achievements.achievements.push(create(AchievementEntrySchema, { id: badge }));
-        changed = true;
+    ] as const) {
+      if (!(count >= minimum && achievements.achievements.every((item) => item.id !== badge))) {
+        continue;
       }
 
-    if (changed) repositories.riderDocuments.put(id, 'achievements.bin', toBinary(AchievementsSchema, achievements));
+      achievements.achievements.push(create(AchievementEntrySchema, { id: badge }));
+      changed = true;
+    }
+
+    if (changed) {
+      repositories.riderDocuments.put(id, 'achievements.bin', toBinary(AchievementsSchema, achievements));
+    }
 
     return achievements;
   });
@@ -60,7 +67,9 @@ const make = Effect.gen(function* () {
       for (const badge of achievements.achievements) {
         const hash = dictionary.achievements[String(badge.id)];
 
-        if (hash !== undefined) repositories.recordsRepository.ensureRoute(id, hash);
+        if (hash !== undefined) {
+          repositories.recordsRepository.ensureRoute(id, hash);
+        }
       }
     });
   });

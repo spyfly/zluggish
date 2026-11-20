@@ -80,7 +80,7 @@ export interface SchemaProblem {
 const standard = SchemaIssue.makeFormatterStandardSchemaV1();
 
 /** Flatten a decoding failure into one problem per failing value. Inputs are never included. */
-export function schemaProblems(error: Schema.SchemaError): SchemaProblem[] {
+export function schemaProblems(error: Schema.SchemaError): Array<SchemaProblem> {
   return standard(error.issue).issues.map((issue) => ({
     path: (issue.path ?? []).map((key) => String(Predicate.isObject(key) && 'key' in key ? key.key : key)).join('.'),
     message: issue.message,
@@ -89,10 +89,11 @@ export function schemaProblems(error: Schema.SchemaError): SchemaProblem[] {
 
 /** Form field errors keyed by the first path segment. */
 export function fieldErrors(error: Schema.SchemaError) {
-  const fields: Record<string, string[]> = {};
+  const fields: Record<string, Array<string>> = {};
 
-  for (const problem of schemaProblems(error))
+  for (const problem of schemaProblems(error)) {
     (fields[problem.path.split('.', 1)[0] || 'form'] ??= []).push(problem.message);
+  }
 
   return fields;
 }
@@ -130,7 +131,9 @@ export const IsoDateTime = Schema.String.check(
 /** A calendar date such as `2024-02-29`. */
 export const IsoDate = Schema.String.check(
   satisfies((value: string) => {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      return false;
+    }
     const date = new Date(`${value}T00:00:00Z`);
 
     return !Number.isNaN(date.getTime()) && date.toISOString().startsWith(value);
@@ -150,5 +153,6 @@ export function decodeOwned<S extends Schema.ConstraintDecoder<unknown>>(schema:
 
   // SAFETY: decoding builds new objects and arrays that nothing else references,
   // so the caller may change them.
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   return (...input: Parameters<typeof decode>) => decode(...input) as Types.DeepMutable<S['Type']>;
 }

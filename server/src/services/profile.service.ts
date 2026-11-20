@@ -38,7 +38,9 @@ const make = Effect.gen(function* () {
     profile: ReturnType<typeof create<typeof PlayerProfileSchema>>,
     viewer?: number,
   ) {
-    if (viewer !== undefined && profile.id === BigInt(viewer)) return profile;
+    if (viewer !== undefined && profile.id === BigInt(viewer)) {
+      return profile;
+    }
 
     const publicProfile = create(PlayerProfileSchema, {
       id: profile.id,
@@ -77,9 +79,13 @@ const make = Effect.gen(function* () {
       runAchievementLevel: profile.runAchievementLevel,
     });
 
-    if (profile.privacyBits & 4n) publicProfile.weightInGrams = profile.weightInGrams;
+    if (profile.privacyBits & 4n) {
+      publicProfile.weightInGrams = profile.weightInGrams;
+    }
 
-    if (!(profile.privacyBits & 64n)) publicProfile.age = ProfileJsonService.profileAge(profile);
+    if (!(profile.privacyBits & 64n)) {
+      publicProfile.age = ProfileJsonService.profileAge(profile);
+    }
 
     return publicProfile;
   });
@@ -112,8 +118,8 @@ const make = Effect.gen(function* () {
 
       const owned = new Set(profile.entitlements.map((item) => item.id));
 
-      for (let id = context.config.equipment.unlockAll ? 1 : range.first; id <= range.last; id++)
-        if (!owned.has(BigInt(id)))
+      for (let id = context.config.equipment.unlockAll ? 1 : range.first; id <= range.last; id++) {
+        if (!owned.has(BigInt(id))) {
           profile.entitlements.push(
             create(ProfileEntitlementSchema, {
               id: BigInt(id),
@@ -121,6 +127,8 @@ const make = Effect.gen(function* () {
               status: ProfileEntitlement_ProfileEntitlementStatus.ACTIVE,
             }),
           );
+        }
+      }
     }
 
     return profile;

@@ -8,7 +8,7 @@ import { Schema } from 'effect';
 import { once } from 'node:events';
 import { test } from 'node:test';
 
-for (const existing of [false, true])
+for (const existing of [false, true]) {
   await test(
     `web setup with ${existing ? 'existing' : 'new'} rider, management, and game login`,
     { timeout: 40_000 },
@@ -31,7 +31,7 @@ for (const existing of [false, true])
       t.after(() => browser.close());
       const page = await browser.newPage({ viewport: { width: 360, height: 800 }, reducedMotion: 'reduce' });
       page.setDefaultTimeout(7000);
-      const errors: string[] = [];
+      const errors: Array<string> = [];
       page.on('pageerror', (error) => {
         errors.push(error.message);
       });
@@ -131,3 +131,4 @@ for (const existing of [false, true])
       assert.deepEqual(errors, []);
     },
   );
+}

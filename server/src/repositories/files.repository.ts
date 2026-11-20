@@ -23,7 +23,9 @@ import { link, mkdir, open, readdir, readFile, rename, rm, stat, unlink } from '
 import { dirname, resolve } from 'node:path';
 
 function syncDirectory(path: string) {
-  if (process.platform === 'win32') return;
+  if (process.platform === 'win32') {
+    return;
+  }
   const fd = openSync(path, 'r');
 
   try {
@@ -47,8 +49,9 @@ function publish(path: string, text: string | Uint8Array, replace: boolean) {
   }
 
   try {
-    if (replace) renameSync(temporary, path);
-    else {
+    if (replace) {
+      renameSync(temporary, path);
+    } else {
       linkSync(temporary, path);
       unlinkSync(temporary);
     }
@@ -60,7 +63,9 @@ function publish(path: string, text: string | Uint8Array, replace: boolean) {
 }
 
 async function syncDirectoryAsync(path: string) {
-  if (process.platform === 'win32') return;
+  if (process.platform === 'win32') {
+    return;
+  }
   const handle = await open(path, 'r');
 
   try {
@@ -89,8 +94,9 @@ async function publishAsync(path: string, data: string | Uint8Array, replace: bo
   try {
     await writeSynced(temporary, data);
 
-    if (replace) await rename(temporary, path);
-    else {
+    if (replace) {
+      await rename(temporary, path);
+    } else {
       await link(temporary, path);
       await unlink(temporary);
     }
@@ -119,7 +125,9 @@ export class AssetFiles {
   }
 
   remove(path: string) {
-    if (existsSync(path)) unlinkSync(path);
+    if (existsSync(path)) {
+      unlinkSync(path);
+    }
   }
 
   writeDurable(path: string, text: string | Uint8Array, replace = false) {
@@ -153,7 +161,9 @@ export class AssetFiles {
     try {
       return await readFile(path);
     } catch (error) {
-      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return null;
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+        return null;
+      }
       throw error;
     }
   }
@@ -165,7 +175,9 @@ export class AssetFiles {
 
       return { bytes: info.size, modified: info.mtimeMs, directory: info.isDirectory() };
     } catch (error) {
-      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return null;
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+        return null;
+      }
       throw error;
     }
   }
@@ -180,13 +192,15 @@ export class AssetFiles {
     try {
       return await readdir(folder, { withFileTypes: true });
     } catch (error) {
-      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return [];
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+        return [];
+      }
       throw error;
     }
   }
 
   /** Files below folder whose names end with suffix; a missing folder has none. */
-  async filesUnder(folder: string, suffix: string): Promise<string[]> {
+  async filesUnder(folder: string, suffix: string): Promise<Array<string>> {
     const entries = await this.entriesAsync(folder);
 
     const nested = await Promise.all(

@@ -35,7 +35,9 @@ const make = Effect.gen(function* () {
     let stopped = false;
 
     const send = (content: string, sender = 'Server') => {
-      if (stopped || pending >= 100) return;
+      if (stopped || pending >= 100) {
+        return;
+      }
       pending++;
       void transport
         .deliver(content, sender)
@@ -56,24 +58,30 @@ const make = Effect.gen(function* () {
       relay(author: string, content: string) {
         const current = settings();
 
-        if (content === '!online') send(`${context.world.online.size} riders online`);
-        else if (content === '!ping') send('pong');
-        else if (content === '!help' && current.helpMessage) send(current.helpMessage);
-        else if (!content.startsWith('!'))
+        if (content === '!online') {
+          send(`${context.world.online.size} riders online`);
+        } else if (content === '!ping') {
+          send('pong');
+        } else if (content === '!help' && current.helpMessage) {
+          send(current.helpMessage);
+        } else if (!content.startsWith('!')) {
           Effect.runSync(messages.sendMessage(content.slice(0, 2000), undefined, author));
+        }
       },
 
       send,
 
-      online(id: bigint, joining: boolean) {
+      online: (id: bigint, joining: boolean) => {
         transport.presence(context.world.online.size);
 
-        if (!settings().announcePlayers) return;
+        if (!settings().announcePlayers) {
+          return;
+        }
         const profile = context.profiles.get(Number(id));
         send(joining ? 'Riding' : 'Leaving', `${profile.firstName} ${profile.lastName}`);
       },
 
-      async close() {
+      close: async () => {
         stopped = true;
         await transport.close();
       },

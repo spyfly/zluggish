@@ -53,7 +53,9 @@ await test('responses split nearby riders at the same boundaries as re-encoding 
       distance: index * 123_457,
     });
 
-  for (let index = 1; index <= 100; index++) world.receive(BigInt(index), state(BigInt(index), index));
+  for (let index = 1; index <= 100; index++) {
+    world.receive(BigInt(index), state(BigInt(index), index));
+  }
 
   const packets = world.responses(1000n, state(1000n, 0), now).map((bytes) => fromBinary(ServerToClientSchema, bytes));
   const sent = packets.flatMap((packet) => packet.states);
@@ -61,7 +63,7 @@ await test('responses split nearby riders at the same boundaries as re-encoding 
   assert.ok(packets.length > 2);
 
   // The former packing: encode the growing packet before adding each state.
-  const reference: PlayerState[][] = [[]];
+  const reference: Array<Array<PlayerState>> = [[]];
   const [first, second] = packets;
   assert.ok(first && second);
 

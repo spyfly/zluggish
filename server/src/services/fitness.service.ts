@@ -79,7 +79,9 @@ const make = Effect.gen(function* () {
       const start = range.start + i * 86_400_000;
       const sum = totals(id, start, start + 86_400_000 - 1);
 
-      if (!sum.distance) continue;
+      if (!sum.distance) {
+        continue;
+      }
       const zones = [0, 0, 0, 0, 0, 0, 0];
 
       for (const row of repositories.fitnessRepository.listActivity(
@@ -87,13 +89,17 @@ const make = Effect.gen(function* () {
         new Date(start).toISOString(),
         new Date(start + 86_400_000 - 1).toISOString(),
       )) {
-        if (!row.power_zones) continue;
+        if (!row.power_zones) {
+          continue;
+        }
 
         const incoming = Schema.decodeUnknownSync(Schema.Array(Schema.Finite))(
           JSON.parse(Schema.decodeUnknownSync(Schema.String)(row.power_zones)),
         );
 
-        for (let zone = 0; zone < 7; zone++) zones[zone] = (zones[zone] ?? 0) + (incoming[zone] ?? 0);
+        for (let zone = 0; zone < 7; zone++) {
+          zones[zone] = (zones[zone] ?? 0) + (incoming[zone] ?? 0);
+        }
       }
 
       const total = zones.reduce((sum, value) => sum + value, 0);
@@ -163,10 +169,11 @@ const make = Effect.gen(function* () {
     for (const time of ['5', '60', '300', '1200']) {
       const row = repositories.fitnessRepository.findPowerCurve(id, time, cutoff);
 
-      if (row)
+      if (row) {
         response.watts[time] = create(BestEffortPointMsgSchema, {
           power: Schema.decodeUnknownSync(Schema.Finite)(row.power),
         });
+      }
     }
 
     return response;

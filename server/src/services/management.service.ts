@@ -35,22 +35,37 @@ const isJsonObject = Schema.is(Schema.Record(Schema.String, Schema.Json));
 
 const isJsonArray = Schema.is(Schema.Array(Schema.Json));
 
+const decodeJson = Schema.decodeUnknownSync(Schema.fromJsonString(Schema.Json));
+
 /** The browser gets a parsed outcome: a failure message, a bot reply, or plain success. */
 function outcome(status: string, result: JsonValue) {
-  if (status !== 'complete')
+  if (status !== 'complete') {
     return { status, ok: false, message: 'The result is unknown. Check the server log before you start it again.' };
+  }
 
-  if (isFailure(result)) return { status, ok: false, message: result.error };
+  if (isFailure(result)) {
+    return { status, ok: false, message: result.error };
+  }
 
   return { status, ok: true, message: isString(result) ? result : result === false ? 'Nothing to change.' : null };
 }
 
 /** Operator configuration as read-only rows. The browser never receives secrets: paths only. */
-function configuration(value: JsonValue, prefix = ''): [string, string][] {
-  if (isJsonObject(value) && !Array.isArray(value))
+function configuration(value: JsonValue, prefix = ''): Array<[string, string]> {
+  if (isJsonObject(value) && !Array.isArray(value)) {
     return Object.entries(value).flatMap(([key, item]) => configuration(item, prefix ? `${prefix}.${key}` : key));
+  }
 
   return [[prefix, isJsonArray(value) ? value.join(', ') : String(value ?? '')]];
+}
+
+/** The result a completed operation recorded, returned again when its request is retried. */
+function recorded(prior: { result: string | null }) {
+  if (prior.result === null) {
+    throw new ApplicationError({ status: 409, message: 'Operation changed.' });
+  }
+
+  return JSON.parse(prior.result);
 }
 
 const make = Effect.gen(function* () {
@@ -68,6 +83,16 @@ const make = Effect.gen(function* () {
 
   let passwordWork = 0;
 
+  function account(player: number) {
+    const user = context.accounts.get(player);
+
+    if (!user) {
+      throw new ApplicationError({ status: 404, message: 'User not found.' });
+    }
+
+    return user;
+  }
+
   function publicUser(user: User) {
     const { pass_hash, auth_version: _authVersion, ...safe } = user;
 
@@ -80,15 +105,19 @@ const make = Effect.gen(function* () {
   }
 
   function issueSetupKey() {
-    if (store.complete()) return null;
+    if (store.complete()) {
+      return null;
+    }
     const alphabet = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
     const bits = [...repositories.cryptoRepository.randomBytes(32)].map((v) => v.toString(2).padStart(8, '0')).join('');
     let key = '';
 
-    for (let i = 0; i < bits.length; i += 5) key += alphabet[Number.parseInt(bits.slice(i, i + 5).padEnd(5, '0'), 2)];
+    for (let i = 0; i < bits.length; i += 5) {
+      key += alphabet[Number.parseInt(bits.slice(i, i + 5).padEnd(5, '0'), 2)];
+    }
     setupDigest = Buffer.from(repositories.cryptoRepository.sha256(key), 'hex');
 
-    return key.match(/.{1,4}/g)!.join('-');
+    return (key.match(/.{1,4}/g) ?? []).join('-');
   }
 
   function keyValid(key: string) {
@@ -99,11 +128,15 @@ const make = Effect.gen(function* () {
 
   /** Lets the setup form check the key before asking for account details. */
   function checkSetupKey(key: string) {
-    if (store.complete() || !keyValid(key)) throw new ApplicationError({ status: 403, message: 'Setup refused.' });
+    if (store.complete() || !keyValid(key)) {
+      throw new ApplicationError({ status: 403, message: 'Setup refused.' });
+    }
   }
 
   async function passwordTask<T>(work: () => Promise<T>) {
-    if (passwordWork >= 4) throw new ApplicationError({ status: 503, message: 'Try again shortly.' });
+    if (passwordWork >= 4) {
+      throw new ApplicationError({ status: 503, message: 'Try again shortly.' });
+    }
     passwordWork++;
 
     try {
@@ -114,8 +147,9 @@ const make = Effect.gen(function* () {
   }
 
   function insert(input: (typeof newUser)['Type'], hash: string) {
-    if (context.accounts.loginNameTaken(input.username))
+    if (context.accounts.loginNameTaken(input.username)) {
       throw new ApplicationError({ status: 409, message: 'Login name already exists.' });
+    }
 
     const occupied = [
       ...context.accounts.list().map((r) => r.player_id),
@@ -127,8 +161,9 @@ const make = Effect.gen(function* () {
 
     const id = Math.max(0, ...occupied) + 1;
 
-    if (!Number.isSafeInteger(id) || id > 2_147_483_647)
+    if (!Number.isSafeInteger(id) || id > 2_147_483_647) {
       throw new ApplicationError({ status: 409, message: 'User ID space exhausted.' });
+    }
     repositories.accountsRepository.insert({
       player_id: id,
       username: input.username,
@@ -137,14 +172,15 @@ const make = Effect.gen(function* () {
       pass_hash: hash,
     });
 
-    return context.accounts.get(id)!;
+    return account(id);
   }
 
-  async function setup(raw: (typeof setupRequest)['Encoded'], live: () => boolean = () => true) {
+  async function setup(raw: unknown, live: () => boolean = () => true) {
     const input = Schema.decodeUnknownSync(setupRequest)(raw);
 
-    if (store.complete() || !keyValid(input.key))
+    if (store.complete() || !keyValid(input.key)) {
       throw new ApplicationError({ status: 403, message: 'Setup refused.' });
+    }
 
     const existing =
       input.mode === 'existing'
@@ -153,46 +189,55 @@ const make = Effect.gen(function* () {
           : context.accounts.byUsername(input.username)
         : null;
 
-    if (input.mode === 'existing' && existing && !existing.pass_hash)
+    if (input.mode === 'existing' && existing && !existing.pass_hash) {
       throw new ApplicationError({
         status: 400,
         message: 'This user has no password. Create a new user, or set a password with the CLI.',
       });
+    }
 
     const hash = await passwordTask(async () => {
-      if (input.mode === 'new') return repositories.cryptoRepository.hashPassword(input.password);
+      if (input.mode === 'new') {
+        return repositories.cryptoRepository.hashPassword(input.password);
+      }
 
-      if (!existing || !(await context.accounts.verify(existing, input.password)))
+      if (!existing || !(await context.accounts.verify(existing, input.password))) {
         throw new ApplicationError({ status: 403, message: 'Setup refused.' });
+      }
 
       return null;
     });
 
     const user = store.transaction(() => {
-      if (!live() || store.complete() || !keyValid(input.key))
+      if (!live() || store.complete() || !keyValid(input.key)) {
         throw new ApplicationError({ status: 409, message: 'Setup refused.' });
+      }
       let target: User;
 
-      if (input.mode === 'new') target = insert(input, hash!);
-      else {
+      if (input.mode === 'new') {
+        if (hash === null) {
+          throw new ApplicationError({ status: 409, message: 'Setup refused.' });
+        }
+        target = insert(input, hash);
+      } else {
         const current = existing && context.accounts.get(existing.player_id);
 
         if (
+          !existing ||
           !current ||
           !current.enabled ||
-          current.auth_version !== existing!.auth_version ||
-          current.pass_hash !== existing!.pass_hash ||
-          current.username !== existing!.username
-        )
+          current.auth_version !== existing.auth_version ||
+          current.pass_hash !== existing.pass_hash ||
+          current.username !== existing.username
+        ) {
           throw new ApplicationError({ status: 409, message: 'Account changed. Retry.' });
+        }
         target = current;
       }
 
       store.update(target.player_id, { role: 'administrator' });
       store.finish();
-      const after = context.accounts.get(target.player_id)!;
-
-      return after;
+      return account(target.player_id);
     });
 
     setupDigest = null;
@@ -218,8 +263,9 @@ const make = Effect.gen(function* () {
       current.auth_version !== user.auth_version ||
       current.pass_hash !== user.pass_hash ||
       current.username !== user.username
-    )
+    ) {
       throw new ApplicationError({ status: 401, message: 'Login name or password is incorrect.' });
+    }
 
     return user;
   }
@@ -231,10 +277,11 @@ const make = Effect.gen(function* () {
     if (
       !(await passwordTask(() => context.accounts.verify(user, password))) ||
       !Effect.runSync(sessions.current(id, identity))
-    )
+    ) {
       throw new ApplicationError({ status: 401, message: 'Confirmation refused.' });
+    }
     Effect.runSync(sessions.require(id, true, false));
-    sessions.sessions.get(id)!.confirmedUntil = Date.now() + 900_000;
+    Effect.runSync(sessions.session(id)).confirmedUntil = Date.now() + 900_000;
   }
 
   /** Administrators can already set any password, so they skip the current one. */
@@ -243,15 +290,17 @@ const make = Effect.gen(function* () {
     const identity = context.accounts.identityOf(user);
 
     const hash = await passwordTask(async () => {
-      if (user.role !== 'administrator' && !(await context.accounts.verify(user, current ?? '')))
+      if (user.role !== 'administrator' && !(await context.accounts.verify(user, current ?? ''))) {
         throw new ApplicationError({ status: 403, message: 'Password incorrect.' });
+      }
 
       return repositories.cryptoRepository.hashPassword(password);
     });
 
     store.transaction(() => {
-      if (!Effect.runSync(sessions.current(id, identity)))
+      if (!Effect.runSync(sessions.current(id, identity))) {
         throw new ApplicationError({ status: 401, message: 'Session changed.' });
+      }
       store.update(user.player_id, { pass_hash: hash });
     });
     Effect.runSync(completion.cancel(user.player_id));
@@ -263,7 +312,7 @@ const make = Effect.gen(function* () {
     return signed.slice(signed.lastIndexOf('|') + 1);
   }
 
-  async function create(id: string, raw: (typeof newUser)['Encoded'], operation: string) {
+  async function create(id: string, raw: unknown, operation: string) {
     const input = Schema.decodeUnknownSync(newUser)(raw);
     Effect.runSync(sessions.require(id, true));
     const hash = await passwordTask(() => repositories.cryptoRepository.hashPassword(input.password));
@@ -274,10 +323,11 @@ const make = Effect.gen(function* () {
       const prior = store.operation(actor.player_id, operation);
 
       if (prior) {
-        if (prior.action !== 'create' || prior.fingerprint !== fingerprint)
+        if (prior.action !== 'create' || prior.fingerprint !== fingerprint) {
           throw new ApplicationError({ status: 409, message: 'Operation changed.' });
+        }
 
-        return JSON.parse(prior.result!);
+        return recorded(prior);
       }
 
       const user = insert(input, hash);
@@ -288,14 +338,12 @@ const make = Effect.gen(function* () {
     });
   }
 
-  async function mutate(id: string, targetId: number, action: string, raw: (typeof mutationRequest)['Encoded']) {
+  async function mutate(id: string, targetId: number, action: string, raw: unknown) {
     const input = Schema.decodeUnknownSync(mutationRequest)(raw);
     Effect.runSync(sessions.require(id, true));
 
-    const hash =
-      action === 'password' && input.password
-        ? await passwordTask(() => repositories.cryptoRepository.hashPassword(input.password!))
-        : undefined;
+    const password = action === 'password' ? input.password : undefined;
+    const hash = password ? await passwordTask(() => repositories.cryptoRepository.hashPassword(password)) : undefined;
 
     let permission: Effect.Success<ReturnType<RideCompletionService['Service']['capture']>> = null;
     let committed = false;
@@ -303,33 +351,41 @@ const make = Effect.gen(function* () {
     const result = store.transaction(() => {
       const actor = Effect.runSync(sessions.require(id, true));
 
-      if (actor.player_id === targetId && action === 'password')
+      if (actor.player_id === targetId && action === 'password') {
         throw new ApplicationError({ status: 403, message: 'Change your own password on your profile.' });
+      }
       const target = context.accounts.get(targetId);
 
-      if (!target) throw new ApplicationError({ status: 404, message: 'User not found.' });
+      if (!target) {
+        throw new ApplicationError({ status: 404, message: 'User not found.' });
+      }
       const fingerprint = fingerprintNow({ action, targetId, input });
       const prior = store.operation(actor.player_id, input.operation);
 
       if (prior) {
-        if (prior.fingerprint !== fingerprint)
+        if (prior.fingerprint !== fingerprint) {
           throw new ApplicationError({ status: 409, message: 'Operation changed.' });
+        }
 
-        return JSON.parse(prior.result!);
+        return recorded(prior);
       }
 
-      if (target.revision !== input.revision)
+      if (target.revision !== input.revision) {
         throw new ApplicationError({ status: 409, message: 'User changed. Review the new data.' });
+      }
 
       if (
         target.enabled &&
         target.role === 'administrator' &&
         (action === 'disable' || (action === 'role' && input.role === 'rider')) &&
         store.administrators() <= 1
-      )
+      ) {
         throw new ApplicationError({ status: 409, message: 'Keep at least one enabled administrator.' });
+      }
 
-      if (action === 'disable') permission = Effect.runSync(completion.capture(targetId));
+      if (action === 'disable') {
+        permission = Effect.runSync(completion.capture(targetId));
+      }
 
       const values =
         action === 'password' && hash
@@ -344,12 +400,14 @@ const make = Effect.gen(function* () {
                   ? {}
                   : null;
 
-      if (!values) throw new ApplicationError({ status: 400, message: 'Invalid action.' });
+      if (!values) {
+        throw new ApplicationError({ status: 400, message: 'Invalid action.' });
+      }
       store.update(targetId, values);
       committed = true;
 
       const after = {
-        ...publicUser(context.accounts.get(targetId)!),
+        ...publicUser(account(targetId)),
         completion_deadline: permission?.deadline ?? null,
       };
 
@@ -359,39 +417,48 @@ const make = Effect.gen(function* () {
     });
 
     if (committed) {
-      if (action === 'disable') Effect.runSync(completion.grant(targetId, permission));
-      else Effect.runSync(completion.cancel(targetId));
+      if (action === 'disable') {
+        Effect.runSync(completion.grant(targetId, permission));
+      } else {
+        Effect.runSync(completion.cancel(targetId));
+      }
     }
 
     return result;
   }
 
-  function edit(id: string, player: number, raw: (typeof editUserRequest)['Encoded']) {
+  function edit(id: string, player: number, raw: unknown) {
     const input = Schema.decodeUnknownSync(editUserRequest)(raw);
 
     return store.transaction(() => {
       const actor = Effect.runSync(sessions.require(id, true));
       const target = context.accounts.get(player);
 
-      if (!target) throw new ApplicationError({ status: 404, message: 'User not found.' });
+      if (!target) {
+        throw new ApplicationError({ status: 404, message: 'User not found.' });
+      }
       const fingerprint = fingerprintNow(input);
       const prior = store.operation(actor.player_id, input.operation);
 
       if (prior) {
-        if (prior.fingerprint !== fingerprint || prior.action !== 'edit')
+        if (prior.fingerprint !== fingerprint || prior.action !== 'edit') {
           throw new ApplicationError({ status: 409, message: 'Operation changed.' });
+        }
 
-        return JSON.parse(prior.result!);
+        return recorded(prior);
       }
 
-      if (context.world.active(player))
+      if (context.world.active(player)) {
         throw new ApplicationError({ status: 409, message: 'Disconnect the user before changing names.' });
+      }
 
-      if (target.revision !== input.revision)
+      if (target.revision !== input.revision) {
         throw new ApplicationError({ status: 409, message: 'User changed. Review the new data.' });
+      }
 
-      if (context.accounts.loginNameTaken(input.username, player))
+      if (context.accounts.loginNameTaken(input.username, player)) {
         throw new ApplicationError({ status: 409, message: 'Login name already exists.' });
+      }
 
       const profile = context.profiles.get(player);
       profile.firstName = input.first_name;
@@ -399,7 +466,7 @@ const make = Effect.gen(function* () {
       profile.email = input.username;
       context.profiles.save(player, profile);
       store.update(player, { username: input.username }, false);
-      const result = publicUser(context.accounts.get(player)!);
+      const result = publicUser(account(player));
       store.record(actor.player_id, input.operation, 'edit', player, fingerprint, result);
 
       return result;
@@ -410,11 +477,13 @@ const make = Effect.gen(function* () {
     const actor = Effect.runSync(sessions.require(id, player !== undefined));
     const user = player === undefined ? actor : context.accounts.get(player);
 
-    if (!user) throw new ApplicationError({ status: 404, message: 'User not found.' });
+    if (!user) {
+      throw new ApplicationError({ status: 404, message: 'User not found.' });
+    }
     const [month, day, year] = context.profiles.get(user.player_id).dob.split('/', 3);
 
     return {
-      user: publicUser(context.accounts.get(user.player_id)!),
+      user: publicUser(account(user.player_id)),
       birthday: year && month && day ? `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}` : '',
       avatar: avatarVersion(user.player_id),
     };
@@ -438,10 +507,13 @@ const make = Effect.gen(function* () {
     const actor = Effect.runSync(sessions.require(id, player !== undefined));
     const user = player === undefined ? actor : context.accounts.get(player);
 
-    if (!user) throw new ApplicationError({ status: 404, message: 'User not found.' });
+    if (!user) {
+      throw new ApplicationError({ status: 404, message: 'User not found.' });
+    }
 
-    if (image.length < 4 || image[0] !== 0xff || image[1] !== 0xd8 || image.at(-2) !== 0xff || image.at(-1) !== 0xd9)
+    if (image.length < 4 || image[0] !== 0xff || image[1] !== 0xd8 || image.at(-2) !== 0xff || image.at(-1) !== 0xd9) {
       throw new ApplicationError({ status: 400, message: 'Choose a JPG or PNG image.' });
+    }
     repositories.filesRepository.write(avatarPath(user.player_id), image);
 
     return { avatar: avatarVersion(user.player_id) };
@@ -451,15 +523,19 @@ const make = Effect.gen(function* () {
     const actor = Effect.runSync(sessions.require(id, player !== undefined));
     const user = player === undefined ? actor : context.accounts.get(player);
 
-    if (!user) throw new ApplicationError({ status: 404, message: 'User not found.' });
+    if (!user) {
+      throw new ApplicationError({ status: 404, message: 'User not found.' });
+    }
     const path = avatarPath(user.player_id);
 
-    if (repositories.filesRepository.existsSync(path)) repositories.filesRepository.unlinkSync(path);
+    if (repositories.filesRepository.existsSync(path)) {
+      repositories.filesRepository.unlinkSync(path);
+    }
 
     return { avatar: null };
   }
 
-  function editOwnProfile(id: string, raw: (typeof ownProfileRequest)['Encoded'], targetPlayer?: number) {
+  function editOwnProfile(id: string, raw: unknown, targetPlayer?: number) {
     const input = Schema.decodeUnknownSync(ownProfileRequest)(raw);
 
     return store.transaction(() => {
@@ -467,25 +543,31 @@ const make = Effect.gen(function* () {
       const player = targetPlayer ?? actor.player_id;
       const target = context.accounts.get(player);
 
-      if (!target) throw new ApplicationError({ status: 404, message: 'User not found.' });
+      if (!target) {
+        throw new ApplicationError({ status: 404, message: 'User not found.' });
+      }
       const fingerprint = fingerprintNow({ ...input, player });
       const prior = store.operation(actor.player_id, input.operation);
 
       if (prior) {
-        if (prior.fingerprint !== fingerprint || prior.action !== 'profile')
+        if (prior.fingerprint !== fingerprint || prior.action !== 'profile') {
           throw new ApplicationError({ status: 409, message: 'Operation changed.' });
+        }
 
-        return JSON.parse(prior.result!);
+        return recorded(prior);
       }
 
-      if (context.world.active(player))
+      if (context.world.active(player)) {
         throw new ApplicationError({ status: 409, message: 'Leave the game before changing your profile.' });
+      }
 
-      if (target.revision !== input.revision)
+      if (target.revision !== input.revision) {
         throw new ApplicationError({ status: 409, message: 'Profile changed. Reload the page.' });
+      }
 
-      if (context.accounts.loginNameTaken(input.username, player))
+      if (context.accounts.loginNameTaken(input.username, player)) {
         throw new ApplicationError({ status: 409, message: 'Email address already in use.' });
+      }
 
       const profile = context.profiles.get(player);
       profile.firstName = input.first_name;
@@ -509,24 +591,28 @@ const make = Effect.gen(function* () {
     };
   }
 
-  function saveSettings(id: string, player: number, raw: (typeof settingsRequest)['Encoded'], manage = false) {
+  function saveSettings(id: string, player: number, raw: unknown, manage = false) {
     const input = Schema.decodeUnknownSync(settingsRequest)(raw);
 
     return store.transaction(() => {
       const actor = Effect.runSync(sessions.require(id, manage));
 
-      if ((manage && actor.player_id === player) || (!manage && actor.player_id !== player))
+      if ((manage && actor.player_id === player) || (!manage && actor.player_id !== player)) {
         throw new ApplicationError({ status: 403, message: 'Own settings only.' });
+      }
 
-      if (!context.accounts.get(player)) throw new ApplicationError({ status: 404, message: 'User not found.' });
+      if (!context.accounts.get(player)) {
+        throw new ApplicationError({ status: 404, message: 'User not found.' });
+      }
       const fingerprint = fingerprintNow({ player, input });
       const prior = store.operation(actor.player_id, input.operation);
 
       if (prior) {
-        if (prior.action !== 'settings' || prior.fingerprint !== fingerprint)
+        if (prior.action !== 'settings' || prior.fingerprint !== fingerprint) {
           throw new ApplicationError({ status: 409, message: 'Operation changed.' });
+        }
 
-        return JSON.parse(prior.result!);
+        return recorded(prior);
       }
 
       context.settings.save(player, input.overrides, input.revision);
@@ -541,14 +627,15 @@ const make = Effect.gen(function* () {
   async function serverOperation(
     id: string,
     action: string,
-    raw: (typeof serverRequest)['Encoded'],
+    raw: unknown,
     flush: () => Promise<void>,
     dispatch: { reload: () => Promise<void>; bots: (user: number, command: string) => string },
   ) {
     const input = Schema.decodeUnknownSync(serverRequest)(raw);
 
-    if (action === 'bots' && (!input.user || !input.command))
+    if (action === 'bots' && (!input.user || !input.command)) {
       throw new ApplicationError({ status: 400, message: 'Choose a user and a bot command.' });
+    }
     const fingerprint = fingerprintNow({ action, input });
 
     // The retry check and the intent share one transaction, so a duplicate request never dispatches twice.
@@ -557,20 +644,24 @@ const make = Effect.gen(function* () {
       const prior = store.operation(actor.player_id, input.operation);
 
       if (prior) {
-        if (prior.action !== action || prior.fingerprint !== fingerprint)
+        if (prior.action !== action || prior.fingerprint !== fingerprint) {
           throw new ApplicationError({ status: 409, message: 'Operation changed.' });
+        }
 
         return { actor, prior };
       }
 
-      if (action === 'bots' && !context.world.active(input.user!))
+      if (action === 'bots' && input.user !== undefined && !context.world.active(input.user)) {
         throw new ApplicationError({ status: 409, message: 'The user must be riding now.' });
+      }
       store.intent(actor.player_id, input.operation, action, fingerprint);
 
       return { actor, prior: null };
     });
 
-    if (prior) return outcome(prior.status, prior.result ? JSON.parse(prior.result) : null);
+    if (prior) {
+      return outcome(prior.status, prior.result ? decodeJson(prior.result) : null);
+    }
     await flush();
     let result: JsonValue;
 
@@ -594,7 +685,10 @@ const make = Effect.gen(function* () {
         }
 
         case 'bots': {
-          result = dispatch.bots(input.user!, [input.command, input.argument].filter(Boolean).join(' '));
+          if (input.user === undefined) {
+            throw new ApplicationError({ status: 400, message: 'Choose a user and a bot command.' });
+          }
+          result = dispatch.bots(input.user, [input.command, input.argument].filter(Boolean).join(' '));
           break;
         }
 
@@ -615,23 +709,25 @@ const make = Effect.gen(function* () {
     return repositories.eventsRepository.listPrivateEvent().map((row) => decodeMeetup(JSON.parse(row.json)));
   }
 
-  function editEvent(session: string, eventId: number, action: string, raw: (typeof eventRequest)['Encoded']) {
+  function editEvent(session: string, eventId: number, action: string, raw: unknown) {
     const input = Schema.decodeUnknownSync(eventRequest)(raw);
     const actor = Effect.runSync(sessions.require(session, true));
     const fingerprint = fingerprintNow({ eventId, action, input });
     const prior = store.operation(actor.player_id, input.operation);
 
     if (prior) {
-      if (prior.action !== action || prior.fingerprint !== fingerprint)
+      if (prior.action !== action || prior.fingerprint !== fingerprint) {
         throw new ApplicationError({ status: 409, message: 'Operation changed.' });
+      }
 
-      return JSON.parse(prior.result!);
+      return recorded(prior);
     }
 
     const event = Effect.runSync(eventsService.read(String(eventId)));
 
-    if (event.updateDate !== input.revision)
+    if (event.updateDate !== input.revision) {
       throw new ApplicationError({ status: 409, message: 'Event changed. Reload and review.' });
+    }
     const result = { id: eventId, action };
 
     const commit = () => {
@@ -663,19 +759,23 @@ const make = Effect.gen(function* () {
 
       type WorldField = { name: string; kind: 'boolean' | 'number' | 'string'; value: boolean | number | string };
 
-      const fields: WorldField[] = [];
+      const fields: Array<WorldField> = [];
 
       for (const [name, value] of Object.entries(effective)) {
-        if (isBoolean(value)) fields.push({ name, kind: 'boolean', value });
-        else if (isNumber(value)) fields.push({ name, kind: 'number', value });
-        else if (isString(value)) fields.push({ name, kind: 'string', value });
+        if (isBoolean(value)) {
+          fields.push({ name, kind: 'boolean', value });
+        } else if (isNumber(value)) {
+          fields.push({ name, kind: 'number', value });
+        } else if (isString(value)) {
+          fields.push({ name, kind: 'string', value });
+        }
       }
 
       return { id, revision: context.settings.worldRevision(id), overrides, fields };
     });
   }
 
-  function saveWorld(session: string, raw: (typeof worldRequest)['Encoded']) {
+  function saveWorld(session: string, raw: unknown) {
     const input = Schema.decodeUnknownSync(worldRequest)(raw);
 
     return store.transaction(() => {
@@ -684,21 +784,26 @@ const make = Effect.gen(function* () {
       const prior = store.operation(actor.player_id, input.operation);
 
       if (prior) {
-        if (prior.action !== 'world-settings' || prior.fingerprint !== fingerprint)
+        if (prior.action !== 'world-settings' || prior.fingerprint !== fingerprint) {
           throw new ApplicationError({ status: 409, message: 'Operation changed.' });
+        }
 
-        return JSON.parse(prior.result!);
+        return recorded(prior);
       }
 
       if (input.id.startsWith('peloton:')) {
         const id = input.id.slice(8);
         const base = context.config.pelotons.find((value) => value.id === id);
 
-        if (!base) throw new ApplicationError({ status: 404, message: 'Unknown peloton.' });
+        if (!base) {
+          throw new ApplicationError({ status: 404, message: 'Unknown peloton.' });
+        }
         Schema.decodeUnknownSync(configSchema)({ pelotons: [{ ...base, ...input.values, id }] });
       } else if (input.id.startsWith('blob:') && context.accounts.get(Number(input.id.slice(5)))) {
         Schema.decodeUnknownSync(configSchema)({ soloBlob: { ...context.config.soloBlob, ...input.values } });
-      } else throw new ApplicationError({ status: 400, message: 'Unknown world settings.' });
+      } else {
+        throw new ApplicationError({ status: 400, message: 'Unknown world settings.' });
+      }
       context.settings.saveWorld(input.id, input.values, input.revision);
 
       const after = {
@@ -734,10 +839,7 @@ const make = Effect.gen(function* () {
       return yield* Effect.promise(() => passwordTask(work));
     }),
 
-    setup: Effect.fn('ManagementService.setup')(function* (
-      raw: (typeof setupRequest)['Encoded'],
-      live: () => boolean = () => true,
-    ) {
+    setup: Effect.fn('ManagementService.setup')(function* (raw: unknown, live: () => boolean = () => true) {
       return yield* Effect.promise(() => setup(raw, live));
     }),
 
@@ -757,11 +859,7 @@ const make = Effect.gen(function* () {
       return yield* Effect.promise(() => changeOwnPassword(id, current, password));
     }),
 
-    create: Effect.fn('ManagementService.create')(function* (
-      id: string,
-      raw: (typeof newUser)['Encoded'],
-      operation: string,
-    ) {
+    create: Effect.fn('ManagementService.create')(function* (id: string, raw: unknown, operation: string) {
       return yield* Effect.promise(() => create(id, raw, operation));
     }),
 
@@ -769,16 +867,12 @@ const make = Effect.gen(function* () {
       id: string,
       targetId: number,
       action: string,
-      raw: (typeof mutationRequest)['Encoded'],
+      raw: unknown,
     ) {
       return yield* Effect.promise(() => mutate(id, targetId, action, raw));
     }),
 
-    edit: Effect.fn('ManagementService.edit')(function* (
-      id: string,
-      player: number,
-      raw: (typeof editUserRequest)['Encoded'],
-    ) {
+    edit: Effect.fn('ManagementService.edit')(function* (id: string, player: number, raw: unknown) {
       return edit(id, player, raw);
     }),
 
@@ -804,7 +898,7 @@ const make = Effect.gen(function* () {
 
     editOwnProfile: Effect.fn('ManagementService.editOwnProfile')(function* (
       id: string,
-      raw: (typeof ownProfileRequest)['Encoded'],
+      raw: unknown,
       targetPlayer?: number,
     ) {
       return editOwnProfile(id, raw, targetPlayer);
@@ -817,8 +911,8 @@ const make = Effect.gen(function* () {
     saveSettings: Effect.fn('ManagementService.saveSettings')(function* (
       id: string,
       player: number,
-      raw: (typeof settingsRequest)['Encoded'],
-      manage = false,
+      raw: unknown,
+      manage: boolean = false,
     ) {
       return saveSettings(id, player, raw, manage);
     }),
@@ -826,14 +920,14 @@ const make = Effect.gen(function* () {
     serverOperation: Effect.fn('ManagementService.serverOperation')(function* (
       id: string,
       action: string,
-      raw: (typeof serverRequest)['Encoded'],
+      raw: unknown,
       flush: () => Promise<void>,
       dispatch: { reload: () => Promise<void>; bots: (user: number, command: string) => string },
     ) {
       return yield* Effect.promise(() => serverOperation(id, action, raw, flush, dispatch));
     }),
     /** Operator configuration as read-only rows. The browser never receives secrets: paths only. */
-    configuration: Effect.fn('ManagementService.configuration')(function* (value: JsonValue, prefix = '') {
+    configuration: Effect.fn('ManagementService.configuration')(function* (value: JsonValue, prefix: string = '') {
       return configuration(value, prefix);
     }),
 
@@ -845,7 +939,7 @@ const make = Effect.gen(function* () {
       session: string,
       eventId: number,
       action: string,
-      raw: (typeof eventRequest)['Encoded'],
+      raw: unknown,
     ) {
       return editEvent(session, eventId, action, raw);
     }),
@@ -854,10 +948,7 @@ const make = Effect.gen(function* () {
       return worldSettings();
     }),
 
-    saveWorld: Effect.fn('ManagementService.saveWorld')(function* (
-      session: string,
-      raw: (typeof worldRequest)['Encoded'],
-    ) {
+    saveWorld: Effect.fn('ManagementService.saveWorld')(function* (session: string, raw: unknown) {
       return saveWorld(session, raw);
     }),
   };

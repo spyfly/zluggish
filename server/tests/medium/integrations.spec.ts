@@ -1,6 +1,6 @@
 import { DocumentsService } from '#src/services/documents.service';
 import { responseStatus, inputValue } from '#tests/support/html';
-import { createGameApp } from '#src/http/app';
+import type { createGameApp } from '#src/http/app';
 import { DeliveryRefusedError } from '#src/errors';
 import { UploadsService } from '#src/services/uploads.service';
 import { ActivitySchema } from '#src/protocol/generated/activity_pb';
@@ -29,7 +29,9 @@ function browser(app: ReturnType<typeof createGameApp>) {
       const response = await app.request(path, { ...init, headers });
       const set = response.headers.getSetCookie().at(-1);
 
-      if (set) cookie = set.split(';', 1)[0] ?? '';
+      if (set) {
+        cookie = set.split(';', 1)[0] ?? '';
+      }
 
       return response;
     },
@@ -106,7 +108,7 @@ function activityWithFit() {
 }
 
 function stubFetch(t: TestContext) {
-  const calls: { url: string; method: string; headers: Headers }[] = [];
+  const calls: Array<{ url: string; method: string; headers: Headers }> = [];
 
   t.mock.method(globalThis, 'fetch', (input: URL | string, init?: RequestInit) => {
     calls.push({
@@ -195,12 +197,14 @@ await test('an expired Strava token is saved before an upload whose result is un
   f.effects.runSync(
     DocumentsService.use((service) => service.put(user.player_id, 'runalyze_token.txt', 'runalyze-token\n')),
   );
-  const calls: string[] = [];
+  const calls: Array<string> = [];
 
   t.mock.method(globalThis, 'fetch', (input: URL | string) => {
     calls.push(String(input));
 
-    if (String(input).includes('/api/v3/uploads')) return Promise.reject(new Error('offline'));
+    if (String(input).includes('/api/v3/uploads')) {
+      return Promise.reject(new Error('offline'));
+    }
 
     return Promise.resolve(
       Response.json({
@@ -230,8 +234,9 @@ await test('game app has no server operations even for the first legacy owner', 
   const client = browser(f.app);
   await client.signIn(owner.player_id, owner.username);
 
-  for (const path of ['/restart', '/cancelrestart', '/reloadbots'])
+  for (const path of ['/restart', '/cancelrestart', '/reloadbots']) {
     assert.equal(await responseStatus(client.form(path, { confirm_action: 'on' })), 404);
+  }
 });
 
 await test('per-rider variants override the base set and unknown names stay explicit', async (t) => {

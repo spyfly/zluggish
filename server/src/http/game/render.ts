@@ -9,7 +9,10 @@ import { TlsService } from '#src/services/tls.service';
 import { resolve } from 'node:path';
 
 function serialize(props: GamePageModel) {
-  return JSON.stringify(props).replaceAll('<', '\\u003c').replaceAll('>', '\\u003e').replaceAll('&', '\\u0026');
+  return JSON.stringify(props)
+    .replaceAll('<', String.raw`\u003c`)
+    .replaceAll('>', String.raw`\u003e`)
+    .replaceAll('&', String.raw`\u0026`);
 }
 
 const document = Effect.fn('game.document')(function* (props: GamePageModel, rendered: { head: string; body: string }) {
@@ -24,7 +27,9 @@ const document = Effect.fn('game.document')(function* (props: GamePageModel, ren
 
   const entry = manifest['src/game/client.ts'];
 
-  if (!entry) throw new Error('Build the game app with pnpm build:web first');
+  if (!entry) {
+    throw new Error('Build the game app with pnpm build:web first');
+  }
 
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">${rendered.head}${(entry.css ?? []).map((file) => `<link rel="stylesheet" href="/static/launcher-ui/${file}">`).join('')}</head><body><div id="launcher-ui">${rendered.body}</div><script type="application/json" id="launcher-props">${serialize(props)}</script><script type="module" src="/static/launcher-ui/${entry.file}"></script></body></html>`;
 });
@@ -55,7 +60,9 @@ export const gamePage = Effect.fn('game.page')(function* (
     return c.json(result, model.failed ? (model.errorStatus ?? 400) : 200);
   }
 
-  if (redirect) return c.redirect(redirect);
+  if (redirect) {
+    return c.redirect(redirect);
+  }
   const { renderGamePage } = yield* Effect.promise(() => import('#game'));
 
   return c.html(yield* document(model, renderGamePage(model)));

@@ -31,14 +31,17 @@ export class RiderDocuments {
     let key: Buffer;
 
     try {
-      if (!existsSync(file)) new AssetFiles().writeDurable(file, this.crypto.randomBytes(32));
+      if (!existsSync(file)) {
+        new AssetFiles().writeDurable(file, this.crypto.randomBytes(32));
+      }
       key = readFileSync(file);
     } catch (error) {
       throw new Error(`Could not read or create the credentials key ${file}; check its permissions`, { cause: error });
     }
 
-    if (key.length !== 32)
+    if (key.length !== 32) {
       throw new Error(`The credentials key ${file} has ${key.length} bytes, not 32; restore it from a backup`);
+    }
 
     return key;
   }
@@ -52,7 +55,9 @@ export class RiderDocuments {
         .where('name', '=', name),
     );
 
-    if (!found) return null;
+    if (!found) {
+      return null;
+    }
     const document = Schema.decodeUnknownSync(row)(found);
 
     return document.encrypted ? this.crypto.decryptSecret(this.key(), document.data) : document.data;
