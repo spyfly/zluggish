@@ -342,10 +342,14 @@ await test('a kicked poll contains database errors and can poll again', async (t
     throw new Error('injected poll DB failure');
   });
   Effect.runSync(jobs.kick());
-  await new Promise<void>((resolve) => setImmediate(resolve));
+  await new Promise<void>((resolve) => {
+    setImmediate(resolve);
+  });
   assert.ok(warnings.mock.calls.some(({ arguments: args }) => args[0] === 'job.poll_failed'));
   ready.mock.restore();
   Effect.runSync(jobs.kick());
-  await new Promise<void>((resolve) => setImmediate(resolve));
+  await new Promise<void>((resolve) => {
+    setImmediate(resolve);
+  });
   await Effect.runPromise(jobs.close());
 });
