@@ -8,7 +8,6 @@ const migrationRules = {
   'no-console': 'off', // Temporary during migration
   'no-promise-executor-return': 'off', // Temporary during migration
   'no-undef': 'off', // Temporary during migration
-  'oxc/bad-bitwise-operator': 'off', // Temporary during migration
   'react-hooks/rules-of-hooks': 'off', // Temporary during migration
   'typescript/array-type': 'off', // Temporary during migration
   'typescript/consistent-type-imports': 'off', // Temporary during migration
@@ -45,6 +44,8 @@ export default defineConfig({
     // Effect.fn and Effect.gen bodies are generators even when a step has nothing to yield.
     'require-yield': 'off',
     'oxc/no-accumulating-spread': 'error',
+    // Profile privacy flags are bigint bitmasks set with |=, which this heuristic reports as a typo for ||=.
+    'oxc/bad-bitwise-operator': 'off',
     // Syntax-only: it also flags Readable#push and StateHistory#push, where its autofix changes argument meaning.
     'unicorn/prefer-single-call': 'off',
     ...migrationRules,
