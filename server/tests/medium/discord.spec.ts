@@ -101,11 +101,15 @@ await test('Discord delivery failure releases capacity for the next message', as
 
   const warnings = t.mock.method(console, 'warn', () => {});
   bridge.send('failed');
-  await new Promise<void>((done) => setImmediate(done));
+  await new Promise<void>((done) => {
+    setImmediate(done);
+  });
   assert.equal(warnings.mock.callCount(), 1);
   fail = false;
   bridge.send('next');
-  await new Promise<void>((done) => setImmediate(done));
+  await new Promise<void>((done) => {
+    setImmediate(done);
+  });
   assert.deepEqual(sent, ['next']);
   await bridge.close();
 });

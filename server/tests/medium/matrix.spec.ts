@@ -145,14 +145,18 @@ async function homeserver(t: TestContext) {
     request.on('end', () => handle(request, response, body));
   });
 
-  await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
+  await new Promise<void>((done) => {
+    server.listen(0, '127.0.0.1', done);
+  });
   const { port } = Schema.decodeUnknownSync(Schema.Struct({ port: Schema.Finite }))(server.address());
   state.url = `http://127.0.0.1:${port}`;
 
   t.after(async () => {
     for (const response of held) response.destroy();
     server.closeAllConnections();
-    await new Promise((done) => server.close(done));
+    await new Promise((done) => {
+      server.close(done);
+    });
   });
 
   return state;

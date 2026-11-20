@@ -357,7 +357,9 @@
 
       while (result.state === 'queued' || result.state === 'running') {
         backupMessage = result.state === 'queued' ? 'Backup queued…' : 'Creating backup…';
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        await new Promise((resolve) => {
+          setTimeout(resolve, 1000);
+        });
         result = await api(`/api/manage/server/backups/${backupOperation}`);
       }
 
@@ -449,9 +451,9 @@
     );
     bitmap.close();
 
-    return new Promise<Blob>((done, fail) =>
-      canvas.toBlob((blob) => (blob ? done(blob) : fail(new Error('Could not read the image.'))), 'image/jpeg', 0.9),
-    );
+    return new Promise<Blob>((done, fail) => {
+      canvas.toBlob((blob) => (blob ? done(blob) : fail(new Error('Could not read the image.'))), 'image/jpeg', 0.9);
+    });
   }
 
   function uploadPhoto(file: File | undefined) {

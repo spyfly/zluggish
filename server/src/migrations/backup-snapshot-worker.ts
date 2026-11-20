@@ -41,7 +41,9 @@ export class BackupSnapshotWorker {
     worker.on('error', (error) => {
       failure = error instanceof Error ? error : new Error('Backup worker failed', { cause: error });
     });
-    const exited = new Promise<number>((resolve) => worker.once('exit', resolve));
+    const exited = new Promise<number>((resolve) => {
+      worker.once('exit', resolve);
+    });
 
     signal.addEventListener('abort', cancel, { once: true });
 

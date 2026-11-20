@@ -65,7 +65,9 @@ await test('deleting a queued activity while another upload is sending prevents 
   const deleted = await f.request(`/api/profiles/${f.rider.player_id}/activities/${ids[1]}`, { method: 'DELETE' });
   assert.equal(deleted.status, 200);
   const draining = f.effects.runPromise(JobsService.use((service) => service.drain()));
-  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => {
+    setImmediate(resolve);
+  });
   delivery.emit('release');
   await draining;
   assert.equal(uploads.mock.callCount(), 1);

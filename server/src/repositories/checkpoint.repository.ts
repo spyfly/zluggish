@@ -48,7 +48,9 @@ export class CheckpointRepository {
     this.worker = null;
 
     if (worker) {
-      const exited = new Promise<void>((resolve) => worker.once('exit', () => resolve()));
+      const exited = new Promise<void>((resolve) => {
+        worker.once('exit', () => resolve());
+      });
       worker.ref();
       worker.postMessage('stop');
       await exited;

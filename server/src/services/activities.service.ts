@@ -176,7 +176,12 @@ const make = Effect.gen(function* () {
     metrics.record(Metric.QueueDepth, ++queuedSaves);
 
     const result = turn
-      .then(() => new Promise<void>((resolve) => setImmediate(resolve)))
+      .then(
+        () =>
+          new Promise<void>((resolve) => {
+            setImmediate(resolve);
+          }),
+      )
       .then(() => {
         queuedSaves--;
         metrics.record(Metric.QueueWait, performance.now() - queued);

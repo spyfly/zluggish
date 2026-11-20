@@ -200,7 +200,9 @@ await test('independent Node processes contend on the storage OS lock', async (t
     { cwd: packageRoot() },
   );
 
-  const exited = new Promise<void>((done) => child.once('close', () => done()));
+  const exited = new Promise<void>((done) => {
+    child.once('close', () => done());
+  });
   t.after(async () => {
     child.stdin.end();
     await exited;

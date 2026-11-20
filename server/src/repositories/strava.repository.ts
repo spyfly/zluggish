@@ -151,7 +151,9 @@ async function waitReady(session: CookieSession, upload: string, delay = 1000) {
     if (item?.workflow === 'success') return item;
 
     if (item?.workflow === 'error' || item?.workflow === 'empty') throw new Error(`Upload failed: ${item.workflow}`);
-    await new Promise((done) => setTimeout(done, delay));
+    await new Promise((done) => {
+      setTimeout(done, delay);
+    });
   }
 
   throw new Error('Upload timed out');

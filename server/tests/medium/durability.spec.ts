@@ -56,7 +56,9 @@ await test('a request that saves waits for the flush before its response; a read
     return response;
   });
 
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  await new Promise((resolve) => {
+    setTimeout(resolve, 20);
+  });
   assert.equal(flushes.mock.callCount(), 1);
   assert.equal(answered, false, 'no acknowledgement before the flush');
   gate.resolve();

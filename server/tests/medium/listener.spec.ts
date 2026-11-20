@@ -27,7 +27,12 @@ await test('Node adapter serves HTTPS, binary bodies, forms, and actual peer add
     },
   });
 
-  t.after(() => new Promise<void>((done, fail) => server.close((error) => (error ? fail(error) : done()))));
+  t.after(
+    () =>
+      new Promise<void>((done, fail) => {
+        server.close((error) => (error ? fail(error) : done()));
+      }),
+  );
 
   if (!server.listening) await once(server, 'listening');
   const { port } = Schema.decodeUnknownSync(Schema.Struct({ port: Schema.Finite }))(server.address());

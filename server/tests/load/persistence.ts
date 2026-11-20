@@ -69,7 +69,10 @@ const providerDelay = count('provider-ms');
 const backupMiB = count('backup-mb');
 const mediaBytes = count('media-mb') * 1024 * 1024;
 const phaseSeconds = count('phase-seconds');
-const sleep = (ms: number) => new Promise<void>((done) => setTimeout(done, ms));
+const sleep = (ms: number) =>
+  new Promise<void>((done) => {
+    setTimeout(done, ms);
+  });
 
 // A slow disk delays every flush. Synchronous flushes block the caller, just as a
 // slow fsync does; asynchronous flushes wait off the main thread.

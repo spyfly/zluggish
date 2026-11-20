@@ -95,7 +95,9 @@ export function startDns(advertisedIp: string, host: string, port = 53, log = ne
     close: () => {
       resolver.cancel();
 
-      return new Promise<void>((resolve) => socket.close(resolve));
+      return new Promise<void>((resolve) => {
+        socket.close(resolve);
+      });
     },
   };
 }

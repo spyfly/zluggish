@@ -333,13 +333,15 @@ export function startRideListeners(runtime: Runtime) {
 
         for (const socket of sockets) socket.destroy();
         await Promise.all([
-          new Promise<void>((resolve, reject) =>
+          new Promise<void>((resolve, reject) => {
             tcp.close((error) => {
               if (error && (!('code' in error) || error.code !== 'ERR_SERVER_NOT_RUNNING')) reject(error);
               else resolve();
-            }),
-          ),
-          new Promise<void>((resolve) => udp.close(resolve)),
+            });
+          }),
+          new Promise<void>((resolve) => {
+            udp.close(resolve);
+          }),
         ]);
       })),
   };

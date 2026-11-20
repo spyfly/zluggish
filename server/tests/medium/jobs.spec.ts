@@ -114,7 +114,9 @@ await test('an old handler after lease expiry and a new claim cannot commit or p
   repository.enqueue('fit_export', { activityId: id });
   const stale = repository.claim('fit_export', 1);
   assert.ok(stale);
-  await new Promise((resolve) => setTimeout(resolve, 5));
+  await new Promise((resolve) => {
+    setTimeout(resolve, 5);
+  });
   assert.equal(repository.valid(stale), false);
   await f.effects.runPromise(JobsService.use((service) => service.run(stale)));
   assert.equal(existsSync(export_), false);
@@ -154,7 +156,9 @@ await test('a delivery lease expiry does not authorize a second send', async (t)
   );
 
   // The lease expires during the request: a replacement claim must not send again.
-  await new Promise((resolve) => setTimeout(resolve, 60));
+  await new Promise((resolve) => {
+    setTimeout(resolve, 60);
+  });
   const second = repository.claim('delivery', 30_000);
   assert.ok(second);
   await Effect.runPromise(jobs.run(second));
@@ -234,7 +238,9 @@ await test('a job that cannot succeed fails at once, and each type runs at most 
         Effect.promise(async () => {
           running++;
           peak = Math.max(peak, running);
-          await new Promise((resolve) => setTimeout(resolve, 10));
+          await new Promise((resolve) => {
+            setTimeout(resolve, 10);
+          });
           running--;
         }),
     }),

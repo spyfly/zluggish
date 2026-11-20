@@ -53,12 +53,12 @@ const variants = readFileSync(resolve(assets, 'data/variants.txt'), 'utf8');
 
 /** Close an HTTP listener; one that never started counts as closed. */
 function closeHttp(listener: ReturnType<typeof startHttp>) {
-  return new Promise<void>((resolve, reject) =>
+  return new Promise<void>((resolve, reject) => {
     listener.close((error) => {
       if (error && (!('code' in error) || error.code !== 'ERR_SERVER_NOT_RUNNING')) reject(error);
       else resolve();
-    }),
-  );
+    });
+  });
 }
 
 /** Acquire a listener into the current scope. */

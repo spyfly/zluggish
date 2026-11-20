@@ -3,7 +3,6 @@ import { defineConfig } from 'oxlint';
 
 const migrationRules = {
   curly: 'off', // Temporary during migration
-  'no-promise-executor-return': 'off', // Temporary during migration
   'typescript/array-type': 'off', // Temporary during migration
   'typescript/no-unsafe-argument': 'off', // Temporary during migration
   'typescript/no-unsafe-assignment': 'off', // Temporary during migration

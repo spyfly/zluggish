@@ -99,14 +99,18 @@ await test('the job runner finishes admitted work at close and admits nothing af
   );
   f.effects.runSync(jobs.enqueue('retention', {}));
   f.effects.runSync(jobs.start());
-  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => {
+    setImmediate(resolve);
+  });
   assert.equal(runs, 1);
   const closing = f.effects.runPromise(jobs.close());
   f.effects.runSync(jobs.enqueue('retention', {}));
   gate.resolve();
   await closing;
   f.effects.runSync(jobs.start());
-  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => {
+    setImmediate(resolve);
+  });
   assert.equal(runs, 1);
   assert.deepEqual(
     f.accounts.repositories.jobsRepository.list('retention').map((job) => job.state),
