@@ -5,7 +5,6 @@ const migrationRules = {
   '@nkzw/no-instanceof': 'off', // Temporary during migration
   curly: 'off', // Temporary during migration
   'no-promise-executor-return': 'off', // Temporary during migration
-  'react-hooks/rules-of-hooks': 'off', // Temporary during migration
   'typescript/array-type': 'off', // Temporary during migration
   'typescript/no-non-null-assertion': 'off', // Temporary during migration
   'typescript/no-unnecessary-type-assertion': 'off', // Temporary during migration
@@ -41,6 +40,8 @@ export default defineConfig({
     'oxc/bad-bitwise-operator': 'off',
     // Syntax-only: it also flags Readable#push and StateHistory#push, where its autofix changes argument meaning.
     'unicorn/prefer-single-call': 'off',
+    // The project has no React; this flags Effect's Service.use and local use callbacks.
+    'react-hooks/rules-of-hooks': 'off',
     ...migrationRules,
   },
   overrides: [
