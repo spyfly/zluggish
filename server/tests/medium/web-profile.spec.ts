@@ -24,7 +24,7 @@ const upload = () => {
   return data;
 };
 
-async function json(input: Response | Promise<Response>) {
+async function json(input: Response | Promise<Response>): Promise<any> {
   const response = await input;
 
   return response.json();

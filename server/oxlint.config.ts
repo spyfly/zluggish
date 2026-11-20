@@ -5,7 +5,6 @@ const migrationRules = {
   curly: 'off', // Temporary during migration
   'typescript/array-type': 'off', // Temporary during migration
   'typescript/no-unsafe-argument': 'off', // Temporary during migration
-  'typescript/no-unsafe-return': 'off', // Temporary during migration
 } as const;
 
 export default defineConfig({
@@ -66,7 +65,7 @@ export default defineConfig({
     {
       // Retried management operations return the JSON recorded with their first response, untyped.
       files: ['src/services/management.service.ts'],
-      rules: { 'typescript/no-unsafe-assignment': 'off' },
+      rules: { 'typescript/no-unsafe-assignment': 'off', 'typescript/no-unsafe-return': 'off' },
     },
     {
       // Svelte compiles runes away, so they are not imported.

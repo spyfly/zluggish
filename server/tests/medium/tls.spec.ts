@@ -10,7 +10,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
 
-async function json(request: Response | Promise<Response>) {
+async function json(request: Response | Promise<Response>): Promise<any> {
   const response = await request;
 
   return response.json();

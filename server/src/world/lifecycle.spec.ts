@@ -3,6 +3,7 @@ import { LoggingRepository } from '#src/repositories/logging.repository';
 import { Lifecycle } from '#src/world/lifecycle';
 import { World, worldTime } from '#src/world/state';
 import { create } from '@bufbuild/protobuf';
+import { Schema } from 'effect';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
@@ -33,7 +34,8 @@ await test('deduplicate transitions, throttle progress, and release state', () =
   tracker.end(42n, 'logout');
   tracker.end(42n, 'inactivity_timeout');
   tracker.close();
-  const events = lines.map((line) => JSON.parse(line).event);
+  const decodeEvent = Schema.decodeUnknownSync(Schema.fromJsonString(Schema.Struct({ event: Schema.String })));
+  const events = lines.map((line) => decodeEvent(line).event);
   assert.equal(events.filter((event) => event === 'game.connected').length, 1);
   assert.equal(events.filter((event) => event === 'companion.registered').length, 1);
   assert.equal(events.filter((event) => event === 'ride.started').length, 2);

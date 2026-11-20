@@ -21,7 +21,7 @@ import { responseStatus } from '#tests/support/html';
 
 const flush = () => Promise.resolve();
 
-async function json(request: Response | Promise<Response>) {
+async function json(request: Response | Promise<Response>): Promise<any> {
   const response = await request;
 
   return response.json();
