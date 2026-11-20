@@ -21,7 +21,6 @@ export default defineConfig([
           '**/dist/**',
           '**/node_modules/**',
           'server/src/protocol/generated/**',
-          'server/tools/**',
           'assets/**',
           'server/scripts/**',
           'examples/**',

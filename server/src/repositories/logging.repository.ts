@@ -1,6 +1,4 @@
 import type { LogLevel } from '#src/enum';
-// Serialization is the logging boundary: runtime checks safely encode recursive values.
-/* oxlint-disable anti-slop/no-runtime-typeof */
 import type { ResolvedConfig } from '#src/config/index';
 import { inspect } from 'node:util';
 
