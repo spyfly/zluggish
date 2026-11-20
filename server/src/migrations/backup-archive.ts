@@ -16,7 +16,11 @@ export async function compressBackup(source: string, output: string, signal?: Ab
 
   // The abort callback can run before tar has closed the staging files.
   const closed = new Promise<void>((resolve) => tar.once('close', () => resolve()));
-  await result.promise.finally(() => closed);
+  try {
+    await result.promise;
+  } finally {
+    await closed;
+  }
 }
 
 export function compressBackupSync(source: string, output: string) {

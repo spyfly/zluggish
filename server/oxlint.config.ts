@@ -21,7 +21,6 @@ const migrationRules = {
   'typescript/no-unsafe-member-access': 'off', // Temporary during migration
   'typescript/no-unsafe-return': 'off', // Temporary during migration
   'typescript/no-unsafe-type-assertion': 'off', // Temporary during migration
-  'typescript/only-throw-error': 'off', // Temporary during migration
   'typescript/unbound-method': 'off', // Temporary during migration
   'typescript/use-unknown-in-catch-callback-variable': 'off', // Temporary during migration
   'unicorn/catch-error-name': 'off', // Temporary during migration

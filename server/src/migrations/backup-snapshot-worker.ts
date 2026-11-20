@@ -25,7 +25,7 @@ export class BackupSnapshotWorker {
     });
 
     let result: typeof snapshotResult.Type | undefined;
-    let failure: unknown;
+    let failure: Error | undefined;
     let stop: NodeJS.Timeout | undefined;
 
     function cancel() {
@@ -39,7 +39,7 @@ export class BackupSnapshotWorker {
       if (decoded._tag === 'Some') result = decoded.value;
     });
     worker.on('error', (error) => {
-      failure = error;
+      failure = error instanceof Error ? error : new Error('Backup worker failed', { cause: error });
     });
     const exited = new Promise<number>((resolve) => worker.once('exit', resolve));
 
