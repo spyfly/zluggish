@@ -21,7 +21,6 @@ const migrationRules = {
   'typescript/no-unsafe-type-assertion': 'off', // Temporary during migration
   'typescript/unbound-method': 'off', // Temporary during migration
   'unicorn/consistent-function-scoping': 'off', // Temporary during migration
-  'unicorn/no-abusive-eslint-disable': 'off', // Temporary during migration
 } as const;
 
 export default defineConfig({
@@ -29,7 +28,7 @@ export default defineConfig({
   ignorePatterns: [
     ...(cloudflare.ignorePatterns ?? []),
     '**/dist/**',
-    'server/src/protocol/generated/**',
+    'src/protocol/generated/**',
     '.agents/**',
     '.codex/**',
   ],
