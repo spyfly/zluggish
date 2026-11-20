@@ -217,7 +217,6 @@ await test('points a decoded app at the certificate and declares the new resourc
   );
   assert.match(readFileSync(resolve(res, 'xml', 'remote_config_defaults.xml'), 'utf8'), /<value>true<\/value>/);
 
-  // Patching twice declares nothing twice.
   await repository.patchDecoded(space.folder, server.cert, 'zluggish_server_cert');
   assert.equal(readFileSync(resolve(res, 'values', 'public.xml'), 'utf8').match(/zluggish_server_cert/g)?.length, 1);
 });

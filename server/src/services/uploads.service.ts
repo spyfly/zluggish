@@ -82,7 +82,6 @@ const make = Effect.gen(function* () {
   const workoutsService = yield* WorkoutsService;
   const jobs = yield* JobsService;
 
-  /** Providers with current credentials and consent for this rider. */
   function configured(player: number) {
     const settings = SettingsService.resolveRiderSettings(context.config.riderDefaults, context.settings.read(player));
 
@@ -127,7 +126,6 @@ const make = Effect.gen(function* () {
     );
   }
 
-  /** Each configured provider with this activity's delivery to it, if any. */
   function forActivity(player: number, activity: number) {
     return configured(player).map((provider) => {
       const delivery = repositories.uploadsRepository.get(activity, provider);
@@ -258,7 +256,6 @@ const make = Effect.gen(function* () {
     }
   }
 
-  /** Run ready delivery jobs now. */
   async function drain() {
     await Effect.runPromise(jobs.drain());
   }
@@ -616,7 +613,6 @@ const make = Effect.gen(function* () {
     registerJobs: Effect.fn('UploadsService.registerJobs')(function* (runner: JobsService['Service']) {
       registerJobs(runner);
     }),
-    /** Providers with current credentials and consent for this rider. */
     configured: Effect.fn('UploadsService.configured')(function* (player: number) {
       return configured(player);
     }),
@@ -624,7 +620,6 @@ const make = Effect.gen(function* () {
     status: Effect.fn('UploadsService.status')(function* (player: number) {
       return status(player);
     }),
-    /** Each configured provider with this activity's delivery to it, if any. */
     forActivity: Effect.fn('UploadsService.forActivity')(function* (player: number, activity: number) {
       return forActivity(player, activity);
     }),
@@ -659,7 +654,6 @@ const make = Effect.gen(function* () {
     start: Effect.fn('UploadsService.start')(function* () {
       return startNow();
     }),
-    /** Run ready delivery jobs now. */
     drain: Effect.fn('UploadsService.drain')(function* () {
       return yield* Effect.promise(() => drain());
     }),

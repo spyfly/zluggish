@@ -82,7 +82,6 @@ const decodeLegacyPelotons = Schema.decodeUnknownSync(
   Schema.Struct({ pelotons: Schema.Array(Schema.Record(Schema.String, Schema.Json)) }),
 );
 
-/** Decode one converted legacy file as part of a configuration. */
 function legacySection(file: string, ...input: Parameters<typeof decodeConfigInput>) {
   try {
     return decodeConfigInput(...input);

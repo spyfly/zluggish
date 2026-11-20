@@ -78,7 +78,6 @@ const make = Effect.gen(function* () {
     yield* updateNotification(JSON.stringify(notification), id);
   });
 
-  /** The invite card for a rider. */
   function profileOf(id: number) {
     const rider = context.profiles.get(id);
 

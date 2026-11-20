@@ -54,7 +54,6 @@ const editor = {
 const minimumJava = 11;
 
 export interface JavaRuntime {
-  /** `managed`: downloaded into the tools folder. `system`: the `java` on the server's PATH. */
   readonly source: 'managed' | 'system';
   readonly command: string;
   readonly version: string;
@@ -63,7 +62,6 @@ export interface JavaRuntime {
 export interface ToolchainState {
   readonly java: JavaRuntime | null;
   readonly editor: boolean;
-  /** Bytes still to download before the toolchain is ready. */
   readonly downloadBytes: number;
   /** False when no runtime is published for this system and none is installed. */
   readonly supported: boolean;
@@ -123,7 +121,6 @@ export class ToolchainRepository {
     return resolve(this.folder, 'jre');
   }
 
-  /** The `java` executable in an unpacked JRE: under bin, or Contents/Home/bin in a macOS bundle. */
   private async managedJava(): Promise<string | null> {
     const name = platform() === 'win32' ? 'java.exe' : 'java';
 
@@ -136,7 +133,6 @@ export class ToolchainRepository {
     return null;
   }
 
-  /** The Java version a `java -version` reports, when it is new enough. */
   private async probe(command: string): Promise<string | null> {
     try {
       const output = await execute(command, ['-version']);
@@ -240,7 +236,6 @@ export class ToolchainRepository {
     this.system = null;
   }
 
-  /** Run APKEditor with the arguments, in the folder. */
   async editor(args: ReadonlyArray<string>, options: { cwd: string; signal: AbortSignal }) {
     const java = await this.java();
 

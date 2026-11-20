@@ -108,7 +108,6 @@ await test('riders download the certificate and setup scripts, and only administ
   assert.equal(await responseStatus(web.request('/api/manage/server/certificate', 'POST', { operation })), 403);
   const rotated = await json(admin.request('/api/manage/server/certificate', 'POST', { operation }));
   assert.equal(rotated.mode, 'managed');
-  // A retried request does not rotate again; a new one does.
   const retried = await json(admin.request('/api/manage/server/certificate', 'POST', { operation }));
   assert.equal(retried.certificate.fingerprint256, rotated.certificate.fingerprint256);
 
@@ -138,7 +137,6 @@ await test('riders download the certificate and setup scripts, and only administ
   assert.ok(bat.includes(`$Thumbprint = '${next.certificate.thumbprint}'`));
   assert.ok(bat.includes("$ServerAddress = '192.168.1.20'"));
   assert.doesNotMatch(bat, /WARNING/);
-  // Downloads of the server's own certificate are not warnings.
   assert.equal(warnings.mock.callCount(), 2);
 
   const linux = await text(web.request('/api/tls/setup/linux?address=fd00::20'));

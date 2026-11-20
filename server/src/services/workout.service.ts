@@ -664,7 +664,6 @@ const make = Effect.gen(function* () {
     removeEvent: Effect.fn('WorkoutsService.removeEvent')(function* (id: number, eventId: string | number) {
       dropEvent(id, eventId);
     }),
-    /** Today's scheduled workouts, as the game lists them. */
     list: Effect.fn('WorkoutsService.list')(function* (id: number, now: Date = new Date()) {
       return scheduled(id, now);
     }),

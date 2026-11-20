@@ -28,7 +28,6 @@ export type StorageUsage = Record<
   number
 >;
 
-/** The repositories, limits and folder a cleanup works on. */
 export type RetentionScope = {
   repositories: Pick<Repositories, keyof Repositories>;
   retention: ResolvedConfig['retention'];
@@ -42,7 +41,6 @@ function cleanup({ repositories, retention, storage }: RetentionScope) {
   const legacyBackupsDirectory =
     previousDirectory === storage || previousDirectory === backupsDirectory ? null : previousDirectory;
 
-  /** What a cleanup would remove now, without removing anything. */
   async function plan(now = Date.now()): Promise<RetentionPlan> {
     const files: Array<RetentionCandidate> = [];
     const owners = repositories.activitiesRepository.owners();
@@ -157,7 +155,6 @@ function cleanup({ repositories, retention, storage }: RetentionScope) {
     };
   }
 
-  /** Keep the newest recordings in each ghost directory. */
   async function ghosts(directory: string, files: Array<RetentionCandidate>) {
     const entries = await repositories.filesRepository.entriesAsync(directory);
     const recordings = [];
@@ -217,7 +214,6 @@ function cleanup({ repositories, retention, storage }: RetentionScope) {
     return total;
   }
 
-  /** Bytes by category, for the operator. */
   async function usage(): Promise<StorageUsage> {
     const usage: StorageUsage = {
       database: 0,
@@ -266,18 +262,15 @@ function cleanup({ repositories, retention, storage }: RetentionScope) {
   }
 
   return {
-    /** What a cleanup would remove now, without removing anything. */
     plan: Effect.fn('RetentionService.plan')(function* (now: number = Date.now()) {
       return yield* Effect.promise(() => plan(now));
     }),
     apply: Effect.fn('RetentionService.apply')(function* (candidates: RetentionPlan, now: number = Date.now()) {
       return yield* Effect.promise(() => apply(candidates, now));
     }),
-    /** Bytes by category, for the operator. */
     usage: Effect.fn('RetentionService.usage')(function* () {
       return yield* Effect.promise(usage);
     }),
-    /** Make sure one retention job is queued. */
     schedule: Effect.fn('RetentionService.schedule')(function* () {
       repositories.jobsRepository.enqueueOnce('retention', {});
     }),

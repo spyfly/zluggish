@@ -37,7 +37,6 @@
   const certificateReady = $derived(admin?.tlsMode === 'managed' || admin?.tlsMode === 'custom');
   const tools = $derived(admin ? !!admin.toolchain.java && admin.toolchain.editor : false);
 
-  /** What each step is doing while it runs. */
   const labels: Record<CompanionStep, string> = {
     upload: 'Uploading the file',
     runtime: 'Downloading Java',
@@ -111,7 +110,6 @@
     }
   }
 
-  // While the server works, ask how far it is once a second.
   let timer: ReturnType<typeof setInterval> | null = null;
 
   $effect(() => {
@@ -491,7 +489,6 @@
     color: var(--alarm);
   }
 
-  /* The drop target: the whole well is the file picker. */
   .drop {
     position: relative;
     display: grid;
@@ -545,7 +542,6 @@
     font-size: 0.875rem;
   }
 
-  /* The job, as a route strip: one segment per step, filling Zwift orange as the server works through them. */
   .tracker {
     margin: 1.25rem 0 0;
   }
@@ -606,7 +602,6 @@
     font-size: 0.875rem;
   }
 
-  /* The question an upload asks before the server downloads anything: the one orange action on the page. */
   .ask {
     margin: 1rem 0 0;
     padding: 1rem 1.1rem;

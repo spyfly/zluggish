@@ -364,7 +364,6 @@ export function createWebApp(runtime: HttpRuntime) {
   webConnectionRoutes(app, runtime);
   webProfileRoutes(app, runtime);
 
-  // Client setup: any rider downloads the certificate and the scripts that install it.
   appRoutes.get('/api/tls', (c) =>
     Effect.gen(function* () {
       const tls = yield* TlsService;
@@ -448,7 +447,6 @@ export function createWebApp(runtime: HttpRuntime) {
     }),
   );
 
-  // The Zwift Companion app: every rider downloads it; the administrator uploads and patches it.
   appRoutes.get('/api/companion', (c) =>
     Effect.gen(function* () {
       const companion = yield* CompanionService;

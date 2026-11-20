@@ -100,7 +100,6 @@
   let failure = $state('');
   let chartWaitExpired = $state(false);
 
-  /** The open activity's deliveries, one per connected service. */
   let uploads = $state<{ id: string; list: Array<Upload> } | null>(null);
   let chooser = $state(false);
   let chosen = $state<Array<Provider>>([]);
@@ -128,7 +127,6 @@
     return Number.isFinite(time) ? new Date(time) : null;
   };
 
-  /** Newest first, grouped by the month the activity started, with that month's totals. */
   const months = $derived.by(() => {
     const groups: Array<{ key: string; label: string; activities: Array<Summary>; distance: number; time: number }> =
       [];
@@ -172,7 +170,6 @@
     return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
   };
 
-  /** Average speed as reported, else from distance over moving time. */
   const speed = (a: Summary) =>
     a.avgSpeed > 0 ? a.avgSpeed : a.movingTimeInMs > 0 ? a.distanceInMeters / (a.movingTimeInMs / 1000) : 0;
 
@@ -390,7 +387,6 @@
     }
   });
 
-  // Deliveries run in the background, so the section refreshes while any is still on its way.
   $effect(() => {
     const id = uploads?.id;
 
@@ -1053,7 +1049,6 @@
   .inset p {
     margin: 0 0 0.75rem;
   }
-  /* The download is a link, dressed as the page's one orange action. */
   a.button {
     display: inline-block;
     padding: 0.65rem 1.4rem;
@@ -1101,7 +1096,6 @@
     font-size: 0.8125rem;
   }
 
-  /* Upload: one quiet button; the chooser opens in place under it, one row per connected service. */
   .upload .toggle {
     margin-top: 0;
   }
@@ -1171,7 +1165,6 @@
   .service.sending .state {
     color: var(--text);
   }
-  /* The page's loading sweep, along the foot of the row that is on its way. */
   .service .bar {
     top: auto;
     bottom: 0;

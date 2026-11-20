@@ -58,7 +58,6 @@ await test('the Windows script is plain ASCII with CRLF line ends and names the 
   assert.ok(text.includes("$ServerAddress = '192.168.1.20'"));
   assert.ok(text.includes(material.cert.trim().replaceAll('\n', '\r\n')));
   assert.equal(setupFileName(certificate, 'bat'), `zluggish-zwift-${facts.thumbprint.slice(0, 8).toLowerCase()}.bat`);
-  // Without an address the hosts file is left alone.
   assert.ok(!windowsSetupScript({ ...script, address: '' }).includes('3. Points the Zwift host names'));
 });
 
@@ -119,7 +118,6 @@ await test(
     assert.equal(shared.split(legacyCertificate.body).length, 2);
     assert.ok(shared.includes(`# BEGIN Zluggish server certificate ${legacyCertificate.thumbprint}`));
 
-    // After the switch, the new setup replaces it.
     assert.match(run(), /Updated .*cacert\.pem/);
     const once = readFileSync(bundle, 'utf8');
     run();

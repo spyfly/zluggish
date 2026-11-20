@@ -41,7 +41,6 @@ import { AccountsService } from '#src/services/auth.service';
 import { SessionsService } from '#src/services/browser-session.service';
 import { Layer, ManagedRuntime } from 'effect';
 
-/** Services that use only repositories. */
 const foundationLayer = Layer.mergeAll(
   StreakService.layer,
   WebSessionsService.layer,
@@ -59,7 +58,6 @@ const foundationLayer = Layer.mergeAll(
   TlsService.layer,
 );
 
-/** Uploads, which the account and activity services cancel and query, and the chat that bridges share. */
 const sharedLayer = Layer.mergeAll(UploadsService.layer, ChatService.layer).pipe(Layer.provideMerge(foundationLayer));
 
 /** The account, activity and world services. Each tier may use the ones below it. */
@@ -134,7 +132,6 @@ export type AppServices =
   | SettingsService
   | RecordsService;
 
-/** The application layer for one runtime context. */
 export function appLayer(context: RepositoryContext) {
   return servicesLayer.pipe(
     Layer.provideMerge(

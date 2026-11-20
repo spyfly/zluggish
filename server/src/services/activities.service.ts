@@ -22,7 +22,6 @@ import { clearField, clone, create, toBinary } from '@bufbuild/protobuf';
 import { dirname, resolve } from 'node:path';
 import { Context, Effect, Layer, Option, Schema } from 'effect';
 
-/** Comma-separated identifiers in a job payload. */
 function identifiers(job: RunningJob, key: string) {
   return job.text(key).split(',').filter(Boolean);
 }
@@ -553,7 +552,6 @@ const make = Effect.gen(function* () {
     });
   }
 
-  /** One own activity with its ready images and chart. The chart is null while its job runs. */
   function ownDetail(player: number, id: string) {
     const [activity] = own(player, id);
 
@@ -594,7 +592,6 @@ const make = Effect.gen(function* () {
     };
   }
 
-  /** The file of a ready image of an own activity. */
   function ownImagePath(player: number, activity: string, image: number) {
     const ready = Schema.decodeUnknownSync(Schema.Array(Schema.Struct({ id: Schema.Finite, state: Schema.String })))(
       repositories.activitiesRepository.listActivityImage(player, activity),
@@ -641,7 +638,6 @@ const make = Effect.gen(function* () {
     Effect.runSync(streakService.updateStreaks(id, activity));
   }
 
-  /** Recreate a rider's power curves from canonical FIT payloads, as jobs. */
   function rebuildPowerCurves(player: number) {
     immediate(repositories.db, () => {
       repositories.fitnessRepository.deletePowerCurve(player);
@@ -652,7 +648,6 @@ const make = Effect.gen(function* () {
     });
   }
 
-  /** The chart of a completed activity, or null while its job runs. */
   function chartFile(activity: bigint) {
     const row = repositories.activitiesRepository.findActivityFile(activity);
     const fileId = row ? Schema.decodeUnknownSync(Schema.Finite)(row.id) : null;
@@ -716,7 +711,6 @@ const make = Effect.gen(function* () {
     }
   }
 
-  /** Register a job handler written as an async function. */
   const register = (type: JobType, handler: Omit<JobHandler, 'run'> & { run: (job: RunningJob) => Promise<void> }) =>
     Effect.runSync(jobs.register(type, { ...handler, run: (job) => Effect.promise(() => handler.run(job)) }));
 
@@ -954,7 +948,6 @@ const make = Effect.gen(function* () {
     own: Effect.fn('ActivitiesService.own')(function* (player: number, id?: string, page?: number) {
       return own(player, id, page);
     }),
-    /** One own activity with its ready images and chart. The chart is null while its job runs. */
     ownDetail: Effect.fn('ActivitiesService.ownDetail')(function* (player: number, id: string) {
       return ownDetail(player, id);
     }),
@@ -962,7 +955,6 @@ const make = Effect.gen(function* () {
     ownFit: Effect.fn('ActivitiesService.ownFit')(function* (player: number, id: string) {
       return ownFit(player, id);
     }),
-    /** The file of a ready image of an own activity. */
     ownImagePath: Effect.fn('ActivitiesService.ownImagePath')(function* (
       player: number,
       activity: string,
@@ -1006,11 +998,9 @@ const make = Effect.gen(function* () {
     updateStreaks: Effect.fn('ActivitiesService.updateStreaks')(function* (id: number, activity: Activity) {
       return updateStreaks(id, activity);
     }),
-    /** Recreate a rider's power curves from canonical FIT payloads, as jobs. */
     rebuildPowerCurves: Effect.fn('ActivitiesService.rebuildPowerCurves')(function* (player: number) {
       return rebuildPowerCurves(player);
     }),
-    /** The chart of a completed activity, or null while its job runs. */
     chartFile: Effect.fn('ActivitiesService.chartFile')(function* (activity: bigint) {
       return chartFile(activity);
     }),

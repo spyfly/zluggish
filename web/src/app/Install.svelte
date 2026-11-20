@@ -311,7 +311,6 @@
     -webkit-backdrop-filter: blur(8px);
     backdrop-filter: blur(8px);
   }
-  /* The same warning edge as the other alerts, on a whole panel. */
   .unsafe {
     border-left: 4px solid #ff6b57;
   }
@@ -337,7 +336,6 @@
     border-left: 3px solid #ff6b57;
   }
 
-  /* Step 1: one large button per system, the whole row is the target. */
   .systems {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
@@ -412,7 +410,6 @@
     border-color: #ff6b57;
   }
 
-  /* The page's one main action: a download link dressed as the orange button. */
   a.download {
     display: inline-block;
     margin: 1.25rem 0 0;
@@ -450,7 +447,6 @@
   a.download.danger:hover {
     background: rgb(255 90 70 / 0.14);
   }
-  /* The shared-certificate warning sits right above the download it guards. */
   .risk {
     margin-top: 1.25rem;
     padding: 0.75rem 0.9rem;
@@ -469,7 +465,6 @@
     accent-color: #ff6b57;
   }
 
-  /* Step 2: the setup is a real sequence, so the steps carry large orange numbers down a rail. */
   /* The way out to the other systems stays quiet: most riders are on the system the page picked. */
   .switch {
     margin: -0.25rem 0 1.25rem;
@@ -528,8 +523,6 @@
   .walk label.check:first-of-type {
     margin-top: 0;
   }
-  /* The command to type, set like the fingerprints: one well, monospace, with the copy action at its end.
-  On a phone the copy action drops below, and the path breaks only where a line ends. */
   .command {
     display: flex;
     flex-wrap: wrap;

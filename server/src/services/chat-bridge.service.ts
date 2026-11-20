@@ -2,7 +2,6 @@ import { Context, Effect, Layer } from 'effect';
 import { RuntimeContext } from '#src/context';
 import { MessageService } from '#src/services/message.service';
 
-/** What the server needs from any chat bridge it relays riders' chat to. */
 export interface Bridge {
   send(content: string, sender?: string): void;
   online(id: bigint, joining: boolean): void;
@@ -54,7 +53,6 @@ const make = Effect.gen(function* () {
         return stopped;
       },
 
-      /** Answers bridge commands and relays anything else to riders in-game. */
       relay(author: string, content: string) {
         const current = settings();
 
@@ -91,7 +89,6 @@ const make = Effect.gen(function* () {
   return { open };
 });
 
-/** The behavior every chat bridge shares: commands, bounded delivery and presence. */
 export class ChatService extends Context.Service<ChatService, Effect.Success<typeof make>>()('zluggish/ChatService') {
   static readonly layer = Layer.effect(ChatService, make);
 }

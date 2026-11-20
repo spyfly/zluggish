@@ -56,7 +56,6 @@ export type CompanionStep = z.infer<typeof companionStep>;
 export type CompanionActivity = z.infer<typeof companionActivity>;
 export type CompanionAdminStatus = z.infer<typeof companionAdminStatus>;
 
-/** A file size as riders read it: whole megabytes, or gigabytes from 1 GB. */
 export function megabytes(bytes: number) {
   return bytes >= 1_000_000_000
     ? `${Math.round(bytes / 100_000_000) / 10} GB`

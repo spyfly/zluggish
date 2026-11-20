@@ -248,7 +248,6 @@
     color: var(--muted);
   }
 
-  /* The choice: one large button per phone, as on the Install page. */
   .systems {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
@@ -340,7 +339,6 @@
     color: var(--muted);
   }
 
-  /* The steps are a real sequence: large orange numbers down a rail, as on the Install page. */
   .walk {
     counter-reset: step;
     margin: 0;
@@ -411,7 +409,6 @@
     box-shadow: none;
   }
 
-  /* Host names never break: the lines scroll sideways on a narrow phone instead. */
   .command {
     display: flex;
     flex-wrap: wrap;

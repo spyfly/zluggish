@@ -23,7 +23,6 @@ const decodeConfig = Schema.decodeUnknownSync(configSchema, strict);
 
 const decodeRiderSettings = Schema.decodeUnknownSync(riderSettingsSchema, strict);
 
-/** A ConfigError naming each invalid field. */
 export function validationError(error: Schema.SchemaError): ConfigError {
   return new ConfigError(
     schemaProblems(error)
@@ -43,7 +42,6 @@ function freezeDeep<T extends object>(value: T): T {
   return Object.freeze(value);
 }
 
-/** Run `decode`, reporting schema failures as a ConfigError. */
 function decoding<A>(decode: () => A): A {
   try {
     return decode();
@@ -52,7 +50,6 @@ function decoding<A>(decode: () => A): A {
   }
 }
 
-/** Decode an unvalidated configuration object, or throw a ConfigError naming each invalid field. */
 export const decodeConfigInput = (...input: Parameters<typeof decodeConfig>): ResolvedConfig =>
   decoding(() => decodeConfig(...input));
 

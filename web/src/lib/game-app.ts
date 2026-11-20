@@ -55,7 +55,6 @@ export const gamePageModel: z.ZodType<GamePageModel> = z.object({
   errorStatus: z.union([z.literal(400), z.literal(403), z.literal(409)]).optional(),
 });
 
-/** The response to a submitted launcher form. */
 export const savedFormResult: z.ZodType<FormResult<GameSaved>> = z.discriminatedUnion('ok', [
   z.object({
     ok: z.literal(true),

@@ -121,7 +121,6 @@
 </Layout>
 
 <style>
-  /* A quiet pill tucked against the wordmark: a door out to the browser, never louder than the brand. */
   .web-app {
     display: inline-flex;
     align-items: center;

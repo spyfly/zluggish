@@ -69,7 +69,6 @@ export class Simulation {
 
   readonly rng = new Random();
 
-  /** The tick loop while it runs. */
   private ticker: Fiber.Fiber<unknown> | null = null;
 
   lastPacer = 0;
@@ -107,7 +106,6 @@ export class Simulation {
     this.starts = Schema.decodeUnknownSync(
       Schema.Record(Schema.String, Schema.Struct({ road: Schema.Finite, time: Schema.Finite })),
     )(JSON.parse(readFileSync(resolve(runtime.assets, 'data/start_lines.txt'), 'utf8')));
-    // Static road assets load at startup; blobs are rebuilt on the riding path.
     Blob.roads(runtime.assets);
     runtime.world.simulation = this;
     this.ready = this.reload();
@@ -123,7 +121,6 @@ export class Simulation {
     void tracked.finally(() => this.pending.delete(tracked));
   }
 
-  /** Resolves when all background loads and writes have finished. */
   async idle() {
     await this.ready;
 
@@ -165,7 +162,6 @@ export class Simulation {
     this.ticker = Effect.runFork(this.loop());
   }
 
-  /** Stop ticking, then wait for background loads and writes to finish. */
   async close() {
     const ticker = this.ticker;
     this.ticker = null;
@@ -352,7 +348,6 @@ export class Simulation {
     }
   }
 
-  /** The rider's stored profile, or undefined when the folder has no account. */
   private ownerProfile(id: number) {
     try {
       return this.runtime.profiles.get(id);

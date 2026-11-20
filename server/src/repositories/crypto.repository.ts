@@ -19,7 +19,6 @@ import { closeSync, createReadStream, openSync, readSync } from 'node:fs';
 
 const generateKeyPairAsync = promisify(generateKeyPair);
 
-/** What a TLS certificate says about itself, as the web app shows it. */
 export interface CertificateFacts {
   readonly fingerprint256: string;
   readonly thumbprint: string;
@@ -212,7 +211,6 @@ export class CryptoRepository {
     return hash.digest('hex');
   }
 
-  /** The SHA-256 digest of the parts in order, as bytes. */
   sha256Bytes(...parts: Array<Uint8Array>) {
     const hash = createHash('sha256');
 
@@ -223,7 +221,6 @@ export class CryptoRepository {
     return hash.digest();
   }
 
-  /** The DER SubjectPublicKeyInfo of a PEM certificate's key. */
   certificatePublicKey(pem: string) {
     return new X509Certificate(pem).publicKey.export({ type: 'spki', format: 'der' });
   }
@@ -248,7 +245,6 @@ export class CryptoRepository {
     return sign('sha256', data, createPrivateKey(privateKeyPem));
   }
 
-  /** Parse a PEM certificate. Throws when the PEM is not one. */
   certificateFacts(pem: string): CertificateFacts {
     const certificate = new X509Certificate(pem);
     const details = certificate.publicKey.asymmetricKeyDetails;
@@ -268,7 +264,6 @@ export class CryptoRepository {
     };
   }
 
-  /** True when the private key belongs to the certificate. */
   certificateMatchesKey(certificatePem: string, privateKeyPem: string) {
     return new X509Certificate(certificatePem).checkPrivateKey(createPrivateKey(privateKeyPem));
   }

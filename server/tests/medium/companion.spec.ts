@@ -70,7 +70,6 @@ async function json(request: Response | Promise<Response>) {
   return body;
 }
 
-/** The administrator's status once the running job ends. */
 async function settled(admin: ReturnType<typeof mediumWeb>) {
   for (let attempt = 0; attempt < 200; attempt++) {
     const status = companionAdminStatus(await json(admin.request('/api/manage/companion')));

@@ -98,7 +98,6 @@ await test('a restored backup sends no delivery that was sent after the backup',
   assert.equal(sends.mock.callCount(), 1, 'the upload pause stops the restored delivery');
   assert.equal(restored.accounts.repositories.systemFlagsRepository.get('uploads.paused')?.startsWith('restore'), true);
 
-  // The operator cancels the restored delivery before clearing the pause.
   assert.equal(restored.accounts.repositories.uploadsRepository.cancel(1, 'runalyze'), true);
   restored.accounts.repositories.systemFlagsRepository.clear('uploads.paused');
   await restored.effects.runPromise(restored.jobs.drain());

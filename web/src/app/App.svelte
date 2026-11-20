@@ -68,7 +68,6 @@
   let pending = $state<Pending | null>(null);
   let operation = crypto.randomUUID();
 
-  // Setup and sign-in.
   let mode = $state<'new' | 'existing'>('new');
   let key = $state('');
   let keyAccepted = $state(false);
@@ -85,7 +84,6 @@
   let profileUser = $state<User | null>(null);
   let profileAvatar = $state<number | null>(null);
 
-  // Profile.
   let birthday = $state('');
 
   // Undefined until loaded: the side menu shows the photo on every page.
@@ -103,7 +101,6 @@
   let stravaMethod = $state('paid');
   let bridgeFolder = $state('');
 
-  // Users.
   let search = $state('');
   let page = $state(0);
   let newFirst = $state('');
@@ -114,7 +111,6 @@
   let targetPassword = $state('');
   let targetConfirm = $state('');
 
-  // Server.
   /** The Zwift certificate's source, for the administrator's warning on every page. */
   let certificateMode = $state<TlsStatus['mode'] | null>(null);
   let backingUp = $state(false);
@@ -136,7 +132,6 @@
   const installing = $derived(path === '/install' || path.startsWith('/install/'));
   const companion = $derived(path === '/companion' || path.startsWith('/companion/'));
 
-  /** The link beside the title back to the page above this one. */
   const back = $derived(
     manage && path.startsWith('/manage/users/') ? { href: '/manage', label: 'All users' } : undefined,
   );
@@ -399,7 +394,6 @@
     }
   }
 
-  /** The values in effect: the user's own choice, or the server default. */
   function preferences(body: UserSettings) {
     return {
       ghosts: Boolean(body.overrides['ghosts.enabled'] ?? body.defaults.ghosts.enabled),
@@ -749,7 +743,6 @@
     regenerateButton?.focus();
   }
 
-  /** Without a rebuild the curves stay empty until the next ride. */
   async function regenerate() {
     regenerating = false;
     await api(ignored, '/api/me/power-curves', 'POST', { confirm: true, create: rebuild });
@@ -760,7 +753,6 @@
     );
   }
 
-  /** The dialog opens on its first field. */
   function focusFirst(node: HTMLElement) {
     node.querySelector('input')?.focus();
   }
@@ -1870,7 +1862,6 @@
 {/if}
 
 <style>
-  /* The side menu: who is signed in, then one flat list of pages. */
   .me {
     display: flex;
     align-items: center;
@@ -1905,7 +1896,6 @@
     background: rgb(255 255 255 / 0.08);
     text-decoration: none;
   }
-  /* The current page carries Zwift orange along the edge of the menu. */
   .menu :global(a[aria-current]) {
     border-left-color: var(--orange);
     background: var(--glass-raised);
@@ -2235,7 +2225,6 @@
     outline: 2px solid var(--text);
     outline-offset: 2px;
   }
-  /* The row opens the user's page: the chips stay together on the right, then the ID and a chevron. */
   a.user .identity {
     flex: 1 1 auto;
   }
@@ -2320,7 +2309,6 @@
   .columns h2 + p {
     margin-top: 0;
   }
-  /* Each access control says what it is now, with the action that changes it beside it. */
   .access li {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;

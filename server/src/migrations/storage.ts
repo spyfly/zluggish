@@ -684,7 +684,6 @@ function validate(source: string, destination: DatabaseSync, report: Report, che
     }
   }
 
-  // Every canonical FIT payload is in activity.fit with the bytes chosen from the sources.
   for (const row of destination.prepare('SELECT id, fit FROM activity WHERE fit IS NOT NULL').all()) {
     const id = Schema.decodeUnknownSync(Schema.Finite)(row.id);
 
@@ -698,7 +697,6 @@ function validate(source: string, destination: DatabaseSync, report: Report, che
     throw new ConfigError('A migrated FIT payload is missing');
   }
 
-  // Completed activities keep exactly one FIT copy, outside their journal payloads.
   for (const row of destination.prepare('SELECT payload FROM activity_completion').all()) {
     if (
       fromBinary(ActivitySchema, Schema.decodeUnknownSync(Schema.instanceOf(Uint8Array))(row.payload)).fit.length > 0

@@ -84,7 +84,6 @@ export async function mediumBrowser(f: Awaited<ReturnType<typeof mediumFixture>>
   });
 
   assert.equal(selected.status, 302);
-  // The dashboard carries the new session's token.
   const dashboard = await request(selected.headers.get('Location')!);
   assert.equal(dashboard.status, 200);
 

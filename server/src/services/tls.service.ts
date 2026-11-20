@@ -15,7 +15,6 @@ import { resolve } from 'node:path';
 */
 export type TlsMode = 'managed' | 'legacy' | 'custom' | 'disabled';
 
-/** The certificate in use, and where it came from. */
 interface TlsState {
   readonly mode: TlsMode;
   readonly material: CertificateMaterial | null;
@@ -41,7 +40,6 @@ export interface TlsStatus {
   readonly lifetimeYears: number;
 }
 
-/** Warn this long before the certificate expires. */
 const expiryWarningMs = 90 * 86_400_000;
 
 const make = Effect.gen(function* () {
@@ -156,7 +154,6 @@ const make = Effect.gen(function* () {
     status: Effect.fn('TlsService.status')(function* () {
       return status();
     }),
-    /** Calls `listener` with each new key and certificate. Returns the function that stops it. */
     subscribe: (listener: (material: CertificateMaterial) => void) => {
       listeners.add(listener);
 
@@ -209,7 +206,6 @@ const make = Effect.gen(function* () {
   };
 });
 
-/** The API listener's TLS certificate: which one, its facts, and rotation. */
 export class TlsService extends Context.Service<TlsService, Effect.Success<typeof make>>()('zluggish/TlsService') {
   static readonly layer = Layer.effect(TlsService, make);
 }
