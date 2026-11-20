@@ -10,6 +10,9 @@
   import Avatar from '../components/Avatar.svelte';
   import TextField from './TextField.svelte';
   import ServerLogs from './ServerLogs.svelte';
+  import Install from './Install.svelte';
+  import ServerCertificate from './ServerCertificate.svelte';
+  import type { TlsStatus } from './tls';
 
   type ApiValue = string | number | boolean | null | undefined | ApiValue[] | { [key: string]: ApiValue };
 
@@ -128,6 +131,8 @@
   let targetConfirm = $state('');
 
   // Server.
+  /** The Zwift certificate's source, for the administrator's warning on every page. */
+  let certificateMode = $state<TlsStatus['mode'] | null>(null);
   let backingUp = $state(false);
   let backupMessage = $state('');
   let backupOperation = crypto.randomUUID();
@@ -144,6 +149,13 @@
   let botArgument = $state('');
 
   const manage = $derived(path === '/manage' || path.startsWith('/manage/'));
+  const installing = $derived(path === '/install' || path.startsWith('/install/'));
+
+  /** The link beside the title back to the page above this one. */
+  const back = $derived(
+    manage && path.startsWith('/manage/users/') ? { href: '/manage', label: 'All users' } : undefined,
+  );
+
   const administrator = $derived(user?.role === 'administrator');
   const selectedId = $derived(Number(/^\/manage\/users\/(\d+)$/.exec(path)?.[1] ?? 0));
   const selected = $derived(users.find((r) => r.player_id === selectedId) ?? null);
@@ -154,6 +166,28 @@
       `${r.player_id} ${r.username} ${r.first_name} ${r.last_name}`.toLowerCase().includes(search.toLowerCase()),
     ),
   );
+
+  // Asked once per administrator sign-in; the Server page reports later changes.
+  let certificateRequested = false;
+
+  $effect(() => {
+    if (!administrator) {
+      certificateRequested = false;
+      certificateMode = null;
+
+      return;
+    }
+
+    if (certificateRequested) return;
+    certificateRequested = true;
+    api('/api/tls')
+      .then((body: TlsStatus) => {
+        certificateMode = body.mode;
+      })
+      .catch(() => {
+        certificateRequested = false;
+      });
+  });
 
   const name = (r: User) => `${r.first_name} ${r.last_name}`.trim();
   const label = (r: User) => name(r) || r.username;
@@ -189,7 +223,15 @@
                             ? 'Settings'
                             : path === '/climbs'
                               ? 'Climbs'
-                              : 'Profile',
+                              : path === '/install/windows'
+                                ? 'Windows setup'
+                                : path === '/install/macos'
+                                  ? 'macOS setup'
+                                  : path === '/install/linux'
+                                    ? 'Linux setup'
+                                    : installing
+                                      ? 'Install'
+                                      : 'Profile',
   );
 
   const initials = (r: User) => `${r.first_name.charAt(0)}${r.last_name.charAt(0)}`.toUpperCase();
@@ -801,6 +843,7 @@
       {@render link('/export', 'Export', path === '/export')}
       {@render link('/integrations', 'Integrations', path === '/integrations')}
       {@render link('/settings', 'Settings', path === '/settings')}
+      {@render link('/install', 'Install', installing)}
       {#if administrator}
         <p class="group">Manage</p>
         {@render link('/manage', 'Users', manage && path !== '/manage/server')}
@@ -816,9 +859,9 @@
     {title}
     heading={!user && title !== 'Profile' && title !== 'Activities'}
     page={manage ? 'manage' : 'account'}
-    back={manage && path.startsWith('/manage/users/') ? { href: '/manage', label: 'All users' } : undefined}
+    {back}
     onback={() => {
-      void navigate('/manage');
+      if (back) void navigate(back.href);
     }}
     {version}
     {zwiftVersion}
@@ -827,6 +870,15 @@
       void navigate('/');
     }}
   >
+    {#if administrator && certificateMode === 'legacy' && path !== '/manage/server'}
+      <aside class="unsafe-banner" aria-label="Unsafe Zwift certificate">
+        <p>
+          <strong>Unsafe Zwift certificate.</strong> This server still uses the shared certificate, whose private key is
+          public. Riders' Zwift traffic, passwords included, can be read on your network.
+        </p>
+        {@render link('/manage/server', 'Fix it on the Server page', false)}
+      </aside>
+    {/if}
     {#if message && !changing}<p class="notice" class:failed role={failed ? 'alert' : 'status'}>{message}</p>{/if}
 
     {#if loading}<p role="status">Loading…</p>
@@ -980,6 +1032,18 @@
     {:else if manage && administrator}
       <div>
         {#if path === '/manage/server'}
+          <ServerCertificate
+            {api}
+            {busy}
+            {done}
+            onstatus={(status) => {
+              certificateMode = status.mode;
+            }}
+            confirm={(confirmation) => {
+              pending = confirmation;
+            }}
+          />
+
           <section class="panel">
             <h2>Backups</h2>
             <p class="muted">Backups are saved beside storage. The server keeps the 10 most recent nightly backups.</p>
@@ -1466,6 +1530,8 @@
         <Activities {path} {api} {go} />
       {:else if path === '/climbs'}
         <Climbs {api} />
+      {:else if installing}
+        <Install {api} {path} {navigate} />
       {:else if path === '/settings'}
         {#if settings}
           <section class="panel narrow ghosts" aria-labelledby="ghosts-title">
@@ -1785,6 +1851,36 @@
     margin-top: auto;
     border-top: 1px solid var(--line);
     color: var(--muted);
+  }
+
+  /* The administrator's reminder on every page until the shared certificate is gone. */
+  .unsafe-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1.25rem;
+    margin: 0 0 1rem;
+    padding: 0.7rem 1rem;
+    border-left: 4px solid #ff6b57;
+    border-radius: 0 10px 10px 0;
+    background: rgb(255 90 70 / 0.16);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+  }
+  .unsafe-banner p {
+    margin: 0;
+    color: var(--alarm);
+  }
+  .unsafe-banner strong {
+    color: var(--text);
+    font-weight: 800;
+  }
+  .unsafe-banner :global(a) {
+    flex: none;
+    font-weight: 800;
+    white-space: nowrap;
+    text-decoration-color: #ff6b57;
   }
 
   .panel {

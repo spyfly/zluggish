@@ -5,6 +5,7 @@ import type { RuntimeEnv } from '#src/http/runtime';
 import type { Context } from 'hono';
 import { Effect, Schema } from 'effect';
 import { FilesService } from '#src/services/files.service';
+import { TlsService } from '#src/services/tls.service';
 import { resolve } from 'node:path';
 
 function serialize(props: GamePageModel) {
@@ -31,10 +32,20 @@ const document = Effect.fn('game.document')(function* (props: GamePageModel, ren
 /** The launcher page for model, or its form result as JSON when the browser posted with fetch. */
 export const gamePage = Effect.fn('game.page')(function* (
   c: Context<RuntimeEnv>,
-  model: GamePageModel,
+  shown: GamePageModel,
   redirect?: string,
 ) {
   c.header('Cache-Control', 'no-store');
+  const tls = yield* TlsService;
+
+  const model: GamePageModel =
+    tls.mode() === 'legacy'
+      ? {
+          ...shown,
+          warning:
+            'This server uses the shared Zwift certificate, whose private key is public. Others on your network could read your Zwift traffic, password included. Ask the server administrator to set up a server certificate.',
+        }
+      : shown;
 
   if (c.req.method === 'POST' && browserJson(c)) {
     const result: FormResult<GameSaved> = model.failed

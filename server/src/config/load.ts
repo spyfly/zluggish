@@ -193,6 +193,7 @@ export async function loadConfig(options: LoadOptions = {}): Promise<LoadedConfi
       },
     },
     tls: {
+      ...config.tls,
       certFile: relative(config.tls.certFile),
       keyFile: relative(config.tls.keyFile),
     },
