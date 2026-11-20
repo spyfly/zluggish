@@ -38,6 +38,7 @@ export type RetentionScope = {
 function cleanup({ repositories, retention, storage }: RetentionScope) {
   const backupsDirectory = backupDirectory(storage);
   const previousDirectory = resolve(dirname(storage), 'backups');
+
   const legacyBackupsDirectory =
     previousDirectory === storage || previousDirectory === backupsDirectory ? null : previousDirectory;
 
