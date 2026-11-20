@@ -29,7 +29,7 @@ import { test } from 'node:test';
 function fixture(t: TestContext) {
   const root = mkdtempSync(resolve(tmpdir(), 'zluggish-migrate-'));
   const storage = resolve(root, 'storage');
-  const stores: SettingsStore[] = [];
+  const stores: Array<SettingsStore> = [];
   mkdirSync(storage);
   t.after(() => {
     for (const store of stores) store.close();
@@ -219,7 +219,7 @@ await test('independent Node processes contend on the storage OS lock', async (t
 
 await test('CLI migrates directly, validates and typechecks the externally generated module', async (t) => {
   const f = fixture(t);
-  const messages: string[] = [];
+  const messages: Array<string> = [];
   assert.equal(
     await run(['--storage-dir', f.storage, 'config', 'migrate', '--output', f.output], (message) => {
       messages.push(message);

@@ -40,7 +40,7 @@ interface RiderGhosts {
   startRoad: number;
   startTime: number;
   last: number;
-  playbacks: GhostPlayback[];
+  playbacks: Array<GhostPlayback>;
 }
 
 const ahead = (state: PlayerState, time: number) =>
@@ -442,7 +442,7 @@ export class Simulation {
   session and ghost state that requested it; a new login retries the load.
   */
   private async loadGhosts(id: bigint, ghosts: RiderGhosts, directories: Set<string>, generation: number) {
-    const recordings: Recording[] = [];
+    const recordings: Array<Recording> = [];
 
     for (const directory of directories) {
       for (const { name } of await this.files.entriesAsync(directory)) {

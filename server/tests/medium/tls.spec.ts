@@ -80,7 +80,7 @@ await test('riders download the certificate and setup scripts, and only administ
   const admin = mediumWeb(f, owner);
   const web = mediumWeb(f, rider);
   const tls = f.effects.runSync(TlsService);
-  const applied: string[] = [];
+  const applied: Array<string> = [];
   tls.subscribe((material) => {
     applied.push(material.cert);
   });

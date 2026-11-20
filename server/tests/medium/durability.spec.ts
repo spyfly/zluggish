@@ -73,7 +73,7 @@ await test('a delivery flushes its sending state before the provider request', a
   // The fixture disposes the runtime first: the close runs on the service itself.
   t.after(() => Effect.runPromise(durability.close()));
   f.effects.runSync(DocumentsService.use((service) => service.put(f.rider.player_id, 'runalyze_token.txt', 'token')));
-  const order: string[] = [];
+  const order: Array<string> = [];
   const flush = DurabilityRepository.prototype.flush;
 
   t.mock.method(DurabilityRepository.prototype, 'flush', function (this: DurabilityRepository) {

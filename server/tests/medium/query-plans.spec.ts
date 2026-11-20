@@ -62,7 +62,7 @@ await test('the main queries use an index on several years of history', async (t
 
   db.exec('COMMIT; ANALYZE;');
 
-  const captured: { sql: string; args: SQLInputValue[] }[] = [];
+  const captured: Array<{ sql: string; args: Array<SQLInputValue> }> = [];
   const prepare = db.prepare.bind(db);
 
   t.mock.method(db, 'prepare', (sql: string) => {
@@ -71,7 +71,7 @@ await test('the main queries use an index on several years of history', async (t
     for (const method of ['all', 'get'] as const) {
       const original = statement[method].bind(statement);
 
-      t.mock.method(statement, method, (...args: SQLInputValue[]) => {
+      t.mock.method(statement, method, (...args: Array<SQLInputValue>) => {
         captured.push({ sql, args });
 
         return original(...args);
@@ -113,7 +113,7 @@ await test('the main queries use an index on several years of history', async (t
   f.effects.runSync(StorageService.use((storage) => storage.list(rider.player_id, 'customworkouts')));
   db.prepare('SELECT 1').get();
 
-  const plans = new Map<string, string[]>();
+  const plans = new Map<string, Array<string>>();
 
   for (const { sql, args } of captured) {
     if (!/^select/i.test(sql) || plans.has(sql)) continue;

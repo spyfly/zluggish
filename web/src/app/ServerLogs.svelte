@@ -1,10 +1,10 @@
 <script lang="ts">
-  let { load }: { load: () => Promise<{ entries: string[] }> } = $props();
+  let { load }: { load: () => Promise<{ entries: Array<string> }> } = $props();
 
   let open = $state(false);
   let loading = $state(false);
   let errorMessage = $state('');
-  let entries = $state<string[]>([]);
+  let entries = $state<Array<string>>([]);
 
   async function refresh() {
     loading = true;

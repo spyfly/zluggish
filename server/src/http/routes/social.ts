@@ -270,7 +270,7 @@ export function socialRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
       update.worldTimeExpire = worldTime() + 60_000n;
       update.waF12 = 1n;
       update.timestamp = BigInt(Date.now()) * 1000n;
-      let recipients: bigint[] | undefined;
+      let recipients: Array<bigint> | undefined;
 
       if (update.waType === WA_TYPE.WAT_SPA) {
         const action = parseProtobuf(SocialPlayerActionSchema, update.payload);

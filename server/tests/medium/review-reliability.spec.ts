@@ -28,7 +28,7 @@ import { Schema } from 'effect';
 await test('deleting a queued activity while another upload is sending prevents its later delivery', async (t) => {
   const f = await mediumFixture(t);
   f.effects.runSync(DocumentsService.use((service) => service.put(f.rider.player_id, 'runalyze_token.txt', 'test')));
-  const ids: number[] = [];
+  const ids: Array<number> = [];
 
   const data = {
     playerId: BigInt(f.rider.player_id),
@@ -216,7 +216,7 @@ await test('charts retain running records with no power and intermittent sensor 
   const f = await mediumFixture(t);
   const encoder = new Encoder();
 
-  const records: RecordMesg[] = [
+  const records: Array<RecordMesg> = [
     { timestamp: 1_000_000, distance: 0, speed: 3, heartRate: 120 },
     { timestamp: 1_000_001, distance: 3, speed: 3 },
     { timestamp: 1_000_002, distance: 6, speed: 3, heartRate: 130 },

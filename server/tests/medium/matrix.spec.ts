@@ -61,15 +61,15 @@ type Json = typeof Schema.Json.Type;
 
 interface Homeserver {
   url: string;
-  logins: (typeof login)['Type'][];
-  sent: string[];
-  syncs: URLSearchParams[];
+  logins: Array<(typeof login)['Type']>;
+  sent: Array<string>;
+  syncs: Array<URLSearchParams>;
   encrypted: boolean;
 }
 
 async function homeserver(t: TestContext) {
   const state: Homeserver = { url: '', logins: [], sent: [], syncs: [], encrypted: false };
-  const held: ServerResponse[] = [];
+  const held: Array<ServerResponse> = [];
 
   const reply = (response: ServerResponse, status: number, body: Json) => {
     response.writeHead(status, { 'Content-Type': 'application/json' }).end(JSON.stringify(body));
@@ -171,8 +171,8 @@ function storage(t: TestContext, credentials = '[matrix]\npassword = secret\n') 
 }
 
 function open(t: TestContext, server: Homeserver, dir: string) {
-  const received: string[][] = [];
-  const warnings: string[] = [];
+  const received: Array<Array<string>> = [];
+  const warnings: Array<string> = [];
 
   const settings = validateConfig({
     storageDir: dir,
@@ -281,8 +281,8 @@ await test('Matrix transport reports a refused login and stores no session', asy
 await test('Matrix bridge prefixes rider names, handles commands and stops after close', async (t) => {
   const f = runtimeFixture(t);
   const user = await f.accounts.create('Matrix Rider', 'test-password');
-  const sent: string[] = [];
-  const presence: number[] = [];
+  const sent: Array<string> = [];
+  const presence: Array<number> = [];
 
   const runtime = {
     ...f,

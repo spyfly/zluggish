@@ -10,7 +10,7 @@ import {
 import { isFieldSet, toJson } from '@bufbuild/protobuf';
 import { Context, Layer, Schema } from 'effect';
 
-function attributes(items: Attribute[]) {
+function attributes(items: Array<Attribute>) {
   const result: Record<string, string | number> = {};
 
   for (const item of items) {

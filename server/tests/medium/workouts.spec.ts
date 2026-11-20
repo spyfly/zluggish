@@ -26,7 +26,7 @@ await test('F07 browser home and Android login share one refresh; saved-token lo
   f.effects.runSync(
     ConnectionsService.use((service) => service.save(f.rider.player_id, 'intervals', ['i123', 'medium-key'])),
   );
-  const calls: { url: URL; signal: AbortSignal | null | undefined }[] = [];
+  const calls: Array<{ url: URL; signal: AbortSignal | null | undefined }> = [];
 
   t.mock.method(globalThis, 'fetch', async (input: URL | string, init?: RequestInit) => {
     const url = new URL(String(input));

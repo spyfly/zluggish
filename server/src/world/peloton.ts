@@ -42,15 +42,15 @@ Slot shuffles are synchronous swaps admitted by nextShuffle; replay wrap is owne
 by Simulation.tick. previous=null initializes motion, not a paused rider state.
 */
 export class Peloton {
-  readonly riders: Follower[] = [];
+  readonly riders: Array<Follower> = [];
 
-  readonly slots: [number, number][] = [];
+  readonly slots: Array<[number, number]> = [];
 
-  readonly starts: number[] = [];
+  readonly starts: Array<number> = [];
 
-  readonly lengths: number[] = [];
+  readonly lengths: Array<number> = [];
 
-  readonly grades: number[];
+  readonly grades: Array<number>;
 
   readonly rng: Random;
 
@@ -69,11 +69,11 @@ export class Peloton {
   ) {
     this.rng = new Random(Number(pacer.profile.id));
     let distance = 0;
-    const raw: number[] = [];
+    const raw: Array<number> = [];
 
     const states = pacer.recording.length;
     const first = states > 0 ? pacer.recording.state(0) : undefined;
-    const powers: number[] = [];
+    const powers: Array<number> = [];
     let a = first;
 
     for (let i = 0; i < states && a && first; i++) {

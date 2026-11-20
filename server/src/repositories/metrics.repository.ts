@@ -27,13 +27,13 @@ export type MetricSummary = {
 
 const limit = 10_000;
 
-function percentile(sorted: number[], fraction: number) {
+function percentile(sorted: Array<number>, fraction: number) {
   return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * fraction))] ?? 0;
 }
 
 /** Bounded in-process samples. Values are durations or sizes only; never payloads or identities. */
 export class MetricsRepository {
-  private readonly samples = new Map<Metric, number[]>();
+  private readonly samples = new Map<Metric, Array<number>>();
 
   private loop: NodeJS.Timeout | null = null;
 

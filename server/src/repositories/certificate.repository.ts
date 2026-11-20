@@ -23,21 +23,21 @@ export interface CertificateRequest {
 
 function length(size: number) {
   if (size < 0x80) return Buffer.from([size]);
-  const bytes: number[] = [];
+  const bytes: Array<number> = [];
 
   for (let rest = size; rest > 0; rest = Math.floor(rest / 256)) bytes.unshift(rest % 256);
 
   return Buffer.from([0x80 | bytes.length, ...bytes]);
 }
 
-function element(tag: number, ...parts: Uint8Array[]) {
+function element(tag: number, ...parts: Array<Uint8Array>) {
   const body = Buffer.concat(parts);
 
   return Buffer.concat([Buffer.from([tag]), length(body.length), body]);
 }
 
-const sequence = (...parts: Uint8Array[]) => element(0x30, ...parts);
-const set = (...parts: Uint8Array[]) => element(0x31, ...parts);
+const sequence = (...parts: Array<Uint8Array>) => element(0x30, ...parts);
+const set = (...parts: Array<Uint8Array>) => element(0x31, ...parts);
 const octets = (bytes: Uint8Array) => element(0x04, bytes);
 const utf8 = (text: string) => element(0x0c, Buffer.from(text, 'utf8'));
 const critical = element(0x01, Buffer.from([0xff]));

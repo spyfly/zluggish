@@ -21,7 +21,7 @@
     api: <Body>(url: string) => Promise<Body>;
   } = $props();
 
-  let climbs = $state<Climb[] | null>(null);
+  let climbs = $state<Array<Climb> | null>(null);
   let total = $state(0);
   let failure = $state('');
 
@@ -50,7 +50,7 @@
 
   onMount(async () => {
     try {
-      const body = await api<{ climbs: Climb[]; total: number }>('/api/me/climbs');
+      const body = await api<{ climbs: Array<Climb>; total: number }>('/api/me/climbs');
       total = body.total;
       climbs = body.climbs;
     } catch (error) {

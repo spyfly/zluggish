@@ -28,7 +28,7 @@ export interface CertificateStatus {
   readonly subject: string;
   readonly notBefore: string;
   readonly notAfter: string;
-  readonly hosts: readonly string[];
+  readonly hosts: ReadonlyArray<string>;
   /** The key algorithm and size, such as `ECDSA P-256`. */
   readonly key: string;
 }

@@ -103,7 +103,7 @@ export class World {
 
   readonly relays = new Map<bigint, Relay>();
 
-  readonly updates = new Map<bigint, WorldAttribute[]>();
+  readonly updates = new Map<bigint, Array<WorldAttribute>>();
 
   readonly mapOverrides = new Map<string, string>();
 
@@ -184,7 +184,7 @@ export class World {
 
   // Queue admission is bounded; the TCP owner takes/deletes a batch before sending.
   // nearby separately checkpoints each peer timestamp, suppressing unchanged snapshots.
-  enqueue(update: WorldAttribute, recipients: bigint[] = this.online.keys().toArray()) {
+  enqueue(update: WorldAttribute, recipients: Array<bigint> = this.online.keys().toArray()) {
     for (const id of recipients) {
       const queue = this.updates.get(id) ?? [];
 

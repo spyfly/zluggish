@@ -42,19 +42,19 @@ let generation = Math.floor(Date.now() / 1000) % 33;
 export class Blob {
   readonly trail: Trail;
 
-  readonly riders: BlobRider[] = [];
+  readonly riders: Array<BlobRider> = [];
 
-  slots: [number, number][] = [];
+  slots: Array<[number, number]> = [];
 
-  readonly steps: number[];
+  readonly steps: Array<number>;
 
-  readonly front: [number, number][] = [];
+  readonly front: Array<[number, number]> = [];
 
-  readonly tail: [number, number][] = [];
+  readonly tail: Array<[number, number]> = [];
 
   readonly roadLimits: Record<string, [number, number]>;
 
-  readonly roadWidths: Record<string, [number, number, number][]>;
+  readonly roadWidths: Record<string, Array<[number, number, number]>>;
 
   readonly reach = new Map<string, [number, number]>();
 
@@ -176,7 +176,7 @@ export class Blob {
     return Math.max(5, base * this.rng.between(1 - spread, 1 + spread));
   }
 
-  scatterPool(points: [number, number][], obstacles: [number, number][], start: number, depth: number) {
+  scatterPool(points: Array<[number, number]>, obstacles: Array<[number, number]>, start: number, depth: number) {
     const cfg = this.config;
 
     const longitudinal = Math.max(1.7, cfg.scatterGap, cfg.keepApartLong * 1.05);
@@ -246,7 +246,7 @@ export class Blob {
       // No default
     }
 
-    const slots: [number, number][] = [];
+    const slots: Array<[number, number]> = [];
 
     if (cfg.scatter) {
       const front = this.front.slice(0, Math.min(leaders, count));
@@ -289,7 +289,7 @@ export class Blob {
     this.assign(slots);
   }
 
-  assign(slots: [number, number][]) {
+  assign(slots: Array<[number, number]>) {
     const free = new Set(slots.map((_, i) => i));
     // Keep unchanged scattered positions with their riders before assigning new slots.
     const pending = [];
@@ -777,7 +777,7 @@ export class Blob {
         if (Math.abs(side - rider.lateral) < 0.2 * 0.45 * seconds)
           side = this.fit(clamp(rider.lateral - direction * 0.45 * seconds, -2.6, 2.6));
 
-        const options: [number, number][] = [
+        const options: Array<[number, number]> = [
           [nextGap, side],
           [rider.gap, side],
           [rider.gap, rider.lateral],

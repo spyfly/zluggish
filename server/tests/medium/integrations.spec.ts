@@ -106,7 +106,7 @@ function activityWithFit() {
 }
 
 function stubFetch(t: TestContext) {
-  const calls: { url: string; method: string; headers: Headers }[] = [];
+  const calls: Array<{ url: string; method: string; headers: Headers }> = [];
 
   t.mock.method(globalThis, 'fetch', (input: URL | string, init?: RequestInit) => {
     calls.push({
@@ -195,7 +195,7 @@ await test('an expired Strava token is saved before an upload whose result is un
   f.effects.runSync(
     DocumentsService.use((service) => service.put(user.player_id, 'runalyze_token.txt', 'runalyze-token\n')),
   );
-  const calls: string[] = [];
+  const calls: Array<string> = [];
 
   t.mock.method(globalThis, 'fetch', (input: URL | string) => {
     calls.push(String(input));

@@ -197,7 +197,7 @@ const ghost = toBinary(
 
 type LoadRider = { id: bigint; activity: number; auth: string; tick: number; riding: boolean };
 
-const fleet: LoadRider[] = [];
+const fleet: Array<LoadRider> = [];
 
 for (let index = 0; index < riders; index++) {
   const rider = await accounts.create(`Load Rider ${index}`, 'load-test-password');

@@ -19,8 +19,8 @@ export type RetentionCandidate = { path: string; bytes: number; reason: string }
 export type RetentionPlan = {
   jobs: number;
   deliveries: number;
-  media: { table: 'activity_image' | 'activity_media'; id: number }[];
-  files: RetentionCandidate[];
+  media: Array<{ table: 'activity_image' | 'activity_media'; id: number }>;
+  files: Array<RetentionCandidate>;
 };
 
 export type StorageUsage = Record<
@@ -38,7 +38,7 @@ export type RetentionScope = {
 function cleanup({ repositories, retention, storage }: RetentionScope) {
   /** What a cleanup would remove now, without removing anything. */
   async function plan(now = Date.now()): Promise<RetentionPlan> {
-    const files: RetentionCandidate[] = [];
+    const files: Array<RetentionCandidate> = [];
     const owners = repositories.activitiesRepository.owners();
 
     const add = async (path: string, reason: string) => {
@@ -132,7 +132,7 @@ function cleanup({ repositories, retention, storage }: RetentionScope) {
   }
 
   /** Keep the newest recordings in each ghost directory. */
-  async function ghosts(directory: string, files: RetentionCandidate[]) {
+  async function ghosts(directory: string, files: Array<RetentionCandidate>) {
     const entries = await repositories.filesRepository.entriesAsync(directory);
     const recordings = [];
 

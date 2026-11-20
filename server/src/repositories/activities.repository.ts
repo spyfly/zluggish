@@ -50,7 +50,7 @@ const columns = [
   'power_units',
 ] as const;
 
-function ids(rows: { id: number }[]) {
+function ids(rows: Array<{ id: number }>) {
   return new Set(rows.map((row) => row.id));
 }
 

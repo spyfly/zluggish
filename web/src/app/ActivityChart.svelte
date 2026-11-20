@@ -1,13 +1,13 @@
 <script lang="ts" module>
   export type Chart = {
-    powerInWatts: number[];
-    cadencePerMin: number[];
-    heartRate: number[];
-    distanceInCm: number[];
-    speedInCmPerSec: number[];
-    timeInSec: number[];
-    altitudeInCm: number[];
-    latlng: [number, number][];
+    powerInWatts: Array<number>;
+    cadencePerMin: Array<number>;
+    heartRate: Array<number>;
+    distanceInCm: Array<number>;
+    speedInCmPerSec: Array<number>;
+    timeInSec: Array<number>;
+    altitudeInCm: Array<number>;
+    latlng: Array<[number, number]>;
   };
 </script>
 
@@ -121,7 +121,7 @@
   const moment = $derived.by(() => {
     if (active === null) return null;
     const i = active;
-    const rows: [string, string][] = [];
+    const rows: Array<[string, string]> = [];
 
     if (chart.distanceInCm.some((d) => d > 0)) rows.push(['Distance', km(chart.distanceInCm[i] ?? 0)]);
     rows.push(['Time', clock(chart.timeInSec[i] ?? 0)]);

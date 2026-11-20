@@ -32,7 +32,7 @@
   let submitted = $state(false);
   let pending = $state(false);
   let message = $state('');
-  let serverErrors = $state<Record<string, string[]>>({});
+  let serverErrors = $state<Record<string, Array<string>>>({});
   let failed = $state(false);
   let form: HTMLFormElement;
   let controller: AbortController | undefined;

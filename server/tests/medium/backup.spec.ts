@@ -30,7 +30,7 @@ const fit = readFileSync(new URL('../fixtures/ride.fit', import.meta.url));
 
 /** A storage directory with one completed activity and one pending delivery, backed up. */
 async function backedUp(t: TestContext) {
-  const cleanup: (() => Promise<void>)[] = [];
+  const cleanup: Array<() => Promise<void>> = [];
   t.after(async () => {
     for (const close of cleanup) await close();
   });
@@ -63,7 +63,7 @@ async function backedUp(t: TestContext) {
   return { f, backup, cleanup };
 }
 
-function reopen(cleanup: (() => Promise<void>)[], f: Awaited<ReturnType<typeof mediumFixture>>) {
+function reopen(cleanup: Array<() => Promise<void>>, f: Awaited<ReturnType<typeof mediumFixture>>) {
   const accounts = AccountsService.open(f.config.storageDir);
   const context = { ...f, accounts, settings: accounts.repositories.settingsRepository };
   const effects = makeAppRuntime(context);

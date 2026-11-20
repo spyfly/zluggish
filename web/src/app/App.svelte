@@ -14,7 +14,7 @@
   import ServerCertificate from './ServerCertificate.svelte';
   import type { TlsStatus } from './tls';
 
-  type ApiValue = string | number | boolean | null | undefined | ApiValue[] | { [key: string]: ApiValue };
+  type ApiValue = string | number | boolean | null | undefined | Array<ApiValue> | { [key: string]: ApiValue };
 
   type ApiPayload = { [key: string]: ApiValue };
 
@@ -40,7 +40,7 @@
     id: string;
     revision: number;
     overrides: Record<string, ApiValue>;
-    fields: { name: string; kind: 'boolean' | 'number' | 'string'; value: string | number | boolean }[];
+    fields: Array<{ name: string; kind: 'boolean' | 'number' | 'string'; value: string | number | boolean }>;
   };
 
   type UserSettings = {
@@ -72,14 +72,14 @@
   let version = $state('');
   let zwiftVersion = $state('');
   let user = $state<User | null>(null);
-  let users = $state<User[]>([]);
+  let users = $state<Array<User>>([]);
   let complete = $state(true);
   let loading = $state(true);
   let busy = $state(false);
   let message = $state('');
   let failed = $state(false);
   let errorScope = $state('');
-  let fieldErrors = $state<Record<string, string[]>>({});
+  let fieldErrors = $state<Record<string, Array<string>>>({});
   let conflict = $state<User | null>(null);
   let pending = $state<Pending | null>(null);
   let operation = crypto.randomUUID();
@@ -88,7 +88,7 @@
   let mode = $state<'new' | 'existing'>('new');
   let key = $state('');
   let keyAccepted = $state(false);
-  let setupUsers = $state<SetupUser[]>([]);
+  let setupUsers = $state<Array<SetupUser>>([]);
   let setupUserId = $state<number | null>(null);
   let username = $state('');
   let password = $state('');
@@ -136,11 +136,11 @@
   let backingUp = $state(false);
   let backupMessage = $state('');
   let backupOperation = crypto.randomUUID();
-  let serverConfig = $state<{ rows: [string, string][] } | null>(null);
-  let worldSettings = $state<WorldSetting[]>([]);
+  let serverConfig = $state<{ rows: Array<[string, string]> } | null>(null);
+  let worldSettings = $state<Array<WorldSetting>>([]);
   let worldSetting = $state<WorldSetting | null>(null);
   let worldValues = $state<Record<string, string | number | boolean>>({});
-  let events = $state<ManagedEvent[]>([]);
+  let events = $state<Array<ManagedEvent>>([]);
   let event = $state<ManagedEvent | null>(null);
   let eventDescription = $state('');
   let eventStart = $state('');

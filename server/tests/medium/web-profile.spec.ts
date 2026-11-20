@@ -178,7 +178,7 @@ await test('web exports only the signed-in rider data and power curve changes re
 
   assert.equal(await responseStatus(web.request('http://local:8080/api/me/export/streaks.bin')), 401);
   const list = await request('/api/me/export');
-  const exported: { filenames: string[] } = await list.json();
+  const exported: { filenames: Array<string> } = await list.json();
   assert.ok(exported.filenames.includes('streaks.bin'));
   const download = await request('/api/me/export/streaks.bin');
   assert.equal(download.status, 200);

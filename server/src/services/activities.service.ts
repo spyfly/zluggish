@@ -27,7 +27,7 @@ function identifiers(job: RunningJob, key: string) {
   return job.text(key).split(',').filter(Boolean);
 }
 
-function ids(rows: readonly { id: number }[]) {
+function ids(rows: ReadonlyArray<{ id: number }>) {
   return rows.map((row) => row.id).join(',');
 }
 

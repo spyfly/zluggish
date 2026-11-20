@@ -50,7 +50,7 @@ Config files are trusted executable code. Editing operator config requires resta
 JSONC is not read or produced. The Node server is still under compatibility development.
 `;
 
-export async function run(argv: string[], output: (message: string) => void = console.log): Promise<number> {
+export async function run(argv: Array<string>, output: (message: string) => void = console.log): Promise<number> {
   const { values, positionals } = parseArgs({
     args: argv,
     allowPositionals: true,

@@ -3,7 +3,6 @@ import { defineConfig } from 'oxlint';
 
 const migrationRules = {
   curly: 'off', // Temporary during migration
-  'typescript/array-type': 'off', // Temporary during migration
 } as const;
 
 export default defineConfig({

@@ -60,7 +60,7 @@ export class Random {
     );
   }
 
-  pick<T>(items: readonly T[]): T {
+  pick<T>(items: ReadonlyArray<T>): T {
     const item = items[Math.floor(this.value() * items.length)];
 
     if (item === undefined) throw new Error('Empty random pool');
@@ -68,7 +68,7 @@ export class Random {
     return item;
   }
 
-  shuffle<T>(items: readonly T[]) {
+  shuffle<T>(items: ReadonlyArray<T>) {
     const shuffled = [...items];
 
     for (let i = shuffled.length - 1; i > 0; i--) {
@@ -105,7 +105,7 @@ export interface Sample {
 
 /** Recent road geometry measured in metres. A road/lap boundary never interpolates road coordinates. */
 export class Trail {
-  entries: Snapshot[] = [];
+  entries: Array<Snapshot> = [];
 
   resets = 0;
 

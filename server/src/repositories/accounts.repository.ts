@@ -48,7 +48,7 @@ export class AccountsRepository {
       ]);
   }
 
-  list(): User[] {
+  list(): Array<User> {
     return this.executor
       .all(
         this.selection()

@@ -3,7 +3,7 @@ import { basename, dirname, resolve } from 'node:path';
 
 export const backupManifest = 'backup-manifest.json';
 
-export const legacyDatabases: readonly string[] = ['zluggish.db', 'zwift-offline.db', 'settings.db'];
+export const legacyDatabases: ReadonlyArray<string> = ['zluggish.db', 'zwift-offline.db', 'settings.db'];
 
 export function backupDirectory(storage: string) {
   const source = resolve(storage);

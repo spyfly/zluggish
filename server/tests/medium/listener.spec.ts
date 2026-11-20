@@ -52,7 +52,7 @@ await test('Node adapter serves HTTPS, binary bodies, forms, and actual peer add
           },
         },
         (incoming) => {
-          const chunks: Buffer[] = [];
+          const chunks: Array<Buffer> = [];
           incoming.on('data', (chunk: Buffer) => {
             chunks.push(chunk);
           });

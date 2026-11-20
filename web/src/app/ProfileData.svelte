@@ -6,7 +6,7 @@
     firstName: string;
     lastName: string;
     sourceId: string | null;
-    files: string[];
+    files: Array<string>;
     confirmSource: boolean;
   };
 
@@ -24,7 +24,7 @@
     onuser: () => Promise<void>;
   } = $props();
 
-  let filenames = $state<string[]>([]);
+  let filenames = $state<Array<string>>([]);
 
   const exportDetails = new Map(
     Object.entries({
@@ -91,14 +91,14 @@
 
     if (path === '/export') {
       void run(async () => {
-        filenames = (await request<{ filenames: string[] }>('/api/me/export')).filenames;
+        filenames = (await request<{ filenames: Array<string> }>('/api/me/export')).filenames;
       });
 
       return;
     }
 
     void run(async () => {
-      const body = await request<{ filenames: string[]; review: Review | null }>('/api/me/import');
+      const body = await request<{ filenames: Array<string>; review: Review | null }>('/api/me/import');
       filenames = body.filenames;
       review = body.review;
       connection = await request('/api/me/zwift');

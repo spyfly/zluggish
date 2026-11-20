@@ -222,7 +222,7 @@ export const RiderDocumentName = {
 export type RiderDocumentName = (typeof RiderDocumentName)[keyof typeof RiderDocumentName];
 
 /** Plain-text secrets in legacy files. The database stores them encrypted. */
-export const SecretDocuments: readonly RiderDocumentName[] = [
+export const SecretDocuments: ReadonlyArray<RiderDocumentName> = [
   'strava_token.txt',
   'strava4_session.txt',
   'runalyze_token.txt',

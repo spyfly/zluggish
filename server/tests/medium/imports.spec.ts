@@ -203,7 +203,7 @@ for (const choice of ['profile', 'achievements', 'both']) {
     assert.equal(connections.read(f.other.player_id, 'zwift'), null);
     assert.equal(f.settings.read(f.rider.player_id)['uploads.zwift.enabled'], true);
     assert.equal(f.settings.read(f.rider.player_id)['devices.zwiftClick.enabled'], true);
-    const calls: string[] = [];
+    const calls: Array<string> = [];
     t.mock.method(globalThis, 'fetch', async (input: URL | string, init?: RequestInit) => {
       const path = new URL(String(input)).pathname;
       calls.push(path);
@@ -326,7 +326,7 @@ for (const failure of ['login', 'profile', 'invalid profile']) {
     const before = toBinary(PlayerProfileSchema, f.profiles.get(f.rider.player_id));
     new AssetFiles().writeDurable(profilePath, before);
     let loggedOut = false;
-    const calls: string[] = [];
+    const calls: Array<string> = [];
     t.mock.method(globalThis, 'fetch', (input: URL | string) => {
       const path = new URL(String(input)).pathname;
       calls.push(path);

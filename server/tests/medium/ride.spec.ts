@@ -61,7 +61,7 @@ await test(
       await once(socket, 'connect');
       const incoming = socket.iterator();
       const framing = new FrameDecoder();
-      const queue: Buffer[] = [];
+      const queue: Array<Buffer> = [];
       let sequence = 0;
 
       const next = async () => {

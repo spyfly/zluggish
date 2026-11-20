@@ -15,7 +15,7 @@ const make = Effect.gen(function* () {
   // `before` is the online state at login: the merge waits for a newer one.
   const pendingResumes = new Map<
     bigint,
-    { states: PlayerState[]; generation: number; before: PlayerState | undefined }
+    { states: Array<PlayerState>; generation: number; before: PlayerState | undefined }
   >();
 
   const recordings = new RideRecoveryRepository(context.config.storageDir, context.config.recovery.maxBytes);

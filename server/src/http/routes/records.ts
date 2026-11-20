@@ -37,7 +37,7 @@ import { NumberFromInput } from '#src/schema';
 
 const timestamp = (value: number | null) => (value ? new Date(value + 1_414_016_075_000).toISOString() : '');
 
-const fastest = (results: SegmentResult[]) => [...results].sort((a, b) => Number(a.elapsedMs - b.elapsedMs));
+const fastest = (results: Array<SegmentResult>) => [...results].sort((a, b) => Number(a.elapsedMs - b.elapsedMs));
 
 function resultJSON(result: SegmentResult, count: number) {
   return {
@@ -204,7 +204,7 @@ export function recordRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
 
       const user = authenticated(c);
       const { sport, segment } = c.req.param();
-      const quarters = new Map<string, SegmentResult[]>();
+      const quarters = new Map<string, Array<SegmentResult>>();
 
       for (const result of yield* recordsService.mine(user.player_id, sport, segment)) {
         const date = new Date(result.finishTimeStr);

@@ -4,7 +4,7 @@ import { test } from 'node:test';
 
 await test('cleanup is shared and completes every disposer after a failure', async () => {
   const resources = new Resources();
-  const seen: string[] = [];
+  const seen: Array<string> = [];
   const gate = Promise.withResolvers<void>();
   resources.defer(() => {
     seen.push('lock');

@@ -27,7 +27,7 @@ export interface CertificateFacts {
   readonly serialNumber: string;
   readonly notBefore: Date;
   readonly notAfter: Date;
-  readonly hosts: readonly string[];
+  readonly hosts: ReadonlyArray<string>;
   /** The key algorithm and size, such as `ECDSA P-256` or `RSA 2048-bit`. */
   readonly key: string;
 }

@@ -179,7 +179,7 @@ await test('bot commands run only from the management area, once per operation',
   assert.equal(simulation.command(id, 'peloton 5'), 'Use the web app management area for server commands.');
 
   const opened = Effect.runSync(service.sessions.create(f.accounts.identityOf(owner), Date.now() + 900_000));
-  const sent: string[] = [];
+  const sent: Array<string> = [];
 
   const dispatch = {
     reload: flush,

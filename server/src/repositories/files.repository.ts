@@ -186,7 +186,7 @@ export class AssetFiles {
   }
 
   /** Files below folder whose names end with suffix; a missing folder has none. */
-  async filesUnder(folder: string, suffix: string): Promise<string[]> {
+  async filesUnder(folder: string, suffix: string): Promise<Array<string>> {
     const entries = await this.entriesAsync(folder);
 
     const nested = await Promise.all(

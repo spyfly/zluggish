@@ -233,7 +233,7 @@ function shellPrelude(script: SetupScript, name: string) {
 }
 
 /** Updates each Zwift cacert.pem that find_bundles lists, or prints `notFound` when there is none. */
-function shellBundles(notFound: string[]) {
+function shellBundles(notFound: Array<string>) {
   return [
     '# Drop earlier Zluggish blocks, private keys and the shared certificate; then add this certificate.',
     'update_bundle() {',
@@ -282,7 +282,7 @@ function shellBundles(notFound: string[]) {
 }
 
 /** Points the Zwift host names at the server in /etc/hosts, then runs `after`. Without an address, nothing. */
-function shellHosts(script: SetupScript, after: string[]) {
+function shellHosts(script: SetupScript, after: Array<string>) {
   if (!script.address) return [];
 
   return [

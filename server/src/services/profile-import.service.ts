@@ -28,7 +28,7 @@ const make = Effect.gen(function* () {
 
     if (world.active(rider.player_id)) throw new Error('Finish the active ride before importing');
     let profile = null;
-    const names: ImportFile[] = [];
+    const names: Array<ImportFile> = [];
 
     for (const name of Object.values(filenameSchema.enums)) {
       const key = Schema.decodeUnknownSync(filenameSchema)(name);

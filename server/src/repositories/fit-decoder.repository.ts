@@ -16,17 +16,17 @@ const recordSchema = Schema.Struct({
 });
 
 export type ActivityChart = {
-  powerInWatts: number[];
-  cadencePerMin: number[];
-  heartRate: number[];
-  distanceInCm: number[];
-  speedInCmPerSec: number[];
-  timeInSec: number[];
-  altitudeInCm: number[];
-  latlng: number[][];
+  powerInWatts: Array<number>;
+  cadencePerMin: Array<number>;
+  heartRate: Array<number>;
+  distanceInCm: Array<number>;
+  speedInCmPerSec: Array<number>;
+  timeInSec: Array<number>;
+  altitudeInCm: Array<number>;
+  latlng: Array<Array<number>>;
 };
 
-export type PowerBests = { timestamp: number; bests: { time: number; power: number }[] };
+export type PowerBests = { timestamp: number; bests: Array<{ time: number; power: number }> };
 
 /** Pure FIT computations. The FIT worker and synchronous callers share them. */
 export class FitDecoder {

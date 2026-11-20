@@ -35,7 +35,7 @@ export class RiderPool {
 
   readonly dictionary: RiderSpec;
 
-  readonly names: readonly RiderSpec[];
+  readonly names: ReadonlyArray<RiderSpec>;
 
   constructor(
     assets: string,

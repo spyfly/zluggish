@@ -43,7 +43,7 @@ export class GestureDirector {
 
   readonly surging = new Set<bigint>();
 
-  queue: { expires: number; rider: SignallingRider; action: UserBikeAction }[] = [];
+  queue: Array<{ expires: number; rider: SignallingRider; action: UserBikeAction }> = [];
 
   frontSince: number | null = null;
 
@@ -59,7 +59,7 @@ export class GestureDirector {
     this.nextRandom = now + Math.max(5, interval * rng.between(0.6, 1.4));
   }
 
-  step(now: number, riders: SignallingRider[], interval: number, speed: number, chance: number) {
+  step(now: number, riders: Array<SignallingRider>, interval: number, speed: number, chance: number) {
     const previous = this.seen;
     this.seen = new Map();
 

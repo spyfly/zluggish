@@ -35,7 +35,7 @@ function startTime(start: string) {
 export function calendarLabels(
   mapXml: string,
   climbXml: string,
-  climbs: readonly { road: string; name: string }[],
+  climbs: ReadonlyArray<{ road: string; name: string }>,
   now = Date.now(),
 ) {
   const maps = Schema.decodeUnknownSync(Schema.Struct({ MapSchedule: appointments }))(parser.parse(mapXml)).MapSchedule

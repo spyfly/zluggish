@@ -11,7 +11,7 @@ export function visible(field: GameField, draft: Record<string, string | boolean
 }
 
 export function validation(form: GameForm, draft: Record<string, string | boolean>) {
-  const errors: Record<string, string[]> = {};
+  const errors: Record<string, Array<string>> = {};
 
   for (const field of form.fields) {
     if (!visible(field, draft) || field.type === 'hidden') continue;

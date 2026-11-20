@@ -23,7 +23,7 @@ export class RideRecoveryRepository {
   }
 
   /** Appends encoded states in order for each rider. Past the size limit, nothing more is recorded. */
-  append(player: number, states: readonly Uint8Array[]) {
+  append(player: number, states: ReadonlyArray<Uint8Array>) {
     const writer = new BinaryWriter();
 
     for (const state of states) writer.bytes(state);
@@ -74,7 +74,7 @@ export class RideRecoveryRepository {
       throw error;
     }
 
-    const states: PlayerState[] = [];
+    const states: Array<PlayerState> = [];
     let rest = data;
 
     for (;;) {

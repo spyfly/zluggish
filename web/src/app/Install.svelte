@@ -17,7 +17,7 @@
 
   type Platform = 'windows' | 'macos' | 'linux';
 
-  const systems: { id: Platform; name: string; detail: string }[] = [
+  const systems: Array<{ id: Platform; name: string; detail: string }> = [
     { id: 'windows', name: 'Windows', detail: 'Zwift installed from zwift.com' },
     { id: 'macos', name: 'macOS', detail: 'Zwift installed from zwift.com' },
     { id: 'linux', name: 'Linux', detail: 'Zwift in Wine, Lutris, Bottles or Steam' },

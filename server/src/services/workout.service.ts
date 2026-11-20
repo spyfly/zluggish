@@ -201,7 +201,7 @@ const make = Effect.gen(function* () {
 
   /** Unmodified stored entries, including fields the schema does not read. */
   function storedOf(id: number) {
-    const none: StoredEntry[] = [];
+    const none: Array<StoredEntry> = [];
     const file = metadataFileOf(id);
 
     if (!repositories.filesRepository.existsSync(file)) return { collection: false, entries: none };
@@ -473,7 +473,7 @@ const make = Effect.gen(function* () {
     const folder = settings.workouts.trainingpeaks.bridgeFolder;
 
     if (!folder || !repositories.filesRepository.existsSync(folder)) return 'TrainingPeaks bridge folder is missing.';
-    const imports: { filename: string; content: Buffer }[] = [];
+    const imports: Array<{ filename: string; content: Buffer }> = [];
 
     for (const name of repositories.filesRepository.readdirSync(folder).sort()) {
       if (

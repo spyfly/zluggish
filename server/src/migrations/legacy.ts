@@ -13,7 +13,7 @@ const obsolete = new Set(['last_activity.bin']);
 
 export type LegacyFile = { path: string; bytes: number };
 
-export type LegacyPlan = { removable: LegacyFile[]; kept: { path: string; reason: string }[] };
+export type LegacyPlan = { removable: Array<LegacyFile>; kept: Array<{ path: string; reason: string }> };
 
 const crypto = new CryptoRepository();
 
@@ -150,10 +150,10 @@ export function removeLegacy(storage: string, plan: LegacyPlan) {
   }
 }
 
-function files(path: string): string[] {
+function files(path: string): Array<string> {
   if (!existsSync(path)) return [];
 
-  const found: string[] = [];
+  const found: Array<string> = [];
 
   for (const entry of readdirSync(path, { withFileTypes: true }))
     if (entry.isDirectory()) found.push(...files(resolve(path, entry.name)));

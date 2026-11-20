@@ -179,7 +179,7 @@ await test('riding, ghost and bookmark loads, blobs, recovery and logout make no
   t.after(() => Effect.runPromise(recovery.close()));
 
   // From here on every synchronous file call throws and is recorded.
-  const calls: string[] = [];
+  const calls: Array<string> = [];
 
   const names = [
     'readFileSync',

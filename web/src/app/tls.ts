@@ -7,7 +7,7 @@ export type TlsStatus = {
     subject: string;
     notBefore: string;
     notAfter: string;
-    hosts: string[];
+    hosts: Array<string>;
     /** Such as `ECDSA P-256`. */
     key: string;
   } | null;

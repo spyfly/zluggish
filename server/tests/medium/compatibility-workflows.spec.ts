@@ -123,7 +123,7 @@ await test('Zwift connection encrypts secrets and official downloads stage a rid
   );
   assert.equal(f.settings.read(user.player_id)['uploads.zwift.enabled'], true);
   assert.equal(f.settings.read(user.player_id)['devices.zwiftClick.enabled'], true);
-  const calls: string[] = [];
+  const calls: Array<string> = [];
   t.mock.method(globalThis, 'fetch', (input: URL | string, init?: RequestInit) => {
     const url = String(input);
     calls.push(url);

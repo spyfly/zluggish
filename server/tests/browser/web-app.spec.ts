@@ -31,7 +31,7 @@ for (const existing of [false, true])
       t.after(() => browser.close());
       const page = await browser.newPage({ viewport: { width: 360, height: 800 }, reducedMotion: 'reduce' });
       page.setDefaultTimeout(7000);
-      const errors: string[] = [];
+      const errors: Array<string> = [];
       page.on('pageerror', (error) => {
         errors.push(error.message);
       });

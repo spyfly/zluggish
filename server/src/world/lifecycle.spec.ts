@@ -9,7 +9,7 @@ import { test } from 'node:test';
 
 await test('deduplicate transitions, throttle progress, and release state', () => {
   let now = 0;
-  const lines: string[] = [];
+  const lines: Array<string> = [];
 
   const tracker = new Lifecycle(
     new LoggingRepository({
@@ -46,7 +46,7 @@ await test('deduplicate transitions, throttle progress, and release state', () =
 
 await test('disabled progress still cleans up; invalid packet diagnostics are bounded', () => {
   let now = 0;
-  const lines: string[] = [];
+  const lines: Array<string> = [];
 
   const tracker = new Lifecycle(
     new LoggingRepository({
@@ -71,7 +71,7 @@ await test('disabled progress still cleans up; invalid packet diagnostics are bo
 });
 
 await test('world acceptance gates lifecycle events for stale, invalid and out-of-order state', () => {
-  const lines: string[] = [];
+  const lines: Array<string> = [];
   const world = new World();
   world.lifecycle.log = new LoggingRepository({
     format: 'json',
@@ -94,7 +94,7 @@ await test('world acceptance gates lifecycle events for stale, invalid and out-o
 
 await test('inactive handshakes expire without fabricating a ride', () => {
   let now = 0;
-  const lines: string[] = [];
+  const lines: Array<string> = [];
 
   const tracker = new Lifecycle(
     new LoggingRepository({

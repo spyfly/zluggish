@@ -26,7 +26,7 @@ const isVersionRow = Schema.is(Schema.Struct({ version: Schema.Finite }));
 /** Ordinary schema migrations after the storage merge. Each runs in one transaction at
 startup. A migration that changes existing data needs a backup first (storage backup).
 */
-const migrations: { version: number; up: (db: DatabaseSync) => void }[] = [
+const migrations: Array<{ version: number; up: (db: DatabaseSync) => void }> = [
   { version: 7, up: (db) => db.exec(indexesSQL) },
   { version: 8, up: (db) => db.exec(administratorSchemaSQL) },
   { version: 9, up: (db) => db.exec(dropManagementAuditSQL) },

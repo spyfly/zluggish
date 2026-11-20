@@ -34,8 +34,8 @@ export class Recording {
   /** Throws on invalid input, like decoding the Ghost message. */
   constructor(file: Uint8Array) {
     this.bytes = new Uint8Array(file);
-    const offsets: number[] = [];
-    const sizes: number[] = [];
+    const offsets: Array<number> = [];
+    const sizes: Array<number> = [];
     const reader = new BinaryReader(this.bytes);
 
     while (reader.pos < reader.len) {

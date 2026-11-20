@@ -56,7 +56,7 @@
   let message = $state('');
   let failed = $state(false);
   let where = $state<'integration' | 'uploads'>('integration');
-  let jobs = $state<UploadJob[]>([]);
+  let jobs = $state<Array<UploadJob>>([]);
   let confirmUnknown = $state(false);
   let open = $state<Integration | null>(null);
   let removing = $state<Credential | null>(null);
@@ -65,7 +65,7 @@
   /** Set on press, so dragging a text selection out of a field does not close the dialog on release. */
   let pressedBackdrop = false;
 
-  const integrations: { name: Integration; title: string }[] = [
+  const integrations: Array<{ name: Integration; title: string }> = [
     { name: 'strava', title: 'Strava' },
     { name: 'garmin', title: 'Garmin' },
     { name: 'intervals', title: 'Intervals.icu' },
@@ -120,7 +120,7 @@
     try {
       await action();
       connections = await api<Record<Provider, Connection>>('/api/me/connections');
-      jobs = (await api<{ jobs: UploadJob[] }>('/api/me/uploads')).jobs;
+      jobs = (await api<{ jobs: Array<UploadJob> }>('/api/me/uploads')).jobs;
     } catch (error) {
       failed = true;
       message = error instanceof Error ? error.message : 'Could not save connection.';
@@ -149,7 +149,7 @@
 
   /** What the server holds for a provider, each removable on its own, and what stops working without it. */
   function stored(name: 'strava' | 'garmin', connection: Connection) {
-    const items: Stored[] = [];
+    const items: Array<Stored> = [];
 
     if (name === 'strava') {
       if (connection.saved)
@@ -294,7 +294,7 @@
 
     const timer = setInterval(() => {
       if (document.hidden) return;
-      api<{ jobs: UploadJob[] }>('/api/me/uploads').then(
+      api<{ jobs: Array<UploadJob> }>('/api/me/uploads').then(
         (body) => (jobs = body.jobs),
         () => {
           /* The next tick tries again. */

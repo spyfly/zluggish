@@ -25,7 +25,7 @@ function nonce(iv: InitializationVector) {
 
 export function encodePacket(payload: Uint8Array, key: Uint8Array, iv: InitializationVector, fields: PacketHeader) {
   let flags = 0;
-  const parts: Buffer[] = [];
+  const parts: Array<Buffer> = [];
 
   if (fields.relay !== undefined) {
     flags |= 4;
@@ -105,8 +105,8 @@ export class FrameDecoder {
     return this.pending.length < 2 ? 'header' : 'payload';
   }
 
-  push(chunk: Uint8Array): Buffer[] {
-    const frames: Buffer[] = [];
+  push(chunk: Uint8Array): Array<Buffer> {
+    const frames: Array<Buffer> = [];
     let incoming = Buffer.from(chunk);
 
     while (incoming.length > 0) {

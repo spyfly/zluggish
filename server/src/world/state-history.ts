@@ -11,9 +11,9 @@ A rider's ride history, kept as encoded states. A decoded PlayerState costs abou
 and a history holds up to `limit` samples for every rider who rode since the last restart.
 */
 export class StateHistory {
-  private encoded: Uint8Array[] = [];
+  private encoded: Array<Uint8Array> = [];
 
-  private times: bigint[] = [];
+  private times: Array<bigint> = [];
 
   constructor(readonly limit = 14_400) {}
 
@@ -32,7 +32,7 @@ export class StateHistory {
   }
 
   /** Puts earlier states in front, keeping the newest `limit` samples. */
-  prepend(states: readonly PlayerState[]) {
+  prepend(states: ReadonlyArray<PlayerState>) {
     this.encoded = [...states.map((state) => toBinary(PlayerStateSchema, state)), ...this.encoded].slice(-this.limit);
     this.times = [...states.map((state) => state.worldTime), ...this.times].slice(-this.limit);
   }

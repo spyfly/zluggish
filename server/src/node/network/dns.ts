@@ -24,7 +24,7 @@ export function startDns(advertisedIp: string, host: string, port = 53, log = ne
       const query = decode(bytes);
 
       if (query.type !== 'query' || !query.questions?.length || query.questions.length > 16) return;
-      const answers: Answer[] = [];
+      const answers: Array<Answer> = [];
 
       for (const question of query.questions) {
         if (question.type !== 'A' && question.type !== 'AAAA') continue;

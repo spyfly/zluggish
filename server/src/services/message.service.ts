@@ -10,7 +10,7 @@ const make = Effect.gen(function* () {
 
   const sendMessage = Effect.fn('MessageService.sendMessage')(function* (
     message: string,
-    recipients?: bigint[],
+    recipients?: Array<bigint>,
     sender: string = 'Server',
   ) {
     if (sender === 'Server' && recipients === undefined)

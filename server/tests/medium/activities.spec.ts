@@ -211,7 +211,7 @@ await test('F11 activity startup list excludes old dates without losing detail, 
     f.accounts.db.prepare("SELECT date('now','-1 month') AS cutoff").get(),
   );
 
-  const ids: number[] = [];
+  const ids: Array<number> = [];
 
   for (const date of ['2000-01-01', cutoff, `${cutoff}T00:00:01Z`]) {
     const response = await f.request(`/api/profiles/${f.rider.player_id}/activities`, {
@@ -281,7 +281,7 @@ await test('F11 activity startup list excludes old dates without losing detail, 
 await test('private activities stay out of other riders feeds, lists, details and charts', async (t) => {
   const f = await mediumFixture(t);
   const base = `/api/profiles/${f.rider.player_id}/activities`;
-  const privateIds: number[] = [];
+  const privateIds: Array<number> = [];
 
   for (const values of [
     { privacy: ActivityPrivacyType.PRIVATE },

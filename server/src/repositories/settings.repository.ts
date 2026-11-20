@@ -163,7 +163,7 @@ export class SettingsStore {
     else this.riders.set(candidate.playerId, candidate.overrides);
   }
 
-  import(id: string, preferences: readonly Preference[]) {
+  import(id: string, preferences: ReadonlyArray<Preference>) {
     this.riders.clear();
     this.db.exec('BEGIN IMMEDIATE');
 

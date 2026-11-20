@@ -61,7 +61,7 @@ await test('responses split nearby riders at the same boundaries as re-encoding 
   assert.ok(packets.length > 2);
 
   // The former packing: encode the growing packet before adding each state.
-  const reference: PlayerState[][] = [[]];
+  const reference: Array<Array<PlayerState>> = [[]];
   const [first, second] = packets;
   assert.ok(first && second);
 

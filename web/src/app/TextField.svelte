@@ -20,7 +20,7 @@
     required?: boolean;
     maxlength?: number | undefined;
     hint?: string | undefined;
-    errors?: string[] | undefined;
+    errors?: Array<string> | undefined;
   } = $props();
 
   const described = $derived(

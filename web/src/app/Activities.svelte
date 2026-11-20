@@ -27,7 +27,7 @@
     images: number;
   };
 
-  type Detail = Summary & { imageIds: number[]; chart: Chart | null; chartPending: boolean };
+  type Detail = Summary & { imageIds: Array<number>; chart: Chart | null; chartPending: boolean };
 
   type Provider = 'strava' | 'freeStrava' | 'garmin' | 'runalyze' | 'intervals' | 'zwift';
 
@@ -63,15 +63,15 @@
     [17, 'Scotland'],
   ]);
 
-  let activities = $state<Summary[] | null>(null);
+  let activities = $state<Array<Summary> | null>(null);
   let detail = $state<Detail | null>(null);
   let failure = $state('');
   let chartWaitExpired = $state(false);
 
   /** The open activity's deliveries, one per connected service. */
-  let uploads = $state<{ id: string; list: Upload[] } | null>(null);
+  let uploads = $state<{ id: string; list: Array<Upload> } | null>(null);
   let chooser = $state(false);
-  let chosen = $state<Provider[]>([]);
+  let chosen = $state<Array<Provider>>([]);
   let sending = $state(false);
   let uploadFailure = $state('');
 
@@ -98,7 +98,8 @@
 
   /** Newest first, grouped by the month the activity started, with that month's totals. */
   const months = $derived.by(() => {
-    const groups: { key: string; label: string; activities: Summary[]; distance: number; time: number }[] = [];
+    const groups: Array<{ key: string; label: string; activities: Array<Summary>; distance: number; time: number }> =
+      [];
 
     for (const activity of ordered) {
       const date = started(activity);
@@ -225,7 +226,7 @@
   }
 
   /** One sentence for the closed section, so the state is visible without opening the chooser. */
-  function summary(list: Upload[]) {
+  function summary(list: Array<Upload>) {
     const names = (match: (u: Upload) => boolean) => {
       const found = [...new Set(list.flatMap((u) => (match(u) ? [services[u.provider]] : [])))];
 
@@ -245,7 +246,7 @@
 
   async function loadUploads(id: string) {
     try {
-      const body = await api<{ uploads: Upload[] }>(`/api/me/activities/${id}/uploads`);
+      const body = await api<{ uploads: Array<Upload> }>(`/api/me/activities/${id}/uploads`);
 
       if (detail?.id === id) uploads = { id, list: body.uploads };
     } catch {
@@ -253,7 +254,7 @@
     }
   }
 
-  function toggleChooser(list: Upload[]) {
+  function toggleChooser(list: Array<Upload>) {
     chooser = !chooser;
     uploadFailure = '';
 
@@ -261,16 +262,19 @@
     if (chooser) chosen = list.flatMap((u) => (uploaded(u) || inFlight(u) ? [] : [u.provider]));
   }
 
-  async function upload(id: string, list: Upload[]) {
+  async function upload(id: string, list: Array<Upload>) {
     sending = true;
     uploadFailure = '';
-    const failures: string[] = [];
+    const failures: Array<string> = [];
 
     for (const provider of chosen) {
       const again = list.some((u) => u.provider === provider && uploaded(u));
 
       try {
-        const body = await api<{ uploads: Upload[] }>(`/api/me/activities/${id}/uploads`, 'POST', { provider, again });
+        const body = await api<{ uploads: Array<Upload> }>(`/api/me/activities/${id}/uploads`, 'POST', {
+          provider,
+          again,
+        });
 
         if (detail?.id === id) uploads = { id, list: body.uploads };
       } catch (error) {
@@ -291,7 +295,9 @@
     const version = ++requestVersion;
 
     try {
-      const body = await api<{ activities: Summary[]; hasMore: boolean }>(`/api/me/activities?page=${currentPage}`);
+      const body = await api<{ activities: Array<Summary>; hasMore: boolean }>(
+        `/api/me/activities?page=${currentPage}`,
+      );
 
       if (version !== requestVersion) return;
       activities = body.activities;

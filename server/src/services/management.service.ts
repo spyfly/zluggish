@@ -48,7 +48,7 @@ function outcome(status: string, result: JsonValue) {
 }
 
 /** Operator configuration as read-only rows. The browser never receives secrets: paths only. */
-function configuration(value: JsonValue, prefix = ''): [string, string][] {
+function configuration(value: JsonValue, prefix = ''): Array<[string, string]> {
   if (isJsonObject(value) && !Array.isArray(value))
     return Object.entries(value).flatMap(([key, item]) => configuration(item, prefix ? `${prefix}.${key}` : key));
 
@@ -681,7 +681,7 @@ const make = Effect.gen(function* () {
 
       type WorldField = { name: string; kind: 'boolean' | 'number' | 'string'; value: boolean | number | string };
 
-      const fields: WorldField[] = [];
+      const fields: Array<WorldField> = [];
 
       for (const [name, value] of Object.entries(effective)) {
         if (isBoolean(value)) fields.push({ name, kind: 'boolean', value });

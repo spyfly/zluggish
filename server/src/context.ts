@@ -8,7 +8,7 @@ import type { SettingsStore } from '#src/repositories/settings.repository';
 import type { World } from '#src/world/state';
 
 export interface RepositoryContext {
-  bridges?: Bridge[];
+  bridges?: Array<Bridge>;
   config: ResolvedConfig;
   configPath?: string | undefined;
   accounts: AccountsService['Service'];

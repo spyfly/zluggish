@@ -50,7 +50,8 @@ function keepFresh(session: CookieSession, cookie: string, save?: (cookie: strin
   if (fresh && fresh !== cookie) save?.(fresh);
 }
 
-const firstKey = (data: Record<string, string>, ...keys: string[]) => keys.find((key) => key in data) ?? keys[0] ?? '';
+const firstKey = (data: Record<string, string>, ...keys: Array<string>) =>
+  keys.find((key) => key in data) ?? keys[0] ?? '';
 
 const video = new Set(['.mp4', '.mov', '.m4v']);
 
@@ -90,7 +91,7 @@ async function uploadPhoto(session: CookieSession, token: string, athlete: numbe
   return { uid, kind };
 }
 
-async function updateActivity(session: CookieSession, id: string, name: string, photos: readonly string[]) {
+async function updateActivity(session: CookieSession, id: string, name: string, photos: ReadonlyArray<string>) {
   const edit = await session.request(`${site}/activities/${id}/edit`);
 
   if (!edit.ok) throw new Error('Unable to get activity edit page');
@@ -315,7 +316,7 @@ export class StravaRepository {
     filename: string,
     fit: Uint8Array,
     name: string,
-    photos: readonly string[] = [],
+    photos: ReadonlyArray<string> = [],
     delay = 1000,
     save?: (cookie: string) => void,
   ) {
@@ -345,7 +346,7 @@ export class StravaRepository {
     filename: string,
     fit: Uint8Array,
     name: string,
-    photos: readonly string[],
+    photos: ReadonlyArray<string>,
     delay: number,
   ) {
     const token =

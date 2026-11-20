@@ -248,7 +248,7 @@ export function migrationCandidate(options: MigrationOptions) {
     }
   } else if (options.soloPlayer) throw new ConfigError('--solo-player only applies to legacy solo storage');
 
-  const preferences: Preference[] = riders.map((rider) => {
+  const preferences: Array<Preference> = riders.map((rider) => {
     const folder = String(rider.player_id);
     const method = `${folder}/strava_upload_method.txt`;
     const bridge = `${folder}/trainingpeaks_bridge_folder.txt`;

@@ -84,7 +84,7 @@ for (const javaScriptEnabled of [true, false]) {
     });
 
     const page = await context.newPage();
-    const errors: string[] = [];
+    const errors: Array<string> = [];
     page.on('pageerror', (error) => {
       errors.push(error.message);
     });

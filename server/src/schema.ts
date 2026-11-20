@@ -80,7 +80,7 @@ export interface SchemaProblem {
 const standard = SchemaIssue.makeFormatterStandardSchemaV1();
 
 /** Flatten a decoding failure into one problem per failing value. Inputs are never included. */
-export function schemaProblems(error: Schema.SchemaError): SchemaProblem[] {
+export function schemaProblems(error: Schema.SchemaError): Array<SchemaProblem> {
   return standard(error.issue).issues.map((issue) => ({
     path: (issue.path ?? []).map((key) => String(Predicate.isObject(key) && 'key' in key ? key.key : key)).join('.'),
     message: issue.message,
@@ -89,7 +89,7 @@ export function schemaProblems(error: Schema.SchemaError): SchemaProblem[] {
 
 /** Form field errors keyed by the first path segment. */
 export function fieldErrors(error: Schema.SchemaError) {
-  const fields: Record<string, string[]> = {};
+  const fields: Record<string, Array<string>> = {};
 
   for (const problem of schemaProblems(error))
     (fields[problem.path.split('.', 1)[0] || 'form'] ??= []).push(problem.message);

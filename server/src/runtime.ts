@@ -40,9 +40,9 @@ const releasing = (dispose: () => void | Promise<void>): Effect.Effect<void, nev
 /** A chat bridge that starts, or a warning when its configuration fails: local riding stays available. */
 const optionalBridge = (world: World, name: string, start: Effect.Effect<Bridge>) =>
   start.pipe(
-    Effect.map((bridge): Bridge[] => [bridge]),
+    Effect.map((bridge): Array<Bridge> => [bridge]),
     Effect.catchCause(() =>
-      Effect.sync((): Bridge[] => {
+      Effect.sync((): Array<Bridge> => {
         world.lifecycle.log.warn(
           `${name.toLowerCase()}.configuration_failed`,
           `${name} configuration failed; local riding remains available`,

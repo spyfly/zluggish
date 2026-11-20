@@ -17,10 +17,10 @@ type LogValue =
   | null
   | undefined
   | Error
-  | LogValue[]
+  | Array<LogValue>
   | { [key: string]: LogValue };
 
-type Serialized = string | number | boolean | null | undefined | Serialized[] | { [key: string]: Serialized };
+type Serialized = string | number | boolean | null | undefined | Array<Serialized> | { [key: string]: Serialized };
 
 type Fields = Record<string, LogValue>;
 
@@ -81,7 +81,7 @@ export class LoggingRepository {
   constructor(
     private readonly options: Options = {},
     private readonly context: Fields = {},
-    private readonly history: string[] = [],
+    private readonly history: Array<string> = [],
   ) {}
 
   configure(options: Options) {

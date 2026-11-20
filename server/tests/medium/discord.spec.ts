@@ -29,8 +29,8 @@ function discordService(context: RepositoryContext) {
 await test('Discord bridges only configured human chat, handles commands and stops after close', async (t) => {
   const f = runtimeFixture(t);
   const user = await f.accounts.create('Discord Rider', 'test-password');
-  const sent: string[] = [];
-  const presence: number[] = [];
+  const sent: Array<string> = [];
+  const presence: Array<number> = [];
   let closed = false;
 
   const runtime = {
@@ -83,7 +83,7 @@ await test('Discord bridges only configured human chat, handles commands and sto
 
 await test('Discord delivery failure releases capacity for the next message', async (t) => {
   const f = runtimeFixture(t);
-  const sent: string[] = [];
+  const sent: Array<string> = [];
   let fail = true;
 
   const bridge = Effect.runSync(

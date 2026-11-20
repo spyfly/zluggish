@@ -22,7 +22,7 @@ export class ProtobufRows {
     table: Table,
     schema: Schema,
     message: ProtobufMessage<Schema>,
-    exclude: string[] = [],
+    exclude: Array<string> = [],
   ) {
     // Clear excluded fields before serialization: a FIT payload would otherwise be
     // encoded to base64 JSON and parsed again on the main thread.
@@ -74,7 +74,7 @@ export class ProtobufRows {
     table: Table,
     schema: Schema,
     message: ProtobufMessage<Schema>,
-    exclude: string[] = [],
+    exclude: Array<string> = [],
   ) {
     const values = this.values(table, schema, message, ['id', ...exclude]);
     const keys = values.keys().toArray();
@@ -89,7 +89,7 @@ export class ProtobufRows {
     id: bigint,
     schema: Schema,
     message: ProtobufMessage<Schema>,
-    exclude: string[] = [],
+    exclude: Array<string> = [],
   ) {
     const values = this.values(table, schema, message, ['id', ...exclude]);
 
@@ -97,7 +97,7 @@ export class ProtobufRows {
       this.executor.run(query.updateTable(table).set(Object.fromEntries(values)).where('id', '=', id));
   }
 
-  select<Schema extends DescMessage>(table: Table, schema: Schema, playerId: bigint): ProtobufMessage<Schema>[] {
+  select<Schema extends DescMessage>(table: Table, schema: Schema, playerId: bigint): Array<ProtobufMessage<Schema>> {
     return this.executor
       .all(query.selectFrom(table).selectAll().where('player_id', '=', playerId).orderBy('id'), true)
       .map((row) => this.decode(schema, row));

@@ -165,7 +165,7 @@ await test('a partial Zwift delivery keeps its remote activity and a retry uploa
   f.settings.save(f.rider.player_id, { 'uploads.zwift.enabled': true });
   t.mock.method(ZwiftRepository.prototype, 'officialLogin', () => Promise.resolve('token'));
   await completed(f);
-  const calls: string[] = [];
+  const calls: Array<string> = [];
   let uploads = 0;
 
   t.mock.method(globalThis, 'fetch', (input: string | URL, init?: RequestInit) => {
@@ -195,7 +195,7 @@ await test('a partial Zwift delivery keeps its remote activity and a retry uploa
 await test('deleting every FIT export breaks neither details, charts nor delivery; a job creates them again', async (t) => {
   const f = await mediumFixture(t);
   f.effects.runSync(DocumentsService.use((service) => service.put(f.rider.player_id, 'runalyze_token.txt', 'token')));
-  const delivered: Uint8Array[] = [];
+  const delivered: Array<Uint8Array> = [];
   t.mock.method(globalThis, 'fetch', async (_input: string | URL, init?: RequestInit) => {
     const file = Schema.decodeUnknownSync(Schema.instanceOf(FormData))(init?.body).get('file');
     delivered.push(new Uint8Array(await Schema.decodeUnknownSync(Schema.instanceOf(Blob))(file).arrayBuffer()));

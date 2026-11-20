@@ -26,7 +26,7 @@ await test('segment records preserve sport and distinguish the latest effort fro
     [Sport.RUNNING, 1000n],
     [Sport.RUNNING, 2000n],
     [Sport.CYCLING, 500n],
-  ] satisfies [Sport, bigint][]) {
+  ] satisfies Array<[Sport, bigint]>) {
     const response = await f.app.request('/api/segment-results', {
       method: 'POST',
       headers,

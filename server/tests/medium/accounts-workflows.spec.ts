@@ -213,7 +213,7 @@ await test('distinct riders launch and refresh independently; password change re
   for (const [client, user, password] of [
     [one, a, 'first'],
     [two, b, 'test-password'],
-  ] satisfies [ReturnType<typeof browser>, typeof a, string][]) {
+  ] satisfies Array<[ReturnType<typeof browser>, typeof a, string]>) {
     await client.picker();
 
     const response5 = await client.form('/login/', {

@@ -69,7 +69,7 @@ function unlockPage(c: Context<RuntimeEnv>, user: User, error = '') {
   );
 }
 
-type FormFields = Readonly<Record<string, string | File | readonly (string | File)[]>>;
+type FormFields = Readonly<Record<string, string | File | ReadonlyArray<string | File>>>;
 
 export async function csrf(c: Context<RuntimeEnv>, runtime: Runtime): Promise<FormFields> {
   const form = await c.req.parseBody();

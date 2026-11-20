@@ -55,7 +55,7 @@ async function checked(response: Response, code: string) {
 
 function pairedEvent(
   activity: Pick<Activity, 'name' | 'startDate' | 'date'>,
-  stored: { collection: boolean; entries: StoredEntry[] },
+  stored: { collection: boolean; entries: Array<StoredEntry> },
 ) {
   const day = isoDate(activity.startDate) ?? isoDate(activity.date);
 
@@ -82,7 +82,7 @@ const make = Effect.gen(function* () {
   function configured(player: number) {
     const settings = SettingsService.resolveRiderSettings(context.config.riderDefaults, context.settings.read(player));
 
-    const providers: UploadProvider[] = [];
+    const providers: Array<UploadProvider> = [];
 
     const has = (name: Parameters<typeof repositories.riderDocuments.has>[1]) =>
       repositories.riderDocuments.has(player, name);
@@ -203,7 +203,7 @@ const make = Effect.gen(function* () {
   are no longer configured. A delivery job checks consent again before it sends.
   */
   function revoke(player: number) {
-    const allowed: string[] = configured(player);
+    const allowed: Array<string> = configured(player);
 
     atomic(repositories.db, () => {
       for (const delivery of repositories.uploadsRepository.pendingFor(player))
@@ -383,7 +383,7 @@ const make = Effect.gen(function* () {
     );
   }
 
-  async function freeStrava(player: number, activity: Activity, photos: readonly string[]) {
+  async function freeStrava(player: number, activity: Activity, photos: ReadonlyArray<string>) {
     const cookie = repositories.riderDocuments.text(player, 'strava4_session.txt')?.split(/\r?\n/, 1)[0] ?? '';
 
     if (!cookie) throw new DeliveryRefusedError({ code: 'strava_session_missing' });
@@ -612,7 +612,7 @@ const make = Effect.gen(function* () {
     freeStrava: Effect.fn('UploadsService.freeStrava')(function* (
       player: number,
       activity: Activity,
-      photos: readonly string[],
+      photos: ReadonlyArray<string>,
     ) {
       return yield* Effect.promise(() => freeStrava(player, activity, photos));
     }),

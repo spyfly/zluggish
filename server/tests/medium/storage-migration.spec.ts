@@ -76,7 +76,7 @@ function legacy(t: TestContext) {
   const root = mkdtempSync(resolve(tmpdir(), 'zluggish-legacy-'));
   const storage = resolve(root, 'storage');
   mkdirSync(storage);
-  const databases: DatabaseSync[] = [];
+  const databases: Array<DatabaseSync> = [];
   t.after(() => {
     for (const database of databases) if (database.isOpen) database.close();
     rmSync(root, { recursive: true, force: true });
