@@ -550,7 +550,7 @@ const make = Effect.gen(function* () {
 
     const request = syncNow(id, AbortSignal.timeout(5000))
       .then(() => {})
-      .catch((error) => {
+      .catch((error: unknown) => {
         runtime.world.lifecycle.log.warn(
           'workout.sync_failed',
           'Automatic workout sync failed; retaining cached workouts',

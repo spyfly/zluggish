@@ -20,7 +20,6 @@ const migrationRules = {
   'typescript/no-unsafe-return': 'off', // Temporary during migration
   'typescript/no-unsafe-type-assertion': 'off', // Temporary during migration
   'typescript/unbound-method': 'off', // Temporary during migration
-  'typescript/use-unknown-in-catch-callback-variable': 'off', // Temporary during migration
   'unicorn/consistent-function-scoping': 'off', // Temporary during migration
   'unicorn/no-abusive-eslint-disable': 'off', // Temporary during migration
   'unicorn/prefer-string-raw': 'off', // Temporary during migration

@@ -28,7 +28,7 @@ if (values.config !== undefined) options.path = values.config;
 
 if (values['storage-dir'] !== undefined) options.storageDir = values['storage-dir'];
 
-const { config, path: configPath } = await loadConfig(prepareContainerConfig(options)).catch((error) => {
+const { config, path: configPath } = await loadConfig(prepareContainerConfig(options)).catch((error: unknown) => {
   if (!(error instanceof ConfigError)) throw error;
   console.error(`ConfigError: ${error.message}`);
   // This is the server CLI entry point; config failure must stop before runtime startup.
@@ -234,7 +234,7 @@ async function start() {
           state = 'stopped';
           log.info('server.stopped', 'Zluggish stopped');
         })
-        .catch((error) => {
+        .catch((error: unknown) => {
           clearTimeout(timer);
           state = 'failed';
           log.error('server.stop_failed', 'Shutdown failed', { error: error instanceof Error ? error : String(error) });
