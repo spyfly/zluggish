@@ -4,8 +4,8 @@ import {
   backupManifest,
   backupPath,
   excludedStorageEntry,
-  isNightlyBackup,
   legacyDatabases,
+  nightlyBackupTimestamp,
 } from '#src/migrations/backup-paths';
 import { BackupSnapshotWorker } from '#src/migrations/backup-snapshot-worker';
 import { ConfigError } from '#src/config/index';
@@ -134,11 +134,13 @@ async function copyTree(
   }
 }
 
-function requireOutsideStorage(storage: string, output: string) {
+function requireSafeBackupOutput(storage: string, output: string) {
   const location = relative(storage, output);
 
+  if (location.startsWith(`backups${sep}`)) return;
+
   if (!isAbsolute(location) && location !== '..' && !location.startsWith(`..${sep}`))
-    throw new ConfigError('Choose a backup directory outside storage');
+    throw new ConfigError('Choose a backup destination outside storage or inside its backups directory');
 }
 
 /** Copy a live SQLite database and the storage files into the CLI restore format. */
@@ -160,7 +162,7 @@ async function writeSnapshot(
 ) {
   storage = resolve(storage);
   output = resolve(output);
-  requireOutsideStorage(storage, output);
+  requireSafeBackupOutput(storage, output);
 
   await mkdir(output, { recursive: true, mode: 0o700 });
 
@@ -260,7 +262,7 @@ async function prepareArchive(snapshot: string, stage: string, signal?: AbortSig
 
 /** Create an archive for the offline CLI, without overwriting an existing backup. */
 export async function backupStorageArchive(storage: string, output: string, config: string | null) {
-  requireOutsideStorage(storage, output);
+  requireSafeBackupOutput(storage, output);
   const directory = dirname(output);
   await mkdir(directory, { recursive: true, mode: 0o700 });
 
@@ -285,18 +287,18 @@ export async function pruneNightlyBackups(storage: string) {
   const entries = await readdir(directory, { withFileTypes: true });
 
   const nightly = entries
-    .filter((entry) =>
-      entry.isFile()
-        ? entry.name.endsWith(archiveSuffix) && isNightlyBackup(entry.name.slice(0, -archiveSuffix.length))
-        : entry.isDirectory() &&
-          isNightlyBackup(entry.name) &&
-          existsSync(resolve(directory, entry.name, backupManifest)),
-    )
-    .map((entry) => entry.name)
-    .toSorted()
-    .toReversed();
+    .flatMap((entry) => {
+      const archive = entry.isFile() && entry.name.endsWith(archiveSuffix);
+      const name = archive ? entry.name.slice(0, -archiveSuffix.length) : entry.name;
+      const timestamp = nightlyBackupTimestamp(name);
 
-  for (const name of nightly.slice(10)) await rm(resolve(directory, name), { recursive: true, force: true });
+      return timestamp && (archive || (entry.isDirectory() && existsSync(resolve(directory, name, backupManifest))))
+        ? [{ name: entry.name, timestamp }]
+        : [];
+    })
+    .toSorted((a, b) => b.timestamp.localeCompare(a.timestamp));
+
+  for (const { name } of nightly.slice(10)) await rm(resolve(directory, name), { recursive: true, force: true });
 
   await flush(directory, true);
 }

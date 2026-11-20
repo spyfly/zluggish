@@ -4,7 +4,6 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ../storage/:/usr/src/app/zluggish/storage
-      - ../backups/:/usr/src/app/zluggish/backups
     ports:
       - 80:80
       - 443:443

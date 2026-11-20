@@ -6,7 +6,7 @@ import type { Repositories } from '#src/repositories';
 import { JobsService } from '#src/services/jobs.service';
 import { RuntimeContext } from '#src/context';
 import { Context, Effect, Layer } from 'effect';
-import { resolve } from 'node:path';
+import { dirname, resolve, sep } from 'node:path';
 
 const hour = 3_600_000;
 const day = 24 * hour;
@@ -36,6 +36,11 @@ export type RetentionScope = {
 };
 
 function cleanup({ repositories, retention, storage }: RetentionScope) {
+  const backupsDirectory = backupDirectory(storage);
+  const previousDirectory = resolve(dirname(storage), 'backups');
+  const legacyBackupsDirectory =
+    previousDirectory === storage || previousDirectory === backupsDirectory ? null : previousDirectory;
+
   /** What a cleanup would remove now, without removing anything. */
   async function plan(now = Date.now()): Promise<RetentionPlan> {
     const files: RetentionCandidate[] = [];
@@ -97,14 +102,15 @@ function cleanup({ repositories, retention, storage }: RetentionScope) {
     }
 
     for (const path of await repositories.filesRepository.filesUnder(storage, '.tmp')) {
-      if (path.startsWith(resolve(storage, 'backups'))) continue;
+      if (path.startsWith(backupsDirectory + sep)) continue;
       const info = await repositories.filesRepository.statAsync(path);
 
       if (info && info.modified < now - retention.temporaryFileHours * hour)
         files.push({ path, bytes: info.bytes, reason: 'temporary file' });
     }
 
-    for (const directory of [backupDirectory(storage), resolve(storage, 'backups')]) {
+    for (const directory of [backupsDirectory, legacyBackupsDirectory]) {
+      if (directory === null) continue;
       const entries = await repositories.filesRepository.entriesAsync(directory);
 
       const backups = entries
@@ -186,7 +192,7 @@ function cleanup({ repositories, retention, storage }: RetentionScope) {
       fitExports: 0,
       charts: 0,
       ghosts: 0,
-      backups: await size(backupDirectory(storage)),
+      backups: legacyBackupsDirectory === null ? 0 : await size(legacyBackupsDirectory),
       legacy: 0,
       other: 0,
     };

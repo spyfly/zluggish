@@ -363,7 +363,9 @@
 
       backupOperation = crypto.randomUUID();
       backupMessage =
-        result.state === 'done' ? `Backup saved in backups/${result.name}.` : 'Backup failed. Check the server log.';
+        result.state === 'done'
+          ? `Backup saved in storage/backups/${result.name}.`
+          : 'Backup failed. Check the server log.';
     } catch (error) {
       backupMessage = error instanceof Error ? error.message : 'Backup request failed.';
     } finally {
@@ -1046,7 +1048,9 @@
 
           <section class="panel">
             <h2>Backups</h2>
-            <p class="muted">Backups are saved beside storage. The server keeps the 10 most recent nightly backups.</p>
+            <p class="muted">
+              Backups are saved in storage/backups. The server keeps the 10 most recent nightly backups.
+            </p>
             <button disabled={busy || backingUp} onclick={() => void createBackup()}>Create backup</button>
             {#if backupMessage}<p role="status">{backupMessage}</p>{/if}
           </section>
