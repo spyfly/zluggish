@@ -39,7 +39,13 @@ const make = Effect.gen(function* () {
     kicked = true;
     setImmediate(() => {
       kicked = false;
-      poll();
+      try {
+        poll();
+      } catch (error) {
+        context.world.lifecycle.log.warn('job.poll_failed', 'Background job poll failed', {
+          error: error instanceof Error ? error : String(error),
+        });
+      }
     });
   }
 
@@ -85,8 +91,20 @@ const make = Effect.gen(function* () {
     // Renew while the handler runs. A failed renewal stops the handler: another claim
     // may own the job now.
     const renewal = setInterval(() => {
-      if (!jobs.renew(claim, leaseMs)) {
-        controller.abort(new JobError({ code: 'lease_lost' }));
+      if (controller.signal.aborted) {
+        return;
+      }
+      try {
+        if (!jobs.renew(claim, leaseMs)) {
+          controller.abort(new JobError({ code: 'lease_lost' }));
+        }
+      } catch (error) {
+        controller.abort(new JobError({ code: 'lease_renewal_failed' }));
+        context.world.lifecycle.log.warn('job.renewal_failed', 'Background job lease renewal failed', {
+          jobId: claim.id,
+          type: claim.type,
+          error: error instanceof Error ? error : String(error),
+        });
       }
     }, leaseMs / 3);
 
@@ -94,6 +112,10 @@ const make = Effect.gen(function* () {
 
     try {
       await Effect.runPromise(handler.run(job));
+
+      if (controller.signal.aborted) {
+        throw controller.signal.reason;
+      }
 
       if (!job.done) {
         job.commit();
