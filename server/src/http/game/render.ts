@@ -9,7 +9,10 @@ import { TlsService } from '#src/services/tls.service';
 import { resolve } from 'node:path';
 
 function serialize(props: GamePageModel) {
-  return JSON.stringify(props).replaceAll('<', '\\u003c').replaceAll('>', '\\u003e').replaceAll('&', '\\u0026');
+  return JSON.stringify(props)
+    .replaceAll('<', String.raw`\u003c`)
+    .replaceAll('>', String.raw`\u003e`)
+    .replaceAll('&', String.raw`\u0026`);
 }
 
 const document = Effect.fn('game.document')(function* (props: GamePageModel, rendered: { head: string; body: string }) {

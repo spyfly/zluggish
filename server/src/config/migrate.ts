@@ -91,8 +91,8 @@ export function renderConfig(config: ConfigInput) {
   validateConfig(config);
 
   const serialized = JSON.stringify(config, null, 2)
-    .replaceAll('\u{2028}', '\\u2028')
-    .replaceAll('\u{2029}', '\\u2029');
+    .replaceAll('\u{2028}', String.raw`\u2028`)
+    .replaceAll('\u{2029}', String.raw`\u2029`);
 
   return `import { defineConfig } from "zluggish/config";\n\nexport default defineConfig(${serialized});\n`;
 }
