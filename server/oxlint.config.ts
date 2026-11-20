@@ -5,7 +5,6 @@ const migrationRules = {
   '@nkzw/no-instanceof': 'off', // Temporary during migration
   curly: 'off', // Temporary during migration
   'import/consistent-type-specifier-style': 'off', // Temporary during migration
-  'no-console': 'off', // Temporary during migration
   'no-promise-executor-return': 'off', // Temporary during migration
   'no-undef': 'off', // Temporary during migration
   'react-hooks/rules-of-hooks': 'off', // Temporary during migration
@@ -49,6 +48,11 @@ export default defineConfig({
   },
   overrides: [
     ...(cloudflare.overrides ?? []),
+    {
+      // Entry points print startup and CLI output; the logging repository is the console sink.
+      files: ['src/main.ts', 'src/cli/**', 'src/repositories/logging.repository.ts'],
+      rules: { 'no-console': 'off' },
+    },
     // Inherited overrides re-enable some migration rules for TypeScript and test files.
     { files: ['**/*'], rules: migrationRules },
   ],
