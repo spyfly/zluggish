@@ -32,6 +32,13 @@ export function excludedStorageEntry(name: string) {
   );
 }
 
+/** Files below the top level that backups leave out: the patched Companion app can be patched again, and it
+would add about 180 MB to every backup. Its signing key beside it is kept. Paths use forward slashes.
+*/
+export function excludedBackupPath(path: string) {
+  return path.replaceAll('\\', '/') === 'companion/zwift-companion.apk';
+}
+
 export function nightlyBackupName(date: Date) {
   return `nightly-${date.toISOString().slice(0, 10)}`;
 }

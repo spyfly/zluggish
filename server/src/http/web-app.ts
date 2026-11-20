@@ -1,5 +1,6 @@
 import { BackupService } from '#src/services/backup.service';
 import { TlsService } from '#src/services/tls.service';
+import { CompanionService, companionUploadLimit } from '#src/services/companion.service';
 import { linuxSetupScript, macosSetupScript, setupFileName, windowsSetupScript } from '#src/http/client-setup';
 import { AccountsService } from '#src/services/auth.service';
 import { ManagementService } from '#src/services/management.service';
@@ -70,8 +71,13 @@ export function createWebApp(runtime: HttpRuntime) {
     return () => !id || sessions.sessions.get(id) === before;
   };
 
+  /** The Companion app upload: raw APK bytes, streamed to disk. */
+  const companionUpload = (c: Context<WebEnv>) => c.req.method === 'PUT' && c.req.path === '/api/manage/companion/app';
+
   app.use('*', async (c, next) => {
     const upload = c.req.method === 'POST' && c.req.path === '/api/me/import';
+
+    if (companionUpload(c)) return bodyLimit({ maxSize: companionUploadLimit })(c, next);
 
     const avatar =
       c.req.method === 'PUT' &&
@@ -115,10 +121,12 @@ export function createWebApp(runtime: HttpRuntime) {
       if (
         !(c.req.method === 'POST' && c.req.path === '/api/me/import'
           ? c.req.header('Content-Type')?.startsWith('multipart/form-data;')
-          : c.req.method === 'PUT' &&
-              (c.req.path === '/api/me/avatar' || /^\/api\/manage\/users\/\d+\/avatar$/.test(c.req.path))
-            ? c.req.header('Content-Type') === 'image/jpeg'
-            : c.req.header('Content-Type')?.startsWith('application/json'))
+          : companionUpload(c)
+            ? c.req.header('Content-Type') === 'application/octet-stream'
+            : c.req.method === 'PUT' &&
+                (c.req.path === '/api/me/avatar' || /^\/api\/manage\/users\/\d+\/avatar$/.test(c.req.path))
+              ? c.req.header('Content-Type') === 'image/jpeg'
+              : c.req.header('Content-Type')?.startsWith('application/json'))
       )
         throw new ApplicationError({ status: 400, message: 'JSON required.' });
     }
@@ -411,6 +419,33 @@ export function createWebApp(runtime: HttpRuntime) {
       return c.body(platform === 'macos' ? macosSetupScript(script) : linuxSetupScript(script), 200, {
         'Content-Type': 'application/x-sh; charset=us-ascii',
         'Content-Disposition': `attachment; filename="${setupFileName(certificate, 'sh')}"`,
+      });
+    }),
+  );
+
+  // The Zwift Companion app: every rider downloads it; the administrator uploads and patches it.
+  appRoutes.get('/api/companion', (c) =>
+    Effect.gen(function* () {
+      const companion = yield* CompanionService;
+      yield* sessions.require(c.get('sessionId'));
+
+      return c.json(yield* companion.status());
+    }),
+  );
+  appRoutes.get('/api/companion/app', (c) =>
+    Effect.gen(function* () {
+      const companion = yield* CompanionService;
+      const user = yield* sessions.require(c.get('sessionId'));
+      const app = yield* companion.download();
+
+      if (!app) throw new ApplicationError({ status: 404, message: 'There is no Companion app on this server yet.' });
+      runtime.world.lifecycle.log.info('companion.download', 'A rider downloaded the Zwift Companion app', {
+        player: user.player_id,
+      });
+
+      return yield* fileResponse(c, app.path, {
+        'Content-Type': 'application/vnd.android.package-archive',
+        'Content-Disposition': `attachment; filename="${app.filename}"`,
       });
     }),
   );
@@ -747,6 +782,52 @@ export function createWebApp(runtime: HttpRuntime) {
     }),
   );
 
+  appRoutes.get('/api/manage/companion', (c) =>
+    Effect.gen(function* () {
+      const companion = yield* CompanionService;
+
+      return c.json(yield* companion.adminStatus());
+    }),
+  );
+  appRoutes.put('/api/manage/companion/app', (c) =>
+    Effect.gen(function* () {
+      const companion = yield* CompanionService;
+      const body = c.req.raw.body;
+
+      if (!body) throw new ApplicationError({ status: 400, message: 'Choose an APK file to upload.' });
+
+      return c.json(yield* companion.upload(body), 202);
+    }),
+  );
+  appRoutes.delete('/api/manage/companion/app', (c) =>
+    Effect.gen(function* () {
+      const companion = yield* CompanionService;
+
+      return c.json(yield* companion.remove());
+    }),
+  );
+  appRoutes.post('/api/manage/companion/toolchain', (c) =>
+    Effect.gen(function* () {
+      const companion = yield* CompanionService;
+
+      return c.json(yield* companion.installToolchain(), 202);
+    }),
+  );
+  appRoutes.delete('/api/manage/companion/toolchain', (c) =>
+    Effect.gen(function* () {
+      const companion = yield* CompanionService;
+
+      return c.json(yield* companion.removeToolchain());
+    }),
+  );
+  appRoutes.post('/api/manage/companion/cancel', (c) =>
+    Effect.gen(function* () {
+      const companion = yield* CompanionService;
+
+      return c.json(yield* companion.cancel());
+    }),
+  );
+
   app.get('/api/manage/server/logs', (c) => c.json({ entries: runtime.world.lifecycle.log.recentEntries() }));
 
   for (const action of ['reload-bots', 'bots'])
@@ -843,6 +924,8 @@ export function createWebApp(runtime: HttpRuntime) {
     '/climbs',
     '/install',
     '/install/*',
+    '/companion',
+    '/companion/*',
     '/manage',
     '/manage/*',
   ])

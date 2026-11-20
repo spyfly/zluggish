@@ -19,15 +19,16 @@ To make the first administrator, do the [first-time setup](../install/server.md#
 
 All users have these pages in the menu:
 
-| Page         | Use                                                                                             |
-| ------------ | ----------------------------------------------------------------------------------------------- |
-| Profile      | Show and edit your profile and avatar. Change your password.                                    |
-| Activities   | Show saved activities by month, with route, elevation and stats. Download FIT files and images. |
-| Import       | Import profile data from local files or from your official Zwift account.                       |
-| Export       | Download your user data.                                                                        |
-| Integrations | Connect Strava, Garmin, Intervals.icu and TrainingPeaks. Follow the status of activity uploads. |
-| Settings     | Turn ghosts on or off. Calculate the power curves again.                                        |
-| Install      | Download the setup script that makes a Windows, macOS or Linux computer trust this server.      |
+| Page         | Use                                                                                                   |
+| ------------ | ----------------------------------------------------------------------------------------------------- |
+| Profile      | Show and edit your profile and avatar. Change your password.                                          |
+| Activities   | Show saved activities by month, with route, elevation and stats. Download FIT files and images.       |
+| Import       | Import profile data from local files or from your official Zwift account.                             |
+| Export       | Download your user data.                                                                              |
+| Integrations | Connect Strava, Garmin, Intervals.icu and TrainingPeaks. Follow the status of activity uploads.       |
+| Settings     | Turn ghosts on or off. Calculate the power curves again.                                              |
+| Install      | Download the setup script that makes a Windows, macOS or Linux computer trust this server.            |
+| Companion    | Download the [Zwift Companion app](../install/companion-app.md) for Android, patched for this server. |
 
 ![The Profile page with avatar, name, email and birthday](../../media/screenshots/webapp-profile.png)
 
@@ -39,6 +40,9 @@ Administrators also have **Users** and **Server** under **Manage**:
 
 - **Users**: make, enable, disable and delete users. Give or remove the administrator role. Set passwords, end sessions and edit the settings of a user.
 - **Server**: see and rotate the [server certificate](../install/certificate.md). Make a backup. Reload or control bots, and edit stored world settings, such as blob and peloton overrides. Edit and delete events. Show the effective configuration.
+
+On the **Companion** page, administrators also upload and patch the Zwift Companion app, and download or remove the
+Java tools it may need.
 
 Changes to `zluggish.config.ts` need a server restart.
 

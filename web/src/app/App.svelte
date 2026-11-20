@@ -11,6 +11,7 @@
   import TextField from './TextField.svelte';
   import ServerLogs from './ServerLogs.svelte';
   import Install from './Install.svelte';
+  import Companion from './Companion.svelte';
   import ServerCertificate from './ServerCertificate.svelte';
   import type { TlsStatus } from './tls';
 
@@ -150,6 +151,7 @@
 
   const manage = $derived(path === '/manage' || path.startsWith('/manage/'));
   const installing = $derived(path === '/install' || path.startsWith('/install/'));
+  const companion = $derived(path === '/companion' || path.startsWith('/companion/'));
 
   /** The link beside the title back to the page above this one. */
   const back = $derived(
@@ -231,7 +233,11 @@
                                     ? 'Linux setup'
                                     : installing
                                       ? 'Install'
-                                      : 'Profile',
+                                      : path === '/companion/android'
+                                        ? 'Android setup'
+                                        : companion
+                                          ? 'Companion'
+                                          : 'Profile',
   );
 
   const initials = (r: User) => `${r.first_name.charAt(0)}${r.last_name.charAt(0)}`.toUpperCase();
@@ -844,6 +850,7 @@
       {@render link('/integrations', 'Integrations', path === '/integrations')}
       {@render link('/settings', 'Settings', path === '/settings')}
       {@render link('/install', 'Install', installing)}
+      {@render link('/companion', 'Companion', companion)}
       {#if administrator}
         <p class="group">Manage</p>
         {@render link('/manage', 'Users', manage && path !== '/manage/server')}
@@ -1532,6 +1539,8 @@
         <Climbs {api} />
       {:else if installing}
         <Install {api} {path} {navigate} />
+      {:else if companion}
+        <Companion {api} {path} {navigate} {administrator} csrf={() => csrf} />
       {:else if path === '/settings'}
         {#if settings}
           <section class="panel narrow ghosts" aria-labelledby="ghosts-title">

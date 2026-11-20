@@ -92,20 +92,28 @@ export function mediumWeb(f: ReturnType<typeof runtimeFixture>, rider: User) {
     WebSessionsService.use((sessions) => sessions.create(f.accounts.identityOf(rider))),
   );
 
-  const request = (path: string, method = 'GET', data?: FormData | Record<string, JsonValue>, csrf = session.csrf) => {
+  const request = (
+    path: string,
+    method = 'GET',
+    data?: FormData | Uint8Array<ArrayBuffer> | Record<string, JsonValue>,
+    csrf = session.csrf,
+  ) => {
     const headers = new Headers({
       Cookie: `zluggish_web_session=${id}`,
       Origin: 'http://local:8080',
       'X-CSRF-Token': csrf,
     });
 
-    // Fetch sets the multipart boundary itself.
-    if (!(data instanceof FormData)) headers.set('Content-Type', 'application/json');
+    // Fetch sets the multipart boundary itself; raw bytes go up as a file.
+    if (data instanceof Uint8Array) headers.set('Content-Type', 'application/octet-stream');
+    else if (!(data instanceof FormData)) headers.set('Content-Type', 'application/json');
 
     return app.request(`http://local:8080${path}`, {
       method,
       headers,
-      ...(data && { body: data instanceof FormData ? data : JSON.stringify(data) }),
+      ...(data && {
+        body: data instanceof FormData || data instanceof Uint8Array ? data : JSON.stringify(data),
+      }),
     });
   };
 

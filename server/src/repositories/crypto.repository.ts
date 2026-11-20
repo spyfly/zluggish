@@ -189,6 +189,20 @@ export class CryptoRepository {
     return hash.digest('hex');
   }
 
+  /** The SHA-256 digest of the parts in order, as bytes. */
+  sha256Bytes(...parts: Uint8Array[]) {
+    const hash = createHash('sha256');
+
+    for (const part of parts) hash.update(part);
+
+    return hash.digest();
+  }
+
+  /** The DER SubjectPublicKeyInfo of a PEM certificate's key. */
+  certificatePublicKey(pem: string) {
+    return new X509Certificate(pem).publicKey.export({ type: 'spki', format: 'der' });
+  }
+
   sha1(data: Uint8Array | string) {
     return createHash('sha1').update(data).digest();
   }

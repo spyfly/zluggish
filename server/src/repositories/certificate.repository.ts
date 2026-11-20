@@ -105,12 +105,12 @@ function subjectPublicKey(spki: Uint8Array) {
   return spki.subarray(key.start + 1, key.end);
 }
 
-const pem = (label: string, der: Uint8Array) =>
-  `-----BEGIN ${label}-----\n${(
+const certificatePem = (der: Uint8Array) =>
+  `-----BEGIN CERTIFICATE-----\n${(
     Buffer.from(der)
       .toString('base64')
       .match(/.{1,64}/g) ?? []
-  ).join('\n')}\n-----END ${label}-----\n`;
+  ).join('\n')}\n-----END CERTIFICATE-----\n`;
 
 /** Generates, stores and reads the server's own TLS key and certificate. */
 export class CertificateRepository {
@@ -165,7 +165,45 @@ export class CertificateRepository {
 
     const certificate = sequence(tbs, signature, bits(this.crypto.signEcdsaSha256(tbs, privateKey)));
 
-    return { cert: pem('CERTIFICATE', certificate), key: privateKey };
+    return { cert: certificatePem(certificate), key: privateKey };
+  }
+
+  /** A new ECDSA P-256 key and a self-signed certificate that signs the server's rebuilt Android apps.
+
+  Android checks only that every later version is signed by the same certificate, never its dates or issuer.
+  */
+  async createApkSigner(request: CertificateRequest): Promise<CertificateMaterial> {
+    const { publicKey, privateKey } = await this.crypto.generateEcKeyPair();
+    const keyId = this.crypto.sha1(subjectPublicKey(publicKey));
+    const serial = this.crypto.randomBytes(16);
+    serial[0] = (serial[0] ?? 0) & 0x7f;
+    const notAfter = new Date(request.now);
+    notAfter.setUTCFullYear(notAfter.getUTCFullYear() + request.years);
+    const signature = sequence(oid('1.2.840.10045.4.3.2'));
+
+    const name = sequence(
+      attribute('2.5.4.10', 'Zluggish'),
+      attribute('2.5.4.11', `Zluggish server ${request.serverId}`),
+      attribute('2.5.4.3', 'Zwift Companion signer'),
+    );
+
+    const tbs = sequence(
+      explicit(0, integer(Buffer.from([2]))),
+      integer(serial),
+      signature,
+      name,
+      sequence(time(request.now), time(notAfter)),
+      name,
+      publicKey,
+      explicit(
+        3,
+        sequence(extension('2.5.29.15', bits(Buffer.from([0x80]), 7), true), extension('2.5.29.14', octets(keyId))),
+      ),
+    );
+
+    const certificate = sequence(tbs, signature, bits(this.crypto.signEcdsaSha256(tbs, privateKey)));
+
+    return { cert: certificatePem(certificate), key: privateKey };
   }
 
   /** The stored key and certificate, or null when the server has none yet. Throws on a damaged file. */
