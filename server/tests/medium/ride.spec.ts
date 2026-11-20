@@ -113,6 +113,10 @@ await test(
     const closed = once(old.socket, 'close');
     const replacement = await connect(8);
     await closed;
+    // Internal producers bypass HTTP validation; a single update must still
+    // never overflow the length prefix or consume the receiver's next sequence.
+    f.world.enqueue(create(WorldAttributeSchema, { payload: Buffer.from('before oversized') }), [player]);
+    f.world.enqueue(create(WorldAttributeSchema, { payload: Buffer.alloc(65_536) }), [player]);
     f.world.enqueue(
       create(WorldAttributeSchema, {
         serverRealm: 1n,
@@ -121,6 +125,7 @@ await test(
       }),
       [player],
     );
+    assert.equal(Buffer.from((await replacement.next()).updates[0]!.payload).toString(), 'before oversized');
     const update = await replacement.next();
     assert.equal(update.updates.length, 1);
     assert.equal(Buffer.from(update.updates[0]!.payload).toString(), 'replacement only');
@@ -128,8 +133,55 @@ await test(
     // Closing the superseded socket must not remove ownership of the replacement.
     const heartbeat = await replacement.next();
     assert.equal(heartbeat.playerId, player);
+
+    // Exercise the exact encrypted frame boundary, including its five bytes
+    // of header/tag overhead. The next oversized phone message is dropped.
+    const phone = create(ServerToClientSchema, { zcKey: Buffer.alloc(65_520) });
+    phone.zcKey = Buffer.alloc(phone.zcKey.length + 65_530 - toBinary(ServerToClientSchema, phone).length);
+    assert.equal(toBinary(ServerToClientSchema, phone).length, 65_530);
+    f.world.phones.set(player, phone);
+    assert.equal((await replacement.next()).zcKey.length, phone.zcKey.length);
+    await replacement.next(); // Tick heartbeat after the phone.
+    phone.zcKey = Buffer.alloc(phone.zcKey.length + 1);
+    f.world.phones.set(player, phone);
+    assert.equal((await replacement.next()).zcKey.length, 0);
+
+    // Exceptions raised on a timer tick must close only this stream.
+    const relay = f.world.relays.get(player)!;
+    const nextTcp = relay.nextTcp;
+    relay.nextTcp = () => {
+      throw new Error('Injected send failure');
+    };
+    const failed = once(replacement.socket, 'close');
+    replacement.socket.resume();
+    await failed;
+    relay.nextTcp = nextTcp;
+    const recovered = await connect(9);
+    assert.equal((await recovered.next()).playerId, player);
   },
 );
+
+await test('world attribute ingress bounds raw and rewritten updates while preserving ordinary updates', async (t) => {
+  const f = runtimeFixture(t);
+  const user = await f.accounts.create('Attribute Rider', 'test-password');
+  const player = BigInt(user.player_id);
+  f.world.login(player, Buffer.alloc(16, 1));
+  f.world.online.set(player, create(PlayerStateSchema));
+  const post = (payload: Uint8Array) =>
+    f.app.request('/relay/worlds/attributes', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${f.sessions.tokens(user, f.tokens).access_token}` },
+      body: toBinary(WorldAttributeSchema, create(WorldAttributeSchema, { payload })),
+    });
+
+  assert.equal((await post(Buffer.alloc(65_536))).status, 413);
+  assert.equal(f.world.updates.has(player), false);
+  // Fits the raw limit, but the server's timestamp/expiry fields push it over.
+  assert.equal((await post(Buffer.alloc(60 * 1024 - 4))).status, 413);
+  assert.equal(f.world.updates.has(player), false);
+  assert.equal((await post(Buffer.from('ordinary update'))).status, 201);
+  assert.equal(Buffer.from(f.world.updates.get(player)![0]!.payload).toString(), 'ordinary update');
+});
 
 // Port 0 is confined to this test adapter; operator configuration rejects it.
 await test(
