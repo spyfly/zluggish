@@ -94,7 +94,9 @@ const make = Effect.gen(function* () {
   });
 
   const requireOwned = Effect.fn('GoalService.requireOwned')(function* (playerId: number, id: bigint) {
-    if (!repositories.goalRepository.exists(playerId, id)) return yield* new ApplicationError({ status: 404 });
+    if (!repositories.goalRepository.exists(playerId, id)) {
+      return yield* new ApplicationError({ status: 404 });
+    }
   });
 
   function progress(goal: Goal) {

@@ -3,7 +3,7 @@ import { basename, resolve } from 'node:path';
 
 export const backupManifest = 'backup-manifest.json';
 
-export const legacyDatabases: readonly string[] = ['zluggish.db', 'zwift-offline.db', 'settings.db'];
+export const legacyDatabases: ReadonlyArray<string> = ['zluggish.db', 'zwift-offline.db', 'settings.db'];
 
 export function backupDirectory(storage: string) {
   return resolve(storage, 'backups');
@@ -43,8 +43,9 @@ export function nightlyBackupTimestamp(name: string) {
 
 /** Backup names are also used as directory names. */
 export function backupPath(directory: string, name: string) {
-  if (name !== basename(name) || name === '' || name === '.' || name === '..')
+  if (name !== basename(name) || name === '' || name === '.' || name === '..') {
     throw new ConfigError('Invalid backup name');
+  }
 
   return resolve(directory, name);
 }

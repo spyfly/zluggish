@@ -15,7 +15,9 @@ function weekRange(time: number) {
 
 /** Streaks before streaks.bin existed live in the profile. */
 function fromProfile(profile: PlayerProfile | null) {
-  if (!profile) return create(StreaksSchema);
+  if (!profile) {
+    return create(StreaksSchema);
+  }
 
   return create(StreaksSchema, {
     curStreak: profile.curStreak,
@@ -33,9 +35,13 @@ function fromProfile(profile: PlayerProfile | null) {
 
 /** Invalid dates are ignored; older dates retain the existing same-week behavior. */
 function period(start: number, boundary: number) {
-  if (!Number.isFinite(start)) return 'invalid';
+  if (!Number.isFinite(start)) {
+    return 'invalid';
+  }
 
-  if (start > boundary + 604_800_000) return 'gap';
+  if (start > boundary + 604_800_000) {
+    return 'gap';
+  }
 
   return start > boundary ? 'next-week' : 'same-week';
 }
@@ -46,7 +52,9 @@ function advancedStreak(previous: Streaks, activity: Activity) {
 
   const kind = period(start, Number(streaks.weekEnd));
 
-  if (kind === 'invalid') return streaks;
+  if (kind === 'invalid') {
+    return streaks;
+  }
 
   if (kind === 'gap') {
     streaks.curStreak = 1;

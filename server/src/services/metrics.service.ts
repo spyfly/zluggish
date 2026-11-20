@@ -8,7 +8,9 @@ const make = Effect.gen(function* () {
 
   /** Report every `intervalSeconds` until the returned function stops it. 0 disables reports. */
   const start = Effect.fn('MetricsService.start')(function* (intervalSeconds: number) {
-    if (intervalSeconds === 0) return () => {};
+    if (intervalSeconds === 0) {
+      return () => {};
+    }
 
     metrics.monitorEventLoop();
     const interval = Duration.seconds(intervalSeconds);

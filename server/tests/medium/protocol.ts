@@ -42,7 +42,9 @@ const schemas = new Map<string, DescMessage>([
 export async function assertProtocol(path: string, response: Response) {
   const schema = schemas.get(path.split('?', 1)[0]!);
 
-  if (!schema) return;
+  if (!schema) {
+    return;
+  }
   const bytes = new Uint8Array(await response.arrayBuffer());
   const message = fromBinary(schema, bytes);
   assert.equal(message.$typeName, schema.typeName);

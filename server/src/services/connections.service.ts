@@ -24,7 +24,9 @@ const make = Effect.gen(function* () {
     try {
       return { credentials: repositories.connectionsRepository.read(player, service), unreadable: false };
     } catch (error) {
-      if (!(error instanceof UnreadableCredentialsError)) throw error;
+      if (!(error instanceof UnreadableCredentialsError)) {
+        throw error;
+      }
       context.world.lifecycle.log.warn('connections.unreadable', 'Saved credentials cannot be decrypted', {
         playerId: player,
         provider: service,

@@ -195,7 +195,7 @@ export class UploadsRepository {
 
   /** Failed deliveries, and ambiguous ones only on explicit request, become pending. */
   retry(player: number, ambiguous: boolean) {
-    const states: UploadState[] = ambiguous ? ['failed', 'ambiguous'] : ['failed'];
+    const states: Array<UploadState> = ambiguous ? ['failed', 'ambiguous'] : ['failed'];
 
     const rows = this.executor.all(
       query
@@ -206,7 +206,9 @@ export class UploadsRepository {
         .where('u.state', 'in', states),
     );
 
-    for (const row of rows) this.update(row.activity_id, row.provider, states, { state: 'pending' });
+    for (const row of rows) {
+      this.update(row.activity_id, row.provider, states, { state: 'pending' });
+    }
 
     return rows.map((row) => ({ activity: row.activity_id, provider: row.provider }));
   }
@@ -214,7 +216,7 @@ export class UploadsRepository {
   private update(
     activity: number,
     provider: string,
-    from: UploadState[],
+    from: Array<UploadState>,
     values: { state: UploadState; attempt?: string; last_error?: string | null },
   ) {
     return (

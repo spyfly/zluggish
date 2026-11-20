@@ -104,7 +104,9 @@ for (const item of cases) {
       assert.equal(profile.firstName, 'Imported');
       assert.equal(profile.totalXp, 987);
       assert.equal(f.accounts.get(f.rider.player_id)?.official_player_id, '999');
-    } else assert.deepEqual(bytes, Uint8Array.from(item.after));
+    } else {
+      assert.deepEqual(bytes, Uint8Array.from(item.after));
+    }
     const backups = readdirSync(folder).filter((name) => name.startsWith(`${item.name}.`) && name.endsWith('.bak'));
     assert.equal(backups.length, 1);
     assert.deepEqual(readFileSync(resolve(folder, backups[0]!)), Buffer.from(item.before));
@@ -131,7 +133,9 @@ await test('F12 multipart restore accepts selected empty protobuf files and requ
   assert.equal(rejected.status, 403);
   const files = new FormData();
 
-  for (const name of names) files.set(name, new File([], name));
+  for (const name of names) {
+    files.set(name, new File([], name));
+  }
   const staged = await web.request('/api/me/import', 'POST', files);
   assert.equal(staged.status, 200);
 
@@ -203,7 +207,7 @@ for (const choice of ['profile', 'achievements', 'both']) {
     assert.equal(connections.read(f.other.player_id, 'zwift'), null);
     assert.equal(f.settings.read(f.rider.player_id)['uploads.zwift.enabled'], true);
     assert.equal(f.settings.read(f.rider.player_id)['devices.zwiftClick.enabled'], true);
-    const calls: string[] = [];
+    const calls: Array<string> = [];
     t.mock.method(globalThis, 'fetch', async (input: URL | string, init?: RequestInit) => {
       const path = new URL(String(input)).pathname;
       calls.push(path);
@@ -217,16 +221,19 @@ for (const choice of ['profile', 'achievements', 'both']) {
         return Response.json({ access_token: 'official-token', refresh_token: 'official-refresh' });
       }
 
-      if (path.endsWith('/tokens/logout')) return new Response(null, { status: 204 });
+      if (path.endsWith('/tokens/logout')) {
+        return new Response(null, { status: 204 });
+      }
       assert.equal(new Headers(init?.headers).get('Authorization'), 'Bearer official-token');
       assert.equal(new Headers(init?.headers).get('Accept'), 'application/x-protobuf-lite');
 
-      if (path === '/api/profiles/me')
+      if (path === '/api/profiles/me') {
         return new Response(
           toBinary(PlayerProfileSchema, create(PlayerProfileSchema, { id: 999n, firstName: 'Official', totalXp: 500 })),
         );
+      }
 
-      if (path === '/api/users/login')
+      if (path === '/api/users/login') {
         return new Response(
           toBinary(
             LoginResponseSchema,
@@ -237,9 +244,11 @@ for (const choice of ['profile', 'achievements', 'both']) {
             }),
           ),
         );
+      }
 
-      if (path === '/api/achievement/loadPlayerAchievements')
+      if (path === '/api/achievement/loadPlayerAchievements') {
         return new Response(toBinary(AchievementsSchema, create(AchievementsSchema, { achievements: [{ id: 59 }] })));
+      }
       throw new Error(`Unexpected official request ${path}`);
     });
 
@@ -326,7 +335,7 @@ for (const failure of ['login', 'profile', 'invalid profile']) {
     const before = toBinary(PlayerProfileSchema, f.profiles.get(f.rider.player_id));
     new AssetFiles().writeDurable(profilePath, before);
     let loggedOut = false;
-    const calls: string[] = [];
+    const calls: Array<string> = [];
     t.mock.method(globalThis, 'fetch', (input: URL | string) => {
       const path = new URL(String(input)).pathname;
       calls.push(path);
@@ -337,19 +346,21 @@ for (const failure of ['login', 'profile', 'invalid profile']) {
         return Promise.resolve(new Response(null, { status: 204 }));
       }
 
-      if (path.endsWith('/access/codes'))
+      if (path.endsWith('/access/codes')) {
         return Promise.resolve(
           failure === 'login'
             ? new Response(null, { status: 401 })
             : Response.json({ access_token: 'official-token', refresh_token: 'refresh' }),
         );
+      }
 
-      if (path === '/api/profiles/me')
+      if (path === '/api/profiles/me') {
         return Promise.resolve(
           failure === 'profile' ? new Response(null, { status: 503 }) : new Response(new Uint8Array([255])),
         );
+      }
 
-      if (path === '/api/users/login')
+      if (path === '/api/users/login') {
         return Promise.resolve(
           new Response(
             toBinary(
@@ -358,6 +369,7 @@ for (const failure of ['login', 'profile', 'invalid profile']) {
             ),
           ),
         );
+      }
       throw new Error(`Unexpected official request ${path}`);
     });
     const response = await web.request('/api/me/zwift/import', 'POST', { profile: true, achievements: false });

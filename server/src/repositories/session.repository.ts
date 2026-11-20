@@ -14,7 +14,9 @@ export class CookieSession {
     readonly domain: string,
     initial: Readonly<Record<string, string>> = {},
   ) {
-    for (const [name, value] of Object.entries(initial)) this.cookies.set(name, value);
+    for (const [name, value] of Object.entries(initial)) {
+      this.cookies.set(name, value);
+    }
   }
 
   get(name: string) {
@@ -30,8 +32,9 @@ export class CookieSession {
     const target = new URL(url);
     const headers = new Headers({ 'User-Agent': agent, ...init.headers });
 
-    if (this.inDomain(target) && this.cookies.size > 0)
+    if (this.inDomain(target) && this.cookies.size > 0) {
       headers.set('Cookie', [...this.cookies].map(([name, value]) => `${name}=${value}`).join('; '));
+    }
 
     const request: RequestInit = {
       method: init.method ?? 'GET',
@@ -40,24 +43,33 @@ export class CookieSession {
       signal: AbortSignal.timeout(30_000),
     };
 
-    if (init.body !== undefined) request.body = init.body;
+    if (init.body !== undefined) {
+      request.body = init.body;
+    }
     const response = await fetch(target, request);
 
-    if (this.inDomain(target))
+    if (this.inDomain(target)) {
       for (const line of response.headers.getSetCookie()) {
         const [pair = ''] = line.split(';', 1);
         const split = pair.indexOf('=');
 
-        if (split > 0) this.cookies.set(pair.slice(0, split).trim(), pair.slice(split + 1).trim());
+        if (split > 0) {
+          this.cookies.set(pair.slice(0, split).trim(), pair.slice(split + 1).trim());
+        }
       }
+    }
 
     const location = response.headers.get('Location');
 
     if (response.status >= 300 && response.status < 400 && location) {
-      if (redirects <= 0) throw new Error('Too many redirects');
+      if (redirects <= 0) {
+        throw new Error('Too many redirects');
+      }
       const next = new URL(location, target).href;
 
-      if (response.status === 307 || response.status === 308) return this.request(next, init, redirects - 1);
+      if (response.status === 307 || response.status === 308) {
+        return this.request(next, init, redirects - 1);
+      }
 
       return this.request(next, init.headers ? { headers: init.headers } : {}, redirects - 1);
     }
@@ -71,15 +83,25 @@ export class SessionRepository {
     return text.replaceAll(/&(#x[0-9a-f]+|#[0-9]+|amp|lt|gt|quot|apos);/gi, (match, entity: string) => {
       const lower = entity.toLowerCase();
 
-      if (lower === 'amp') return '&';
+      if (lower === 'amp') {
+        return '&';
+      }
 
-      if (lower === 'lt') return '<';
+      if (lower === 'lt') {
+        return '<';
+      }
 
-      if (lower === 'gt') return '>';
+      if (lower === 'gt') {
+        return '>';
+      }
 
-      if (lower === 'quot') return '"';
+      if (lower === 'quot') {
+        return '"';
+      }
 
-      if (lower === 'apos') return "'";
+      if (lower === 'apos') {
+        return "'";
+      }
 
       const code = lower.startsWith('#x') ? Number.parseInt(lower.slice(2), 16) : Math.trunc(Number(lower.slice(1)));
 

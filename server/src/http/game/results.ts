@@ -16,10 +16,14 @@ export function navigationPath(path: string) {
 }
 
 export function gameRedirect(c: Context<RuntimeEnv>, path: string) {
-  if (!navigationPath(path)) throw new Error('Unsafe game app redirect');
+  if (!navigationPath(path)) {
+    throw new Error('Unsafe game app redirect');
+  }
   c.header('Cache-Control', 'no-store');
 
-  if (!browserJson(c)) return c.redirect(path);
+  if (!browserJson(c)) {
+    return c.redirect(path);
+  }
   const result: FormResult<GameSaved> = { ok: true, data: {}, redirectTo: path };
 
   return c.json(result);

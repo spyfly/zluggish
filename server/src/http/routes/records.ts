@@ -37,7 +37,7 @@ import { NumberFromInput } from '#src/schema';
 
 const timestamp = (value: number | null) => (value ? new Date(value + 1_414_016_075_000).toISOString() : '');
 
-const fastest = (results: SegmentResult[]) => [...results].sort((a, b) => Number(a.elapsedMs - b.elapsedMs));
+const fastest = (results: Array<SegmentResult>) => [...results].sort((a, b) => Number(a.elapsedMs - b.elapsedMs));
 
 function resultJSON(result: SegmentResult, count: number) {
   return {
@@ -67,14 +67,16 @@ export function recordRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
       const bytes = new Uint8Array(yield* Effect.promise(() => c.req.arrayBuffer()));
       const result = parseProtobuf(SegmentResultSchema, bytes);
 
-      if (result.segmentId === 1n) throw new HTTPException(400);
+      if (result.segmentId === 1n) {
+        throw new HTTPException(400);
+      }
       result.playerId = BigInt(user.player_id);
       result.worldTime = worldTime();
       result.finishTimeStr = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
       result.id = BigInt(yield* recordDataService.insert('segment_result', SegmentResultSchema, result));
       const sender = runtime.world.online.get(result.playerId);
 
-      if (sender)
+      if (sender) {
         runtime.world.enqueue(
           create(WorldAttributeSchema, {
             serverRealm: 1n,
@@ -90,6 +92,7 @@ export function recordRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
               : [],
           ),
         );
+      }
 
       return c.json({ id: Number(result.id) });
     }),
@@ -101,7 +104,9 @@ export function recordRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
       const user = authenticated(c);
       const segment = c.req.query('segmentId');
 
-      if (!segment) throw new HTTPException(422);
+      if (!segment) {
+        throw new HTTPException(422);
+      }
       const from = c.req.query('from');
       const to = c.req.query('to');
 
@@ -113,7 +118,7 @@ export function recordRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
         ),
       ).slice(0, 100);
 
-      for (const result of results)
+      for (const result of results) {
         for (const field of [
           'serverRealm',
           'courseId',
@@ -128,8 +133,11 @@ export function recordRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
         ]) {
           const descriptor = SegmentResultSchema.fields.find((item) => item.localName === field);
 
-          if (descriptor) clearField(result, descriptor);
+          if (descriptor) {
+            clearField(result, descriptor);
+          }
         }
+      }
 
       return c.body(
         toBinary(
@@ -150,7 +158,9 @@ export function recordRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
       const user = authenticated(c);
       const segment = c.req.query('segmentId');
 
-      if (!segment) throw new HTTPException(422);
+      if (!segment) {
+        throw new HTTPException(422);
+      }
 
       const results = yield* recordsService.mine(user.player_id, c.req.param('sport'), segment);
       const best = fastest(results)[0];
@@ -204,7 +214,7 @@ export function recordRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
 
       const user = authenticated(c);
       const { sport, segment } = c.req.param();
-      const quarters = new Map<string, SegmentResult[]>();
+      const quarters = new Map<string, Array<SegmentResult>>();
 
       for (const result of yield* recordsService.mine(user.player_id, sport, segment)) {
         const date = new Date(result.finishTimeStr);
@@ -284,7 +294,9 @@ export function recordRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
           const result = yield* recordDataService.decode(SegmentResultSchema, row);
           const key = `${result.segmentId}:${result.playerId}`;
 
-          if (best.has(key)) continue;
+          if (best.has(key)) {
+            continue;
+          }
 
           if (runtime.config.leaderboards.allTime && result.worldTime <= worldTime() - 3_600_000n) {
             result.playerId += 100_000n;
@@ -382,8 +394,11 @@ export function recordRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
 
       const unlocked = stored ? fromBinary(RouteCompletionAchievementUnlockRequestSchema, stored).achievementUuids : [];
 
-      for (const achievement of response.achievements)
-        if (unlocked.includes(achievement.achievementUuid)) achievement.unlocked = true;
+      for (const achievement of response.achievements) {
+        if (unlocked.includes(achievement.achievementUuid)) {
+          achievement.unlocked = true;
+        }
+      }
 
       return c.body(toBinary(LoadPlayerRouteCompletionAchievementsResponseSchema, response));
     }),
@@ -420,7 +435,11 @@ export function recordRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
 
     const result = parseProtobuf(RaceResultEntrySaveRequestSchema, new Uint8Array(await c.req.arrayBuffer()));
 
-    for (const [id, race] of races) if (Date.now() - race.touched > 3_600_000) races.delete(id);
+    for (const [id, race] of races) {
+      if (Date.now() - race.touched > 3_600_000) {
+        races.delete(id);
+      }
+    }
 
     const race = races.get(result.eventSubgroupId) ?? {
       touched: 0,

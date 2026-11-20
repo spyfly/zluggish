@@ -18,7 +18,9 @@
 
   $effect(() => {
     // The launcher's public loading screen has no rider session to monitor.
-    if (!current.csrf) return;
+    if (!current.csrf) {
+      return;
+    }
 
     const channel = 'BroadcastChannel' in window ? new BroadcastChannel('zluggish-session-change') : undefined;
     let controller: AbortController | undefined;
@@ -26,7 +28,9 @@
     channel?.addEventListener('message', expire);
 
     async function check() {
-      if (document.hidden || locked) return;
+      if (document.hidden || locked) {
+        return;
+      }
       controller?.abort();
       controller = new AbortController();
 
@@ -37,7 +41,9 @@
           signal: controller.signal,
         });
 
-        if (alive && [401, 409].includes(response.status)) expire();
+        if (alive && [401, 409].includes(response.status)) {
+          expire();
+        }
       } catch {
         /* A network error is not proof that the session expired. */
       }

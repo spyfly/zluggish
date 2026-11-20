@@ -11,9 +11,9 @@ A rider's ride history, kept as encoded states. A decoded PlayerState costs abou
 and a history holds up to `limit` samples for every rider who rode since the last restart.
 */
 export class StateHistory {
-  private encoded: Uint8Array[] = [];
+  private encoded: Array<Uint8Array> = [];
 
-  private times: bigint[] = [];
+  private times: Array<bigint> = [];
 
   constructor(readonly limit = 14_400) {}
 
@@ -26,13 +26,15 @@ export class StateHistory {
     this.encoded.push(toBinary(PlayerStateSchema, state));
     this.times.push(state.worldTime);
 
-    if (this.encoded.length <= this.limit) return;
+    if (this.encoded.length <= this.limit) {
+      return;
+    }
     this.encoded.shift();
     this.times.shift();
   }
 
   /** Puts earlier states in front, keeping the newest `limit` samples. */
-  prepend(states: readonly PlayerState[]) {
+  prepend(states: ReadonlyArray<PlayerState>) {
     this.encoded = [...states.map((state) => toBinary(PlayerStateSchema, state)), ...this.encoded].slice(-this.limit);
     this.times = [...states.map((state) => state.worldTime), ...this.times].slice(-this.limit);
   }
@@ -61,7 +63,9 @@ export class StateHistory {
   ghost(playerId: number) {
     const writer = new BinaryWriter().tag(ghostPlayerField, WireType.Varint).int32(playerId);
 
-    for (const bytes of this.encoded) writer.tag(ghostStatesField, WireType.LengthDelimited).bytes(bytes);
+    for (const bytes of this.encoded) {
+      writer.tag(ghostStatesField, WireType.LengthDelimited).bytes(bytes);
+    }
 
     return writer.finish();
   }

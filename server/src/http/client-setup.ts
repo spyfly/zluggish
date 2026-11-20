@@ -41,7 +41,9 @@ export function serverUnit(certificate: CertificateStatus) {
 
 /** File names start with the first 8 thumbprint digits, so files from different certificates differ. */
 export function setupFileName(certificate: CertificateStatus, extension: string) {
-  if (isLegacy(certificate)) return `${legacyName}.${extension}`;
+  if (isLegacy(certificate)) {
+    return `${legacyName}.${extension}`;
+  }
 
   return `zluggish-zwift-${certificate.thumbprint.slice(0, 8).toLowerCase()}.${extension}`;
 }
@@ -92,13 +94,13 @@ export function windowsSetupScript(script: SetupScript) {
       ? [
           '#   1. Trusts the shared zwift.com certificate in Windows (Local Computer, Trusted Root Certification',
           '#      Authorities). It never installs its private key.',
-          "#   2. Adds the certificate to Zwift's own list, data\\cacert.pem in the Zwift folder, and removes any private",
+          String.raw`#   2. Adds the certificate to Zwift's own list, data\cacert.pem in the Zwift folder, and removes any private`,
           '#      key that an older setup added there.',
         ]
       : [
           "#   1. Trusts this server's certificate in Windows (Local Computer, Trusted Root Certification Authorities).",
           '#      It removes the certificates this server installed before and the old shared zwift.com certificate.',
-          "#   2. Adds the certificate to Zwift's own list, data\\cacert.pem in the Zwift folder, and removes the old one.",
+          String.raw`#   2. Adds the certificate to Zwift's own list, data\cacert.pem in the Zwift folder, and removes the old one.`,
         ]),
     ...(script.address ? [`#   3. Points the Zwift host names at ${script.address} in the hosts file.`] : []),
     '#   Last, it stops the Zwift launcher so that it reads the change when you start it again.',
@@ -116,19 +118,19 @@ export function windowsSetupScript(script: SetupScript) {
     '',
     'function Find-ZwiftFolder {',
     '  $candidates = @()',
-    "  foreach ($key in 'HKLM:\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*', 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*') {",
+    String.raw`  foreach ($key in 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*', 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*') {`,
     "    $candidates += Get-ItemProperty $key -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -like 'Zwift*' -and $_.InstallLocation } | ForEach-Object { $_.InstallLocation }",
     '  }',
     '  $candidates += "${env:ProgramFiles(x86)}\\Zwift", "$env:ProgramFiles\\Zwift"',
     '  foreach ($folder in $candidates) {',
-    "    if ($folder -and (Test-Path -LiteralPath (Join-Path $folder 'data\\cacert.pem'))) { return $folder }",
+    String.raw`    if ($folder -and (Test-Path -LiteralPath (Join-Path $folder 'data\cacert.pem'))) { return $folder }`,
     '  }',
     '  $shell = New-Object -ComObject Shell.Application',
     '  while ($true) {',
     "    $picked = $shell.BrowseForFolder(0, 'Select the Zwift folder', 0, 0)",
     '    if (-not $picked) { return $null }',
     '    $folder = $picked.Self.Path',
-    "    if (Test-Path -LiteralPath (Join-Path $folder 'data\\cacert.pem')) { return $folder }",
+    String.raw`    if (Test-Path -LiteralPath (Join-Path $folder 'data\cacert.pem')) { return $folder }`,
     '  }',
     '}',
     '',
@@ -162,12 +164,12 @@ export function windowsSetupScript(script: SetupScript) {
     "  Write-Host 'Zwift certificate list'",
     '  $folder = Find-ZwiftFolder',
     "  if (-not $folder) { throw 'Zwift was not found. Install Zwift, then run this file again.' }",
-    "  $bundle = Join-Path $folder 'data\\cacert.pem'",
+    String.raw`  $bundle = Join-Path $folder 'data\cacert.pem'`,
     '  if (-not (Test-Path -LiteralPath "$bundle.zluggish-backup")) { Copy-Item -LiteralPath $bundle -Destination "$bundle.zluggish-backup" }',
     '  $text = [IO.File]::ReadAllText($bundle) -replace "`r", \'\'',
-    "  $text = [regex]::Replace($text, '(?ms)^# BEGIN Zluggish.*?^# END Zluggish[^\\n]*\\n?', '')",
-    "  $text = [regex]::Replace($text, '(?s)-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----\\n?', '')",
-    "  $text = [regex]::Replace($text, '(?s)-----BEGIN CERTIFICATE-----\\n' + [regex]::Escape($LegacyBody) + '.*?-----END CERTIFICATE-----\\n?', '')",
+    String.raw`  $text = [regex]::Replace($text, '(?ms)^# BEGIN Zluggish.*?^# END Zluggish[^\n]*\n?', '')`,
+    String.raw`  $text = [regex]::Replace($text, '(?s)-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----\n?', '')`,
+    String.raw`  $text = [regex]::Replace($text, '(?s)-----BEGIN CERTIFICATE-----\n' + [regex]::Escape($LegacyBody) + '.*?-----END CERTIFICATE-----\n?', '')`,
     '  $text = $text.TrimEnd() + "`n`n# BEGIN Zluggish server certificate $Thumbprint`n$($CertificatePem.Trim())`n# END Zluggish server certificate`n"',
     '  [IO.File]::WriteAllText($bundle, $text)',
     '  Write-Host "  Updated $bundle"',
@@ -175,9 +177,9 @@ export function windowsSetupScript(script: SetupScript) {
     '  if ($ServerAddress) {',
     "    Write-Host ''",
     "    Write-Host 'Hosts file'",
-    "    $hostsFile = Join-Path $env:SystemRoot 'System32\\drivers\\etc\\hosts'",
+    String.raw`    $hostsFile = Join-Path $env:SystemRoot 'System32\drivers\etc\hosts'`,
     '    if (-not (Test-Path -LiteralPath "$hostsFile.zluggish-backup")) { Copy-Item -LiteralPath $hostsFile -Destination "$hostsFile.zluggish-backup" }',
-    "    $pattern = '(?i)(^|\\s)(' + (($ZwiftHosts | ForEach-Object { [regex]::Escape($_) }) -join '|') + ')(\\s|$)'",
+    String.raw`    $pattern = '(?i)(^|\s)(' + (($ZwiftHosts | ForEach-Object { [regex]::Escape($_) }) -join '|') + ')(\s|$)'`,
     '    $lines = @(Get-Content -LiteralPath $hostsFile | Where-Object { $_ -notmatch $pattern })',
     '    $lines += "$ServerAddress $($ZwiftHosts -join \' \')"',
     '    Set-Content -LiteralPath $hostsFile -Value $lines -Encoding ASCII',
@@ -233,7 +235,7 @@ function shellPrelude(script: SetupScript, name: string) {
 }
 
 /** Updates each Zwift cacert.pem that find_bundles lists, or prints `notFound` when there is none. */
-function shellBundles(notFound: string[]) {
+function shellBundles(notFound: Array<string>) {
   return [
     '# Drop earlier Zluggish blocks, private keys and the shared certificate; then add this certificate.',
     'update_bundle() {',
@@ -253,7 +255,7 @@ function shellBundles(notFound: string[]) {
     `  ' > "$kept"`,
     '  {',
     '    cat "$kept"',
-    '    printf \'\\n# BEGIN Zluggish server certificate %s\\n\' "$THUMBPRINT"',
+    String.raw`    printf '\n# BEGIN Zluggish server certificate %s\n' "$THUMBPRINT"`,
     '    certificate',
     "    echo '# END Zluggish server certificate'",
     '  } > "$1"',
@@ -282,8 +284,10 @@ function shellBundles(notFound: string[]) {
 }
 
 /** Points the Zwift host names at the server in /etc/hosts, then runs `after`. Without an address, nothing. */
-function shellHosts(script: SetupScript, after: string[]) {
-  if (!script.address) return [];
+function shellHosts(script: SetupScript, after: Array<string>) {
+  if (!script.address) {
+    return [];
+  }
 
   return [
     '',

@@ -35,7 +35,7 @@ function startTime(start: string) {
 export function calendarLabels(
   mapXml: string,
   climbXml: string,
-  climbs: readonly { road: string; name: string }[],
+  climbs: ReadonlyArray<{ road: string; name: string }>,
   now = Date.now(),
 ) {
   const maps = Schema.decodeUnknownSync(Schema.Struct({ MapSchedule: appointments }))(parser.parse(mapXml)).MapSchedule
@@ -52,11 +52,15 @@ export function calendarLabels(
   const activeRoads = new Map<string, (typeof appointment)['Type']>();
 
   for (const entry of roads) {
-    if (startTime(entry.start) > now || !Number.isFinite(startTime(entry.start))) continue;
+    if (startTime(entry.start) > now || !Number.isFinite(startTime(entry.start))) {
+      continue;
+    }
     const key = `${entry.world ?? ''}:${entry.portal ?? ''}`;
     const previous = activeRoads.get(key);
 
-    if (!previous || startTime(entry.start) > startTime(previous.start)) activeRoads.set(key, entry);
+    if (!previous || startTime(entry.start) > startTime(previous.start)) {
+      activeRoads.set(key, entry);
+    }
   }
 
   const map = mapChoices.find((choice) => choice.key === activeMap?.map)?.label;

@@ -18,31 +18,43 @@ const make = Effect.gen(function* () {
   const { accounts, world } = context;
 
   const stageFolder = Effect.fn('ImportsService.folder')(function* (rider: User, stage: string) {
-    if (!/^\.ts-import-[a-f0-9]{32}$/.test(stage)) throw new Error('Invalid import ID');
+    if (!/^\.ts-import-[a-f0-9]{32}$/.test(stage)) {
+      throw new Error('Invalid import ID');
+    }
 
     return resolve(accounts.storage, String(rider.player_id), stage);
   });
 
   const prepare = Effect.fn('ImportsService.prepare')(function* (rider: User, files: ImportFiles) {
-    if (!accounts.identity(accounts.identityOf(rider))) throw new Error('Import identity changed');
+    if (!accounts.identity(accounts.identityOf(rider))) {
+      throw new Error('Import identity changed');
+    }
 
-    if (world.active(rider.player_id)) throw new Error('Finish the active ride before importing');
+    if (world.active(rider.player_id)) {
+      throw new Error('Finish the active ride before importing');
+    }
     let profile = null;
-    const names: ImportFile[] = [];
+    const names: Array<ImportFile> = [];
 
     for (const name of Object.values(filenameSchema.enums)) {
       const key = Schema.decodeUnknownSync(filenameSchema)(name);
       const bytes = files[key];
 
-      if (!bytes) continue;
+      if (!bytes) {
+        continue;
+      }
 
-      if (bytes.length > 16 * 1024 * 1024) throw new Error('Invalid import size');
+      if (bytes.length > 16 * 1024 * 1024) {
+        throw new Error('Invalid import size');
+      }
 
       switch (key) {
         case 'profile.bin': {
           profile = fromBinary(PlayerProfileSchema, bytes);
 
-          if (!profile.id || !profile.firstName.trim()) throw new Error('Profile is missing its ID or name');
+          if (!profile.id || !profile.firstName.trim()) {
+            throw new Error('Profile is missing its ID or name');
+          }
 
           break;
         }
@@ -83,7 +95,9 @@ const make = Effect.gen(function* () {
       names.push(key);
     }
 
-    if (names.length === 0) throw new Error('Select at least one import category');
+    if (names.length === 0) {
+      throw new Error('Select at least one import category');
+    }
     const stage = `.ts-import-${repositories.cryptoRepository.randomBytes(16).toString('hex')}`;
     const folder = yield* stageFolder(rider, stage);
     repositories.filesRepository.mkdirSync(folder, { mode: 0o700 });
@@ -107,7 +121,9 @@ const make = Effect.gen(function* () {
       for (const name of names) {
         const bytes = files[name];
 
-        if (bytes) repositories.filesRepository.writeDurable(resolve(folder, name), bytes);
+        if (bytes) {
+          repositories.filesRepository.writeDurable(resolve(folder, name), bytes);
+        }
       }
 
       repositories.filesRepository.writeDurable(resolve(folder, 'manifest.json'), JSON.stringify(manifest));
@@ -130,8 +146,9 @@ const make = Effect.gen(function* () {
       manifest.playerId !== rider.player_id ||
       manifest.authVersion !== rider.auth_version ||
       manifest.state !== 'staged'
-    )
+    ) {
       throw new Error('Import identity changed or import already finalized');
+    }
 
     return manifest;
   });
@@ -141,9 +158,13 @@ const make = Effect.gen(function* () {
   are kept as .bak files in the rider folder.
   */
   const publish = Effect.fn('ImportsService.publish')(function* (rider: User, stage: string, keepName: boolean) {
-    if (world.active(rider.player_id)) throw new Error('Finish the active ride before importing');
+    if (world.active(rider.player_id)) {
+      throw new Error('Finish the active ride before importing');
+    }
 
-    if (!accounts.identity(`${rider.player_id}:${rider.auth_version}`)) throw new Error('Import identity changed');
+    if (!accounts.identity(`${rider.player_id}:${rider.auth_version}`)) {
+      throw new Error('Import identity changed');
+    }
     const folder = yield* stageFolder(rider, stage);
     const manifest = yield* inspect(rider, stage);
     const target = resolve(accounts.storage, String(rider.player_id));
@@ -156,7 +177,9 @@ const make = Effect.gen(function* () {
         const profile = fromBinary(PlayerProfileSchema, bytes);
         profile.id = BigInt(rider.player_id);
 
-        if (profile.socialFacts) profile.socialFacts.profileId = BigInt(rider.player_id);
+        if (profile.socialFacts) {
+          profile.socialFacts.profileId = BigInt(rider.player_id);
+        }
         clearField(profile, PlayerProfileSchema.field.publicId);
         profile.mixPanelDistinctId = repositories.cryptoRepository.randomUUID();
 
@@ -174,14 +197,19 @@ const make = Effect.gen(function* () {
     for (const name of manifest.files) {
       const current = repositories.riderDocuments.get(rider.player_id, name);
 
-      if (current)
+      if (current) {
         repositories.filesRepository.writeDurable(resolve(target, `${name}.${stage.slice(11)}.bak`), current, true);
+      }
     }
 
     immediate(accounts.db, () => {
-      if (repositories.riderDocuments.imported(stage)) return;
+      if (repositories.riderDocuments.imported(stage)) {
+        return;
+      }
 
-      for (const [name, bytes] of documents) repositories.riderDocuments.put(rider.player_id, name, bytes);
+      for (const [name, bytes] of documents) {
+        repositories.riderDocuments.put(rider.player_id, name, bytes);
+      }
 
       accounts.repository.updateImportedProfile(
         rider.player_id,
@@ -206,16 +234,23 @@ const make = Effect.gen(function* () {
   */
   const recover = Effect.fn('ImportsService.recover')(function* () {
     for (const name of repositories.filesRepository.readdirSync(accounts.storage)) {
-      if (!/^\d+$/.test(name)) continue;
+      if (!/^\d+$/.test(name)) {
+        continue;
+      }
       const riderFolder = resolve(accounts.storage, name);
 
       for (const entry of repositories.filesRepository.readdirSync(riderFolder, { withFileTypes: true })) {
-        if (!entry.isDirectory()) continue;
+        if (!entry.isDirectory()) {
+          continue;
+        }
 
-        if (entry.name.startsWith('.import-'))
+        if (entry.name.startsWith('.import-')) {
           throw new Error('Recover the legacy profile import before starting TypeScript');
+        }
 
-        if (!/^\.ts-import-[a-f0-9]{32}$/.test(entry.name)) continue;
+        if (!/^\.ts-import-[a-f0-9]{32}$/.test(entry.name)) {
+          continue;
+        }
         const folder = resolve(riderFolder, entry.name);
 
         // No manifest can exist before preparation finishes.
@@ -228,10 +263,13 @@ const make = Effect.gen(function* () {
           JSON.parse(repositories.filesRepository.readFileSync(resolve(folder, 'manifest.json'), 'utf8')),
         );
 
-        if (String(manifest.playerId) !== name) throw new Error('Import journal rider mismatch');
+        if (String(manifest.playerId) !== name) {
+          throw new Error('Import journal rider mismatch');
+        }
 
-        if (manifest.state !== 'staged' || repositories.riderDocuments.imported(entry.name))
+        if (manifest.state !== 'staged' || repositories.riderDocuments.imported(entry.name)) {
           repositories.filesRepository.rmSync(folder, { recursive: true });
+        }
       }
     }
   });

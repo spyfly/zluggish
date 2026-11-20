@@ -144,7 +144,9 @@ export class MatrixRepository {
         return;
       }
 
-      if (saved.homeserver === homeserver && localpart(saved.userId) === localpart(settings.user)) return saved;
+      if (saved.homeserver === homeserver && localpart(saved.userId) === localpart(settings.user)) {
+        return saved;
+      }
     };
 
     const identify = async () => {
@@ -171,7 +173,9 @@ export class MatrixRepository {
 
           return;
         } catch (error) {
-          if (!(error instanceof MatrixError && error.status === 401)) throw error;
+          if (!(error instanceof MatrixError && error.status === 401)) {
+            throw error;
+          }
           rmSync(sessionFile, { force: true });
         }
       }
@@ -222,7 +226,9 @@ export class MatrixRepository {
         timeout: since ? '30000' : '0',
       });
 
-      if (since) query.set('since', since);
+      if (since) {
+        query.set('since', since);
+      }
       const response = await request(sync, 'GET', `/sync?${query}`, undefined, 60_000);
       const joined = response.rooms?.join?.[room];
 
@@ -230,16 +236,24 @@ export class MatrixRepository {
         if (item.type === 'm.room.member' && item.state_key) {
           const name = Option.getOrUndefined(Schema.decodeUnknownOption(member)(item.content))?.displayname;
 
-          if (name) names.set(item.state_key, name);
-          else names.delete(item.state_key);
-        } else if (item.type === 'm.room.encryption' || item.type === 'm.room.encrypted') encrypted = true;
+          if (name) {
+            names.set(item.state_key, name);
+          } else {
+            names.delete(item.state_key);
+          }
+        } else if (item.type === 'm.room.encryption' || item.type === 'm.room.encrypted') {
+          encrypted = true;
+        }
 
         // The first sync replays history; only newer messages are chat.
-        if (!since || item.type !== 'm.room.message' || item.sender === userId) continue;
+        if (!since || item.type !== 'm.room.message' || item.sender === userId) {
+          continue;
+        }
         const message = Schema.decodeUnknownOption(text)(item.content);
 
-        if (Option.isSome(message) && message.value['m.relates_to']?.rel_type !== 'm.replace')
+        if (Option.isSome(message) && message.value['m.relates_to']?.rel_type !== 'm.replace') {
           handlers.receive(names.get(item.sender) ?? localpart(item.sender), message.value.body);
+        }
       }
 
       if (encrypted && !warned) {
@@ -251,7 +265,9 @@ export class MatrixRepository {
     };
 
     const presence = (count: number) => {
-      if (!connected) return;
+      if (!connected) {
+        return;
+      }
       // Many homeservers disable presence; a refused update changes nothing for riders.
       void request(Schema.Unknown, 'PUT', `/presence/${encodeURIComponent(userId)}/status`, {
         presence: 'online',
@@ -280,15 +296,21 @@ export class MatrixRepository {
           connected = true;
           presence(handlers.onlineCount());
 
-          while (!closing.signal.aborted) since = await poll(since);
+          while (!closing.signal.aborted) {
+            since = await poll(since);
+          }
         } catch (error) {
           connected = false;
 
-          if (closing.signal.aborted) return;
+          if (closing.signal.aborted) {
+            return;
+          }
 
-          if (!authenticated && error instanceof MatrixError && (error.status === 401 || error.status === 403))
+          if (!authenticated && error instanceof MatrixError && (error.status === 401 || error.status === 403)) {
             handlers.loginFailed();
-          else handlers.connectionFailed();
+          } else {
+            handlers.connectionFailed();
+          }
           await sleep(30_000, undefined, { signal: closing.signal }).catch(() => {});
         }
       }
@@ -298,10 +320,14 @@ export class MatrixRepository {
 
     return {
       send: async (content) => {
-        if (!connected) throw new Error('Matrix is not connected');
+        if (!connected) {
+          throw new Error('Matrix is not connected');
+        }
 
         // The bridge has no end-to-end encryption, so it never posts plain text into an encrypted room.
-        if (encrypted) throw new Error('Matrix room is encrypted');
+        if (encrypted) {
+          throw new Error('Matrix room is encrypted');
+        }
 
         await request(
           Schema.Unknown,

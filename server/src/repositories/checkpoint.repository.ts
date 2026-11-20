@@ -20,7 +20,9 @@ export class CheckpointRepository {
   ) {}
 
   start() {
-    if (this.worker) return;
+    if (this.worker) {
+      return;
+    }
     this.db.exec('PRAGMA wal_autocheckpoint=0; PRAGMA journal_size_limit=16777216;');
     const extension = import.meta.url.endsWith('.ts') ? 'ts' : 'js';
 
@@ -33,11 +35,15 @@ export class CheckpointRepository {
       const parsed = Schema.decodeUnknownSync(report)(message);
       metrics.record(Metric.WalBytes, parsed.walBytes);
 
-      if (parsed.durationMs !== null) metrics.record(Metric.Checkpoint, parsed.durationMs);
+      if (parsed.durationMs !== null) {
+        metrics.record(Metric.Checkpoint, parsed.durationMs);
+      }
     });
     worker.on('error', () => {
       // Fall back to automatic checkpoints on the main connection.
-      if (this.db.isOpen) this.db.exec('PRAGMA wal_autocheckpoint=1000');
+      if (this.db.isOpen) {
+        this.db.exec('PRAGMA wal_autocheckpoint=1000');
+      }
       this.worker = null;
     });
     this.worker = worker;
@@ -48,13 +54,17 @@ export class CheckpointRepository {
     this.worker = null;
 
     if (worker) {
-      const exited = new Promise<void>((resolve) => worker.once('exit', () => resolve()));
+      const exited = new Promise<void>((resolve) => {
+        worker.once('exit', () => resolve());
+      });
       worker.ref();
       worker.postMessage('stop');
       await exited;
     }
 
-    if (!this.db.isOpen) return;
+    if (!this.db.isOpen) {
+      return;
+    }
     metrics.time(Metric.Checkpoint, () => this.db.exec('PRAGMA wal_checkpoint(TRUNCATE)'));
     this.db.exec('PRAGMA wal_autocheckpoint=1000');
   }

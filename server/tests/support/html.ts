@@ -8,7 +8,9 @@ export function inputValue(html: string, name: string) {
       ]),
     );
 
-    if (attributes.get('name') === name) return attributes.get('value');
+    if (attributes.get('name') === name) {
+      return attributes.get('value');
+    }
   }
 
   return;

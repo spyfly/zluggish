@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 await test('levels, aliases and independent loggers', () => {
-  const lines: string[] = [];
+  const lines: Array<string> = [];
 
   const info = new LoggingRepository({
     sink: (line) => {
@@ -27,7 +27,7 @@ await test('levels, aliases and independent loggers', () => {
   assert.equal(validateConfig({ logging: { level: 'DEBUG' } }).logging.level, 'VERBOSE');
 
   for (const level of ['WARN', 'WARNING', 'ERROR', 'CRITICAL', 'NOTSET'] as const) {
-    const output: string[] = [];
+    const output: Array<string> = [];
 
     const log = new LoggingRepository({
       level,
@@ -45,7 +45,7 @@ await test('levels, aliases and independent loggers', () => {
 });
 
 await test('safe serialization and sink failure containment', () => {
-  const lines: string[] = [];
+  const lines: Array<string> = [];
 
   const log = new LoggingRepository({
     format: 'json',
@@ -80,7 +80,7 @@ await test('safe serialization and sink failure containment', () => {
 });
 
 await test('errors keep their message, stack and cause', () => {
-  const lines: string[] = [];
+  const lines: Array<string> = [];
 
   const sink = (line: string) => {
     lines.push(line);
@@ -106,7 +106,7 @@ await test('errors keep their message, stack and cause', () => {
 });
 
 await test('children share configuration and retain their own context', () => {
-  const lines: string[] = [];
+  const lines: Array<string> = [];
 
   const repository = new LoggingRepository({
     format: 'json',
@@ -134,7 +134,9 @@ await test('recent entries are bounded, shared with children, and respect the co
   child.verbose('test.verbose', 'Hidden');
   assert.deepEqual(log.recentEntries(), []);
 
-  for (let i = 0; i < 200; i++) log.info('test.entry', `Entry ${i}`);
+  for (let i = 0; i < 200; i++) {
+    log.info('test.entry', `Entry ${i}`);
+  }
   child.warn('test.warning', 'Newest');
   const entries = log.recentEntries();
   assert.equal(entries.length, 200);

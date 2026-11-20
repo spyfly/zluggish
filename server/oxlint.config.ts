@@ -1,0 +1,72 @@
+import cloudflare from '@cloudflare/oxlint-config';
+import { defineConfig } from 'oxlint';
+
+export default defineConfig({
+  ...cloudflare,
+  ignorePatterns: [...(cloudflare.ignorePatterns ?? []), '**/dist/**', 'src/protocol/generated/**'],
+  options: {
+    ...cloudflare.options,
+    // ESLint still runs Unicorn rules Oxlint lacks, and it reports its own unused eslint-disable directives.
+    reportUnusedDisableDirectives: 'off',
+  },
+  rules: {
+    ...cloudflare.rules,
+    // Effect.fn and Effect.gen bodies are generators even when a step has nothing to yield.
+    'require-yield': 'off',
+    'oxc/no-accumulating-spread': 'error',
+    // Profile privacy flags are bigint bitmasks set with |=, which this heuristic reports as a typo for ||=.
+    'oxc/bad-bitwise-operator': 'off',
+    // Syntax-only: it also flags Readable#push and StateHistory#push, where its autofix changes argument meaning.
+    'unicorn/prefer-single-call': 'off',
+    // The project has no React; this flags Effect's Service.use and local use callbacks.
+    'react-hooks/rules-of-hooks': 'off',
+    // File, Blob, FormData, Uint8Array and Error checks have no structural alternative.
+    '@nkzw/no-instanceof': 'off',
+    // ESLint's Unicorn rule covers server code; this port also reports closures over Svelte component state.
+    'unicorn/consistent-function-scoping': 'off',
+  },
+  overrides: [
+    ...(cloudflare.overrides ?? []),
+    {
+      // Helpers under tests/ are test code too, so they get the preset's test relaxations.
+      files: ['tests/**'],
+      rules: {
+        'typescript/no-explicit-any': 'off',
+        'typescript/no-non-null-assertion': 'off',
+        'typescript/no-unsafe-argument': 'off',
+        'typescript/no-unsafe-assignment': 'off',
+        'typescript/no-unsafe-member-access': 'off',
+        'typescript/only-throw-error': 'off',
+        'typescript/unbound-method': 'off',
+      },
+    },
+    {
+      // Entry points print startup and CLI output; the logging repository is the console sink.
+      files: ['src/main.ts', 'src/cli/**', 'src/repositories/logging.repository.ts'],
+      rules: { 'no-console': 'off' },
+    },
+    {
+      // Kysely's expression builder callbacks destructure bound helpers such as eb, and, or and exists.
+      files: ['src/repositories/**'],
+      rules: { 'typescript/unbound-method': 'off' },
+    },
+    {
+      // Retried management operations return the JSON recorded with their first response, untyped.
+      files: ['src/services/management.service.ts'],
+      rules: { 'typescript/no-unsafe-assignment': 'off', 'typescript/no-unsafe-return': 'off' },
+    },
+    {
+      // Svelte compiles runes away, so they are not imported.
+      files: ['**/*.svelte'],
+      globals: {
+        $bindable: 'readonly',
+        $derived: 'readonly',
+        $effect: 'readonly',
+        $host: 'readonly',
+        $inspect: 'readonly',
+        $props: 'readonly',
+        $state: 'readonly',
+      },
+    },
+  ],
+});

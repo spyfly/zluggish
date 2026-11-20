@@ -10,7 +10,9 @@ const state = (time: number) =>
 await test('a history keeps the newest samples and returns independent copies', () => {
   const history = new StateHistory(3);
 
-  for (const time of [1000, 2000, 3000, 4000]) history.push(state(time));
+  for (const time of [1000, 2000, 3000, 4000]) {
+    history.push(state(time));
+  }
 
   assert.equal(history.length, 3);
   assert.equal(history.worldTime(0), 2000n);
@@ -39,7 +41,9 @@ await test('earlier states go in front and the limit keeps the newest', () => {
 await test('samples since a time are encoded states', () => {
   const history = new StateHistory();
 
-  for (const time of [1000, 2000, 3000]) history.push(state(time));
+  for (const time of [1000, 2000, 3000]) {
+    history.push(state(time));
+  }
 
   assert.deepEqual(
     history.since(1000n).map((bytes) => fromBinary(PlayerStateSchema, bytes).worldTime),
@@ -51,7 +55,9 @@ await test('samples since a time are encoded states', () => {
 await test('the ghost encoding matches encoding the decoded states', () => {
   const history = new StateHistory();
 
-  for (const time of [1000, 2000]) history.push(state(time));
+  for (const time of [1000, 2000]) {
+    history.push(state(time));
+  }
 
   const expected = toBinary(GhostSchema, create(GhostSchema, { playerId: 42, states: [state(1000), state(2000)] }));
   assert.deepEqual(history.ghost(42), expected);

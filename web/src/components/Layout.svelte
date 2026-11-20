@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onMount, type Snippet } from 'svelte';
+  import { onMount } from 'svelte';
+  import type { Snippet } from 'svelte';
   import ConnectionBanner from './ConnectionBanner.svelte';
 
   let {

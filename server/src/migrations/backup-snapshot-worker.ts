@@ -25,7 +25,7 @@ export class BackupSnapshotWorker {
     });
 
     let result: typeof snapshotResult.Type | undefined;
-    let failure: unknown;
+    let failure: Error | undefined;
     let stop: NodeJS.Timeout | undefined;
 
     function cancel() {
@@ -36,12 +36,16 @@ export class BackupSnapshotWorker {
     worker.on('message', (message) => {
       const decoded = Schema.decodeUnknownOption(snapshotResult)(message);
 
-      if (decoded._tag === 'Some') result = decoded.value;
+      if (decoded._tag === 'Some') {
+        result = decoded.value;
+      }
     });
     worker.on('error', (error) => {
-      failure = error;
+      failure = error instanceof Error ? error : new Error('Backup worker failed', { cause: error });
     });
-    const exited = new Promise<number>((resolve) => worker.once('exit', resolve));
+    const exited = new Promise<number>((resolve) => {
+      worker.once('exit', resolve);
+    });
 
     signal.addEventListener('abort', cancel, { once: true });
 
@@ -49,11 +53,17 @@ export class BackupSnapshotWorker {
       const code = await exited;
       signal.throwIfAborted();
 
-      if (failure !== undefined) throw failure;
+      if (failure !== undefined) {
+        throw failure;
+      }
 
-      if (result?.type === 'failed') throw new Error(result.message);
+      if (result?.type === 'failed') {
+        throw new Error(result.message);
+      }
 
-      if (code !== 0 || result?.type !== 'done') throw new JobError({ code: 'backup_worker_exit' });
+      if (code !== 0 || result?.type !== 'done') {
+        throw new JobError({ code: 'backup_worker_exit' });
+      }
     } finally {
       clearTimeout(stop);
       signal.removeEventListener('abort', cancel);

@@ -2,14 +2,13 @@ import 'vite/modulepreload-polyfill';
 import '../theme/theme.css';
 import { hydrate, mount } from 'svelte';
 import Game from './pages/Game.svelte';
-import type { GamePageModel } from '../lib/game-app.dto';
+import { gamePageModel } from '../lib/game-app';
 
 const target = document.querySelector<HTMLElement>('#launcher-ui');
 const data = document.querySelector('#launcher-props');
 
 if (target && data?.textContent) {
-  // SAFETY: props are serialized by the same-origin Svelte render adapter.
-  const page = JSON.parse(data.textContent) as GamePageModel;
+  const page = gamePageModel.parse(JSON.parse(data.textContent));
 
   if (['login', 'unlock', 'add', 'dashboard'].includes(page.kind)) {
     hydrate(Game, { target, props: { page } });

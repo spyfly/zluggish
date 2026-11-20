@@ -4,8 +4,9 @@ import { integer } from '#src/db/values';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
+import type { TestContext } from 'node:test';
 
-function fixture(t: import('node:test').TestContext) {
+function fixture(t: TestContext) {
   const db = new DatabaseSync(':memory:');
   db.exec(createSchemaSQL);
   db.exec(completionSchemaSQL);

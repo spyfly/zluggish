@@ -10,12 +10,16 @@ export function byteRange(
 ): 'unsatisfiable' | null | { start: number; end: number } {
   const match = /^bytes=(\d*)-(\d*)$/.exec(header?.trim() ?? '');
 
-  if (!match) return null;
+  if (!match) {
+    return null;
+  }
 
   const [, first = '', last = ''] = match;
 
   if (first === '') {
-    if (last === '') return null;
+    if (last === '') {
+      return null;
+    }
     const length = Number(last);
 
     return length > 0 && size > 0 ? { start: Math.max(0, size - length), end: size - 1 } : 'unsatisfiable';
@@ -24,7 +28,9 @@ export function byteRange(
   const start = Number(first);
   const end = last === '' ? size - 1 : Math.min(Number(last), size - 1);
 
-  if (last !== '' && Number(last) < start) return null;
+  if (last !== '' && Number(last) < start) {
+    return null;
+  }
 
   return start < size ? { start, end } : 'unsatisfiable';
 }
@@ -42,14 +48,18 @@ export const fileResponse = Effect.fn('fileResponse')(function* (
   const size = yield* filesService.size(path);
   const range = byteRange(c.req.header('Range'), size);
 
-  if (range === 'unsatisfiable')
+  if (range === 'unsatisfiable') {
     return c.body(null, 416, { ...headers, 'Accept-Ranges': 'bytes', 'Content-Range': `bytes */${size}` });
+  }
 
-  if (size === 0) return c.body(new Uint8Array(), 200, { ...headers, 'Accept-Ranges': 'bytes', 'Content-Length': '0' });
+  if (size === 0) {
+    return c.body(new Uint8Array(), 200, { ...headers, 'Accept-Ranges': 'bytes', 'Content-Length': '0' });
+  }
 
   const { start, end } = range ?? { start: 0, end: size - 1 };
 
   // SAFETY: Node returns a WHATWG byte stream; Node and DOM stream declarations differ in their BYOB overloads.
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   const body = Readable.toWeb(yield* filesService.readStream(path, { start, end })) as ReadableStream<Uint8Array>;
 
   return c.body(body, range ? 206 : 200, {
