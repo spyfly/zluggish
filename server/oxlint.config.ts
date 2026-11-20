@@ -4,7 +4,6 @@ import { defineConfig } from 'oxlint';
 const migrationRules = {
   '@nkzw/no-instanceof': 'off', // Temporary during migration
   curly: 'off', // Temporary during migration
-  'import/consistent-type-specifier-style': 'off', // Temporary during migration
   'no-promise-executor-return': 'off', // Temporary during migration
   'react-hooks/rules-of-hooks': 'off', // Temporary during migration
   'typescript/array-type': 'off', // Temporary during migration

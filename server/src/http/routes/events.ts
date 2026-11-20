@@ -2,7 +2,8 @@ import { EventCatalogService } from '#src/services/event-catalog.service';
 import { effectRoutes } from '#src/http/effect';
 import { EventsService } from '#src/services/events.service';
 import { notificationUpdateSchema } from '#src/dtos/events.dto';
-import { decodeMeetupInput, type Meetup } from '#src/dtos/meetup.dto';
+import { decodeMeetupInput } from '#src/dtos/meetup.dto';
+import type { Meetup } from '#src/dtos/meetup.dto';
 import { authenticated } from '#src/http/routes/accounts';
 import type { HttpRuntime as Runtime, RuntimeEnv } from '#src/http/runtime';
 import {

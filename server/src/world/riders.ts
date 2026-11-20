@@ -4,7 +4,8 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Schema } from 'effect';
 import { Strict } from '#src/schema';
-import { PlayerProfileSchema, type PlayerProfile } from '#src/protocol/generated/profile_pb';
+import { PlayerProfileSchema } from '#src/protocol/generated/profile_pb';
+import type { PlayerProfile } from '#src/protocol/generated/profile_pb';
 import { Random } from '#src/world/geometry';
 
 type RiderSpec = Record<string, typeof Schema.Json.Type>;

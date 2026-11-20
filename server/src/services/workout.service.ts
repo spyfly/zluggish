@@ -1,5 +1,6 @@
 import { isIntervalsAthleteId } from '#src/dtos/intervals.dto';
-import { uuid, metadataSchema, storedEntrySchema, type StoredEntry } from '#src/dtos/workout.dto';
+import { uuid, metadataSchema, storedEntrySchema } from '#src/dtos/workout.dto';
+import type { StoredEntry } from '#src/dtos/workout.dto';
 import { RuntimeContext } from '#src/context';
 import { UnreadableCredentialsError } from '#src/errors';
 import { SettingsService } from '#src/services/settings.service';

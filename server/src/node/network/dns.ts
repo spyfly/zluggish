@@ -1,7 +1,8 @@
 import { LoggingRepository } from '#src/repositories/logging.repository';
 import type { Answer } from 'dns-packet';
 import { decode, encode, RECURSION_DESIRED } from 'dns-packet';
-import { createSocket, type RemoteInfo } from 'node:dgram';
+import { createSocket } from 'node:dgram';
+import type { RemoteInfo } from 'node:dgram';
 import { Resolver } from 'node:dns/promises';
 import { isIP } from 'node:net';
 

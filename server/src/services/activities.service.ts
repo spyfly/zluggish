@@ -1,7 +1,8 @@
 import { RuntimeContext } from '#src/context';
 import { activityMediaSchema } from '#src/dtos/activities.dto';
 import { ApplicationError } from '#src/errors';
-import { ActivitySchema, FitnessPrivacy, type Activity } from '#src/protocol/generated/activity_pb';
+import { ActivitySchema, FitnessPrivacy } from '#src/protocol/generated/activity_pb';
+import type { Activity } from '#src/protocol/generated/activity_pb';
 import { ActivityPrivacyType, Sport, StreaksSchema } from '#src/protocol/generated/profile_pb';
 import { WA_TYPE, WorldAttributeSchema } from '#src/protocol/generated/udp-node-msgs_pb';
 import { ActivitiesRepository } from '#src/repositories/activities.repository';

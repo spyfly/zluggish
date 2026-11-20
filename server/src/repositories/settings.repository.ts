@@ -1,4 +1,5 @@
-import { decodeOverrides, decodePreference, type Overrides, type Preference } from '#src/dtos/settings.dto';
+import { decodeOverrides, decodePreference } from '#src/dtos/settings.dto';
+import type { Overrides, Preference } from '#src/dtos/settings.dto';
 
 import { ApplicationError } from '#src/errors';
 import { sql } from 'kysely';

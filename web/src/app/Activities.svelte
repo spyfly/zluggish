@@ -1,5 +1,6 @@
 <script lang="ts">
-  import ActivityChart, { type Chart } from './ActivityChart.svelte';
+  import ActivityChart from './ActivityChart.svelte';
+  import type { Chart } from './ActivityChart.svelte';
 
   type Summary = {
     id: string;
