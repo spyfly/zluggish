@@ -1,16 +1,26 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { z } from 'zod';
+  import { ignored } from '../lib/api';
+  import type { Api } from '../lib/api';
 
-  type Review = {
-    stage: string;
-    firstName: string;
-    lastName: string;
-    sourceId: string | null;
-    files: Array<string>;
-    confirmSource: boolean;
-  };
+  const reviewSchema = z.object({
+    stage: z.string(),
+    firstName: z.string(),
+    lastName: z.string(),
+    sourceId: z.string().nullable(),
+    files: z.array(z.string()),
+    confirmSource: z.boolean(),
+  });
 
-  type Connection = { connected: boolean; upload: boolean; click: boolean };
+  type Review = z.infer<typeof reviewSchema>;
+
+  /** A staged import, ready for the rider to review. */
+  const stagedResponse = z.object({ review: reviewSchema.nullable() });
+
+  const connectionResponse = z.object({ connected: z.boolean(), upload: z.boolean(), click: z.boolean() });
+
+  type Connection = z.infer<typeof connectionResponse>;
 
   let {
     path,
@@ -19,7 +29,7 @@
     onuser,
   }: {
     path: string;
-    request: <Body>(url: string, method?: string, data?: Record<string, string | boolean> | FormData) => Promise<Body>;
+    request: Api;
     navigate: (path: string) => Promise<void>;
     onuser: () => Promise<void>;
   } = $props();
@@ -82,7 +92,7 @@
     }
   }
 
-  function staged(body: { review: Review }) {
+  function staged(body: z.infer<typeof stagedResponse>) {
     review = body.review;
     keepName = false;
     confirmSource = false;
@@ -95,17 +105,20 @@
 
     if (path === '/export') {
       void run(async () => {
-        filenames = (await request<{ filenames: Array<string> }>('/api/me/export')).filenames;
+        filenames = (await request(z.object({ filenames: z.array(z.string()) }), '/api/me/export')).filenames;
       });
 
       return;
     }
 
     void run(async () => {
-      const body = await request<{ filenames: Array<string>; review: Review | null }>('/api/me/import');
+      const body = await request(
+        z.object({ filenames: z.array(z.string()), review: reviewSchema.nullable() }),
+        '/api/me/import',
+      );
       filenames = body.filenames;
       review = body.review;
-      connection = await request('/api/me/zwift');
+      connection = await request(connectionResponse, '/api/me/zwift');
     });
   });
 </script>
@@ -170,7 +183,7 @@
     onsubmit={(e) => {
       e.preventDefault();
       void run(async () => {
-        await request('/api/me/import/confirm', 'POST', { stage: review!.stage, keepName, confirmSource });
+        await request(ignored, '/api/me/import/confirm', 'POST', { stage: review!.stage, keepName, confirmSource });
         review = null;
         await onuser();
         message = 'Profile data imported.';
@@ -191,7 +204,7 @@
       disabled={busy}
       onclick={() =>
         run(async () => {
-          await request('/api/me/import/confirm', 'POST', { stage: review!.stage, cancel: true });
+          await request(ignored, '/api/me/import/confirm', 'POST', { stage: review!.stage, cancel: true });
           review = null;
           message = 'Import canceled. Your user data is unchanged.';
         })}>Cancel</button
@@ -204,7 +217,7 @@
     onsubmit={(e) => {
       e.preventDefault();
       const data = new FormData(e.currentTarget);
-      void run(async () => staged(await request('/api/me/import', 'POST', data)));
+      void run(async () => staged(await request(stagedResponse, '/api/me/import', 'POST', data)));
     }}
   >
     {#each filenames as filename (filename)}
@@ -224,7 +237,7 @@
     onsubmit={(e) => {
       e.preventDefault();
       void run(async () => {
-        connection = await request('/api/me/zwift', 'PUT', {
+        connection = await request(connectionResponse, '/api/me/zwift', 'PUT', {
           username,
           password,
           upload: connection!.upload,
@@ -249,7 +262,9 @@
       class="panel"
       onsubmit={(e) => {
         e.preventDefault();
-        void run(async () => staged(await request('/api/me/zwift/import', 'POST', { profile, achievements })));
+        void run(async () =>
+          staged(await request(stagedResponse, '/api/me/zwift/import', 'POST', { profile, achievements })),
+        );
       }}
     >
       <h2>Download user data</h2>
@@ -264,7 +279,7 @@
           disabled={busy}
           onclick={() =>
             run(async () => {
-              connection = await request('/api/me/zwift', 'DELETE', {});
+              connection = await request(connectionResponse, '/api/me/zwift', 'DELETE', {});
               removing = false;
               message = 'Credentials removed.';
             })}>Remove credentials</button

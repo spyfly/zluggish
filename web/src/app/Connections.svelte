@@ -1,6 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import TextField from './TextField.svelte';
+  import { z } from 'zod';
+  import { ignored } from '../lib/api';
+  import type { Api } from '../lib/api';
 
   let {
     api,
@@ -9,7 +12,7 @@
     saved,
     save,
   }: {
-    api: <Body>(url: string, method?: string, data?: Record<string, string | boolean>) => Promise<Body>;
+    api: Api;
     stravaMethod: string;
     bridgeFolder: string;
     /** The settings the server holds, so a tile does not change before its choice is saved. */
@@ -21,9 +24,27 @@
 
   type Integration = Provider | 'trainingpeaks';
 
-  type Connection = { username: string; saved: boolean; unreadable: boolean; authorized?: boolean; cookie?: boolean };
+  const connectionSchema = z.object({
+    username: z.string(),
+    saved: z.boolean(),
+    unreadable: z.boolean(),
+    authorized: z.boolean().optional(),
+    cookie: z.boolean().optional(),
+  });
 
-  type UploadJob = { activity_id: number; provider: string; state: string };
+  type Connection = z.infer<typeof connectionSchema>;
+
+  const connectionsResponse = z.object({
+    strava: connectionSchema,
+    garmin: connectionSchema,
+    intervals: connectionSchema,
+  });
+
+  const jobsResponse = z.object({
+    jobs: z.array(z.object({ activity_id: z.number(), provider: z.string(), state: z.string() })),
+  });
+
+  type UploadJob = z.infer<typeof jobsResponse>['jobs'][number];
 
   type Credential =
     | 'strava/api'
@@ -43,7 +64,7 @@
     cookieStatus = 'checking';
 
     try {
-      const { valid } = await api<{ valid: boolean }>('/api/me/connections/strava/test', 'POST', {});
+      const { valid } = await api(z.object({ valid: z.boolean() }), '/api/me/connections/strava/test', 'POST', {});
       cookieStatus = valid ? 'valid' : 'invalid';
     } catch {
       cookieStatus = 'error';
@@ -119,8 +140,8 @@
 
     try {
       await action();
-      connections = await api<Record<Provider, Connection>>('/api/me/connections');
-      jobs = (await api<{ jobs: Array<UploadJob> }>('/api/me/uploads')).jobs;
+      connections = await api(connectionsResponse, '/api/me/connections');
+      jobs = (await api(jobsResponse, '/api/me/uploads')).jobs;
     } catch (error) {
       failed = true;
       message = error instanceof Error ? error.message : 'Could not save connection.';
@@ -207,7 +228,7 @@
 
   function removeCredential(item: Stored) {
     void run(async () => {
-      await api(`/api/me/connections/${item.id}`, 'DELETE');
+      await api(ignored, `/api/me/connections/${item.id}`, 'DELETE');
 
       if (item.id === 'strava/cookie') {
         cookieStatus = 'unchecked';
@@ -230,7 +251,10 @@
       return;
     }
     void run(async () => {
-      await api(`/api/me/connections/${name}`, 'PUT', { username: connection.username, secret: secrets[name] });
+      await api(ignored, `/api/me/connections/${name}`, 'PUT', {
+        username: connection.username,
+        secret: secrets[name],
+      });
       secrets[name] = '';
       message = 'Credentials saved.';
     });
@@ -251,7 +275,8 @@
 
   function authorize(name: Provider) {
     void run(async () => {
-      const result = await api<{ url?: string; status?: string }>(
+      const result = await api(
+        z.object({ url: z.string().optional(), status: z.string().optional() }),
         `/api/me/connections/${name}/authorize`,
         'POST',
         name === 'garmin' && mfa ? { code } : {},
@@ -271,7 +296,7 @@
 
   function disconnect(name: Provider) {
     void run(async () => {
-      await api(`/api/me/connections/${name}`, 'DELETE');
+      await api(ignored, `/api/me/connections/${name}`, 'DELETE');
 
       if (name === 'strava') {
         cookieStatus = 'unchecked';
@@ -289,13 +314,13 @@
 
   function sync(provider: 'intervals' | 'trainingpeaks') {
     void run(async () => {
-      message = (await api<{ message: string }>('/api/me/workouts/sync', 'POST', { provider })).message;
+      message = (await api(z.object({ message: z.string() }), '/api/me/workouts/sync', 'POST', { provider })).message;
     });
   }
 
   function retry(ambiguous: boolean) {
     void run(async () => {
-      await api('/api/me/uploads/retry', 'POST', { ambiguous });
+      await api(ignored, '/api/me/uploads/retry', 'POST', { ambiguous });
       confirmUnknown = false;
       message = 'Retry requested. Check the provider before retrying again.';
     }, 'uploads');
@@ -311,7 +336,7 @@
       if (document.hidden) {
         return;
       }
-      api<{ jobs: Array<UploadJob> }>('/api/me/uploads').then(
+      api(jobsResponse, '/api/me/uploads').then(
         (body) => (jobs = body.jobs),
         () => {
           /* The next tick tries again. */
@@ -335,7 +360,7 @@
         if (!authorizationCode) {
           throw new Error('Strava authorization canceled.');
         }
-        await api('/api/me/connections/strava/authorize', 'POST', { code: authorizationCode, state });
+        await api(ignored, '/api/me/connections/strava/authorize', 'POST', { code: authorizationCode, state });
         message = 'Strava authorized.';
       }
     }).then(() => {
@@ -526,7 +551,7 @@
             onsubmit={(event) => {
               event.preventDefault();
               void run(async () => {
-                await api('/api/me/connections/strava/cookie', 'PUT', { cookie });
+                await api(ignored, '/api/me/connections/strava/cookie', 'PUT', { cookie });
                 cookie = '';
                 message = 'Session cookie saved.';
                 await testCookie();

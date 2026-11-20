@@ -1,6 +1,11 @@
 import { writable } from 'svelte/store';
 import { z } from 'zod';
 
+const jsonObject = z.record(z.string(), z.json());
+
+/** A JSON object response body. */
+export type JsonObject = z.output<typeof jsonObject>;
+
 export const connection = writable({ unavailable: false, checking: false, retryIn: 0 });
 
 export class ConnectionError extends Error {
@@ -56,13 +61,9 @@ export async function requestJson(url: string, init: RequestInit = {}) {
   const response = await request(url, init);
 
   try {
-    // The client reads its own server's JSON untyped; typing each endpoint's body is separate work.
-    // oxlint-disable-next-line typescript/no-unsafe-assignment
-    const body = await response.json();
+    // Callers check the shape they read; see decode() in api.ts.
+    const body = jsonObject.parse(await response.json());
 
-    z.record(z.string(), z.json()).parse(body);
-
-    // oxlint-disable-next-line typescript/no-unsafe-assignment
     return { response, body };
   } catch {
     disconnected();

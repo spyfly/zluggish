@@ -1,14 +1,16 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import Fingerprint from '../components/Fingerprint.svelte';
+  import { tlsStatus } from './tls';
   import type { TlsStatus } from './tls';
+  import type { Api } from '../lib/api';
 
   let {
     api,
     path,
     navigate,
   }: {
-    api: <Body>(url: string) => Promise<Body>;
+    api: Api;
     /** `/install` sets up this browser's own system, or offers the choice; `/install/choose` always offers it;
     `/install/windows`, `/install/macos` and `/install/linux` set up that system. */
     path: string;
@@ -103,7 +105,7 @@
 
   onMount(async () => {
     try {
-      status = await api<TlsStatus>('/api/tls');
+      status = await api(tlsStatus, '/api/tls');
       // The advertised IP as the server is configured, even 127.0.0.1: the web app's own address may differ.
       address = status.serverAddress;
     } catch (error) {

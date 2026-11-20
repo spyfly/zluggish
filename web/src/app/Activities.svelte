@@ -1,41 +1,73 @@
 <script lang="ts">
   import ActivityChart from './ActivityChart.svelte';
-  import type { Chart } from './ActivityChart.svelte';
+  import { z } from 'zod';
+  import type { Api } from '../lib/api';
 
-  type Summary = {
-    id: string;
-    name: string;
-    world: number;
-    sport: 'cycling' | 'running';
-    startDate: string | null;
-    endDate: string | null;
-    distanceInMeters: number;
-    totalElevation: number;
-    movingTimeInMs: number;
-    calories: number;
-    avgWatts: number;
-    maxWatts: number;
-    normalizedPower: number;
-    tss: number;
-    avgHeartRate: number;
-    maxHeartRate: number;
-    avgCadence: number;
-    maxCadence: number;
-    avgSpeed: number;
-    maxSpeed: number;
-    fit: boolean;
-    images: number;
-  };
+  const summarySchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    world: z.number(),
+    sport: z.enum(['cycling', 'running']),
+    startDate: z.string().nullable(),
+    endDate: z.string().nullable(),
+    distanceInMeters: z.number(),
+    totalElevation: z.number(),
+    movingTimeInMs: z.number(),
+    calories: z.number(),
+    avgWatts: z.number(),
+    maxWatts: z.number(),
+    normalizedPower: z.number(),
+    tss: z.number(),
+    avgHeartRate: z.number(),
+    maxHeartRate: z.number(),
+    avgCadence: z.number(),
+    maxCadence: z.number(),
+    avgSpeed: z.number(),
+    maxSpeed: z.number(),
+    fit: z.boolean(),
+    images: z.number(),
+  });
 
-  type Detail = Summary & { imageIds: Array<number>; chart: Chart | null; chartPending: boolean };
+  type Summary = z.infer<typeof summarySchema>;
 
-  type Provider = 'strava' | 'freeStrava' | 'garmin' | 'runalyze' | 'intervals' | 'zwift';
+  const series = z.array(z.number());
 
-  type Upload = {
-    provider: Provider;
-    state: 'pending' | 'sending' | 'sent' | 'failed' | 'ambiguous' | 'cancelled' | null;
-    error: string | null;
-  };
+  const detailResponse = summarySchema.extend({
+    imageIds: z.array(z.number()),
+    chart: z
+      .object({
+        powerInWatts: series,
+        cadencePerMin: series,
+        heartRate: series,
+        distanceInCm: series,
+        speedInCmPerSec: series,
+        timeInSec: series,
+        altitudeInCm: series,
+        latlng: z.array(z.tuple([z.number(), z.number()])),
+      })
+      .nullable(),
+    chartPending: z.boolean(),
+  });
+
+  type Detail = z.infer<typeof detailResponse>;
+
+  const provider = z.enum(['strava', 'freeStrava', 'garmin', 'runalyze', 'intervals', 'zwift']);
+
+  type Provider = z.infer<typeof provider>;
+
+  const uploadsResponse = z.object({
+    uploads: z.array(
+      z.object({
+        provider,
+        state: z.enum(['pending', 'sending', 'sent', 'failed', 'ambiguous', 'cancelled']).nullable(),
+        error: z.string().nullable(),
+      }),
+    ),
+  });
+
+  type Upload = z.infer<typeof uploadsResponse>['uploads'][number];
+
+  const listResponse = z.object({ activities: z.array(summarySchema), hasMore: z.boolean() });
 
   let {
     path,
@@ -43,7 +75,7 @@
     go,
   }: {
     path: string;
-    api: <Body>(url: string, method?: string, data?: Record<string, string | boolean>) => Promise<Body>;
+    api: Api;
     go: (next: string) => void;
   } = $props();
 
@@ -246,7 +278,7 @@
 
   async function loadUploads(id: string) {
     try {
-      const body = await api<{ uploads: Array<Upload> }>(`/api/me/activities/${id}/uploads`);
+      const body = await api(uploadsResponse, `/api/me/activities/${id}/uploads`);
 
       if (detail?.id === id) {
         uploads = { id, list: body.uploads };
@@ -275,7 +307,7 @@
       const again = list.some((u) => u.provider === provider && uploaded(u));
 
       try {
-        const body = await api<{ uploads: Array<Upload> }>(`/api/me/activities/${id}/uploads`, 'POST', {
+        const body = await api(uploadsResponse, `/api/me/activities/${id}/uploads`, 'POST', {
           provider,
           again,
         });
@@ -303,9 +335,7 @@
     const version = ++requestVersion;
 
     try {
-      const body = await api<{ activities: Array<Summary>; hasMore: boolean }>(
-        `/api/me/activities?page=${currentPage}`,
-      );
+      const body = await api(listResponse, `/api/me/activities?page=${currentPage}`);
 
       if (version !== requestVersion) {
         return;
@@ -322,7 +352,7 @@
   /** The chart is made by a job after the activity is saved; ask again a few times while it runs. */
   async function loadDetail(id: string, attempt = 0) {
     try {
-      const body = await api<Detail>(`/api/me/activities/${id}`);
+      const body = await api(detailResponse, `/api/me/activities/${id}`);
 
       if (selectedId !== id) {
         return;

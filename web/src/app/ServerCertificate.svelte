@@ -1,7 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import Fingerprint from '../components/Fingerprint.svelte';
+  import { tlsStatus } from './tls';
   import type { TlsStatus } from './tls';
+  import type { Api } from '../lib/api';
 
   type Confirmation = {
     title: string;
@@ -18,7 +20,7 @@
     done,
     onstatus,
   }: {
-    api: (url: string, method?: string, data?: { operation: string }) => Promise<TlsStatus>;
+    api: Api;
     busy: boolean;
     /** Asks the administrator before the action runs. */
     confirm: (confirmation: Confirmation) => void;
@@ -63,7 +65,7 @@
 
   onMount(async () => {
     try {
-      status = await api('/api/tls');
+      status = await api(tlsStatus, '/api/tls');
       onstatus?.(status);
     } catch (error) {
       failure = error instanceof Error ? error.message : 'The certificate could not be loaded.';
@@ -80,7 +82,7 @@
       label: legacy ? 'Generate certificate' : 'Rotate certificate',
       destructive: true,
       confirm: async () => {
-        status = await api('/api/manage/server/certificate', 'POST', { operation });
+        status = await api(tlsStatus, '/api/manage/server/certificate', 'POST', { operation });
         onstatus?.(status);
         done(
           legacy

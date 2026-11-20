@@ -12,46 +12,28 @@
   import ServerLogs from './ServerLogs.svelte';
   import Install from './Install.svelte';
   import ServerCertificate from './ServerCertificate.svelte';
+  import { tlsStatus } from './tls';
+  import { decode, ignored, responseFields } from '../lib/api';
+  import type { ApiPayload } from '../lib/api';
+  import type { z } from 'zod';
+  import {
+    avatarResponse,
+    backupResponse,
+    eventsResponse,
+    outcomeResponse,
+    profileResponse,
+    savedWorldSettingResponse,
+    serverLogsResponse,
+    serverSettingsResponse,
+    setupKeyResponse,
+    setupResponse,
+    signedInResponse,
+    userSchema,
+    userSettingsSchema,
+    usersResponse,
+  } from './schemas';
+  import type { ManagedEvent, SetupUser, User, UserSettings, WorldSetting } from './schemas';
   import type { TlsStatus } from './tls';
-
-  type ApiValue = string | number | boolean | null | undefined | Array<ApiValue> | { [key: string]: ApiValue };
-
-  type ApiPayload = { [key: string]: ApiValue };
-
-  type User = {
-    player_id: number;
-    username: string;
-    first_name: string;
-    last_name: string;
-    role: string;
-    enabled: number;
-    revision: number;
-    has_password: boolean;
-    connected: boolean;
-    avatar: number | null;
-    completion_deadline?: number | null;
-  };
-
-  type SetupUser = Pick<User, 'player_id' | 'username' | 'first_name' | 'last_name' | 'enabled' | 'has_password'>;
-
-  type ManagedEvent = { id: number; name: string; description: string; eventStart: string; updateDate: string };
-
-  type WorldSetting = {
-    id: string;
-    revision: number;
-    overrides: Record<string, ApiValue>;
-    fields: Array<{ name: string; kind: 'boolean' | 'number' | 'string'; value: string | number | boolean }>;
-  };
-
-  type UserSettings = {
-    revision: number;
-    overrides: Record<string, boolean | string>;
-    defaults: {
-      ghosts: { enabled: boolean };
-      uploads: { strava: { method: string } };
-      workouts: { trainingpeaks: { bridgeFolder: string } };
-    };
-  };
 
   type Pending = { title: string; detail: string; label: string; destructive: boolean; confirm: () => Promise<void> };
 
@@ -182,8 +164,8 @@
       return;
     }
     certificateRequested = true;
-    api('/api/tls')
-      .then((body: TlsStatus) => {
+    api(tlsStatus, '/api/tls')
+      .then((body) => {
         certificateMode = body.mode;
       })
       .catch(() => {
@@ -240,7 +222,12 @@
   const time = (value: number) => new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const errors = (scope: string, field: string) => (errorScope === scope ? (fieldErrors[field] ?? []) : []);
 
-  async function api(url: string, method = 'GET', data?: ApiPayload | FormData | Blob) {
+  async function api<Schema extends z.ZodType>(
+    schema: Schema,
+    url: string,
+    method = 'GET',
+    data?: ApiPayload | FormData | Blob,
+  ): Promise<z.output<Schema>> {
     const headers = new Headers({ 'X-CSRF-Token': csrf });
 
     if (data instanceof Blob) {
@@ -257,8 +244,10 @@
       }),
     });
 
-    if (body.csrf) {
-      csrf = body.csrf;
+    const fields = responseFields(body);
+
+    if (fields.csrf) {
+      csrf = fields.csrf;
     }
 
     if (!response.ok) {
@@ -266,11 +255,11 @@
       if (method !== 'GET') {
         operation = crypto.randomUUID();
       }
-      fieldErrors = body.fieldErrors ?? {};
+      fieldErrors = fields.fieldErrors ?? {};
       const scope = selected && `/api/manage/users/${selected.player_id}`;
 
       if (response.status === 409 && scope && (url === scope || url.startsWith(`${scope}/`))) {
-        conflict = await api(scope);
+        conflict = await api(userSchema, scope);
       }
 
       if (response.status === 401 && user) {
@@ -278,18 +267,18 @@
         avatar = undefined;
         avatar = undefined;
         go('/sign-in');
-        await api('/api/setup');
+        await api(ignored, '/api/setup');
         throw new Error('Your session ended. Sign in again.');
       }
 
-      throw new Error(body.message || 'Request failed.');
+      throw new Error(fields.message || 'Request failed.');
     }
 
     if (method !== 'GET') {
       operation = crypto.randomUUID();
     }
 
-    return body;
+    return decode(schema, body);
   }
 
   function go(next: string) {
@@ -364,14 +353,14 @@
   }
 
   async function loadUsers() {
-    users = (await api('/api/manage/users')).users;
+    users = (await api(usersResponse, '/api/manage/users')).users;
   }
 
   async function loadServer() {
-    const body = await api('/api/manage/settings');
+    const body = await api(serverSettingsResponse, '/api/manage/settings');
     worldSettings = body.worldSettings;
     serverConfig = { rows: body.configuration };
-    events = (await api('/api/manage/events')).events;
+    events = (await api(eventsResponse, '/api/manage/events')).events;
   }
 
   async function createBackup() {
@@ -379,14 +368,14 @@
     backupMessage = 'Requesting backup…';
 
     try {
-      let result = await api('/api/manage/server/backups', 'POST', { operation: backupOperation });
+      let result = await api(backupResponse, '/api/manage/server/backups', 'POST', { operation: backupOperation });
 
       while (result.state === 'queued' || result.state === 'running') {
         backupMessage = result.state === 'queued' ? 'Backup queued…' : 'Creating backup…';
         await new Promise((resolve) => {
           setTimeout(resolve, 1000);
         });
-        result = await api(`/api/manage/server/backups/${backupOperation}`);
+        result = await api(backupResponse, `/api/manage/server/backups/${backupOperation}`);
       }
 
       backupOperation = crypto.randomUUID();
@@ -418,7 +407,7 @@
     if (!settings) {
       return;
     }
-    settings = await api('/api/me/settings', 'PATCH', settingsBody(settings));
+    settings = await api(userSettingsSchema, '/api/me/settings', 'PATCH', settingsBody(settings));
   }
 
   /** A single switch saves as soon as it changes, and flips back if the server refuses it. */
@@ -491,7 +480,7 @@
       return;
     }
     void run(async () => {
-      profileAvatar = (await api(`${profileBase}/avatar`, 'PUT', await squarePhoto(file))).avatar;
+      profileAvatar = (await api(avatarResponse, `${profileBase}/avatar`, 'PUT', await squarePhoto(file))).avatar;
 
       if (!profileId) {
         avatar = profileAvatar;
@@ -501,11 +490,11 @@
   }
 
   async function loadProfile() {
-    applyProfile(await api(`${profileBase}/profile`));
+    applyProfile(await api(profileResponse, `${profileBase}/profile`));
   }
 
   async function loadSettings() {
-    const loaded: UserSettings = await api('/api/me/settings');
+    const loaded = await api(userSettingsSchema, '/api/me/settings');
     settings = loaded;
     applySettings(loaded);
   }
@@ -538,7 +527,7 @@
   /** Checks the setup key alone, so a wrong key costs one field instead of the whole form. */
   async function checkKey() {
     try {
-      const body = await api('/api/setup/key', 'POST', { key });
+      const body = await api(setupKeyResponse, '/api/setup/key', 'POST', { key });
       setupUsers = body.users;
       setupUserId = null;
       mode = setupUsers.length ? 'existing' : 'new';
@@ -558,8 +547,8 @@
     }
 
     const body = complete
-      ? await api('/api/session', 'POST', { username, password })
-      : await api('/api/setup', 'POST', {
+      ? await api(signedInResponse, '/api/session', 'POST', { username, password })
+      : await api(signedInResponse, '/api/setup', 'POST', {
           mode,
           key,
           password,
@@ -586,8 +575,8 @@
   }
 
   async function signOut() {
-    await api('/api/session', 'DELETE', {});
-    await api('/api/setup');
+    await api(ignored, '/api/session', 'DELETE', {});
+    await api(ignored, '/api/setup');
     user = null;
     users = [];
     go('/sign-in');
@@ -656,7 +645,8 @@
       throw new Error('Check the form fields.');
     }
 
-    const result: User = await api(
+    const result = await api(
+      userSchema,
       `/api/manage/users/${selected.player_id}/${action}`,
       action === 'role' ? 'PUT' : 'POST',
       {
@@ -691,7 +681,7 @@
       throw new Error('Check the form fields.');
     }
 
-    const created: User = await api('/api/manage/users', 'POST', {
+    const created = await api(userSchema, '/api/manage/users', 'POST', {
       operation,
       user: { username: newLogin, password: newPassword, first_name: newFirst, last_name: newLast },
     });
@@ -728,11 +718,11 @@
       throw new Error('Check the form fields.');
     }
 
-    await api('/api/me/password', 'POST', {
+    await api(ignored, '/api/me/password', 'POST', {
       ...(!administrator && { current_password: currentPassword }),
       password,
     });
-    await api('/api/setup');
+    await api(ignored, '/api/setup');
     changing = false;
     user = null;
     avatar = undefined;
@@ -751,7 +741,7 @@
   /** Without a rebuild the curves stay empty until the next ride. */
   async function regenerate() {
     regenerating = false;
-    await api('/api/me/power-curves', 'POST', { confirm: true, create: rebuild });
+    await api(ignored, '/api/me/power-curves', 'POST', { confirm: true, create: rebuild });
     done(
       rebuild
         ? 'Regenerating power curves. They fill in as each saved activity is processed.'
@@ -779,7 +769,7 @@
       label,
       destructive,
       confirm: async () => {
-        const body: { ok: boolean; message: string | null } = await api(`/api/manage/server/${action}`, 'POST', {
+        const body = await api(outcomeResponse, `/api/manage/server/${action}`, 'POST', {
           operation,
         });
 
@@ -796,7 +786,7 @@
       throw new Error('Choose a user who is riding now.');
     }
 
-    const body: { ok: boolean; message: string | null } = await api('/api/manage/server/bots', 'POST', {
+    const body = await api(outcomeResponse, '/api/manage/server/bots', 'POST', {
       operation,
       user: botUser,
       command: botCommand,
@@ -817,10 +807,10 @@
 
     window.addEventListener('popstate', pop);
     void run(async () => {
-      const setup = await api('/api/setup');
+      const setup = await api(setupResponse, '/api/setup');
       complete = setup.complete;
-      version = setup.version ?? '';
-      zwiftVersion = setup.zwiftVersion ?? '';
+      version = setup.version;
+      zwiftVersion = setup.zwiftVersion;
 
       if (!complete) {
         go('/setup');
@@ -829,7 +819,7 @@
       }
 
       try {
-        user = (await api('/api/me')).user;
+        user = (await api(signedInResponse, '/api/me')).user;
       } catch (error) {
         if (error instanceof ConnectionError) {
           throw error;
@@ -1165,7 +1155,7 @@
 
           <section class="panel">
             <h2>Server logs</h2>
-            <ServerLogs load={() => api('/api/manage/server/logs')} />
+            <ServerLogs load={() => api(serverLogsResponse, '/api/manage/server/logs')} />
           </section>
 
           <section class="panel">
@@ -1189,7 +1179,7 @@
                 onsubmit={(e) => {
                   e.preventDefault();
                   void run(async () => {
-                    const result = await api('/api/manage/settings', 'PATCH', {
+                    const result = await api(savedWorldSettingResponse, '/api/manage/settings', 'PATCH', {
                       id: worldSetting!.id,
                       revision: worldSetting!.revision,
                       operation,
@@ -1259,13 +1249,13 @@
                 onsubmit={(e) => {
                   e.preventDefault();
                   void run(async () => {
-                    await api(`/api/manage/events/${event!.id}`, 'PATCH', {
+                    await api(ignored, `/api/manage/events/${event!.id}`, 'PATCH', {
                       operation,
                       revision: event!.updateDate,
                       changes: { description: eventDescription, eventStart },
                     });
                     event = null;
-                    events = (await api('/api/manage/events')).events;
+                    events = (await api(eventsResponse, '/api/manage/events')).events;
                     done('Event saved.');
                   }, 'event');
                 }}
@@ -1293,12 +1283,12 @@
                         label: 'Delete event',
                         destructive: true,
                         confirm: async () => {
-                          await api(`/api/manage/events/${target.id}`, 'DELETE', {
+                          await api(ignored, `/api/manage/events/${target.id}`, 'DELETE', {
                             operation,
                             revision: target.updateDate,
                           });
                           event = null;
-                          events = (await api('/api/manage/events')).events;
+                          events = (await api(eventsResponse, '/api/manage/events')).events;
                           done('Event deleted.');
                         },
                       };
@@ -1582,7 +1572,7 @@
             request={api}
             {navigate}
             onuser={async () => {
-              user = (await api('/api/me')).user;
+              user = (await api(signedInResponse, '/api/me')).user;
             }}
           />{/key}
       {:else if path === '/activities' || path.startsWith('/activities/')}
@@ -1633,7 +1623,7 @@
             e.preventDefault();
             void run(async () => {
               applyProfile(
-                await api(`${profileBase}/profile`, 'PATCH', {
+                await api(profileResponse, `${profileBase}/profile`, 'PATCH', {
                   revision: profileUser!.revision,
                   operation,
                   username,
@@ -1677,7 +1667,7 @@
                   disabled={busy}
                   onclick={() =>
                     void run(async () => {
-                      profileAvatar = (await api(`${profileBase}/avatar`, 'DELETE')).avatar;
+                      profileAvatar = (await api(avatarResponse, `${profileBase}/avatar`, 'DELETE')).avatar;
                       if (!profileId) avatar = profileAvatar;
                       done('Restart Zwift for the changes to take effect.');
                     })}>Remove</button

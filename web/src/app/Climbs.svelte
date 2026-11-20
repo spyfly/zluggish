@@ -1,24 +1,30 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { z } from 'zod';
+  import type { Api } from '../lib/api';
 
-  type Climb = {
-    road: string;
-    name: string;
-    distanceKm: number | null;
-    elevationM: number | null;
-    rides: number;
-    bestMs: number | null;
-    lastRide: string | null;
+  const climbSchema = z.object({
+    road: z.string(),
+    name: z.string(),
+    distanceKm: z.number().nullable(),
+    elevationM: z.number().nullable(),
+    rides: z.number(),
+    bestMs: z.number().nullable(),
+    lastRide: z.string().nullable(),
     /** The two Strava segments of the climb, as ridden from Watopia and from France. */
-    strava: { watopia: number; france: number } | null;
-  };
+    strava: z.object({ watopia: z.number(), france: z.number() }).nullable(),
+  });
+
+  type Climb = z.infer<typeof climbSchema>;
+
+  const climbsResponse = z.object({ climbs: z.array(climbSchema), total: z.number() });
 
   const segment = (id: number) => `https://www.strava.com/segments/${id}`;
 
   let {
     api,
   }: {
-    api: <Body>(url: string) => Promise<Body>;
+    api: Api;
   } = $props();
 
   let climbs = $state<Array<Climb> | null>(null);
@@ -50,7 +56,7 @@
 
   onMount(async () => {
     try {
-      const body = await api<{ climbs: Array<Climb>; total: number }>('/api/me/climbs');
+      const body = await api(climbsResponse, '/api/me/climbs');
       total = body.total;
       climbs = body.climbs;
     } catch (error) {

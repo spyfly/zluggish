@@ -1,16 +1,22 @@
+import { z } from 'zod';
+
 /** The server's TLS certificate, as GET /api/tls reports it. */
-export type TlsStatus = {
-  mode: 'managed' | 'legacy' | 'custom' | 'disabled';
-  certificate: {
-    fingerprint256: string;
-    thumbprint: string;
-    subject: string;
-    notBefore: string;
-    notAfter: string;
-    hosts: Array<string>;
-    /** Such as `ECDSA P-256`. */
-    key: string;
-  } | null;
-  serverAddress: string;
-  lifetimeYears: number;
-};
+export const tlsStatus = z.object({
+  mode: z.enum(['managed', 'legacy', 'custom', 'disabled']),
+  certificate: z
+    .object({
+      fingerprint256: z.string(),
+      thumbprint: z.string(),
+      subject: z.string(),
+      notBefore: z.string(),
+      notAfter: z.string(),
+      hosts: z.array(z.string()),
+      /** Such as `ECDSA P-256`. */
+      key: z.string(),
+    })
+    .nullable(),
+  serverAddress: z.string(),
+  lifetimeYears: z.number(),
+});
+
+export type TlsStatus = z.infer<typeof tlsStatus>;
