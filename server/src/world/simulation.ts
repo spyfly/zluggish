@@ -822,7 +822,7 @@ export class Simulation {
     for (const [id, ghosts] of this.ghosts)
       if (ghosts.playback === 'playing' && now - ghosts.last >= 3) {
         ghosts.last = now;
-        const personal = world.personal.get(id) ?? new Map();
+        const personal = world.personal.get(id) ?? new Map<bigint, PlayerState>();
 
         for (const ghost of ghosts.playbacks) {
           if (ghost.position >= ghost.recording.length) {
@@ -841,7 +841,7 @@ export class Simulation {
       }
 
     for (const [id, bookmarks] of this.bookmarks) {
-      const personal = world.personal.get(id) ?? new Map();
+      const personal = world.personal.get(id) ?? new Map<bigint, PlayerState>();
 
       for (const [key, bookmark] of bookmarks) {
         const state = clone(PlayerStateSchema, bookmark.state);

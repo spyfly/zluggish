@@ -227,10 +227,10 @@ function cleanup({ repositories, retention, storage }: RetentionScope) {
 
   return {
     /** What a cleanup would remove now, without removing anything. */
-    plan: Effect.fn('RetentionService.plan')(function* (now = Date.now()) {
+    plan: Effect.fn('RetentionService.plan')(function* (now: number = Date.now()) {
       return yield* Effect.promise(() => plan(now));
     }),
-    apply: Effect.fn('RetentionService.apply')(function* (candidates: RetentionPlan, now = Date.now()) {
+    apply: Effect.fn('RetentionService.apply')(function* (candidates: RetentionPlan, now: number = Date.now()) {
       return yield* Effect.promise(() => apply(candidates, now));
     }),
     /** Bytes by category, for the operator. */

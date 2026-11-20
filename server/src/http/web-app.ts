@@ -14,7 +14,7 @@ import { webConnectionRoutes } from '#src/http/web-connections';
 import { webProfileRoutes } from '#src/http/web-profile';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
-import type { Context } from 'hono';
+import type { Context, Next } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { Effect, Schema } from 'effect';
@@ -70,7 +70,7 @@ export function createWebApp(runtime: HttpRuntime) {
     return () => !id || sessions.sessions.get(id) === before;
   };
 
-  app.use('*', async (c, next) => {
+  app.use('*', async (c: Context<WebEnv, string>, next: Next) => {
     const upload = c.req.method === 'POST' && c.req.path === '/api/me/import';
 
     const avatar =
@@ -93,7 +93,7 @@ export function createWebApp(runtime: HttpRuntime) {
   });
   app.get('/health', (c) => c.json({ name: 'zluggish', version: packageVersion(), status: 'ok' }));
 
-  app.use('/api/*', async (c, next) => {
+  app.use('/api/*', async (c: Context<WebEnv>, next: Next) => {
     // This listener accepts only its own opaque session store. Bearer tokens are never used.
     const id = getCookie(c, cookie);
     const session = runtime.effects.runSync(sessions.find(id));

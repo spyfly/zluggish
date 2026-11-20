@@ -35,6 +35,8 @@ const isJsonObject = Schema.is(Schema.Record(Schema.String, Schema.Json));
 
 const isJsonArray = Schema.is(Schema.Array(Schema.Json));
 
+const decodeJson = Schema.decodeUnknownSync(Schema.fromJsonString(Schema.Json));
+
 /** The browser gets a parsed outcome: a failure message, a bot reply, or plain success. */
 function outcome(status: string, result: JsonValue) {
   if (status !== 'complete')
@@ -155,7 +157,7 @@ const make = Effect.gen(function* () {
     return account(id);
   }
 
-  async function setup(raw: (typeof setupRequest)['Encoded'], live: () => boolean = () => true) {
+  async function setup(raw: unknown, live: () => boolean = () => true) {
     const input = Schema.decodeUnknownSync(setupRequest)(raw);
 
     if (store.complete() || !keyValid(input.key))
@@ -279,7 +281,7 @@ const make = Effect.gen(function* () {
     return signed.slice(signed.lastIndexOf('|') + 1);
   }
 
-  async function create(id: string, raw: (typeof newUser)['Encoded'], operation: string) {
+  async function create(id: string, raw: unknown, operation: string) {
     const input = Schema.decodeUnknownSync(newUser)(raw);
     Effect.runSync(sessions.require(id, true));
     const hash = await passwordTask(() => repositories.cryptoRepository.hashPassword(input.password));
@@ -304,7 +306,7 @@ const make = Effect.gen(function* () {
     });
   }
 
-  async function mutate(id: string, targetId: number, action: string, raw: (typeof mutationRequest)['Encoded']) {
+  async function mutate(id: string, targetId: number, action: string, raw: unknown) {
     const input = Schema.decodeUnknownSync(mutationRequest)(raw);
     Effect.runSync(sessions.require(id, true));
 
@@ -380,7 +382,7 @@ const make = Effect.gen(function* () {
     return result;
   }
 
-  function edit(id: string, player: number, raw: (typeof editUserRequest)['Encoded']) {
+  function edit(id: string, player: number, raw: unknown) {
     const input = Schema.decodeUnknownSync(editUserRequest)(raw);
 
     return store.transaction(() => {
@@ -473,7 +475,7 @@ const make = Effect.gen(function* () {
     return { avatar: null };
   }
 
-  function editOwnProfile(id: string, raw: (typeof ownProfileRequest)['Encoded'], targetPlayer?: number) {
+  function editOwnProfile(id: string, raw: unknown, targetPlayer?: number) {
     const input = Schema.decodeUnknownSync(ownProfileRequest)(raw);
 
     return store.transaction(() => {
@@ -523,7 +525,7 @@ const make = Effect.gen(function* () {
     };
   }
 
-  function saveSettings(id: string, player: number, raw: (typeof settingsRequest)['Encoded'], manage = false) {
+  function saveSettings(id: string, player: number, raw: unknown, manage = false) {
     const input = Schema.decodeUnknownSync(settingsRequest)(raw);
 
     return store.transaction(() => {
@@ -555,7 +557,7 @@ const make = Effect.gen(function* () {
   async function serverOperation(
     id: string,
     action: string,
-    raw: (typeof serverRequest)['Encoded'],
+    raw: unknown,
     flush: () => Promise<void>,
     dispatch: { reload: () => Promise<void>; bots: (user: number, command: string) => string },
   ) {
@@ -584,7 +586,7 @@ const make = Effect.gen(function* () {
       return { actor, prior: null };
     });
 
-    if (prior) return outcome(prior.status, prior.result ? JSON.parse(prior.result) : null);
+    if (prior) return outcome(prior.status, prior.result ? decodeJson(prior.result) : null);
     await flush();
     let result: JsonValue;
 
@@ -631,7 +633,7 @@ const make = Effect.gen(function* () {
     return repositories.eventsRepository.listPrivateEvent().map((row) => decodeMeetup(JSON.parse(row.json)));
   }
 
-  function editEvent(session: string, eventId: number, action: string, raw: (typeof eventRequest)['Encoded']) {
+  function editEvent(session: string, eventId: number, action: string, raw: unknown) {
     const input = Schema.decodeUnknownSync(eventRequest)(raw);
     const actor = Effect.runSync(sessions.require(session, true));
     const fingerprint = fingerprintNow({ eventId, action, input });
@@ -691,7 +693,7 @@ const make = Effect.gen(function* () {
     });
   }
 
-  function saveWorld(session: string, raw: (typeof worldRequest)['Encoded']) {
+  function saveWorld(session: string, raw: unknown) {
     const input = Schema.decodeUnknownSync(worldRequest)(raw);
 
     return store.transaction(() => {
@@ -750,10 +752,7 @@ const make = Effect.gen(function* () {
       return yield* Effect.promise(() => passwordTask(work));
     }),
 
-    setup: Effect.fn('ManagementService.setup')(function* (
-      raw: (typeof setupRequest)['Encoded'],
-      live: () => boolean = () => true,
-    ) {
+    setup: Effect.fn('ManagementService.setup')(function* (raw: unknown, live: () => boolean = () => true) {
       return yield* Effect.promise(() => setup(raw, live));
     }),
 
@@ -773,11 +772,7 @@ const make = Effect.gen(function* () {
       return yield* Effect.promise(() => changeOwnPassword(id, current, password));
     }),
 
-    create: Effect.fn('ManagementService.create')(function* (
-      id: string,
-      raw: (typeof newUser)['Encoded'],
-      operation: string,
-    ) {
+    create: Effect.fn('ManagementService.create')(function* (id: string, raw: unknown, operation: string) {
       return yield* Effect.promise(() => create(id, raw, operation));
     }),
 
@@ -785,16 +780,12 @@ const make = Effect.gen(function* () {
       id: string,
       targetId: number,
       action: string,
-      raw: (typeof mutationRequest)['Encoded'],
+      raw: unknown,
     ) {
       return yield* Effect.promise(() => mutate(id, targetId, action, raw));
     }),
 
-    edit: Effect.fn('ManagementService.edit')(function* (
-      id: string,
-      player: number,
-      raw: (typeof editUserRequest)['Encoded'],
-    ) {
+    edit: Effect.fn('ManagementService.edit')(function* (id: string, player: number, raw: unknown) {
       return edit(id, player, raw);
     }),
 
@@ -820,7 +811,7 @@ const make = Effect.gen(function* () {
 
     editOwnProfile: Effect.fn('ManagementService.editOwnProfile')(function* (
       id: string,
-      raw: (typeof ownProfileRequest)['Encoded'],
+      raw: unknown,
       targetPlayer?: number,
     ) {
       return editOwnProfile(id, raw, targetPlayer);
@@ -833,8 +824,8 @@ const make = Effect.gen(function* () {
     saveSettings: Effect.fn('ManagementService.saveSettings')(function* (
       id: string,
       player: number,
-      raw: (typeof settingsRequest)['Encoded'],
-      manage = false,
+      raw: unknown,
+      manage: boolean = false,
     ) {
       return saveSettings(id, player, raw, manage);
     }),
@@ -842,14 +833,14 @@ const make = Effect.gen(function* () {
     serverOperation: Effect.fn('ManagementService.serverOperation')(function* (
       id: string,
       action: string,
-      raw: (typeof serverRequest)['Encoded'],
+      raw: unknown,
       flush: () => Promise<void>,
       dispatch: { reload: () => Promise<void>; bots: (user: number, command: string) => string },
     ) {
       return yield* Effect.promise(() => serverOperation(id, action, raw, flush, dispatch));
     }),
     /** Operator configuration as read-only rows. The browser never receives secrets: paths only. */
-    configuration: Effect.fn('ManagementService.configuration')(function* (value: JsonValue, prefix = '') {
+    configuration: Effect.fn('ManagementService.configuration')(function* (value: JsonValue, prefix: string = '') {
       return configuration(value, prefix);
     }),
 
@@ -861,7 +852,7 @@ const make = Effect.gen(function* () {
       session: string,
       eventId: number,
       action: string,
-      raw: (typeof eventRequest)['Encoded'],
+      raw: unknown,
     ) {
       return editEvent(session, eventId, action, raw);
     }),
@@ -870,10 +861,7 @@ const make = Effect.gen(function* () {
       return worldSettings();
     }),
 
-    saveWorld: Effect.fn('ManagementService.saveWorld')(function* (
-      session: string,
-      raw: (typeof worldRequest)['Encoded'],
-    ) {
+    saveWorld: Effect.fn('ManagementService.saveWorld')(function* (session: string, raw: unknown) {
       return saveWorld(session, raw);
     }),
   };

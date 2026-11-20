@@ -33,7 +33,7 @@ const make = Effect.gen(function* () {
   const sendMessage = Effect.fn('SocialService.sendMessage')(function* (
     message: string,
     recipients?: bigint[],
-    sender = 'Server',
+    sender: string = 'Server',
   ) {
     return yield* messageService.sendMessage(message, recipients, sender);
   });

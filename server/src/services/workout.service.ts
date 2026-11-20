@@ -585,20 +585,20 @@ const make = Effect.gen(function* () {
       dropEvent(id, eventId);
     }),
     /** Today's scheduled workouts, as the game lists them. */
-    list: Effect.fn('WorkoutsService.list')(function* (id: number, now = new Date()) {
+    list: Effect.fn('WorkoutsService.list')(function* (id: number, now: Date = new Date()) {
       return scheduled(id, now);
     }),
     file: Effect.fn('WorkoutsService.file')(function* (id: string) {
       return fileOf(id);
     }),
     /** Fetch today's workouts from the rider's provider and publish them. A failure is a defect. */
-    sync: Effect.fn('WorkoutsService.sync')(function* (id: number, signal = AbortSignal.timeout(30_000)) {
+    sync: Effect.fn('WorkoutsService.sync')(function* (id: number, signal: AbortSignal = AbortSignal.timeout(30_000)) {
       return yield* Effect.promise(() => syncNow(id, signal));
     }),
     /** Sync in the background of a request: failures are logged, and concurrent requests share one sync. */
     syncWorkoutsAutomatically: Effect.fn('WorkoutsService.syncWorkoutsAutomatically')(function* (
       id: number,
-      android = false,
+      android: boolean = false,
     ) {
       yield* Effect.promise(() => automatic(id, android));
     }),

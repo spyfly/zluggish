@@ -184,7 +184,9 @@ export class CryptoRepository {
   async sha256FileAsync(path: string) {
     const hash = createHash('sha256');
 
-    for await (const chunk of createReadStream(path)) hash.update(chunk);
+    const chunks: AsyncIterable<Buffer> = createReadStream(path);
+
+    for await (const chunk of chunks) hash.update(chunk);
 
     return hash.digest('hex');
   }

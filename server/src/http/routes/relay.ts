@@ -168,7 +168,9 @@ export function relayRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
   app.on('GET', ['/relay/worlds', '/relay/dropin'], async (c) => {
     const user = authenticated(c);
 
-    const bookmarks = (await runtime.world.simulation?.loadBookmarks(BigInt(user.player_id))) ?? new Map();
+    const bookmarks =
+      (await runtime.world.simulation?.loadBookmarks(BigInt(user.player_id))) ??
+      new Map<bigint, { state: PlayerState; name: string }>();
 
     if (c.req.header('Accept')?.includes('application/json')) return c.json([worldJSON(1)]);
 

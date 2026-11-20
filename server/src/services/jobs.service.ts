@@ -133,12 +133,12 @@ const make = Effect.gen(function* () {
       handlers.set(type, handler);
     }),
 
-    enqueue: Effect.fn('JobsService.enqueue')(function* (type: JobType, payload: JobPayload, delayMs = 0) {
+    enqueue: Effect.fn('JobsService.enqueue')(function* (type: JobType, payload: JobPayload, delayMs: number = 0) {
       return jobs.enqueue(type, payload, delayMs);
     }),
 
     /** Poll for ready jobs every interval until close. */
-    start: Effect.fn('JobsService.start')(function* (intervalMs = 1000) {
+    start: Effect.fn('JobsService.start')(function* (intervalMs: number = 1000) {
       if (status === 'stopped' || poller) return;
       status = 'running';
       poller = yield* Effect.sleep(intervalMs).pipe(

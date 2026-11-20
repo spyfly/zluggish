@@ -165,7 +165,7 @@ const make = Effect.gen(function* () {
       return grant(player, permission);
     }),
 
-    cancel: Effect.fn('RideCompletionService.cancel')(function* (player: number, close = true) {
+    cancel: Effect.fn('RideCompletionService.cancel')(function* (player: number, close: boolean = true) {
       return cancel(player, close);
     }),
 

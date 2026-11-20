@@ -583,7 +583,7 @@ const make = Effect.gen(function* () {
     /** Failed deliveries become pending. Ambiguous ones need explicit confirmation: the
   provider may already hold the activity.
   */
-    retry: Effect.fn('UploadsService.retry')(function* (player: number, ambiguous = false) {
+    retry: Effect.fn('UploadsService.retry')(function* (player: number, ambiguous: boolean = false) {
       return yield* Effect.promise(() => retry(player, ambiguous));
     }),
     /** Remove a credential and cancel the pending deliveries that depended on it. */

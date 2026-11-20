@@ -877,7 +877,7 @@ const make = Effect.gen(function* () {
       return photos(player, activity);
     }),
 
-    companion: Effect.fn('ActivitiesService.companion')(function* (activity: Activity, details = false) {
+    companion: Effect.fn('ActivitiesService.companion')(function* (activity: Activity, details: boolean = false) {
       return companion(activity, details);
     }),
     /** A rider's own activities for the web app. The rider owns them, so fitness privacy does not apply. */

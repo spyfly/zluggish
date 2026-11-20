@@ -123,7 +123,7 @@ const make = Effect.gen(function* () {
       return session;
     }),
 
-    create: Effect.fn('WebSessionsService.create')(function* (identity: string, confirmedUntil = 0) {
+    create: Effect.fn('WebSessionsService.create')(function* (identity: string, confirmedUntil: number = 0) {
       return create(identity, confirmedUntil);
     }),
 
@@ -135,7 +135,11 @@ const make = Effect.gen(function* () {
       return userNow(id);
     }),
 
-    require: Effect.fn('WebSessionsService.require')(function* (id: string, manage = false, _confirm = true) {
+    require: Effect.fn('WebSessionsService.require')(function* (
+      id: string,
+      manage: boolean = false,
+      _confirm: boolean = true,
+    ) {
       return requireUser(id, manage, _confirm);
     }),
 

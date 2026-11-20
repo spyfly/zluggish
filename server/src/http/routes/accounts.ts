@@ -13,7 +13,7 @@ import type { HttpRuntime as Runtime, RuntimeEnv } from '#src/http/runtime';
 import type { User } from '#src/repositories/accounts.repository';
 import { REMEMBER_SECONDS, SessionsService } from '#src/services/browser-session.service';
 import { getConnInfo } from '@hono/node-server/conninfo';
-import type { Context, Hono } from 'hono';
+import type { Context, Hono, Next } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { HTTPException } from 'hono/http-exception';
 import { resolve } from 'node:path';
@@ -107,7 +107,7 @@ export function accountRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
   const accounts = runtime.effects.runSync(AccountsService);
   const sessions = runtime.effects.runSync(SessionsService);
   const { world } = runtime;
-  app.use('*', async (c, next) => {
+  app.use('*', async (c: Context<RuntimeEnv>, next: Next) => {
     const authorization = c.req.header('Authorization');
     const existing = getCookie(c, 'zluggish_session');
 

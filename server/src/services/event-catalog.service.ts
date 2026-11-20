@@ -120,7 +120,11 @@ const make = Effect.gen(function* () {
   const context = yield* RuntimeContext;
   const repositories = context.accounts.repositories;
 
-  const eventsAt = Effect.fn('EventCatalogService.eventsAt')(function* (assets: string, limit = 1000, sport?: string) {
+  const eventsAt = Effect.fn('EventCatalogService.eventsAt')(function* (
+    assets: string,
+    limit: number = 1000,
+    sport?: string,
+  ) {
     const catalog = repositories.eventCatalogRepository.readEventCatalog(assets);
 
     const start = BigInt(Math.floor(Date.now() / 1000) * 1000 + 120_000);
