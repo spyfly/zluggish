@@ -47,10 +47,12 @@ export default defineConfig({
   },
 
   tls: {
-    // Custom certificate and key for the API listener, PEM format. Set both or neither; empty uses the bundled
-    // zwift.com certificate.
+    // Custom certificate and key for the API listener, PEM format. Set both or neither. Empty uses the certificate
+    // that the server generates in storage/tls, or the shared zwift.com certificate on a server from before it.
     certFile: '',
     keyFile: '',
+    // Lifetime of a certificate that the server generates.
+    lifetimeYears: 5,
   },
 
   dns: {
