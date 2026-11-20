@@ -30,7 +30,7 @@ export function webProfileRoutes(app: Hono<WebEnv>, runtime: HttpRuntime) {
   function context(c: Context<WebEnv>) {
     const id = c.get('sessionId');
     const user = runtime.effects.runSync(sessions.require(id));
-    const session = runtime.effects.runSync(sessions.find(id))!;
+    const session = runtime.effects.runSync(sessions.session(id));
 
     return { id, user, session };
   }
@@ -182,7 +182,11 @@ export function webProfileRoutes(app: Hono<WebEnv>, runtime: HttpRuntime) {
 
       delete session.pendingImport;
 
-      return c.json({ user: yield* managementService.publicUser(accounts.get(user.player_id)!), review: null });
+      const updated = accounts.get(user.player_id);
+
+      if (!updated) throw new ApplicationError({ status: 404, message: 'User not found.' });
+
+      return c.json({ user: yield* managementService.publicUser(updated), review: null });
     }),
   );
 

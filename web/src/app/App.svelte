@@ -387,7 +387,8 @@
   }
 
   async function saveSettings() {
-    settings = await api('/api/me/settings', 'PATCH', settingsBody(settings!));
+    if (!settings) return;
+    settings = await api('/api/me/settings', 'PATCH', settingsBody(settings));
   }
 
   /** A single switch saves as soon as it changes, and flips back if the server refuses it. */
@@ -432,19 +433,20 @@
     const side = Math.min(bitmap.width, bitmap.height);
     const canvas = document.createElement('canvas');
     canvas.width = canvas.height = Math.min(side, 512);
-    canvas
-      .getContext('2d')!
-      .drawImage(
-        bitmap,
-        (bitmap.width - side) / 2,
-        (bitmap.height - side) / 2,
-        side,
-        side,
-        0,
-        0,
-        canvas.width,
-        canvas.height,
-      );
+    const context = canvas.getContext('2d');
+
+    if (!context) throw new Error('Could not process the image.');
+    context.drawImage(
+      bitmap,
+      (bitmap.width - side) / 2,
+      (bitmap.height - side) / 2,
+      side,
+      side,
+      0,
+      0,
+      canvas.width,
+      canvas.height,
+    );
     bitmap.close();
 
     return new Promise<Blob>((done, fail) =>
@@ -467,8 +469,9 @@
   }
 
   async function loadSettings() {
-    settings = await api('/api/me/settings');
-    applySettings(settings!);
+    const loaded: UserSettings = await api('/api/me/settings');
+    settings = loaded;
+    applySettings(loaded);
   }
 
   function select() {

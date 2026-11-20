@@ -58,8 +58,8 @@ const make = Effect.gen(function* () {
 
     if (unlockBikes) {
       // A stored attribute can contain both progress and unrelated settings.
-      for (let index = 0; index < attributes.length; index++) {
-        const attribute = clone(AttributesSchema, attributes[index]!);
+      for (const [index, stored] of attributes.entries()) {
+        const attribute = clone(AttributesSchema, stored);
         delete attribute.bikeProgress;
         attributes[index] = attribute;
       }

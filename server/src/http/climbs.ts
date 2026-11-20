@@ -27,7 +27,7 @@ export function climbFacts(label: string) {
 
   if (!match?.groups) return { name: label, distanceKm: null, elevationM: null };
 
-  return { name: match.groups.name!, distanceKm: Number(match.groups.km), elevationM: Number(match.groups.m) };
+  return { name: match.groups.name ?? label, distanceKm: Number(match.groups.km), elevationM: Number(match.groups.m) };
 }
 
 /** The climb portal roads the launcher offers, with their display names. */

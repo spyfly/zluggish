@@ -215,8 +215,11 @@
   }
 
   function saveCredentials(name: Provider) {
+    const connection = connections?.[name];
+
+    if (!connection) return;
     void run(async () => {
-      await api(`/api/me/connections/${name}`, 'PUT', { username: connections![name].username, secret: secrets[name] });
+      await api(`/api/me/connections/${name}`, 'PUT', { username: connection.username, secret: secrets[name] });
       secrets[name] = '';
       message = 'Credentials saved.';
     });

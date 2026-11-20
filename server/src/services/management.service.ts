@@ -53,6 +53,13 @@ function configuration(value: JsonValue, prefix = ''): [string, string][] {
   return [[prefix, isJsonArray(value) ? value.join(', ') : String(value ?? '')]];
 }
 
+/** The result a completed operation recorded, returned again when its request is retried. */
+function recorded(prior: { result: string | null }) {
+  if (prior.result === null) throw new ApplicationError({ status: 409, message: 'Operation changed.' });
+
+  return JSON.parse(prior.result);
+}
+
 const make = Effect.gen(function* () {
   const context = yield* RuntimeContext;
   const repositories = context.accounts.repositories;
@@ -67,6 +74,14 @@ const make = Effect.gen(function* () {
   let setupDigest: Buffer | null = null;
 
   let passwordWork = 0;
+
+  function account(player: number) {
+    const user = context.accounts.get(player);
+
+    if (!user) throw new ApplicationError({ status: 404, message: 'User not found.' });
+
+    return user;
+  }
 
   function publicUser(user: User) {
     const { pass_hash, auth_version: _authVersion, ...safe } = user;
@@ -88,7 +103,7 @@ const make = Effect.gen(function* () {
     for (let i = 0; i < bits.length; i += 5) key += alphabet[Number.parseInt(bits.slice(i, i + 5).padEnd(5, '0'), 2)];
     setupDigest = Buffer.from(repositories.cryptoRepository.sha256(key), 'hex');
 
-    return key.match(/.{1,4}/g)!.join('-');
+    return (key.match(/.{1,4}/g) ?? []).join('-');
   }
 
   function keyValid(key: string) {
@@ -137,7 +152,7 @@ const make = Effect.gen(function* () {
       pass_hash: hash,
     });
 
-    return context.accounts.get(id)!;
+    return account(id);
   }
 
   async function setup(raw: (typeof setupRequest)['Encoded'], live: () => boolean = () => true) {
@@ -173,11 +188,14 @@ const make = Effect.gen(function* () {
         throw new ApplicationError({ status: 409, message: 'Setup refused.' });
       let target: User;
 
-      if (input.mode === 'new') target = insert(input, hash!);
-      else {
+      if (input.mode === 'new') {
+        if (hash === null) throw new ApplicationError({ status: 409, message: 'Setup refused.' });
+        target = insert(input, hash);
+      } else {
         const current = existing && context.accounts.get(existing.player_id);
 
         if (
+          !existing ||
           !current ||
           !current.enabled ||
           current.auth_version !== existing.auth_version ||
@@ -190,9 +208,7 @@ const make = Effect.gen(function* () {
 
       store.update(target.player_id, { role: 'administrator' });
       store.finish();
-      const after = context.accounts.get(target.player_id)!;
-
-      return after;
+      return account(target.player_id);
     });
 
     setupDigest = null;
@@ -234,7 +250,7 @@ const make = Effect.gen(function* () {
     )
       throw new ApplicationError({ status: 401, message: 'Confirmation refused.' });
     Effect.runSync(sessions.require(id, true, false));
-    sessions.sessions.get(id)!.confirmedUntil = Date.now() + 900_000;
+    Effect.runSync(sessions.session(id)).confirmedUntil = Date.now() + 900_000;
   }
 
   /** Administrators can already set any password, so they skip the current one. */
@@ -277,7 +293,7 @@ const make = Effect.gen(function* () {
         if (prior.action !== 'create' || prior.fingerprint !== fingerprint)
           throw new ApplicationError({ status: 409, message: 'Operation changed.' });
 
-        return JSON.parse(prior.result!);
+        return recorded(prior);
       }
 
       const user = insert(input, hash);
@@ -292,10 +308,8 @@ const make = Effect.gen(function* () {
     const input = Schema.decodeUnknownSync(mutationRequest)(raw);
     Effect.runSync(sessions.require(id, true));
 
-    const hash =
-      action === 'password' && input.password
-        ? await passwordTask(() => repositories.cryptoRepository.hashPassword(input.password!))
-        : undefined;
+    const password = action === 'password' ? input.password : undefined;
+    const hash = password ? await passwordTask(() => repositories.cryptoRepository.hashPassword(password)) : undefined;
 
     let permission: Effect.Success<ReturnType<RideCompletionService['Service']['capture']>> = null;
     let committed = false;
@@ -315,7 +329,7 @@ const make = Effect.gen(function* () {
         if (prior.fingerprint !== fingerprint)
           throw new ApplicationError({ status: 409, message: 'Operation changed.' });
 
-        return JSON.parse(prior.result!);
+        return recorded(prior);
       }
 
       if (target.revision !== input.revision)
@@ -349,7 +363,7 @@ const make = Effect.gen(function* () {
       committed = true;
 
       const after = {
-        ...publicUser(context.accounts.get(targetId)!),
+        ...publicUser(account(targetId)),
         completion_deadline: permission?.deadline ?? null,
       };
 
@@ -381,7 +395,7 @@ const make = Effect.gen(function* () {
         if (prior.fingerprint !== fingerprint || prior.action !== 'edit')
           throw new ApplicationError({ status: 409, message: 'Operation changed.' });
 
-        return JSON.parse(prior.result!);
+        return recorded(prior);
       }
 
       if (context.world.active(player))
@@ -399,7 +413,7 @@ const make = Effect.gen(function* () {
       profile.email = input.username;
       context.profiles.save(player, profile);
       store.update(player, { username: input.username }, false);
-      const result = publicUser(context.accounts.get(player)!);
+      const result = publicUser(account(player));
       store.record(actor.player_id, input.operation, 'edit', player, fingerprint, result);
 
       return result;
@@ -414,7 +428,7 @@ const make = Effect.gen(function* () {
     const [month, day, year] = context.profiles.get(user.player_id).dob.split('/', 3);
 
     return {
-      user: publicUser(context.accounts.get(user.player_id)!),
+      user: publicUser(account(user.player_id)),
       birthday: year && month && day ? `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}` : '',
       avatar: avatarVersion(user.player_id),
     };
@@ -475,7 +489,7 @@ const make = Effect.gen(function* () {
         if (prior.fingerprint !== fingerprint || prior.action !== 'profile')
           throw new ApplicationError({ status: 409, message: 'Operation changed.' });
 
-        return JSON.parse(prior.result!);
+        return recorded(prior);
       }
 
       if (context.world.active(player))
@@ -526,7 +540,7 @@ const make = Effect.gen(function* () {
         if (prior.action !== 'settings' || prior.fingerprint !== fingerprint)
           throw new ApplicationError({ status: 409, message: 'Operation changed.' });
 
-        return JSON.parse(prior.result!);
+        return recorded(prior);
       }
 
       context.settings.save(player, input.overrides, input.revision);
@@ -563,7 +577,7 @@ const make = Effect.gen(function* () {
         return { actor, prior };
       }
 
-      if (action === 'bots' && !context.world.active(input.user!))
+      if (action === 'bots' && input.user !== undefined && !context.world.active(input.user))
         throw new ApplicationError({ status: 409, message: 'The user must be riding now.' });
       store.intent(actor.player_id, input.operation, action, fingerprint);
 
@@ -594,7 +608,9 @@ const make = Effect.gen(function* () {
         }
 
         case 'bots': {
-          result = dispatch.bots(input.user!, [input.command, input.argument].filter(Boolean).join(' '));
+          if (input.user === undefined)
+            throw new ApplicationError({ status: 400, message: 'Choose a user and a bot command.' });
+          result = dispatch.bots(input.user, [input.command, input.argument].filter(Boolean).join(' '));
           break;
         }
 
@@ -625,7 +641,7 @@ const make = Effect.gen(function* () {
       if (prior.action !== action || prior.fingerprint !== fingerprint)
         throw new ApplicationError({ status: 409, message: 'Operation changed.' });
 
-      return JSON.parse(prior.result!);
+      return recorded(prior);
     }
 
     const event = Effect.runSync(eventsService.read(String(eventId)));
@@ -687,7 +703,7 @@ const make = Effect.gen(function* () {
         if (prior.action !== 'world-settings' || prior.fingerprint !== fingerprint)
           throw new ApplicationError({ status: 409, message: 'Operation changed.' });
 
-        return JSON.parse(prior.result!);
+        return recorded(prior);
       }
 
       if (input.id.startsWith('peloton:')) {

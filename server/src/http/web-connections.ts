@@ -218,7 +218,7 @@ export function webConnectionRoutes(app: Hono<WebEnv>, runtime: HttpRuntime) {
       )(yield* Effect.promise(() => c.req.json()));
 
       if (input.code) {
-        const session = (yield* webSessionsService.find(id))!;
+        const session = yield* webSessionsService.session(id);
 
         if (!session.stravaState || input.state !== session.stravaState)
           throw new ApplicationError({ status: 403, message: 'Authorization expired.' });
@@ -236,7 +236,7 @@ export function webConnectionRoutes(app: Hono<WebEnv>, runtime: HttpRuntime) {
       if (!client) throw new ApplicationError({ status: 400, message: 'Save Strava API credentials first.' });
       const redirect = new URL('/integrations', runtime.config.network.web.publicUrl ?? c.req.url).href;
       const state = yield* webSessionsService.token();
-      (yield* webSessionsService.find(id))!.stravaState = state;
+      (yield* webSessionsService.session(id)).stravaState = state;
 
       return c.json({ url: yield* integrationsService.authorizationUrl(client[0], state, redirect) });
     }),

@@ -93,7 +93,7 @@ const make = Effect.gen(function* () {
 
     for (const listener of listeners) listener(created);
 
-    return { previous, fingerprint: facts()!.fingerprint256 };
+    return { previous, fingerprint: crypto.certificateFacts(created.cert).fingerprint256 };
   }
 
   function status(): TlsStatus {

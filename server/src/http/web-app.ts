@@ -105,8 +105,8 @@ export function createWebApp(runtime: HttpRuntime) {
       setCookie(c, csrfCookie, token, cookieOptions(c));
     }
 
-    c.set('sessionId', session ? id! : '');
-    c.set('csrf', token!);
+    c.set('sessionId', session && id ? id : '');
+    c.set('csrf', token ?? '');
 
     if (!['GET', 'HEAD'].includes(c.req.method)) {
       if (!sameOrigin(c.req.header('Origin'), c.req.url, publicUrl) || c.req.header('X-CSRF-Token') !== c.get('csrf'))
@@ -240,7 +240,7 @@ export function createWebApp(runtime: HttpRuntime) {
       const input = Schema.decodeUnknownSync(Strict({ password }))(yield* Effect.promise(() => c.req.json()));
       yield* managementService.confirm(c.get('sessionId'), input.password);
 
-      return c.json({ confirmedUntil: (yield* webSessionsService.find(c.get('sessionId')))!.confirmedUntil });
+      return c.json({ confirmedUntil: (yield* webSessionsService.session(c.get('sessionId'))).confirmedUntil });
     }),
   );
   appRoutes.post('/api/me/password', (c) =>
@@ -361,7 +361,11 @@ export function createWebApp(runtime: HttpRuntime) {
       throw new ApplicationError({ status: 409, message: 'This server has no certificate to install.' });
 
     // A configured file may hold a chain, and the shared one holds its key: take the first certificate only.
-    const pem = /-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/.exec(material.cert)![0] + '\n';
+    const certificate = /-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/.exec(material.cert)?.[0];
+
+    if (!certificate)
+      throw new ApplicationError({ status: 409, message: 'This server has no certificate to install.' });
+    const pem = certificate + '\n';
 
     if (status.mode === 'legacy')
       runtime.world.lifecycle.log.warn(
@@ -811,7 +815,7 @@ export function createWebApp(runtime: HttpRuntime) {
       const path = resolve(clientRoot, 'assets', name);
 
       if (!(yield* filesService.isFile(path))) return c.notFound();
-      const ext = name.split('.').at(-1)!;
+      const ext = name.slice(name.lastIndexOf('.') + 1);
 
       const types = {
         js: 'text/javascript',

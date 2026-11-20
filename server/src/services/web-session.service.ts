@@ -115,6 +115,14 @@ const make = Effect.gen(function* () {
       return find(id);
     }),
 
+    session: Effect.fn('WebSessionsService.session')(function* (id: string) {
+      const session = find(id);
+
+      if (!session) throw new ApplicationError({ status: 401, message: 'Sign in again.' });
+
+      return session;
+    }),
+
     create: Effect.fn('WebSessionsService.create')(function* (identity: string, confirmedUntil = 0) {
       return create(identity, confirmedUntil);
     }),
