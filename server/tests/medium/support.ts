@@ -9,13 +9,13 @@ import { createWebApp } from '#src/http/web-app';
 import type { User } from '#src/repositories/accounts.repository';
 import type { JsonValue } from '#src/dtos/management.dto';
 
-export async function mediumFixture(t: TestContext) {
+export async function mediumFixture(t: TestContext, publicUrl: string | null = null, webEnabled = true) {
   const network = t.mock.method(globalThis, 'fetch', () => {
     throw new Error('Unexpected external request in medium test');
   });
 
   t.after(() => assert.equal(network.mock.callCount(), 0, 'External providers must be explicitly mocked'));
-  const f = runtimeFixture(t);
+  const f = runtimeFixture(t, publicUrl, webEnabled);
   const rider = await f.accounts.create('Medium Rider', 'test-password');
   const other = await f.accounts.create('Other Rider', 'test-password');
   const headers = (user = rider) => ({ Authorization: `Bearer ${f.sessions.tokens(user, f.tokens).access_token}` });

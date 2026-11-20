@@ -37,6 +37,8 @@ export interface GamePageModel {
   /** The server's release version, shown in the top bar. */
   version: string;
   zwiftVersion?: string;
+  /** Where riders open the web app, from the configured public URL. Absent when none is set. */
+  webApp?: string | null;
   forms: Array<GameForm>;
   /** Shown as a back button beside the title; it navigates and never signs out. */
   back?: { href: string; label: string };

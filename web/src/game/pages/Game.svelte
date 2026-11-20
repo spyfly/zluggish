@@ -73,6 +73,15 @@
   version={current.version}
   zwiftVersion={current.zwiftVersion}
 >
+  {#snippet aside()}
+    {#if current.webApp && (current.kind === 'dashboard' || current.kind === 'login')}
+      <a class="web-app" href={current.webApp} target="_blank" rel="noopener noreferrer">
+        Manage your account
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3h7v7M13 3 4 12" /></svg>
+        <span class="visually-hidden">(opens the web app in your browser)</span>
+      </a>
+    {/if}
+  {/snippet}
   {#if current.warning}<p class="security" role="alert">
       <strong>Unsafe connection.</strong>
       {current.warning}
@@ -109,12 +118,49 @@
       </Form>
     </div>
   {/each}
-  {#if current.kind === 'dashboard'}
-    <p class="settings-note">Use the separate webapp to change settings.</p>
-  {/if}
 </Layout>
 
 <style>
+  /* A quiet pill tucked against the wordmark: a door out to the browser, never louder than the brand. */
+  .web-app {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-left: 0.4rem;
+    padding: 0.3rem 0.7rem 0.3rem 0.8rem;
+    border: 1.5px solid rgb(255 255 255 / 0.35);
+    border-radius: 999px;
+    color: var(--text);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    white-space: nowrap;
+    text-decoration: none;
+  }
+  .web-app svg {
+    width: 0.8rem;
+    height: 0.8rem;
+    fill: none;
+    stroke: var(--orange);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .web-app:hover {
+    border-color: var(--orange);
+    background: rgb(255 255 255 / 0.08);
+  }
+  .web-app:focus-visible {
+    outline: 2px solid var(--orange);
+    outline-offset: 2px;
+  }
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
   /* Sized for the small launcher window: one compact strip above the page. */
   .security {
     max-width: none;
@@ -130,8 +176,5 @@
   .security strong {
     color: var(--text);
     font-weight: 800;
-  }
-  .settings-note {
-    color: var(--muted);
   }
 </style>

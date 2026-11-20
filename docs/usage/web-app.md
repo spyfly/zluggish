@@ -53,6 +53,8 @@ Changes to `zluggish.config.ts` need a server restart.
 
 The web app then accepts requests only from that address. With an `https` address, the sign-in cookies get the `Secure` flag.
 
+When the web app is enabled and `network.web.publicUrl` is set, the launcher shows a **Manage your account** link next to the logo on its sign-in and dashboard pages. It opens the web app in the browser.
+
 ## Turn off the web app
 
 The first-time setup and new users need the web app. After the setup, an administrator can turn it off.
