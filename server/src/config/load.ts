@@ -9,13 +9,15 @@ import { Predicate, Schema } from 'effect';
 
 export const CONFIG_NAME = 'zluggish.config.ts';
 
+const isPackageManifest = Schema.is(Schema.Struct({ name: Schema.Literal('zluggish') }));
+
 export function packageRoot(): string {
   let current = import.meta.dirname;
 
   while (dirname(current) !== current) {
     const manifest = resolve(current, 'package.json');
 
-    if (existsSync(manifest) && JSON.parse(readFileSync(manifest, 'utf8')).name === 'zluggish') return current;
+    if (existsSync(manifest) && isPackageManifest(JSON.parse(readFileSync(manifest, 'utf8')))) return current;
     current = dirname(current);
   }
 

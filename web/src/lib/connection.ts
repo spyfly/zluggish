@@ -70,9 +70,9 @@ export async function checkConnection() {
 
   try {
     const response = await fetch('/health', { cache: 'no-store', signal: AbortSignal.timeout(5000) });
-    const body = await response.json();
+    const healthy = z.object({ name: z.literal('zluggish'), status: z.literal('ok') }).safeParse(await response.json());
 
-    if (!response.ok || body.name !== 'zluggish' || body.status !== 'ok') throw new Error('Unavailable');
+    if (!response.ok || !healthy.success) throw new Error('Unavailable');
     unavailable = false;
     failures = 0;
     retryAt = Date.now() + 30_000;

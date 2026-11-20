@@ -10,10 +10,10 @@ import { HTTPException } from 'hono/http-exception';
 export function workoutRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
   const appRoutes = effectRoutes(app, runtime);
 
-  const selected = Effect.fn('workouts.selected')(function* (id: number, sport = 'CYCLING') {
+  const selected = Effect.fn('workouts.selected')(function* (id: number, sport?: string) {
     const workouts = yield* WorkoutsService;
 
-    return sport.toUpperCase() === 'CYCLING' ? yield* workouts.list(id) : [];
+    return sport === undefined || sport.toUpperCase() === 'CYCLING' ? yield* workouts.list(id) : [];
   });
 
   appRoutes.get('/api/workout/schedule/list', (c) =>
