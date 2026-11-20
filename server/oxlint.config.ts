@@ -46,6 +46,19 @@ export default defineConfig({
   overrides: [
     ...(cloudflare.overrides ?? []),
     {
+      // Helpers under tests/ are test code too, so they get the preset's test relaxations.
+      files: ['tests/**'],
+      rules: {
+        'typescript/no-explicit-any': 'off',
+        'typescript/no-non-null-assertion': 'off',
+        'typescript/no-unsafe-argument': 'off',
+        'typescript/no-unsafe-assignment': 'off',
+        'typescript/no-unsafe-member-access': 'off',
+        'typescript/only-throw-error': 'off',
+        'typescript/unbound-method': 'off',
+      },
+    },
+    {
       // Entry points print startup and CLI output; the logging repository is the console sink.
       files: ['src/main.ts', 'src/cli/**', 'src/repositories/logging.repository.ts'],
       rules: { 'no-console': 'off' },
