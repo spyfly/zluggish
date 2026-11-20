@@ -9,6 +9,7 @@ const data = document.querySelector('#launcher-props');
 
 if (target && data?.textContent) {
   // SAFETY: props are serialized by the same-origin Svelte render adapter.
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   const page = JSON.parse(data.textContent) as GamePageModel;
 
   if (['login', 'unlock', 'add', 'dashboard'].includes(page.kind)) {

@@ -23,6 +23,7 @@ async function handshake(ca: string, servername: string) {
 
   try {
     // SAFETY: a TCP server listening on a host and port reports an AddressInfo.
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
     const { port } = server.address() as AddressInfo;
     const socket = connect({ host: '127.0.0.1', port, servername, ca });
 

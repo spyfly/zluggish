@@ -50,6 +50,7 @@ export const fileResponse = Effect.fn('fileResponse')(function* (
   const { start, end } = range ?? { start: 0, end: size - 1 };
 
   // SAFETY: Node returns a WHATWG byte stream; Node and DOM stream declarations differ in their BYOB overloads.
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   const body = Readable.toWeb(yield* filesService.readStream(path, { start, end })) as ReadableStream<Uint8Array>;
 
   return c.body(body, range ? 206 : 200, {

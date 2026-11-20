@@ -150,5 +150,6 @@ export function decodeOwned<S extends Schema.ConstraintDecoder<unknown>>(schema:
 
   // SAFETY: decoding builds new objects and arrays that nothing else references,
   // so the caller may change them.
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   return (...input: Parameters<typeof decode>) => decode(...input) as Types.DeepMutable<S['Type']>;
 }

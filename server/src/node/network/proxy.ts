@@ -50,6 +50,7 @@ export async function fetchCdn(path: string): Promise<Response> {
             done(new Response(null, { status, headers }));
           } else {
             // SAFETY: Node returns a WHATWG byte stream; Node and DOM stream declarations differ in their BYOB overloads.
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion
             const body = Readable.toWeb(response) as ReadableStream<Uint8Array>;
             done(new Response(body, { status, headers }));
           }

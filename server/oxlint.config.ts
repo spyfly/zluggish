@@ -9,7 +9,6 @@ const migrationRules = {
   'typescript/no-unsafe-call': 'off', // Temporary during migration
   'typescript/no-unsafe-member-access': 'off', // Temporary during migration
   'typescript/no-unsafe-return': 'off', // Temporary during migration
-  'typescript/no-unsafe-type-assertion': 'off', // Temporary during migration
 } as const;
 
 export default defineConfig({

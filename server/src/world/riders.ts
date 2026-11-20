@@ -150,6 +150,7 @@ export class RiderPool {
       }
 
       // SAFETY: decoded JSON values are plain JSON; protobuf only reads them.
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion
       mergeFromJson(PlayerProfileSchema, profile, values as JsonValue, {
         ignoreUnknownFields: true,
       });

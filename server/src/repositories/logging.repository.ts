@@ -46,6 +46,7 @@ function safe(value: LogValue, seen = new WeakSet<object>(), depth = 0): Seriali
       type: value.name,
       message: safe(value.message),
       stack: value.stack === undefined ? undefined : multiline(value.stack),
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion
       cause: value.cause === undefined ? undefined : safe(value.cause as LogValue, seen, depth + 1),
     };
   }

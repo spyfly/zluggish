@@ -827,6 +827,7 @@ export function createWebApp(runtime: HttpRuntime) {
       };
 
       // SAFETY: the filename extension was restricted to these MIME types above.
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion
       return yield* fileResponse(c, path, { 'Content-Type': types[ext as keyof typeof types] });
     }),
   );

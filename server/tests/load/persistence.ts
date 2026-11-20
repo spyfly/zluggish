@@ -86,6 +86,7 @@ if (slowDisk > 0) {
   };
 
   // SAFETY: The load test replaces only the callback form; promisify is unused.
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   fs.fsync = ((fd: number, callback: fs.NoParamCallback) => {
     setTimeout(() => fsync(fd, callback), slowDisk);
   }) as typeof fs.fsync;
