@@ -301,7 +301,7 @@ await test('an obsolete Garmin login cannot publish tokens or erase the newer MF
   assert.equal(publish.mock.callCount(), 1);
 });
 
-for (const reason of ['expiry', 'logout', 'password', 'disconnect'] as const)
+for (const reason of ['expiry', 'logout', 'password', 'disconnect'] as const) {
   await test(`Garmin continuation rejects ${reason}`, async (t) => {
     const f = await mediumFixture(t);
     const opened = webSession(f);
@@ -353,6 +353,7 @@ for (const reason of ['expiry', 'logout', 'password', 'disconnect'] as const)
     );
     assert.equal(resume.mock.callCount(), 0);
   });
+}
 
 await test('Strava authorization cannot publish a token after web sign-out', async (t) => {
   const f = await mediumFixture(t);

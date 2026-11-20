@@ -54,13 +54,18 @@ const make = Effect.gen(function* () {
   const listeners = new Set<(material: CertificateMaterial) => void>();
 
   function initial(): TlsState {
-    if (!config.network.api.useCert) return { mode: 'disabled', material: null };
+    if (!config.network.api.useCert) {
+      return { mode: 'disabled', material: null };
+    }
 
-    if (config.tls.certFile)
+    if (config.tls.certFile) {
       return { mode: 'custom', material: certificates.readFiles(config.tls.certFile, config.tls.keyFile) };
+    }
     const managed = certificates.read(path);
 
-    if (managed) return { mode: 'managed', material: managed };
+    if (managed) {
+      return { mode: 'managed', material: managed };
+    }
     const legacy = certificates.legacyFiles(context.assets);
 
     return { mode: 'legacy', material: certificates.readFiles(legacy.cert, legacy.key) };
@@ -91,7 +96,9 @@ const make = Effect.gen(function* () {
     mode = 'managed';
     material = created;
 
-    for (const listener of listeners) listener(created);
+    for (const listener of listeners) {
+      listener(created);
+    }
 
     return { previous, fingerprint: crypto.certificateFacts(created.cert).fingerprint256 };
   }
@@ -125,17 +132,21 @@ const make = Effect.gen(function* () {
   function checkExpiry() {
     const current = facts();
 
-    if (!current) return;
+    if (!current) {
+      return;
+    }
     const left = current.notAfter.getTime() - Date.now();
     const fields = { mode, notAfter: current.notAfter.toISOString(), fingerprint: current.fingerprint256 };
 
-    if (left <= 0) log.error('tls.certificate_expired', 'The Zwift API certificate has expired', fields);
-    else if (left < expiryWarningMs)
+    if (left <= 0) {
+      log.error('tls.certificate_expired', 'The Zwift API certificate has expired', fields);
+    } else if (left < expiryWarningMs) {
       log.warn(
         'tls.certificate_expiring',
         'The Zwift API certificate expires soon. Rotate it and reinstall it on every client.',
         fields,
       );
+    }
   }
 
   return {
@@ -158,12 +169,14 @@ const make = Effect.gen(function* () {
         log.info('tls.generated', 'Generated a server certificate for the Zwift API', { fingerprint, path });
       }
 
-      if (mode === 'legacy') warnLegacy();
+      if (mode === 'legacy') {
+        warnLegacy();
+      }
       checkExpiry();
     }),
     /** Replace the managed key and certificate, or move a legacy server to a managed one. */
     rotate: Effect.fn('TlsService.rotate')(function* (operation: string) {
-      if (mode === 'custom' || mode === 'disabled')
+      if (mode === 'custom' || mode === 'disabled') {
         throw new ApplicationError({
           status: 409,
           message:
@@ -171,6 +184,7 @@ const make = Effect.gen(function* () {
               ? 'This server uses the certificate files from its configuration. Replace those files to change it.'
               : 'The Zwift API serves plain HTTP on this server, so it has no certificate.',
         });
+      }
 
       // A retried request, or a second click while the key is generated, rotates once.
       if (operation !== lastOperation) {

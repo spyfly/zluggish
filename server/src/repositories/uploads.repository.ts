@@ -206,7 +206,9 @@ export class UploadsRepository {
         .where('u.state', 'in', states),
     );
 
-    for (const row of rows) this.update(row.activity_id, row.provider, states, { state: 'pending' });
+    for (const row of rows) {
+      this.update(row.activity_id, row.provider, states, { state: 'pending' });
+    }
 
     return rows.map((row) => ({ activity: row.activity_id, provider: row.provider }));
   }

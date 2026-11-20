@@ -27,7 +27,9 @@ await test('deduplicate transitions, throttle progress, and release state', () =
   tracker.companion(42n);
   tracker.companion(42n);
 
-  for (let i = 0; i < 100; i++) tracker.receive(42n, i, 6, 1n, 0);
+  for (let i = 0; i < 100; i++) {
+    tracker.receive(42n, i, 6, 1n, 0);
+  }
   now = 60_000;
   tracker.receive(42n, 500, 6, 1n, 0);
   tracker.receive(43n, 0, 6, 1n, 0);
@@ -63,7 +65,9 @@ await test('disabled progress still cleans up; invalid packet diagnostics are bo
   now = 600_000;
   tracker.receive(1n, 50, 6, 0n, 0);
 
-  for (let i = 0; i < 1000; i++) tracker.diagnostic('network.udp_rejected', 'Invalid packet');
+  for (let i = 0; i < 1000; i++) {
+    tracker.diagnostic('network.udp_rejected', 'Invalid packet');
+  }
   assert.equal(lines.length, 2);
   tracker.end(1n, 'inactivity_timeout');
   assert.equal(tracker.rides.size, 0);

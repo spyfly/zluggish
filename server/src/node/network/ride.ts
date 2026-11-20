@@ -26,7 +26,9 @@ export function startRideListeners(runtime: Runtime) {
     udpListening = true;
   });
   udp.on('error', (error) => {
-    if (udpListening) world.lifecycle.log.error('network.udp_failed', 'UDP listener failed', { error });
+    if (udpListening) {
+      world.lifecycle.log.error('network.udp_failed', 'UDP listener failed', { error });
+    }
   });
   udp.on('message', (data, address) => {
     try {
@@ -35,10 +37,14 @@ export function startRideListeners(runtime: Runtime) {
 
       const id = clients.get(endpoint) ?? (flags & 4 && data.length >= 5 ? BigInt(data.readUInt32BE(1)) : null);
 
-      if (id === null) return;
+      if (id === null) {
+        return;
+      }
       const relay = world.relays.get(id);
 
-      if (!relay) return;
+      if (!relay) {
+        return;
+      }
 
       const iv: InitializationVector = {
         device: 1,
@@ -51,7 +57,9 @@ export function startRideListeners(runtime: Runtime) {
 
       const incoming = fromBinary(ClientToServerSchema, decoded.payload.subarray(1));
 
-      if (incoming.playerId !== id) return;
+      if (incoming.playerId !== id) {
+        return;
+      }
 
       clients.set(endpoint, id);
       relay.acceptUdp(decoded.iv.connection, decoded.fields.connection, decoded.fields.sequence);
@@ -59,7 +67,9 @@ export function startRideListeners(runtime: Runtime) {
 
       runtime.effects.runSync(RideCompletionService.use((service) => service.touch(Number(id))));
 
-      if (incoming.state) world.receive(id, incoming.state);
+      if (incoming.state) {
+        world.receive(id, incoming.state);
+      }
 
       // Legacy protobuf exposes an empty message for an omitted state. Reply to
       // these authenticated packets too, without inventing riding presence.
@@ -102,7 +112,9 @@ export function startRideListeners(runtime: Runtime) {
     const send = (payload: Uint8Array) => {
       const relay = playerId === null ? null : world.relays.get(playerId);
 
-      if (!relay || socket.destroyed || playerId === null || active.get(playerId) !== socket) return;
+      if (!relay || socket.destroyed || playerId === null || active.get(playerId) !== socket) {
+        return;
+      }
 
       if (socket.writableLength > 1024 * 1024) {
         socket.destroy();
@@ -132,10 +144,14 @@ export function startRideListeners(runtime: Runtime) {
         for (const packet of framing.push(Buffer.from(chunk))) {
           const first = playerId === null;
 
-          if (playerId !== null && active.get(playerId) !== socket) throw new Error('Superseded relay connection');
+          if (playerId !== null && active.get(playerId) !== socket) {
+            throw new Error('Superseded relay connection');
+          }
 
           if (playerId === null) {
-            if (!((packet[0] ?? 0) & 4) || packet.length < 5) throw new Error('Missing relay identity');
+            if (!((packet[0] ?? 0) & 4) || packet.length < 5) {
+              throw new Error('Missing relay identity');
+            }
 
             playerId = BigInt(packet.readUInt32BE(1));
             const id = Number(playerId);
@@ -145,8 +161,9 @@ export function startRideListeners(runtime: Runtime) {
             if (
               !rider ||
               (!rider.enabled && !runtime.effects.runSync(RideCompletionService.use((service) => service.relay(id))))
-            )
+            ) {
               throw new Error('Unknown rider');
+            }
 
             // The stored relay key lets a restarted server accept the existing session.
             const current = world.relays.get(playerId);
@@ -166,14 +183,17 @@ export function startRideListeners(runtime: Runtime) {
                 runtime.effects.runSync(
                   DocumentsService.use((documents) => documents.text(id, 'relay-auth-version')),
                 ) === String(rider.auth_version)
-              )
+              ) {
                 world.login(playerId, key);
+              }
             }
           }
 
           const relay = playerId === null ? null : world.relays.get(playerId);
 
-          if (!relay) throw new Error('Missing relay key');
+          if (!relay) {
+            throw new Error('Missing relay key');
+          }
 
           const decoded = decodePacket(packet, relay.key, {
             device: 1,
@@ -184,14 +204,17 @@ export function startRideListeners(runtime: Runtime) {
 
           const incoming = fromBinary(ClientToServerSchema, decoded.payload.subarray(2));
 
-          if (incoming.playerId !== playerId) throw new Error('Mismatched relay identity');
+          if (incoming.playerId !== playerId) {
+            throw new Error('Mismatched relay identity');
+          }
           const account = runtime.accounts.get(Number(playerId));
 
           if (
             !account?.enabled &&
             !runtime.effects.runSync(RideCompletionService.use((service) => service.relay(Number(playerId))))
-          )
+          ) {
             throw new Error('Relay revoked');
+          }
           runtime.effects.runSync(RideCompletionService.use((service) => service.touch(Number(playerId))));
           world.lifecycle.connected(playerId);
           const hello = first || decoded.fields.connection !== undefined;
@@ -204,7 +227,9 @@ export function startRideListeners(runtime: Runtime) {
               replaced: !!previous && previous !== socket,
             });
 
-            if (previous && previous !== socket) previous.destroy();
+            if (previous && previous !== socket) {
+              previous.destroy();
+            }
             active.set(playerId, socket);
             relay.acceptTcp(decoded.iv.connection, true);
 
@@ -239,9 +264,11 @@ export function startRideListeners(runtime: Runtime) {
 
             send(toBinary(ServerToClientSchema, response));
 
-            if (!timer)
+            if (!timer) {
               timer = setInterval(() => {
-                if (playerId === null || active.get(playerId) !== socket) return;
+                if (playerId === null || active.get(playerId) !== socket) {
+                  return;
+                }
                 const updates = world.updates.get(playerId) ?? [];
                 const phone = world.phones.get(playerId);
 
@@ -274,10 +301,11 @@ export function startRideListeners(runtime: Runtime) {
 
                 send(toBinary(ServerToClientSchema, response));
               }, 1000);
+            }
           } else {
             relay.acceptTcp(decoded.iv.connection, false);
 
-            if (incoming.subsSegments.length > 0)
+            if (incoming.subsSegments.length > 0) {
               send(
                 toBinary(
                   ServerToClientSchema,
@@ -289,6 +317,7 @@ export function startRideListeners(runtime: Runtime) {
                   }),
                 ),
               );
+            }
           }
         }
       } catch {
@@ -304,9 +333,13 @@ export function startRideListeners(runtime: Runtime) {
       });
       sockets.delete(socket);
 
-      if (playerId !== null && active.get(playerId) === socket) active.delete(playerId);
+      if (playerId !== null && active.get(playerId) === socket) {
+        active.delete(playerId);
+      }
 
-      if (timer) clearInterval(timer);
+      if (timer) {
+        clearInterval(timer);
+      }
     });
   });
 
@@ -315,9 +348,17 @@ export function startRideListeners(runtime: Runtime) {
   const cleanup = setInterval(() => {
     world.lifecycle.prune();
 
-    for (const [id, state] of world.online) if (expired(state)) world.logout(id, 'inactivity_timeout');
+    for (const [id, state] of world.online) {
+      if (expired(state)) {
+        world.logout(id, 'inactivity_timeout');
+      }
+    }
 
-    for (const [endpoint, id] of clients) if (!world.relays.has(id)) clients.delete(endpoint);
+    for (const [endpoint, id] of clients) {
+      if (!world.relays.has(id)) {
+        clients.delete(endpoint);
+      }
+    }
   }, 5000);
 
   let closing: Promise<void> | null = null;
@@ -331,12 +372,17 @@ export function startRideListeners(runtime: Runtime) {
         world.lifecycle.close();
         clearInterval(cleanup);
 
-        for (const socket of sockets) socket.destroy();
+        for (const socket of sockets) {
+          socket.destroy();
+        }
         await Promise.all([
           new Promise<void>((resolve, reject) => {
             tcp.close((error) => {
-              if (error && (!('code' in error) || error.code !== 'ERR_SERVER_NOT_RUNNING')) reject(error);
-              else resolve();
+              if (error && (!('code' in error) || error.code !== 'ERR_SERVER_NOT_RUNNING')) {
+                reject(error);
+              } else {
+                resolve();
+              }
             });
           }),
           new Promise<void>((resolve) => {

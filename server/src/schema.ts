@@ -91,8 +91,9 @@ export function schemaProblems(error: Schema.SchemaError): Array<SchemaProblem> 
 export function fieldErrors(error: Schema.SchemaError) {
   const fields: Record<string, Array<string>> = {};
 
-  for (const problem of schemaProblems(error))
+  for (const problem of schemaProblems(error)) {
     (fields[problem.path.split('.', 1)[0] || 'form'] ??= []).push(problem.message);
+  }
 
   return fields;
 }
@@ -130,7 +131,9 @@ export const IsoDateTime = Schema.String.check(
 /** A calendar date such as `2024-02-29`. */
 export const IsoDate = Schema.String.check(
   satisfies((value: string) => {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      return false;
+    }
     const date = new Date(`${value}T00:00:00Z`);
 
     return !Number.isNaN(date.getTime()) && date.toISOString().startsWith(value);

@@ -19,7 +19,9 @@ function publish() {
 }
 
 function disconnected() {
-  if (!unavailable) retryAt = Date.now() + 1000;
+  if (!unavailable) {
+    retryAt = Date.now() + 1000;
+  }
   unavailable = true;
   publish();
 }
@@ -34,7 +36,9 @@ export async function request(url: string, init: RequestInit = {}) {
       signal: init.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(30_000)]) : AbortSignal.timeout(30_000),
     });
   } catch (error) {
-    if (init.signal?.aborted) throw error;
+    if (init.signal?.aborted) {
+      throw error;
+    }
     disconnected();
     throw new ConnectionError();
   }
@@ -67,7 +71,9 @@ export async function requestJson(url: string, init: RequestInit = {}) {
 }
 
 export async function checkConnection() {
-  if (checking) return;
+  if (checking) {
+    return;
+  }
   checking = true;
   publish();
 
@@ -75,7 +81,9 @@ export async function checkConnection() {
     const response = await fetch('/health', { cache: 'no-store', signal: AbortSignal.timeout(5000) });
     const healthy = z.object({ name: z.literal('zluggish'), status: z.literal('ok') }).safeParse(await response.json());
 
-    if (!response.ok || !healthy.success) throw new Error('Unavailable');
+    if (!response.ok || !healthy.success) {
+      throw new Error('Unavailable');
+    }
     unavailable = false;
     failures = 0;
     retryAt = Date.now() + 30_000;
@@ -92,7 +100,9 @@ export function monitorConnection() {
   const tick = () => {
     publish();
 
-    if (Date.now() >= retryAt && !document.hidden) void checkConnection();
+    if (Date.now() >= retryAt && !document.hidden) {
+      void checkConnection();
+    }
   };
 
   const resume = () => {

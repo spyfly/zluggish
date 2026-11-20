@@ -127,7 +127,9 @@ export class Simulation {
   async idle() {
     await this.ready;
 
-    while (this.pending.size > 0) await Promise.all(this.pending);
+    while (this.pending.size > 0) {
+      await Promise.all(this.pending);
+    }
     await this.recording.queue;
   }
 
@@ -156,7 +158,9 @@ export class Simulation {
   }
 
   start() {
-    if (this.ticker) return;
+    if (this.ticker) {
+      return;
+    }
     this.closed = false;
     this.ticker = Effect.runFork(this.loop());
   }
@@ -167,7 +171,9 @@ export class Simulation {
     this.ticker = null;
     this.closed = true;
 
-    if (ticker) await Effect.runPromise(Fiber.interrupt(ticker));
+    if (ticker) {
+      await Effect.runPromise(Fiber.interrupt(ticker));
+    }
 
     return this.idle();
   }
@@ -183,7 +189,9 @@ export class Simulation {
         this.files.readAsync(file),
       ]);
 
-      if (!profileBytes || !routeBytes) continue;
+      if (!profileBytes || !routeBytes) {
+        continue;
+      }
 
       try {
         const profile = fromBinary(PlayerProfileSchema, profileBytes);
@@ -191,7 +199,7 @@ export class Simulation {
         profile.privacyBits |= 4n;
         profile.ftp = 400;
 
-        if (profile.id > 0n && recording.length > 0)
+        if (profile.id > 0n && recording.length > 0) {
           replays.set(profile.id, {
             profile,
             recording,
@@ -199,6 +207,7 @@ export class Simulation {
             pacer: true,
             folder: basename(resolve(file, '..')),
           });
+        }
       } catch {
         this.runtime.world.lifecycle.log.warn('simulation.invalid_pacer', 'Skipping invalid RoboPacer');
       }
@@ -210,19 +219,25 @@ export class Simulation {
       const folders = await this.files.entriesAsync(storage);
 
       for (const folder of folders) {
-        if (!folder.isDirectory() || !/^\d+$/.test(folder.name)) continue;
+        if (!folder.isDirectory() || !/^\d+$/.test(folder.name)) {
+          continue;
+        }
         const ownerId = Number(folder.name);
         const owner = this.ownerProfile(ownerId);
 
         for (const file of await this.files.filesUnder(resolve(storage, folder.name, 'ghosts'), '.bin')) {
           const bytes = await this.files.readAsync(file);
 
-          if (!bytes) continue;
+          if (!bytes) {
+            continue;
+          }
 
           try {
             const recording = new Recording(bytes);
 
-            if (recording.length === 0) continue;
+            if (recording.length === 0) {
+              continue;
+            }
 
             for (let copy = 0; copy < this.runtime.config.bots.multiplier; copy++) {
               const id = BigInt(1_000_000 + index + copy * 10_000);
@@ -247,7 +262,9 @@ export class Simulation {
     }
 
     // A newer reload started during the reads; its result replaces this one.
-    if (generation !== this.reloads || this.closed) return;
+    if (generation !== this.reloads || this.closed) {
+      return;
+    }
 
     for (const id of this.replays.keys()) {
       this.runtime.world.synthetic.delete(id);
@@ -268,33 +285,41 @@ export class Simulation {
       ...this.runtime.settings.worldIds().flatMap((id) => (id.startsWith('blob:') ? Number(id.slice(5)) : [])),
     ]);
 
-    for (const id of ids) this.loadBlob(BigInt(id));
+    for (const id of ids) {
+      this.loadBlob(BigInt(id));
+    }
     this.tick();
   }
 
   loadPelotons() {
-    for (const group of this.pelotons.values())
+    for (const group of this.pelotons.values()) {
       for (const rider of group.riders) {
         this.runtime.world.synthetic.delete(rider.profile.id);
         this.runtime.profiles.synthetic.delete(rider.profile.id);
       }
+    }
 
     this.pelotons.clear();
 
     const entries = new Map(this.runtime.config.pelotons.map((group) => [group.id, group]));
 
-    for (const id of this.runtime.settings.worldIds())
-      if (id.startsWith('peloton:')) {
-        const key = id.slice(8);
-        const defaults = entries.get(key);
-        const saved = this.runtime.settings.world(id);
-
-        const entry = Schema.decodeUnknownSync(configSchema)({
-          pelotons: [{ ...defaults, ...saved, id: key }],
-        }).pelotons[0];
-
-        if (entry) entries.set(key, entry);
+    for (const id of this.runtime.settings.worldIds()) {
+      if (!id.startsWith('peloton:')) {
+        continue;
       }
+
+      const key = id.slice(8);
+      const defaults = entries.get(key);
+      const saved = this.runtime.settings.world(id);
+
+      const entry = Schema.decodeUnknownSync(configSchema)({
+        pelotons: [{ ...defaults, ...saved, id: key }],
+      }).pelotons[0];
+
+      if (entry) {
+        entries.set(key, entry);
+      }
+    }
 
     const pacers = this.replays
       .values()
@@ -303,7 +328,9 @@ export class Simulation {
       .sort((a, b) => Number(a.profile.id - b.profile.id));
 
     for (const [id, config] of entries) {
-      if (!config.enabled) continue;
+      if (!config.enabled) {
+        continue;
+      }
 
       const index = pacers.findIndex(
         (pacer) =>
@@ -313,11 +340,15 @@ export class Simulation {
 
       const pacer = pacers[index];
 
-      if (!pacer || index >= 500 || this.pelotons.values().some((group) => group.pacer === pacer)) continue;
+      if (!pacer || index >= 500 || this.pelotons.values().some((group) => group.pacer === pacer)) {
+        continue;
+      }
       const group = new Peloton(index, pacer, config, this.pool);
       this.pelotons.set(id, group);
 
-      for (const rider of group.riders) this.runtime.profiles.synthetic.set(rider.profile.id, rider.profile);
+      for (const rider of group.riders) {
+        this.runtime.profiles.synthetic.set(rider.profile.id, rider.profile);
+      }
     }
   }
 
@@ -336,11 +367,12 @@ export class Simulation {
     const index =
       previous?.index ?? [0, 1, 2, 3].find((index) => this.blobs.values().every((blob) => blob.index !== index));
 
-    if (previous)
+    if (previous) {
       for (const rider of previous.riders) {
         this.runtime.world.synthetic.delete(rider.profile.id);
         this.runtime.profiles.synthetic.delete(rider.profile.id);
       }
+    }
 
     this.blobs.delete(id);
     this.directors.delete(id);
@@ -355,9 +387,13 @@ export class Simulation {
       },
     }).soloBlob;
 
-    if (!config.enabled || !config.riders) return;
+    if (!config.enabled || !config.riders) {
+      return;
+    }
 
-    if (index === undefined) throw new Error('At most four simultaneous solo blobs are supported');
+    if (index === undefined) {
+      throw new Error('At most four simultaneous solo blobs are supported');
+    }
 
     const blob = new Blob(
       id,
@@ -372,10 +408,14 @@ export class Simulation {
     this.blobs.set(id, blob);
     this.directors.set(id, new GestureDirector(blob.rng, this.now(), config.gestureInterval));
 
-    for (const rider of blob.riders) this.runtime.profiles.synthetic.set(rider.profile.id, rider.profile);
+    for (const rider of blob.riders) {
+      this.runtime.profiles.synthetic.set(rider.profile.id, rider.profile);
+    }
     const state = this.runtime.world.online.get(id);
 
-    if (state) blob.receive(state, 0);
+    if (state) {
+      blob.receive(state, 0);
+    }
   }
 
   receive(id: bigint, state: PlayerState) {
@@ -391,7 +431,9 @@ export class Simulation {
       this.runtime.settings.read(Number(id)),
     );
 
-    if (!settings.ghosts.enabled || !state.roadTime) return;
+    if (!settings.ghosts.enabled || !state.roadTime) {
+      return;
+    }
 
     const ghosts: RiderGhosts = this.ghosts.get(id) ?? {
       lastRoadTime: 0,
@@ -431,8 +473,9 @@ export class Simulation {
         ghosts.playbacks.length > 0 &&
         road(state) === ghosts.startRoad &&
         ahead(state, ghosts.startTime)
-      )
+      ) {
         this.regroup(id);
+      }
     }
 
     ghosts.lastRoadTime = state.roadTime;
@@ -446,15 +489,21 @@ export class Simulation {
 
     for (const directory of directories) {
       for (const { name } of await this.files.entriesAsync(directory)) {
-        if (!name.endsWith('.bin') || recordings.length >= 100) continue;
+        if (!name.endsWith('.bin') || recordings.length >= 100) {
+          continue;
+        }
         const bytes = await this.files.readAsync(resolve(directory, name));
 
-        if (!bytes) continue;
+        if (!bytes) {
+          continue;
+        }
 
         try {
           const recording = new Recording(bytes);
 
-          if (recording.length > 0) recordings.push(recording);
+          if (recording.length > 0) {
+            recordings.push(recording);
+          }
         } catch {
           this.runtime.world.lifecycle.log.warn('simulation.invalid_ghost', 'Skipping an invalid ghost recording');
         }
@@ -463,7 +512,9 @@ export class Simulation {
 
     const rider = recordings.length > 0 ? await this.runtime.profiles.load(Number(id)) : null;
 
-    if (this.ghosts.get(id) !== ghosts || this.closed) return;
+    if (this.ghosts.get(id) !== ghosts || this.closed) {
+      return;
+    }
 
     if (this.runtime.world.generation(id) !== generation) {
       ghosts.loading = 'waiting';
@@ -476,7 +527,9 @@ export class Simulation {
 
       ghosts.playbacks.push({ id: ghostId, recording, position: 0, date: recording.state(0).worldTime });
 
-      if (!rider) continue;
+      if (!rider) {
+        continue;
+      }
       const profile = clone(PlayerProfileSchema, rider);
       profile.id = ghostId;
       profile.firstName = '';
@@ -493,13 +546,17 @@ export class Simulation {
     const state = this.runtime.world.online.get(id);
     const ghosts = this.ghosts.get(id);
 
-    if (!state || !ghosts) return;
+    if (!state || !ghosts) {
+      return;
+    }
     ghosts.playback = 'playing';
 
     for (const ghost of ghosts.playbacks) {
       const index = ghost.recording.nearest(state);
 
-      if (index !== null) ghost.position = index + (ahead(state, ghost.recording.roadTime(index)) ? 1 : 0);
+      if (index !== null) {
+        ghost.position = index + (ahead(state, ghost.recording.roadTime(index)) ? 1 : 0);
+      }
     }
 
     ghosts.last = 0;
@@ -508,16 +565,23 @@ export class Simulation {
   group(id: bigint, all: boolean) {
     const state = this.runtime.world.online.get(id);
 
-    if (!state) return;
+    if (!state) {
+      return;
+    }
     const seen = new Set<Recording>();
 
-    for (const replay of this.replays.values())
-      if (!replay.pacer && (all || !seen.has(replay.recording))) {
-        seen.add(replay.recording);
-        const index = replay.recording.nearest(state);
-
-        if (index !== null) replay.position = index;
+    for (const replay of this.replays.values()) {
+      if (replay.pacer || (!all && seen.has(replay.recording))) {
+        continue;
       }
+
+      seen.add(replay.recording);
+      const index = replay.recording.nearest(state);
+
+      if (index !== null) {
+        replay.position = index;
+      }
+    }
   }
 
   loadBookmarks(id: bigint) {
@@ -549,7 +613,9 @@ export class Simulation {
       .replace(/^\.+/, '')
       .slice(0, 120);
 
-    if (!safe) return;
+    if (!safe) {
+      return;
+    }
     const id = state.id;
 
     try {
@@ -572,34 +638,49 @@ export class Simulation {
   logout(id: bigint) {
     const state = this.runtime.world.online.get(id);
 
-    if (state) this.bookmark(state, state.sport === 1 ? 'Last run' : 'Last ride');
+    if (state) {
+      this.bookmark(state, state.sport === 1 ? 'Last run' : 'Last ride');
+    }
     this.ghosts.delete(id);
     this.runtime.world.personal.delete(id);
 
-    for (const key of this.runtime.profiles.synthetic.keys())
-      if (key > 10_000_000n && key % 10_000_000n === id) this.runtime.profiles.synthetic.delete(key);
+    for (const key of this.runtime.profiles.synthetic.keys()) {
+      if (key > 10_000_000n && key % 10_000_000n === id) {
+        this.runtime.profiles.synthetic.delete(key);
+      }
+    }
     const blob = this.blobs.get(id);
 
     if (!blob) {
       return;
     }
 
-    for (const rider of blob.riders) this.runtime.world.synthetic.delete(rider.profile.id);
+    for (const rider of blob.riders) {
+      this.runtime.world.synthetic.delete(rider.profile.id);
+    }
     this.loadBlob(id);
   }
 
   gesture(id: bigint, payload: Uint8Array) {
-    if (payload.length !== 16) return null;
+    if (payload.length !== 16) {
+      return null;
+    }
     const buffer = Buffer.from(payload);
 
-    if (buffer.readBigUInt64LE() !== id) return null;
+    if (buffer.readBigUInt64LE() !== id) {
+      return null;
+    }
 
     const action = buffer.readUInt32LE(8);
 
-    if (!isBikeAction(action)) return null;
+    if (!isBikeAction(action)) {
+      return null;
+    }
     const previous = this.lastGesture.get(id);
 
-    if (previous?.action === action && this.now() - previous.time < 2) return null;
+    if (previous?.action === action && this.now() - previous.time < 2) {
+      return null;
+    }
     this.lastGesture.set(id, { action, time: this.now() });
 
     return this.blobs.get(id)?.gesture(action) ?? null;
@@ -618,13 +699,17 @@ export class Simulation {
     if (name === 'bookmark') {
       const state = this.runtime.world.online.get(id);
 
-      if (state) this.bookmark(state, argument);
+      if (state) {
+        this.bookmark(state, argument);
+      }
 
       return 'Bookmark saved.';
     }
 
     // These change the world for every rider. Only the management area sends them, on behalf of a rider.
-    if (!administrator && Schema.is(botCommand)(name)) return 'Use the web app management area for server commands.';
+    if (!administrator && Schema.is(botCommand)(name)) {
+      return 'Use the web app management area for server commands.';
+    }
 
     if (name === 'group' || name === 'groupall') {
       this.group(id, name === 'groupall');
@@ -641,9 +726,13 @@ export class Simulation {
     if (name === 'stopautogroup' || name === 'disperse') {
       this.autoGroup = null;
 
-      if (name === 'disperse')
-        for (const replay of this.replays.values())
-          if (!replay.pacer) replay.position = Math.floor(this.rng.value() * replay.recording.length);
+      if (name === 'disperse') {
+        for (const replay of this.replays.values()) {
+          if (!replay.pacer) {
+            replay.position = Math.floor(this.rng.value() * replay.recording.length);
+          }
+        }
+      }
 
       return 'Automatic grouping stopped.';
     }
@@ -651,10 +740,11 @@ export class Simulation {
     if (name === 'blob') {
       const blob = this.blobs.get(id);
 
-      if (!argument)
+      if (!argument) {
         return blob
           ? `Blob active: ${blob.riders.length} riders. Mode: ${blob.mode ?? 'normal'}.`
           : 'Blob off. Start with .blob <n>.';
+      }
 
       const actions = new Map([
         ['attack', UserBikeAction.UBA_ELBOW],
@@ -665,7 +755,9 @@ export class Simulation {
 
       const action = actions.get(argument);
 
-      if (action !== undefined) return blob?.gesture(action) ?? 'Start a blob first.';
+      if (action !== undefined) {
+        return blob?.gesture(action) ?? 'Start a blob first.';
+      }
 
       if (['new', 'restart', 'reroll'].includes(argument)) {
         this.loadBlob(id);
@@ -675,12 +767,16 @@ export class Simulation {
 
       const saved = this.runtime.settings.world(`blob:${id}`);
 
-      if (argument === 'record') saved.record = !(blob?.config.record ?? false);
-      else if (argument === 'off' || argument === '0') saved.enabled = false;
-      else if (/^\d+$/.test(argument) && Number(argument) <= 30 && Number(argument) > 0) {
+      if (argument === 'record') {
+        saved.record = !(blob?.config.record ?? false);
+      } else if (argument === 'off' || argument === '0') {
+        saved.enabled = false;
+      } else if (/^\d+$/.test(argument) && Number(argument) <= 30 && Number(argument) > 0) {
         saved.enabled = true;
         saved.riders = Number(argument);
-      } else return 'Usage: .blob <1..30>, new, off, record, hammer, toast, attack, lead';
+      } else {
+        return 'Usage: .blob <1..30>, new, off, record, hammer, toast, attack, lead';
+      }
       this.runtime.settings.saveWorld(`blob:${id}`, saved);
       this.loadBlob(id);
 
@@ -690,7 +786,9 @@ export class Simulation {
     if (name === 'peloton') {
       const state = this.runtime.world.online.get(id);
 
-      if (!state) return 'Start riding first.';
+      if (!state) {
+        return 'Start riding first.';
+      }
 
       const score = (replay: ReplayRider) =>
         replay.profile.id === state.watchingRiderId
@@ -705,16 +803,21 @@ export class Simulation {
           return score(a) - score(b);
         })[0];
 
-      if (!pacer) return 'No RoboPacer on this course.';
+      if (!pacer) {
+        return 'No RoboPacer on this course.';
+      }
 
       const existing = [...this.pelotons].find(([, group]) => group.pacer === pacer);
 
       const key = existing?.[0] ?? `pacer-${pacer.profile.id}`;
 
-      if (!argument) return `${pacer.profile.lastName}: ${existing?.[1].riders.length ?? 0} bots.`;
+      if (!argument) {
+        return `${pacer.profile.lastName}: ${existing?.[1].riders.length ?? 0} bots.`;
+      }
 
-      if (argument !== 'off' && (!/^\d+$/.test(argument) || Number(argument) > 200))
+      if (argument !== 'off' && (!/^\d+$/.test(argument) || Number(argument) > 200)) {
         return 'Usage: .peloton <0..200> | off';
+      }
       const saved = this.runtime.settings.world(`peloton:${key}`);
       Object.assign(saved, {
         pacer: Number(pacer.profile.id),
@@ -739,7 +842,9 @@ export class Simulation {
   instead of growing the queue without limit.
   */
   private record(line: string) {
-    if (this.recording.size >= 1000) return;
+    if (this.recording.size >= 1000) {
+      return;
+    }
     const file = resolve(this.runtime.config.storageDir, 'solo_blob_record.jsonl');
     this.recording.size++;
 
@@ -749,7 +854,9 @@ export class Simulation {
           .then((info) => info.size)
           .catch(() => 0);
 
-        if (size > 80 * 1024 * 1024) await rename(file, `${file}.old`);
+        if (size > 80 * 1024 * 1024) {
+          await rename(file, `${file}.old`);
+        }
         await appendFile(file, line);
       })
       .catch(() => {
@@ -767,9 +874,13 @@ export class Simulation {
     const pacers = now - this.lastPacer >= 1;
     const bots = now - this.lastBot >= 3;
 
-    if (pacers) this.lastPacer = now;
+    if (pacers) {
+      this.lastPacer = now;
+    }
 
-    if (bots) this.lastBot = now;
+    if (bots) {
+      this.lastBot = now;
+    }
 
     if (this.autoGroup) {
       const state = world.online.get(this.autoGroup.id);
@@ -781,28 +892,41 @@ export class Simulation {
       }
     }
 
-    for (const [id, replay] of this.replays)
-      if ((replay.pacer && pacers) || (!replay.pacer && bots) || !world.synthetic.has(id)) {
-        replay.position = (replay.position + 1) % replay.recording.length;
-
-        if (replay.position >= replay.recording.length) continue;
-        const state = replay.recording.state(replay.position);
-        state.id = id;
-        state.worldTime = time - 300n;
-        state.groupId = 0n;
-        world.synthetic.set(id, state);
+    for (const [id, replay] of this.replays) {
+      if (!((replay.pacer && pacers) || (!replay.pacer && bots)) && world.synthetic.has(id)) {
+        continue;
       }
 
-    if (pacers)
-      for (const group of this.pelotons.values())
-        for (const state of group.tick(now, time)) world.synthetic.set(state.id, state);
+      replay.position = (replay.position + 1) % replay.recording.length;
+
+      if (replay.position >= replay.recording.length) {
+        continue;
+      }
+      const state = replay.recording.state(replay.position);
+      state.id = id;
+      state.worldTime = time - 300n;
+      state.groupId = 0n;
+      world.synthetic.set(id, state);
+    }
+
+    if (pacers) {
+      for (const group of this.pelotons.values()) {
+        for (const state of group.tick(now, time)) {
+          world.synthetic.set(state.id, state);
+        }
+      }
+    }
 
     for (const [id, blob] of this.blobs) {
       const states = blob.tick(time);
 
-      for (const rider of blob.riders) world.synthetic.delete(rider.profile.id);
+      for (const rider of blob.riders) {
+        world.synthetic.delete(rider.profile.id);
+      }
 
-      for (const state of states) world.synthetic.set(state.id, state);
+      for (const state of states) {
+        world.synthetic.set(state.id, state);
+      }
 
       const gesture = blob.config.botGestures
         ? this.directors
@@ -810,35 +934,42 @@ export class Simulation {
             ?.step(now, blob.riders, blob.config.gestureInterval, blob.trail.motion().speed, blob.config.gestureChance)
         : null;
 
-      if (gesture) world.enqueue(gestureUpdate(gesture.action, gesture.state, time), [id]);
+      if (gesture) {
+        world.enqueue(gestureUpdate(gesture.action, gesture.state, time), [id]);
+      }
 
-      if (!(blob.config.record && states.length > 0)) continue;
+      if (!(blob.config.record && states.length > 0)) {
+        continue;
+      }
 
       this.record(
         `${JSON.stringify({ time: Number(time), playerId: String(id), mode: blob.mode, grade: blob.grade, shift: blob.shift, riders: blob.riders.map((rider) => ({ id: String(rider.profile.id), gap: rider.gap, lateral: rider.lateral, rate: rider.rate, phase: rider.phase })) })}\n`,
       );
     }
 
-    for (const [id, ghosts] of this.ghosts)
-      if (ghosts.playback === 'playing' && now - ghosts.last >= 3) {
-        ghosts.last = now;
-        const personal = world.personal.get(id) ?? new Map<bigint, PlayerState>();
+    for (const [id, ghosts] of this.ghosts) {
+      if (!(ghosts.playback === 'playing' && now - ghosts.last >= 3)) {
+        continue;
+      }
 
-        for (const ghost of ghosts.playbacks) {
-          if (ghost.position >= ghost.recording.length) {
-            personal.delete(ghost.id);
-            continue;
-          }
+      ghosts.last = now;
+      const personal = world.personal.get(id) ?? new Map<bigint, PlayerState>();
 
-          const state = ghost.recording.state(ghost.position++);
-          state.id = ghost.id;
-          state.worldTime = time - 300n;
-          state.groupId = 0n;
-          personal.set(state.id, state);
+      for (const ghost of ghosts.playbacks) {
+        if (ghost.position >= ghost.recording.length) {
+          personal.delete(ghost.id);
+          continue;
         }
 
-        world.personal.set(id, personal);
+        const state = ghost.recording.state(ghost.position++);
+        state.id = ghost.id;
+        state.worldTime = time - 300n;
+        state.groupId = 0n;
+        personal.set(state.id, state);
       }
+
+      world.personal.set(id, personal);
+    }
 
     for (const [id, bookmarks] of this.bookmarks) {
       const personal = world.personal.get(id) ?? new Map<bigint, PlayerState>();

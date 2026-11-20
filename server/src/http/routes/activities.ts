@@ -34,7 +34,9 @@ export function activityRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
       const id = BigInt(c.req.param('id'));
 
       if (c.req.method === 'POST') {
-        if (id !== BigInt(user.player_id)) throw new HTTPException(401);
+        if (id !== BigInt(user.player_id)) {
+          throw new HTTPException(401);
+        }
 
         const activity = parseProtobuf(
           ActivitySchema,
@@ -43,11 +45,14 @@ export function activityRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
 
         if (
           !runtime.effects.runSync(AccountsService).identity(runtime.effects.runSync(AccountsService).identityOf(user))
-        )
+        ) {
           throw new HTTPException(401);
+        }
         activity.playerId = id;
 
-        if (!activity.date) activity.date = new Date().toISOString();
+        if (!activity.date) {
+          activity.date = new Date().toISOString();
+        }
 
         const activityId = yield* recordDataService.insert('activity', ActivitySchema, activity, ['fit']);
         yield* rideCompletionService.register(user.player_id, BigInt(activityId), c.req.header('Authorization') ?? '');
@@ -79,11 +84,17 @@ export function activityRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
       const user = authenticated(c);
       const id = BigInt(c.req.param('activityId'));
 
-      if (String(user.player_id) !== c.req.param('id')) throw new HTTPException(401);
+      if (String(user.player_id) !== c.req.param('id')) {
+        throw new HTTPException(401);
+      }
 
-      if (c.req.header('Source') === 'zwift-companion') throw new HTTPException(400);
+      if (c.req.header('Source') === 'zwift-companion') {
+        throw new HTTPException(400);
+      }
 
-      if (!(yield* activitiesService.findActivity(id, user.player_id))) throw new HTTPException(404);
+      if (!(yield* activitiesService.findActivity(id, user.player_id))) {
+        throw new HTTPException(404);
+      }
 
       if (c.req.method === 'DELETE') {
         yield* activitiesService.deleteActivity(id, user.player_id);
@@ -102,11 +113,14 @@ export function activityRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
       const outcome = yield* activitiesService.saveInTurn(activity, finish, () => {
         if (
           !runtime.effects.runSync(AccountsService).identity(runtime.effects.runSync(AccountsService).identityOf(user))
-        )
+        ) {
           throw new HTTPException(401);
+        }
       });
 
-      if (finish && outcome !== 'unchanged') runtime.world.logout(BigInt(user.player_id), 'activity_finished');
+      if (finish && outcome !== 'unchanged') {
+        runtime.world.logout(BigInt(user.player_id), 'activity_finished');
+      }
 
       return c.body(JSON.stringify({ id: Number(id) }), 200, {
         'Content-Type': 'text/html; charset=utf-8',
@@ -124,14 +138,18 @@ export function activityRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
 
       const row = yield* activitiesService.activityById(c.req.param('activityId'));
 
-      if (!row) throw new HTTPException(404);
+      if (!row) {
+        throw new HTTPException(404);
+      }
 
       const activity = yield* activitiesService.forViewer(
         yield* recordDataService.decode(ActivitySchema, row),
         user.player_id,
       );
 
-      if (!(yield* activitiesService.visible(activity, user.player_id))) throw new HTTPException(404);
+      if (!(yield* activitiesService.visible(activity, user.player_id))) {
+        throw new HTTPException(404);
+      }
       const fitness = yield* activitiesService.fitnessVisible(activity, user.player_id);
       const data = yield* activitiesService.companion(activity, fitness);
 
@@ -209,18 +227,22 @@ export function activityRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
           yield* recordDataService.decode(ActivitySchema, activity),
           user.player_id,
         ))
-      )
+      ) {
         throw new HTTPException(404);
+      }
 
       const id = Schema.decodeUnknownSync(NumberFromInput.check(Schema.isInt(), Schema.isGreaterThan(0)))(
         c.req.param('fileId'),
       );
 
-      if (!(yield* activitiesService.findOwnedActivityFile(id, c.req.param('activityId'))))
+      if (!(yield* activitiesService.findOwnedActivityFile(id, c.req.param('activityId')))) {
         throw new HTTPException(404);
+      }
       const file = yield* activitiesService.chartPath(id);
 
-      if (!(yield* filesService.exists(file))) throw new HTTPException(404);
+      if (!(yield* filesService.exists(file))) {
+        throw new HTTPException(404);
+      }
 
       return c.body(yield* filesService.read(file), 200, {
         'Content-Type': 'application/json',
@@ -233,15 +255,18 @@ export function activityRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
 
       const user = authenticated(c);
 
-      if (String(user.player_id) !== c.req.param('id')) throw new HTTPException(401);
+      if (String(user.player_id) !== c.req.param('id')) {
+        throw new HTTPException(401);
+      }
 
       const image = parseProtobuf(
         ActivityImageSchema,
         new Uint8Array(yield* Effect.promise(() => c.req.arrayBuffer())),
       );
 
-      if (!(yield* activitiesService.findActivity(c.req.param('activityId'), user.player_id)))
+      if (!(yield* activitiesService.findActivity(c.req.param('activityId'), user.player_id))) {
         throw new HTTPException(404);
+      }
       const id = yield* activitiesService.saveImage(user.player_id, c.req.param('activityId'), image.jpg);
 
       return c.json({ id, id_str: String(id) });
@@ -253,15 +278,18 @@ export function activityRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
 
       const user = authenticated(c);
 
-      if (String(user.player_id) !== c.req.param('id')) throw new HTTPException(401);
+      if (String(user.player_id) !== c.req.param('id')) {
+        throw new HTTPException(401);
+      }
 
       const body = parseProtobuf(
         ActivityMediaSaveRequestSchema,
         new Uint8Array(yield* Effect.promise(() => c.req.arrayBuffer())),
       );
 
-      if (!(yield* activitiesService.findActivity(c.req.param('activityId'), user.player_id)))
+      if (!(yield* activitiesService.findActivity(c.req.param('activityId'), user.player_id))) {
         throw new HTTPException(404);
+      }
 
       const id = (yield* activitiesService.insertActivityMedia(
         user.player_id,

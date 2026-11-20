@@ -39,9 +39,13 @@ const curves = new Map([
 ]);
 
 function describeKey(type: string | undefined, details: { modulusLength?: number; namedCurve?: string } | undefined) {
-  if (type === 'ec') return `ECDSA ${curves.get(details?.namedCurve ?? '') ?? details?.namedCurve ?? ''}`.trim();
+  if (type === 'ec') {
+    return `ECDSA ${curves.get(details?.namedCurve ?? '') ?? details?.namedCurve ?? ''}`.trim();
+  }
 
-  if (type === 'rsa' || type === 'rsa-pss') return `RSA ${details?.modulusLength ?? ''}-bit`;
+  if (type === 'rsa' || type === 'rsa-pss') {
+    return `RSA ${details?.modulusLength ?? ''}-bit`;
+  }
 
   return (type ?? 'unknown').toUpperCase();
 }
@@ -76,7 +80,9 @@ export class CryptoRepository {
   timingSafeEqual = timingSafeEqual;
 
   async verifyPassword(hash: string | null, password: string): Promise<boolean> {
-    if (!hash?.startsWith('$argon2id$') || !password) return false;
+    if (!hash?.startsWith('$argon2id$') || !password) {
+      return false;
+    }
 
     try {
       return await argon2Verify(hash, password);
@@ -92,7 +98,9 @@ export class CryptoRepository {
   verifyIdentity(cookie: string, secret: Uint8Array): string | null {
     const index = cookie.lastIndexOf('|');
 
-    if (index === -1) return null;
+    if (index === -1) {
+      return null;
+    }
     const identity = cookie.slice(0, index);
     const supplied = Buffer.from(cookie.slice(index + 1), 'utf8');
 
@@ -106,16 +114,22 @@ export class CryptoRepository {
   }
 
   encryptCredentials(key: Uint8Array, credentials: readonly [string, string], iv = randomBytes(16)) {
-    if (key.length !== 32 || iv.length !== 16) throw new Error('Invalid credential key/IV');
+    if (key.length !== 32 || iv.length !== 16) {
+      throw new Error('Invalid credential key/IV');
+    }
     const cipher = createCipheriv('aes-256-cfb8', key, iv);
 
     return Buffer.concat([iv, cipher.update(credentials.join('\n'), 'utf8'), cipher.final()]);
   }
 
   decryptCredentials(key: Uint8Array, bytes: Uint8Array): readonly [string, string] {
-    if (key.length !== 32) throw new Error('Invalid credentials key');
+    if (key.length !== 32) {
+      throw new Error('Invalid credentials key');
+    }
 
-    if (bytes.length < 16) throw new UnreadableCredentialsError({ message: 'Stored credentials are truncated' });
+    if (bytes.length < 16) {
+      throw new UnreadableCredentialsError({ message: 'Stored credentials are truncated' });
+    }
     const decipher = createDecipheriv('aes-256-cfb8', key, bytes.subarray(0, 16));
     const plain = Buffer.concat([decipher.update(bytes.subarray(16)), decipher.final()]);
     let text: string;
@@ -134,15 +148,18 @@ export class CryptoRepository {
     const first = lines[0];
     const second = lines[1];
 
-    if (first === undefined || second === undefined)
+    if (first === undefined || second === undefined) {
       throw new UnreadableCredentialsError({ message: 'Stored credentials do not decrypt with this credentials key' });
+    }
 
     return [first, second];
   }
 
   /** AES-256-GCM: 12-byte IV, 16-byte tag, ciphertext. Tampering fails decryption. */
   encryptSecret(key: Uint8Array, data: Uint8Array) {
-    if (key.length !== 32) throw new Error('Invalid secret key');
+    if (key.length !== 32) {
+      throw new Error('Invalid secret key');
+    }
     const iv = randomBytes(12);
     const cipher = createCipheriv('aes-256-gcm', key, iv);
     const encrypted = Buffer.concat([cipher.update(data), cipher.final()]);
@@ -151,7 +168,9 @@ export class CryptoRepository {
   }
 
   decryptSecret(key: Uint8Array, bytes: Uint8Array) {
-    if (key.length !== 32 || bytes.length < 28) throw new Error('Invalid secret');
+    if (key.length !== 32 || bytes.length < 28) {
+      throw new Error('Invalid secret');
+    }
     const decipher = createDecipheriv('aes-256-gcm', key, bytes.subarray(0, 12));
     decipher.setAuthTag(bytes.subarray(12, 28));
 
@@ -186,7 +205,9 @@ export class CryptoRepository {
 
     const chunks: AsyncIterable<Buffer> = createReadStream(path);
 
-    for await (const chunk of chunks) hash.update(chunk);
+    for await (const chunk of chunks) {
+      hash.update(chunk);
+    }
 
     return hash.digest('hex');
   }
@@ -249,7 +270,9 @@ export class CryptoRepository {
 
   /** Reject unauthenticated packets before exposing plaintext to callers. */
   decryptPacketPayload(payload: Uint8Array, key: Uint8Array, nonce: Uint8Array, header: Uint8Array) {
-    if (payload.length < 4) throw new Error('Missing packet authentication tag');
+    if (payload.length < 4) {
+      throw new Error('Missing packet authentication tag');
+    }
     const decipher = createDecipheriv(packetAlgorithm(key), key, nonce, { authTagLength: 4 });
     decipher.setAAD(header);
     decipher.setAuthTag(payload.subarray(-4));

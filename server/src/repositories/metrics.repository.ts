@@ -40,8 +40,11 @@ export class MetricsRepository {
   record(metric: Metric, value: number) {
     const values = this.samples.get(metric) ?? [];
 
-    if (values.length >= limit) values[Math.floor(Math.random() * limit)] = value;
-    else values.push(value);
+    if (values.length >= limit) {
+      values[Math.floor(Math.random() * limit)] = value;
+    } else {
+      values.push(value);
+    }
 
     this.samples.set(metric, values);
   }
@@ -70,7 +73,9 @@ export class MetricsRepository {
   uses cached loop time and does not see synchronous file I/O inside one iteration.
   */
   monitorEventLoop() {
-    if (this.loop) return;
+    if (this.loop) {
+      return;
+    }
     let expected = performance.now() + 10;
 
     this.loop = setInterval(() => {
@@ -82,7 +87,9 @@ export class MetricsRepository {
   }
 
   stopEventLoop() {
-    if (this.loop) clearInterval(this.loop);
+    if (this.loop) {
+      clearInterval(this.loop);
+    }
     this.loop = null;
   }
 
@@ -90,7 +97,9 @@ export class MetricsRepository {
     const result: Partial<Record<Metric, MetricSummary>> = {};
 
     for (const [metric, values] of this.samples) {
-      if (values.length === 0) continue;
+      if (values.length === 0) {
+        continue;
+      }
       const sorted = values.toSorted((a, b) => a - b);
 
       result[metric] = {

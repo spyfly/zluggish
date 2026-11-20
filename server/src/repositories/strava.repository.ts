@@ -32,7 +32,9 @@ async function oauth(form: Record<string, string>) {
     signal: AbortSignal.timeout(30_000),
   });
 
-  if (!response.ok) throw new Error(`Strava OAuth failed: ${response.status}`);
+  if (!response.ok) {
+    throw new Error(`Strava OAuth failed: ${response.status}`);
+  }
 
   return Schema.decodeUnknownSync(tokenResponse)(await response.json());
 }
@@ -47,7 +49,9 @@ function cookieSession(cookie: string) {
 function keepFresh(session: CookieSession, cookie: string, save?: (cookie: string) => void) {
   const fresh = session.get(sessionCookie);
 
-  if (fresh && fresh !== cookie) save?.(fresh);
+  if (fresh && fresh !== cookie) {
+    save?.(fresh);
+  }
 }
 
 const firstKey = (data: Record<string, string>, ...keys: Array<string>) =>
@@ -65,7 +69,9 @@ async function uploadPhoto(session: CookieSession, token: string, athlete: numbe
     taken_at: String(Math.floor(statSync(photo).mtimeMs)),
   });
 
-  if (kind === '2') meta.set('media_type', kind);
+  if (kind === '2') {
+    meta.set('media_type', kind);
+  }
 
   const metadata = await session.request(`${site}/photos/metadata`, {
     method: 'PUT',
@@ -73,7 +79,9 @@ async function uploadPhoto(session: CookieSession, token: string, athlete: numbe
     body: meta,
   });
 
-  if (!metadata.ok) throw new Error('Photo metadata failed');
+  if (!metadata.ok) {
+    throw new Error('Photo metadata failed');
+  }
 
   const target = Schema.decodeUnknownSync(
     Schema.Struct({ uri: Url, header: Schema.Record(Schema.String, Schema.String) }),
@@ -86,7 +94,9 @@ async function uploadPhoto(session: CookieSession, token: string, athlete: numbe
     signal: AbortSignal.timeout(120_000),
   });
 
-  if (!stored.ok) throw new Error('Photo upload failed');
+  if (!stored.ok) {
+    throw new Error('Photo upload failed');
+  }
 
   return { uid, kind };
 }
@@ -94,20 +104,25 @@ async function uploadPhoto(session: CookieSession, token: string, athlete: numbe
 async function updateActivity(session: CookieSession, id: string, name: string, photos: ReadonlyArray<string>) {
   const edit = await session.request(`${site}/activities/${id}/edit`);
 
-  if (!edit.ok) throw new Error('Unable to get activity edit page');
+  if (!edit.ok) {
+    throw new Error('Unable to get activity edit page');
+  }
   const text = await edit.text();
   const token = /name="authenticity_token" value="([^"]+)"/.exec(text)?.[1];
   const athlete = /var athleteId = (\d+);/.exec(text)?.[1];
   const form = /<form class="edit_activity"[\s\S]*?<\/form>/.exec(text)?.[0];
 
-  if (token === undefined || athlete === undefined || form === undefined)
+  if (token === undefined || athlete === undefined || form === undefined) {
     throw new Error('Cannot parse the Strava edit page');
+  }
 
   const data = new StravaRepository().parseForm(form);
 
   data._method ??= 'patch';
 
-  if (name) data[firstKey(data, 'activity[name]', 'name')] = name;
+  if (name) {
+    data[firstKey(data, 'activity[name]', 'name')] = name;
+  }
 
   data[firstKey(data, 'activity[sport_type]', 'sport_type', 'activity[type]', 'type')] = 'VirtualRide';
 
@@ -131,7 +146,9 @@ async function updateActivity(session: CookieSession, id: string, name: string, 
     body: new URLSearchParams(data),
   });
 
-  if (!saved.ok) throw new Error('Failed to save activity');
+  if (!saved.ok) {
+    throw new Error('Failed to save activity');
+  }
 }
 
 const progress = Schema.Array(
@@ -149,9 +166,13 @@ async function waitReady(session: CookieSession, upload: string, delay = 1000) {
 
     const [item] = Schema.decodeUnknownSync(progress)(await response.json());
 
-    if (item?.workflow === 'success') return item;
+    if (item?.workflow === 'success') {
+      return item;
+    }
 
-    if (item?.workflow === 'error' || item?.workflow === 'empty') throw new Error(`Upload failed: ${item.workflow}`);
+    if (item?.workflow === 'error' || item?.workflow === 'empty') {
+      throw new Error(`Upload failed: ${item.workflow}`);
+    }
     await new Promise((done) => {
       setTimeout(done, delay);
     });
@@ -177,8 +198,9 @@ export class StravaRepository {
 
     const expiresAt = Number(expires);
 
-    if (!clientId || !clientSecret || !access || !refresh || !Number.isFinite(expiresAt))
+    if (!clientId || !clientSecret || !access || !refresh || !Number.isFinite(expiresAt)) {
       throw new DeliveryRefusedError({ code: 'strava_invalid_token' });
+    }
 
     return { clientId, clientSecret, access, refresh, expiresAt };
   }
@@ -249,10 +271,14 @@ export class StravaRepository {
       signal: AbortSignal.timeout(60_000),
     });
 
-    if (response.ok) return true;
+    if (response.ok) {
+      return true;
+    }
     await response.body?.cancel();
 
-    if (refused(response.status)) throw new DeliveryRefusedError({ code: `strava_${response.status}` });
+    if (refused(response.status)) {
+      throw new DeliveryRefusedError({ code: `strava_${response.status}` });
+    }
     throw new Error(`Strava upload failed: ${response.status}`);
   }
 
@@ -263,7 +289,9 @@ export class StravaRepository {
     const body = await response.text();
     const valid = body.includes(marker);
 
-    if (valid) keepFresh(session, cookie, save);
+    if (valid) {
+      keepFresh(session, cookie, save);
+    }
 
     return valid;
   }
@@ -272,23 +300,35 @@ export class StravaRepository {
     const data: Record<string, string> = {};
 
     for (const [tag = ''] of form.matchAll(/<input\b[^>]*>/g)) {
-      if (/\bdisabled\b|\btype=["'](?:submit|button|file)["']/.test(tag)) continue;
+      if (/\bdisabled\b|\btype=["'](?:submit|button|file)["']/.test(tag)) {
+        continue;
+      }
       const name = /name="([^"]+)"/.exec(tag)?.[1];
 
-      if (name === undefined) continue;
+      if (name === undefined) {
+        continue;
+      }
       const value = new SessionRepository().unescapeHtml(/value="([^"]*)"/.exec(tag)?.[1] ?? '');
 
       if (/type="checkbox"/.test(tag)) {
-        if (/\bchecked\b/.test(tag)) data[new SessionRepository().unescapeHtml(name)] = value || '1';
-      } else data[new SessionRepository().unescapeHtml(name)] = value;
+        if (/\bchecked\b/.test(tag)) {
+          data[new SessionRepository().unescapeHtml(name)] = value || '1';
+        }
+      } else {
+        data[new SessionRepository().unescapeHtml(name)] = value;
+      }
     }
 
     for (const [tag = ''] of form.matchAll(/<select\b[^>]*>[\s\S]*?<\/select>/g)) {
-      if (/\bdisabled\b/.test(tag)) continue;
+      if (/\bdisabled\b/.test(tag)) {
+        continue;
+      }
       const name = /name="([^"]+)"/.exec(tag)?.[1];
       const options = tag.matchAll(/<option\b([^>]*)>([\s\S]*?)<\/option>/g).toArray();
 
-      if (name === undefined || options.length === 0) continue;
+      if (name === undefined || options.length === 0) {
+        continue;
+      }
 
       const chosen = options.find((option) => (option[1] ?? '').includes('selected'));
 
@@ -302,7 +342,9 @@ export class StravaRepository {
     for (const [tag = ''] of form.matchAll(/<textarea\b[^>]*>[\s\S]*?<\/textarea>/g)) {
       const name = /name="([^"]+)"/.exec(tag)?.[1];
 
-      if (name === undefined) continue;
+      if (name === undefined) {
+        continue;
+      }
       data[new SessionRepository().unescapeHtml(name)] = new SessionRepository().unescapeHtml(
         />([\s\S]*)<\/textarea>/.exec(tag)?.[1] ?? '',
       );
@@ -331,7 +373,9 @@ export class StravaRepository {
       throw new DeliveryRefusedError({ code: 'strava_session_unavailable' });
     }
 
-    if (!text.includes(marker)) throw new DeliveryRefusedError({ code: 'strava_session_invalid' });
+    if (!text.includes(marker)) {
+      throw new DeliveryRefusedError({ code: 'strava_session_invalid' });
+    }
 
     try {
       await this.sendFree(session, text, filename, fit, name, photos, delay);
@@ -353,7 +397,9 @@ export class StravaRepository {
       /<meta name="csrf-token" content="([^"]+)"/.exec(text)?.[1] ??
       /name="authenticity_token" value="([^"]+)"/.exec(text)?.[1];
 
-    if (token === undefined) throw new DeliveryRefusedError({ code: 'strava_upload_token' });
+    if (token === undefined) {
+      throw new DeliveryRefusedError({ code: 'strava_upload_token' });
+    }
 
     const form = new FormData();
     form.set('_method', 'post');
@@ -367,14 +413,20 @@ export class StravaRepository {
 
     const body = await response.text();
 
-    if (!body.includes('workflow')) throw new Error('Strava rejected the upload');
+    if (!body.includes('workflow')) {
+      throw new Error('Strava rejected the upload');
+    }
 
     for (const upload of Schema.decodeUnknownSync(progress)(JSON.parse(body))) {
-      if (upload.id === undefined) continue;
+      if (upload.id === undefined) {
+        continue;
+      }
       const item = await waitReady(session, String(upload.id), delay);
       const id = item.activity?.id ?? item.id;
 
-      if (id === undefined) throw new Error('No activity ID in upload response');
+      if (id === undefined) {
+        throw new Error('No activity ID in upload response');
+      }
       await updateActivity(session, String(id), name, photos);
     }
   }

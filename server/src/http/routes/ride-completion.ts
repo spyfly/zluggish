@@ -17,8 +17,9 @@ export function rideCompletionRoutes(app: Hono<RuntimeEnv>, runtime: HttpRuntime
         const activities = yield* ActivitiesService;
         const bearer = c.req.header('Authorization') ?? '';
 
-        if (!bearer || runtime.effects.runSync(SessionsService).bearer(bearer.replace(/^Bearer /i, '')))
+        if (!bearer || runtime.effects.runSync(SessionsService).bearer(bearer.replace(/^Bearer /i, ''))) {
           return yield* Effect.promise(() => next());
+        }
 
         const ids = Schema.decodeUnknownOption(
           Schema.Struct({
@@ -27,20 +28,25 @@ export function rideCompletionRoutes(app: Hono<RuntimeEnv>, runtime: HttpRuntime
           }),
         )(c.req.param());
 
-        if (Option.isNone(ids)) throw new ApplicationError({ status: 400, message: 'Invalid ride identity.' });
+        if (Option.isNone(ids)) {
+          throw new ApplicationError({ status: 400, message: 'Invalid ride identity.' });
+        }
         const player = Number(ids.value.id);
         const activityId = BigInt(ids.value.activityId);
         const bytes = new Uint8Array(yield* Effect.promise(() => c.req.arrayBuffer()));
         const permitted = yield* completion.authorize(player, activityId, bearer, bytes);
 
-        if (permitted.receipt !== null && (c.req.method !== 'PUT' || c.req.query('upload-to-strava') !== 'true'))
+        if (permitted.receipt !== null && (c.req.method !== 'PUT' || c.req.query('upload-to-strava') !== 'true')) {
           throw new ApplicationError({ status: 401, message: 'Final save retry only.' });
+        }
 
-        if (permitted.receipt !== null)
+        if (permitted.receipt !== null) {
           return c.body(permitted.receipt, 200, { 'Content-Type': 'text/html; charset=utf-8' });
+        }
 
-        if (c.req.header('Source') === 'zwift-companion')
+        if (c.req.header('Source') === 'zwift-companion') {
           throw new ApplicationError({ status: 403, message: 'Native ride saves only.' });
+        }
 
         if (c.req.method === 'DELETE') {
           yield* activities.deleteActivity(activityId, player);
@@ -51,8 +57,9 @@ export function rideCompletionRoutes(app: Hono<RuntimeEnv>, runtime: HttpRuntime
 
         const activity = parseProtobuf(ActivitySchema, bytes);
 
-        if (activity.playerId !== BigInt(player) || activity.id !== activityId)
+        if (activity.playerId !== BigInt(player) || activity.id !== activityId) {
           throw new ApplicationError({ status: 403, message: 'Ride identity does not match.' });
+        }
         const finish = c.req.query('upload-to-strava') === 'true';
         yield* activities.saveInTurn(
           activity,
@@ -61,8 +68,11 @@ export function rideCompletionRoutes(app: Hono<RuntimeEnv>, runtime: HttpRuntime
         );
         const result = JSON.stringify({ id: Number(activityId) });
 
-        if (finish) yield* completion.finish(player, activityId, bearer, bytes, result);
-        else yield* completion.touch(player);
+        if (finish) {
+          yield* completion.finish(player, activityId, bearer, bytes, result);
+        } else {
+          yield* completion.touch(player);
+        }
 
         return c.body(result, 200, { 'Content-Type': 'text/html; charset=utf-8' });
       }),

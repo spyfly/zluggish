@@ -10,8 +10,11 @@ export async function compressBackup(source: string, output: string, signal?: Ab
   const result = Promise.withResolvers<void>();
 
   const tar = execFile('tar', ['-czf', output, '-C', source, '.'], { signal }, (error) => {
-    if (error) result.reject(error);
-    else result.resolve();
+    if (error) {
+      result.reject(error);
+    } else {
+      result.resolve();
+    }
   });
 
   // The abort callback can run before tar has closed the staging files.
@@ -38,15 +41,18 @@ export function readArchivedFile(input: string, name: string) {
 
 /** Run against a directory backup or unpack an archive into a private temporary directory. */
 export function withBackupDirectory<T>(input: string, use: (directory: string) => T): T {
-  if (!statSync(input).isFile()) return use(input);
+  if (!statSync(input).isFile()) {
+    return use(input);
+  }
   const stage = mkdtempSync(resolve(tmpdir(), 'zluggish-restore-'));
 
   try {
     execFileSync('tar', ['-xzf', input, '-C', stage, '--no-same-owner', '--no-same-permissions']);
     const entries = readdirSync(stage, { recursive: true, withFileTypes: true });
 
-    if (entries.some((entry) => !entry.isFile() && !entry.isDirectory()))
+    if (entries.some((entry) => !entry.isFile() && !entry.isDirectory())) {
       throw new ConfigError('The backup archive contains an unsupported file type');
+    }
 
     return use(stage);
   } finally {

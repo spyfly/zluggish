@@ -34,7 +34,9 @@ await test('Node adapter serves HTTPS, binary bodies, forms, and actual peer add
       }),
   );
 
-  if (!server.listening) await once(server, 'listening');
+  if (!server.listening) {
+    await once(server, 'listening');
+  }
   const { port } = Schema.decodeUnknownSync(Schema.Struct({ port: Schema.Finite }))(server.address());
 
   const send = (path: string, body?: Uint8Array, contentType = 'application/octet-stream') =>

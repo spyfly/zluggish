@@ -132,7 +132,9 @@ const make = Effect.gen(function* () {
 
     return catalog
       .flatMap((item, index) => {
-        if (sport && item.sport !== (sport === 'RUNNING' ? 1 : 0)) return [];
+        if (sport && item.sport !== (sport === 'RUNNING' ? 1 : 0)) {
+          return [];
+        }
         const id = BigInt(1_000_010 + index * 10);
 
         const event = create(EventSchema, {
@@ -155,7 +157,7 @@ const make = Effect.gen(function* () {
           eWtrl: false,
         });
 
-        for (let category = 1; category <= 4; category++)
+        for (let category = 1; category <= 4; category++) {
           event.category.push(
             create(EventSubgroupProtobufSchema, {
               id: id + BigInt(category),
@@ -178,6 +180,7 @@ const make = Effect.gen(function* () {
               durationInSeconds: 0,
             }),
           );
+        }
 
         return [event];
       })

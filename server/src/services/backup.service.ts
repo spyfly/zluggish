@@ -21,7 +21,9 @@ const make = Effect.gen(function* () {
     const next = new Date(now);
     next.setUTCHours(2, 0, 0, 0);
 
-    if (next.getTime() <= now) next.setUTCDate(next.getUTCDate() + 1);
+    if (next.getTime() <= now) {
+      next.setUTCDate(next.getUTCDate() + 1);
+    }
     const nightlyAt = next.getTime();
     repository.enqueueOnce(type, { nightlyAt }, nightlyAt - now);
   }
@@ -40,18 +42,26 @@ const make = Effect.gen(function* () {
             : manualName(job.text('operation'));
 
           // Schedule the next night even if this backup fails all its retries.
-          if (nightly) scheduleNightly();
+          if (nightly) {
+            scheduleNightly();
+          }
           const started = performance.now();
           await publishBackup(storage, context.configPath ?? null, name, job.signal, () => {
-            if (!job.valid()) throw new JobError({ code: 'lease_lost' });
+            if (!job.valid()) {
+              throw new JobError({ code: 'lease_lost' });
+            }
           });
           job.signal.throwIfAborted();
 
-          if (nightly) await pruneNightlyBackups(storage);
+          if (nightly) {
+            await pruneNightlyBackups(storage);
+          }
 
           job.signal.throwIfAborted();
 
-          if (!job.commit()) return;
+          if (!job.commit()) {
+            return;
+          }
 
           context.world.lifecycle.log.info('storage.backup', 'Storage backup finished', {
             name,
@@ -72,7 +82,9 @@ const make = Effect.gen(function* () {
       const payload = { operation };
       const state = repository.stateFor(type, payload);
 
-      if (state) return { state, name: manualName(operation) + archiveSuffix };
+      if (state) {
+        return { state, name: manualName(operation) + archiveSuffix };
+      }
       repository.enqueue(type, payload);
 
       return { state: 'queued', name: manualName(operation) + archiveSuffix };

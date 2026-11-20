@@ -54,7 +54,7 @@ for (const [outcome, response, state] of [
   ['remote acceptance with a lost response', reset, 'ambiguous'],
   ['a connection reset', reset, 'ambiguous'],
   ['a timeout', () => Promise.reject(new DOMException('The operation timed out', 'TimeoutError')), 'ambiguous'],
-] as const)
+] as const) {
   await test(`a delivery with ${outcome} becomes ${state} and never sends twice on its own`, async (t) => {
     const f = await mediumFixture(t);
     f.effects.runSync(DocumentsService.use((service) => service.put(f.rider.player_id, 'runalyze_token.txt', 'token')));
@@ -68,6 +68,7 @@ for (const [outcome, response, state] of [
     await f.effects.runPromise(JobsService.use((service) => service.drain()));
     assert.equal(sends.mock.callCount(), 1);
   });
+}
 
 await test('a stop during each delivery state never sends a delivery twice', async (t) => {
   const f = await mediumFixture(t);
@@ -172,10 +173,13 @@ await test('a partial Zwift delivery keeps its remote activity and a retry uploa
     const call = `${init?.method ?? 'GET'} ${new URL(String(input)).pathname}`;
     calls.push(call);
 
-    if (call.endsWith('/profiles/me'))
+    if (call.endsWith('/profiles/me')) {
       return Promise.resolve(new Response(toBinary(PlayerProfileSchema, create(PlayerProfileSchema, { id: 555n }))));
+    }
 
-    if (call.startsWith('POST')) return Promise.resolve(Response.json({ id: 77 }));
+    if (call.startsWith('POST')) {
+      return Promise.resolve(Response.json({ id: 77 }));
+    }
 
     return Promise.resolve(new Response(null, { status: ++uploads === 1 ? 503 : 200 }));
   });
@@ -281,7 +285,7 @@ for (const [provider, setup] of [
         ),
       ),
   ],
-] as const)
+] as const) {
   for (const [response, expected] of [
     [status(200), 'sent'],
     [status(400), 'failed'],
@@ -292,7 +296,7 @@ for (const [provider, setup] of [
     [status(500), 'ambiguous'],
     [status(503), 'ambiguous'],
     [offline, 'ambiguous'],
-  ] as const)
+  ] as const) {
     await test(`${provider}: ${response === offline ? 'a network failure' : 'a response'} becomes ${expected}`, async (t) => {
       const f = await mediumFixture(t);
       setup(f);
@@ -300,6 +304,8 @@ for (const [provider, setup] of [
       const uploads = f.effects.runSync(UploadsService);
       assert.equal(await outcome(() => f.effects.runPromise(uploads[provider](f.rider.player_id, activity))), expected);
     });
+  }
+}
 
 await test('every provider refuses a delivery without credentials, before any request', async (t) => {
   const f = await mediumFixture(t);
@@ -314,8 +320,9 @@ await test('every provider refuses a delivery without credentials, before any re
     () => f.effects.runPromise(uploads.freeStrava(player, activity, [])),
     () => f.effects.runPromise(uploads.garmin(player, activity)),
     () => f.effects.runPromise(uploads.zwift(player, activity)),
-  ])
+  ]) {
     assert.equal(await outcome(send), 'failed');
+  }
 
   f.effects.runSync(ConnectionsService.use((service) => service.save(player, 'intervals', ['not-a-number', 'key'])));
   assert.equal(await outcome(() => f.effects.runPromise(uploads.intervals(player, activity))), 'failed');
@@ -341,7 +348,7 @@ for (const [step, expected] of [
   ['the upload form cannot be read', 'failed'],
   ['the session is not valid', 'failed'],
   ['the upload request fails', 'ambiguous'],
-] as const)
+] as const) {
   await test(`strava session cookie: ${step} becomes ${expected}`, async (t) => {
     const f = await mediumFixture(t);
     f.effects.runSync(
@@ -351,7 +358,7 @@ for (const [step, expected] of [
     t.mock.method(globalThis, 'fetch', (input: string | URL) => {
       const url = String(input);
 
-      if (url.endsWith('/upload/select'))
+      if (url.endsWith('/upload/select')) {
         return step === 'the upload form cannot be read'
           ? offline()
           : Promise.resolve(
@@ -361,6 +368,7 @@ for (const [step, expected] of [
                   : 'Upload and Sync Your Activities <meta name="csrf-token" content="token">',
               ),
             );
+      }
 
       return offline();
     });
@@ -372,6 +380,7 @@ for (const [step, expected] of [
       expected,
     );
   });
+}
 
 for (const [error, expected] of [
   [new GarminConnectionError('Import error: duplicate', { cause: new GarminHttpError('dup', 409, 'u', '') }), 'sent'],
@@ -379,7 +388,7 @@ for (const [error, expected] of [
   [new GarminConnectionError('Import error: server', { cause: new GarminHttpError('srv', 502, 'u', '') }), 'ambiguous'],
   [new GarminAuthError('expired'), 'failed'],
   [new GarminConnectionError('timeout'), 'ambiguous'],
-] as const)
+] as const) {
   await test(`garmin: ${error.message} becomes ${expected}`, async (t) => {
     const f = await mediumFixture(t);
     const tokens = { oauth_token: 't', oauth_token_secret: 's' };
@@ -415,6 +424,7 @@ for (const [error, expected] of [
       expected,
     );
   });
+}
 
 for (const [step, expected, creates] of [
   ['the login fails', 'failed', 0],
@@ -422,7 +432,7 @@ for (const [step, expected, creates] of [
   ['the creation is rejected', 'failed', 1],
   ['the creation response is lost', 'ambiguous', 1],
   ['the upload is rejected', 'failed', 1],
-] as const)
+] as const) {
   await test(`zwift: ${step} becomes ${expected}`, async (t) => {
     const f = await mediumFixture(t);
     f.effects.runSync(ConnectionsService.use((service) => service.save(f.rider.player_id, 'zwift', ['user', 'pass'])));
@@ -433,15 +443,18 @@ for (const [step, expected, creates] of [
     let posts = 0;
 
     t.mock.method(globalThis, 'fetch', (input: string | URL, init?: RequestInit) => {
-      if (String(input).endsWith('/profiles/me'))
+      if (String(input).endsWith('/profiles/me')) {
         return step === 'the profile read is rejected'
           ? status(401)()
           : Promise.resolve(new Response(toBinary(PlayerProfileSchema, create(PlayerProfileSchema, { id: 5n }))));
+      }
 
       if (init?.method === 'POST') {
         posts++;
 
-        if (step === 'the creation is rejected') return status(400)();
+        if (step === 'the creation is rejected') {
+          return status(400)();
+        }
 
         return step === 'the creation response is lost' ? offline() : Promise.resolve(Response.json({ id: 77 }));
       }
@@ -457,3 +470,4 @@ for (const [step, expected, creates] of [
     );
     assert.equal(posts, creates);
   });
+}

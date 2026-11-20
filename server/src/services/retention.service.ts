@@ -44,7 +44,9 @@ function cleanup({ repositories, retention, storage }: RetentionScope) {
     const add = async (path: string, reason: string) => {
       const info = await repositories.filesRepository.statAsync(path);
 
-      if (info) files.push({ path, bytes: info.bytes, reason });
+      if (info) {
+        files.push({ path, bytes: info.bytes, reason });
+      }
     };
 
     const media = [
@@ -59,49 +61,62 @@ function cleanup({ repositories, retention, storage }: RetentionScope) {
     for (const row of media) {
       const folder = resolve(storage, String(row.player_id));
 
-      if (row.table === 'activity_image') await add(resolve(folder, 'images', `${row.id}.jpg`), 'abandoned upload');
-      else
-        for (const extension of ['mp4', 'mov'])
+      if (row.table === 'activity_image') {
+        await add(resolve(folder, 'images', `${row.id}.jpg`), 'abandoned upload');
+      } else {
+        for (const extension of ['mp4', 'mov']) {
           await add(resolve(folder, 'medias', `${row.id}.${extension}`), 'abandoned upload');
+        }
+      }
     }
 
     const abandoned = new Set(media.map((row) => `${row.table}:${row.id}`));
 
-    for (const entry of await repositories.filesRepository.entriesAsync(resolve(storage, 'activities')))
-      if (entry.isFile() && /^\d+$/.test(entry.name) && !owners.charts.has(Number(entry.name)))
+    for (const entry of await repositories.filesRepository.entriesAsync(resolve(storage, 'activities'))) {
+      if (entry.isFile() && /^\d+$/.test(entry.name) && !owners.charts.has(Number(entry.name))) {
         await add(resolve(storage, 'activities', entry.name), 'orphaned chart');
+      }
+    }
 
     for (const rider of await repositories.filesRepository.entriesAsync(storage)) {
-      if (!rider.isDirectory() || !/^\d+$/.test(rider.name)) continue;
+      if (!rider.isDirectory() || !/^\d+$/.test(rider.name)) {
+        continue;
+      }
       const folder = resolve(storage, rider.name);
 
       for (const entry of await repositories.filesRepository.entriesAsync(resolve(folder, 'fit'))) {
         const activity = /^(\d+) - /.exec(entry.name)?.[1];
 
-        if (activity !== undefined && !owners.activities.has(Number(activity)))
+        if (activity !== undefined && !owners.activities.has(Number(activity))) {
           await add(resolve(folder, 'fit', entry.name), 'orphaned FIT export');
+        }
       }
 
       for (const [directory, table, owned] of [
         ['images', 'activity_image', owners.images],
         ['medias', 'activity_media', owners.media],
-      ] as const)
+      ] as const) {
         for (const entry of await repositories.filesRepository.entriesAsync(resolve(folder, directory))) {
           const id = /^(\d+)\.\w+$/.exec(entry.name)?.[1];
 
-          if (id !== undefined && !owned.has(Number(id)) && !abandoned.has(`${table}:${id}`))
+          if (id !== undefined && !owned.has(Number(id)) && !abandoned.has(`${table}:${id}`)) {
             await add(resolve(folder, directory, entry.name), 'orphaned media');
+          }
         }
+      }
 
       await ghosts(resolve(folder, 'ghosts'), files);
     }
 
     for (const path of await repositories.filesRepository.filesUnder(storage, '.tmp')) {
-      if (path.startsWith(resolve(storage, 'backups'))) continue;
+      if (path.startsWith(resolve(storage, 'backups'))) {
+        continue;
+      }
       const info = await repositories.filesRepository.statAsync(path);
 
-      if (info && info.modified < now - retention.temporaryFileHours * hour)
+      if (info && info.modified < now - retention.temporaryFileHours * hour) {
         files.push({ path, bytes: info.bytes, reason: 'temporary file' });
+      }
     }
 
     for (const directory of [backupDirectory(storage), resolve(storage, 'backups')]) {
@@ -139,16 +154,20 @@ function cleanup({ repositories, retention, storage }: RetentionScope) {
     for (const entry of entries) {
       const path = resolve(directory, entry.name);
 
-      if (entry.isDirectory()) await ghosts(path, files);
-      else if (entry.name.endsWith('.bin')) {
+      if (entry.isDirectory()) {
+        await ghosts(path, files);
+      } else if (entry.name.endsWith('.bin')) {
         const info = await repositories.filesRepository.statAsync(path);
 
-        if (info) recordings.push({ path, ...info });
+        if (info) {
+          recordings.push({ path, ...info });
+        }
       }
     }
 
-    for (const old of recordings.toSorted((a, b) => b.modified - a.modified).slice(retention.ghostsPerRoute))
+    for (const old of recordings.toSorted((a, b) => b.modified - a.modified).slice(retention.ghostsPerRoute)) {
       files.push({ path: old.path, bytes: old.bytes, reason: 'old ghost recording' });
+    }
   }
 
   async function apply(plan: RetentionPlan, now = Date.now()) {
@@ -156,10 +175,14 @@ function cleanup({ repositories, retention, storage }: RetentionScope) {
       repositories.jobsRepository.prune(now - retention.finishedJobsDays * day);
       repositories.uploadsRepository.prune(now - retention.deliveryRecordsDays * day);
 
-      for (const row of plan.media) repositories.activitiesRepository.deleteMedia(row.table, row.id);
+      for (const row of plan.media) {
+        repositories.activitiesRepository.deleteMedia(row.table, row.id);
+      }
     });
 
-    for (const file of plan.files) await repositories.filesRepository.removeTreeAsync(file.path);
+    for (const file of plan.files) {
+      await repositories.filesRepository.removeTreeAsync(file.path);
+    }
 
     return { files: plan.files.length, bytes: plan.files.reduce((total, file) => total + file.bytes, 0) };
   }
@@ -167,13 +190,18 @@ function cleanup({ repositories, retention, storage }: RetentionScope) {
   async function size(path: string): Promise<number> {
     const info = await repositories.filesRepository.statAsync(path);
 
-    if (!info) return 0;
+    if (!info) {
+      return 0;
+    }
 
-    if (!info.directory) return info.bytes;
+    if (!info.directory) {
+      return info.bytes;
+    }
     let total = 0;
 
-    for (const entry of await repositories.filesRepository.entriesAsync(path))
+    for (const entry of await repositories.filesRepository.entriesAsync(path)) {
       total += await size(resolve(path, entry.name));
+    }
 
     return total;
   }
@@ -216,10 +244,11 @@ function cleanup({ repositories, retention, storage }: RetentionScope) {
         continue;
       }
 
-      for (const item of await repositories.filesRepository.entriesAsync(path))
+      for (const item of await repositories.filesRepository.entriesAsync(path)) {
         usage[rider.get(item.name) ?? (legacy.has(item.name) ? 'legacy' : 'other')] += await size(
           resolve(path, item.name),
         );
+      }
     }
 
     return usage;

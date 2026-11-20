@@ -128,18 +128,22 @@ await test('Zwift connection encrypts secrets and official downloads stage a rid
     const url = String(input);
     calls.push(url);
 
-    if (url.endsWith('/access/codes'))
+    if (url.endsWith('/access/codes')) {
       return Promise.resolve(Response.json({ access_token: 'test-token', refresh_token: 'refresh' }));
+    }
 
-    if (url.endsWith('/tokens/logout')) return Promise.resolve(new Response(null, { status: 204 }));
+    if (url.endsWith('/tokens/logout')) {
+      return Promise.resolve(new Response(null, { status: 204 }));
+    }
     assert.equal(new Headers(init?.headers).get('Authorization'), 'Bearer test-token');
 
-    if (url.endsWith('/api/profiles/me'))
+    if (url.endsWith('/api/profiles/me')) {
       return Promise.resolve(
         new Response(toBinary(PlayerProfileSchema, create(PlayerProfileSchema, { id: 999n, firstName: 'Official' }))),
       );
+    }
 
-    if (url.endsWith('/api/users/login'))
+    if (url.endsWith('/api/users/login')) {
       return Promise.resolve(
         new Response(
           toBinary(
@@ -152,11 +156,13 @@ await test('Zwift connection encrypts secrets and official downloads stage a rid
           ),
         ),
       );
+    }
 
-    if (url.endsWith('/api/achievement/loadPlayerAchievements'))
+    if (url.endsWith('/api/achievement/loadPlayerAchievements')) {
       return Promise.resolve(
         new Response(toBinary(AchievementsSchema, create(AchievementsSchema, { achievements: [{ id: 59 }] }))),
       );
+    }
     throw new Error(`Unexpected request ${url}`);
   });
   const downloaded = await web.request('/api/me/zwift/import', 'POST', { profile: true, achievements: true });
@@ -192,7 +198,9 @@ await test('automatic home and Android login sync coalesce, preserve UUIDs and e
   const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   let eventRequests = 0;
   t.mock.method(globalThis, 'fetch', (input: URL | string) => {
-    if (String(input).endsWith('/download.zwo')) return Promise.resolve(new Response(xml));
+    if (String(input).endsWith('/download.zwo')) {
+      return Promise.resolve(new Response(xml));
+    }
     eventRequests++;
 
     return Promise.resolve(Response.json([{ id: 42, start_date_local: `${day}T08:00:00`, category: 'WORKOUT' }]));
@@ -235,8 +243,11 @@ await test('automatic home and Android login sync coalesce, preserve UUIDs and e
       assert.equal(response.headers.get('Cache-Control'), 'private, no-store');
       const body = await response.json();
 
-      if (cycling) assert.notDeepEqual(body, empty);
-      else assert.deepEqual(body, empty);
+      if (cycling) {
+        assert.notDeepEqual(body, empty);
+      } else {
+        assert.deepEqual(body, empty);
+      }
     }
 
     const detail = await f.app.request(`/api/workout/workouts/${id}?sport=${sport || 'CYCLING'}`, { headers });

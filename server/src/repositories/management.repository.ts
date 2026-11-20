@@ -42,13 +42,14 @@ export class ManagementRepository {
         .where('player_id', '=', id),
     );
 
-    if (revoke)
+    if (revoke) {
       this.executor.run(
         query
           .deleteFrom('rider_document')
           .where('player_id', '=', id)
           .where('name', 'in', ['encryption_key.bin', 'relay-auth-version']),
       );
+    }
   }
 
   operation(actor: number, id: string) {

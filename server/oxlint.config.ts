@@ -1,9 +1,7 @@
 import cloudflare from '@cloudflare/oxlint-config';
 import { defineConfig } from 'oxlint';
 
-const migrationRules = {
-  curly: 'off', // Temporary during migration
-} as const;
+const migrationRules = {} as const;
 
 export default defineConfig({
   ...cloudflare,

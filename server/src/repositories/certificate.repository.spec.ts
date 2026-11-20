@@ -79,7 +79,9 @@ await test('the stored key and certificate round-trip, are private, and a mismat
   await repository.write(path, material);
   assert.deepEqual(repository.read(path), material);
 
-  if (process.platform !== 'win32') assert.equal(statSync(path).mode & 0o777, 0o600);
+  if (process.platform !== 'win32') {
+    assert.equal(statSync(path).mode & 0o777, 0o600);
+  }
   const other = await repository.create({ serverId: 'ffffffffffff', years: 1, now });
   writeFileSync(path, other.key + material.cert);
   assert.throws(() => repository.read(path), /does not hold a matching private key and certificate/);

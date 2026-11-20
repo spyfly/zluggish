@@ -16,7 +16,9 @@ export const continuous = (a: PlayerState, b: PlayerState) =>
 export function interpolate(a: PlayerState, b: PlayerState, fraction: number) {
   const state = clone(PlayerStateSchema, fraction < 0.5 ? a : b);
 
-  if (!continuous(a, b)) return state;
+  if (!continuous(a, b)) {
+    return state;
+  }
   state.roadTime = Math.round(lerp(a.roadTime, b.roadTime, fraction));
   state.roadPosition = Math.round(lerp(a.roadPosition, b.roadPosition, fraction));
   state.x = lerp(a.x, b.x, fraction);
@@ -25,12 +27,14 @@ export function interpolate(a: PlayerState, b: PlayerState, fraction: number) {
   state.speed = Math.round(lerp(a.speed, b.speed, fraction));
   state.power = Math.round(lerp(a.power, b.power, fraction));
 
-  if (b.distance >= a.distance && b.distance - a.distance < 1000)
+  if (b.distance >= a.distance && b.distance - a.distance < 1000) {
     state.distance = Math.round(lerp(a.distance, b.distance, fraction));
+  }
   const headingDelta = b.heading - a.heading;
 
-  if (headingDelta > -1_000_000n && headingDelta < 1_000_000n)
+  if (headingDelta > -1_000_000n && headingDelta < 1_000_000n) {
     state.heading = a.heading + BigInt(Math.round(Number(headingDelta) * fraction));
+  }
 
   return state;
 }
@@ -63,7 +67,9 @@ export class Random {
   pick<T>(items: ReadonlyArray<T>): T {
     const item = items[Math.floor(this.value() * items.length)];
 
-    if (item === undefined) throw new Error('Empty random pool');
+    if (item === undefined) {
+      throw new Error('Empty random pool');
+    }
 
     return item;
   }
@@ -150,8 +156,9 @@ export class Trail {
       road(state) === road(last.state) &&
       Math.abs(state.roadTime - last.state.roadTime) < 60_000 &&
       state.roadTime !== last.state.roadTime
-    )
+    ) {
       snap.sign = state.roadTime > last.state.roadTime ? 1 : -1;
+    }
 
     if (distance < 0.2) {
       if (state.roadTime >= last.state.roadTime) {
@@ -164,7 +171,9 @@ export class Trail {
 
     this.entries.push(snap);
 
-    while (this.entries.length > 3 && (this.entries[1]?.distance ?? 0) < snap.distance - 90) this.entries.shift();
+    while (this.entries.length > 3 && (this.entries[1]?.distance ?? 0) < snap.distance - 90) {
+      this.entries.shift();
+    }
   }
 
   // collecting -> ready with >3.2m across >=2 samples; >=8s age is stale.
@@ -183,16 +192,22 @@ export class Trail {
   acceleration() {
     const head = this.entries.at(-1);
 
-    if (!head || this.entries.length < 3) return 0;
+    if (!head || this.entries.length < 3) {
+      return 0;
+    }
     let ref: Snapshot | undefined;
 
     for (let index = this.entries.length - 2; index >= 0; index--) {
       const entry = this.entries[index];
 
-      if (!entry || head.time - entry.time > 6) break;
+      if (!entry || head.time - entry.time > 6) {
+        break;
+      }
       ref = entry;
 
-      if (head.time - entry.time >= 2.5) break;
+      if (head.time - entry.time >= 2.5) {
+        break;
+      }
     }
 
     return ref && head.time - ref.time >= 1
@@ -203,13 +218,17 @@ export class Trail {
   motion() {
     const head = this.entries.at(-1);
 
-    if (!head) return { speed: 0, acceleration: 0, advance: 0 };
+    if (!head) {
+      return { speed: 0, acceleration: 0, advance: 0 };
+    }
     const age = clamp(this.now() - head.time + this.latency, 0, 8);
     const original = head.state.speed / 3_600_000;
     const acceleration = this.acceleration();
     let horizon = Math.min(age, 2.5);
 
-    if (acceleration < 0) horizon = Math.min(horizon, original / -acceleration);
+    if (acceleration < 0) {
+      horizon = Math.min(horizon, original / -acceleration);
+    }
     const speed = Math.max(0, original + acceleration * horizon);
 
     return {
@@ -222,18 +241,26 @@ export class Trail {
   grade() {
     const head = this.entries.at(-1);
 
-    if (!head || this.entries.length < 3) return 0;
+    if (!head || this.entries.length < 3) {
+      return 0;
+    }
     let ref = this.entries[0];
 
     for (let index = this.entries.length - 2; index >= 0; index--) {
       const entry = this.entries[index];
 
-      if (entry) ref = entry;
+      if (entry) {
+        ref = entry;
+      }
 
-      if (ref && head.distance - ref.distance >= 25) break;
+      if (ref && head.distance - ref.distance >= 25) {
+        break;
+      }
     }
 
-    if (!ref || head.distance - ref.distance < 8) return 0;
+    if (!ref || head.distance - ref.distance < 8) {
+      return 0;
+    }
 
     return clamp((head.state.yAltitude - ref.state.yAltitude) / 100 / (head.distance - ref.distance), -0.25, 0.25);
   }
@@ -241,7 +268,9 @@ export class Trail {
   sample(gap: number): Sample | null {
     const head = this.entries.at(-1);
 
-    if (!head) return null;
+    if (!head) {
+      return null;
+    }
     const previous = this.entries.at(-2) ?? head;
     const offset = this.motion().advance - gap;
 
@@ -251,13 +280,14 @@ export class Trail {
       const vz = head.state.z - previous.state.z;
       const length = Math.hypot(vx, vz);
 
-      if (length < 1)
+      if (length < 1) {
         return {
           state,
           hx: this.heading[0],
           hz: this.heading[1],
           sign: head.sign,
         };
+      }
       let hx = vx / length;
       let hz = vz / length;
       const lead = Math.min(offset, 42);
@@ -266,10 +296,14 @@ export class Trail {
       for (let index = this.entries.length - 2; index >= 0; index--) {
         const entry = this.entries[index];
 
-        if (!entry || road(entry.state) !== road(head.state)) break;
+        if (!entry || road(entry.state) !== road(head.state)) {
+          break;
+        }
         base = entry;
 
-        if (head.distance - entry.distance >= 3) break;
+        if (head.distance - entry.distance >= 3) {
+          break;
+        }
       }
 
       const span = base ? head.distance - base.distance : 0;
@@ -281,7 +315,9 @@ export class Trail {
         const az = previous.state.z - before.state.z;
         const segment = Math.hypot(ax, az);
 
-        if (segment > 0.5) curvature = clamp(Math.atan2(ax * vz - az * vx, ax * vx + az * vz) / segment, -0.06, 0.06);
+        if (segment > 0.5) {
+          curvature = clamp(Math.atan2(ax * vz - az * vx, ax * vx + az * vz) / segment, -0.06, 0.06);
+        }
       }
 
       const sine = Math.sin(curvature * 0.25);
@@ -315,22 +351,29 @@ export class Trail {
     const target = head.distance + offset;
     const first = this.entries[0];
 
-    if (!first) return null;
+    if (!first) {
+      return null;
+    }
 
-    if (target <= first.distance)
+    if (target <= first.distance) {
       return {
         state: clone(PlayerStateSchema, first.state),
         hx: this.heading[0],
         hz: this.heading[1],
         sign: first.sign,
       };
+    }
     let index = this.entries.length - 1;
 
-    while (index > 0 && (this.entries[index - 1]?.distance ?? 0) > target) index--;
+    while (index > 0 && (this.entries[index - 1]?.distance ?? 0) > target) {
+      index--;
+    }
     const a = this.entries[index - 1];
     const b = this.entries[index];
 
-    if (!a || !b) return null;
+    if (!a || !b) {
+      return null;
+    }
 
     const fraction = (target - a.distance) / Math.max(0.001, b.distance - a.distance);
 
@@ -341,7 +384,9 @@ export class Trail {
     state.yAltitude = lerp(a.state.yAltitude, b.state.yAltitude, fraction);
     const length = Math.hypot(b.state.x - a.state.x, b.state.z - a.state.z);
 
-    if (length > 0.000001) this.heading = [(b.state.x - a.state.x) / length, (b.state.z - a.state.z) / length];
+    if (length > 0.000001) {
+      this.heading = [(b.state.x - a.state.x) / length, (b.state.z - a.state.z) / length];
+    }
 
     return { state, hx: this.heading[0], hz: this.heading[1], sign: b.sign };
   }

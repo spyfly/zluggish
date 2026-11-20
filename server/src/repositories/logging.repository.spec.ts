@@ -134,7 +134,9 @@ await test('recent entries are bounded, shared with children, and respect the co
   child.verbose('test.verbose', 'Hidden');
   assert.deepEqual(log.recentEntries(), []);
 
-  for (let i = 0; i < 200; i++) log.info('test.entry', `Entry ${i}`);
+  for (let i = 0; i < 200; i++) {
+    log.info('test.entry', `Entry ${i}`);
+  }
   child.warn('test.warning', 'Newest');
   const entries = log.recentEntries();
   assert.equal(entries.length, 200);

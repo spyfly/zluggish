@@ -39,7 +39,9 @@ export function webProfileRoutes(app: Hono<WebEnv>, runtime: HttpRuntime) {
     const { user, session } = context(c);
     const stage = session.pendingImport;
 
-    if (!stage) return null;
+    if (!stage) {
+      return null;
+    }
     const manifest = runtime.effects.runSync(imports.inspect(user, stage));
 
     const confirmSource =
@@ -62,11 +64,13 @@ export function webProfileRoutes(app: Hono<WebEnv>, runtime: HttpRuntime) {
   function stageFiles(c: Context<WebEnv>, identity: string, files: ImportFiles) {
     const { id, user, session } = context(c);
 
-    if (!runtime.effects.runSync(sessions.current(id, identity)))
+    if (!runtime.effects.runSync(sessions.current(id, identity))) {
       throw new ApplicationError({ status: 401, message: 'Session changed. Sign in again.' });
+    }
 
-    if (runtime.world.active(user.player_id))
+    if (runtime.world.active(user.player_id)) {
       throw new ApplicationError({ status: 409, message: 'Finish the active ride before importing.' });
+    }
     let stage: string;
 
     try {
@@ -78,7 +82,9 @@ export function webProfileRoutes(app: Hono<WebEnv>, runtime: HttpRuntime) {
       });
     }
 
-    if (session.pendingImport) runtime.effects.runSync(imports.cancel(user, session.pendingImport));
+    if (session.pendingImport) {
+      runtime.effects.runSync(imports.cancel(user, session.pendingImport));
+    }
     session.pendingImport = stage;
 
     return c.json({ review: review(c) });
@@ -105,7 +111,9 @@ export function webProfileRoutes(app: Hono<WebEnv>, runtime: HttpRuntime) {
       const filename = Schema.decodeUnknownSync(Schema.Enum(DownloadFile))(c.req.param('filename'));
       const data = yield* documentsService.get(user.player_id, filename);
 
-      if (!data) throw new ApplicationError({ status: 404, message: 'File not found.' });
+      if (!data) {
+        throw new ApplicationError({ status: 404, message: 'File not found.' });
+      }
 
       return c.body(new Uint8Array(data), 200, {
         'Content-Type': 'application/octet-stream',
@@ -125,8 +133,11 @@ export function webProfileRoutes(app: Hono<WebEnv>, runtime: HttpRuntime) {
         yield* Effect.promise(() => c.req.json()),
       );
 
-      if (input.create) yield* activitiesService.rebuildPowerCurves(user.player_id);
-      else yield* integrationsService.deletePowerCurve(user.player_id);
+      if (input.create) {
+        yield* activitiesService.rebuildPowerCurves(user.player_id);
+      } else {
+        yield* integrationsService.deletePowerCurve(user.player_id);
+      }
 
       return c.json({ message: input.create ? 'Power curves rebuild queued.' : 'Power curves deleted.' });
     }),
@@ -146,7 +157,9 @@ export function webProfileRoutes(app: Hono<WebEnv>, runtime: HttpRuntime) {
     for (const name of Object.values(importFilenameSchema.enums)) {
       const upload = form[name];
 
-      if (upload instanceof File && upload.name) files[name] = new Uint8Array(await upload.arrayBuffer());
+      if (upload instanceof File && upload.name) {
+        files[name] = new Uint8Array(await upload.arrayBuffer());
+      }
     }
 
     return stageFiles(c, identity, files);
@@ -167,16 +180,20 @@ export function webProfileRoutes(app: Hono<WebEnv>, runtime: HttpRuntime) {
       const { user, session } = context(c);
       const current = review(c);
 
-      if (!current || current.stage !== input.stage)
+      if (!current || current.stage !== input.stage) {
         throw new ApplicationError({ status: 409, message: 'The import changed. Reload and review it again.' });
+      }
 
-      if (input.cancel) runtime.effects.runSync(imports.cancel(user, current.stage));
-      else {
-        if (current.confirmSource && !input.confirmSource)
+      if (input.cancel) {
+        runtime.effects.runSync(imports.cancel(user, current.stage));
+      } else {
+        if (current.confirmSource && !input.confirmSource) {
           throw new ApplicationError({ status: 400, message: 'Confirm the import source first.' });
+        }
 
-        if (runtime.world.active(user.player_id))
+        if (runtime.world.active(user.player_id)) {
           throw new ApplicationError({ status: 409, message: 'Finish the active ride before importing.' });
+        }
         runtime.effects.runSync(imports.publish(user, current.stage, input.keepName));
       }
 
@@ -184,7 +201,9 @@ export function webProfileRoutes(app: Hono<WebEnv>, runtime: HttpRuntime) {
 
       const updated = accounts.get(user.player_id);
 
-      if (!updated) throw new ApplicationError({ status: 404, message: 'User not found.' });
+      if (!updated) {
+        throw new ApplicationError({ status: 404, message: 'User not found.' });
+      }
 
       return c.json({ user: yield* managementService.publicUser(updated), review: null });
     }),
@@ -226,13 +245,17 @@ export function webProfileRoutes(app: Hono<WebEnv>, runtime: HttpRuntime) {
       const { user } = context(c);
       const username = input.username.trim();
 
-      if (Boolean(username) !== Boolean(input.password))
+      if (Boolean(username) !== Boolean(input.password)) {
         throw new ApplicationError({ status: 400, message: 'Enter both username and password.' });
+      }
 
-      if (!username && !(yield* connectionsService.has(user.player_id, 'zwift')) && (input.upload || input.click))
+      if (!username && !(yield* connectionsService.has(user.player_id, 'zwift')) && (input.upload || input.click)) {
         throw new ApplicationError({ status: 400, message: 'Save credentials before enabling uploads or Click.' });
+      }
 
-      if (username) yield* connectionsService.save(user.player_id, 'zwift', [username, input.password]);
+      if (username) {
+        yield* connectionsService.save(user.player_id, 'zwift', [username, input.password]);
+      }
       yield* settingsService.save(user.player_id, {
         ...(yield* settingsService.read(user.player_id)),
         'uploads.zwift.enabled': input.upload,
@@ -264,11 +287,13 @@ export function webProfileRoutes(app: Hono<WebEnv>, runtime: HttpRuntime) {
       const identity = accounts.identityOf(user);
       const credentials = yield* connectionsService.read(user.player_id, 'zwift');
 
-      if (!credentials || (!input.profile && !input.achievements))
+      if (!credentials || (!input.profile && !input.achievements)) {
         throw new ApplicationError({ status: 400, message: 'Save credentials and choose at least one download.' });
+      }
 
-      if (runtime.world.active(user.player_id))
+      if (runtime.world.active(user.player_id)) {
         throw new ApplicationError({ status: 409, message: 'Finish the active ride before importing.' });
+      }
 
       const files: ImportFiles = yield* integrationsService
         .downloadOfficialData(credentials[0], credentials[1], input.profile, input.achievements)

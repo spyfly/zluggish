@@ -31,15 +31,20 @@ const oldNearest = (state: (typeof states)[number]) => {
   let index: number | null = null;
   let distance = Infinity;
 
-  for (const [i, peer] of states.entries())
-    if (course(state) === course(peer) && road(state) === road(peer) && forward(state) === forward(peer)) {
-      const delta = Math.abs(state.roadTime - peer.roadTime);
-
-      if (delta < distance) {
-        index = i;
-        distance = delta;
-      }
+  for (const [i, peer] of states.entries()) {
+    if (!(course(state) === course(peer) && road(state) === road(peer) && forward(state) === forward(peer))) {
+      continue;
     }
+
+    const delta = Math.abs(state.roadTime - peer.roadTime);
+
+    if (!(delta < distance)) {
+      continue;
+    }
+
+    index = i;
+    distance = delta;
+  }
 
   return index;
 };
@@ -47,7 +52,9 @@ const oldNearest = (state: (typeof states)[number]) => {
 await test('recording decodes states on demand as independent copies', () => {
   assert.equal(recording.length, states.length);
 
-  for (const [i, original] of states.entries()) assert.ok(equals(PlayerStateSchema, recording.state(i), original));
+  for (const [i, original] of states.entries()) {
+    assert.ok(equals(PlayerStateSchema, recording.state(i), original));
+  }
   const copy = recording.state(0);
   copy.roadTime = 42;
   assert.equal(recording.state(0).roadTime, 1000);
@@ -74,7 +81,9 @@ await test('recording nearest matches the decoded search, first minimum wins', (
     make(3000, 7, 3, false),
   ];
 
-  for (const query of queries) assert.equal(recording.nearest(query), oldNearest(query));
+  for (const query of queries) {
+    assert.equal(recording.nearest(query), oldNearest(query));
+  }
   assert.equal(recording.nearest(make(4000, 6, 3, true)), 1);
   assert.equal(recording.nearest(make(3000, 8, 3, true)), null);
 });

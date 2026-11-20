@@ -79,7 +79,9 @@ export class Peloton {
     for (let i = 0; i < states && a && first; i++) {
       const b = i + 1 < states ? pacer.recording.state(i + 1) : first;
 
-      if (a.power > 0) powers.push(a.power);
+      if (a.power > 0) {
+        powers.push(a.power);
+      }
       const elapsed = Number(b.worldTime - a.worldTime);
       const seconds = elapsed > 0 && elapsed < 5000 ? elapsed / 1000 : 1;
 
@@ -145,11 +147,12 @@ export class Peloton {
 
     const beside = Math.min(config.besidePacer, count);
 
-    for (let i = 0; i < beside; i++)
+    for (let i = 0; i < beside; i++) {
       this.slots.push([
         0.6 + Math.floor(i / 2) * config.rowGap * 0.3,
         (i % 2 ? 1 : -1) * config.lateralSpacing * (1 + Math.floor(i / 2)),
       ]);
+    }
 
     const columns = config.columns || clamp(Math.round(Math.sqrt(count / 2.5)) + 1, 2, 6);
 
@@ -158,8 +161,9 @@ export class Peloton {
 
       const stagger = width === columns ? config.lateralSpacing * 0.25 * (row % 2 ? 1 : -1) : 0;
 
-      for (let column = 0; column < width && this.slots.length < count; column++)
+      for (let column = 0; column < width && this.slots.length < count; column++) {
         this.slots.push([row * config.rowGap, (column - (width - 1) / 2) * config.lateralSpacing + stagger]);
+      }
     }
 
     const order = this.riders
@@ -179,7 +183,9 @@ export class Peloton {
   private at(index: number) {
     const cached = this.decoded.get(index);
 
-    if (cached) return cached;
+    if (cached) {
+      return cached;
+    }
     const state = this.pacer.recording.state(index);
     this.decoded.set(index, state);
 
@@ -187,7 +193,9 @@ export class Peloton {
   }
 
   tick(now: number, time: bigint, seconds = 1) {
-    if (this.pacer.recording.length === 0 || !this.length) return [];
+    if (this.pacer.recording.length === 0 || !this.length) {
+      return [];
+    }
 
     if (this.config.dynamics > 0 && now >= this.nextShuffle && this.riders.length > 1) {
       const rider = this.rng.pick(this.riders);
@@ -237,9 +245,13 @@ export class Peloton {
 
       let index = this.starts.findIndex((start, i) => distance >= start && distance < start + (this.lengths[i] ?? 0));
 
-      if (index < 0) index = 0;
+      if (index < 0) {
+        index = 0;
+      }
 
-      if (this.pacer.recording.length === 0) throw new Error('Empty pacer route');
+      if (this.pacer.recording.length === 0) {
+        throw new Error('Empty pacer route');
+      }
 
       // a and b are only read: interpolate() clones before it mutates.
       const a = this.at(index);

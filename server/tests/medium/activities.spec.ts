@@ -126,7 +126,7 @@ import { Schema } from 'effect';
     insert.run(f.other.player_id, 0, '2026-11-12T10:00:00Z', '2026-11-12T11:00:00Z', 99_999, 3_600_000);
     const base = `/api/profiles/${f.rider.player_id}/goals`;
 
-    for (const type of [0, 1])
+    for (const type of [0, 1]) {
       for (const periodicity of [0, 1]) {
         const goal = await decode(
           await f.request(base, {
@@ -139,6 +139,7 @@ import { Schema } from 'effect';
         assert.ok(Math.abs(goal.actualDistance - (type === 0 ? 12_000 : 60)) < 0.001);
         assert.equal(goal.actualDuration, goal.actualDistance);
       }
+    }
 
     const goals = await decode(await f.request(base), GoalsSchema);
     assert.equal(goals.goals.length, 4);
@@ -156,7 +157,9 @@ import { Schema } from 'effect';
 
     assert.equal(json.length, 4);
 
-    for (const goal of json) assert.equal(goal.actualDurationInMinutes, goal.actualDistanceInMeters);
+    for (const goal of json) {
+      assert.equal(goal.actualDurationInMinutes, goal.actualDistanceInMeters);
+    }
     const mobile = await f.request('/relay/worlds/1/aggregate/mobile?goalCount=4');
     assert.equal(mobile.status, 200);
     assert.equal(
@@ -347,7 +350,7 @@ await test('private activities stay out of other riders feeds, lists, details an
   );
 });
 
-for (const discard of [false, true])
+for (const discard of [false, true]) {
   await test(`activity deletion removes dependent data and rejects old chart links: discard=${discard}`, async (t) => {
     const f = await mediumFixture(t);
 
@@ -374,7 +377,9 @@ for (const discard of [false, true])
       resolve(f.profiles.folder(f.rider.player_id), 'fit', `${id} - ride.fit`),
     ];
 
-    for (const path of paths) new AssetFiles().writeDurable(path, 'data');
+    for (const path of paths) {
+      new AssetFiles().writeDurable(path, 'data');
+    }
     const base = `/api/profiles/${f.rider.player_id}/activities/${id}`;
     const wrongOwner = await f.request(base, { method: 'DELETE' }, f.other);
     assert.equal(wrongOwner.status, 401);
@@ -400,13 +405,17 @@ for (const discard of [false, true])
     // The rows go with the request; a cleanup job removes the files.
     await f.effects.runPromise(JobsService.use((service) => service.drain()));
 
-    for (const path of paths) assert.equal(existsSync(path), false);
+    for (const path of paths) {
+      assert.equal(existsSync(path), false);
+    }
 
-    for (const table of ['activity', 'activity_file', 'activity_image', 'activity_media'])
+    for (const table of ['activity', 'activity_file', 'activity_image', 'activity_media']) {
       assert.equal(f.accounts.db.prepare(`SELECT count(*) AS n FROM ${table}`).get()?.n, 0);
+    }
     const chart = await f.request(`/api/activities/${id}/file/${chartId}`);
     assert.equal(chart.status, 404);
   });
+}
 
 await test('hidden fitness is redacted in protobuf lists, detail, feeds and charts for another rider', async (t) => {
   const f = await mediumFixture(t);

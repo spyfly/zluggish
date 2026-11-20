@@ -58,23 +58,33 @@ export function decodePacket(data: Uint8Array, key: Uint8Array, iv: Initializati
   const buffer = Buffer.from(data);
   const flags = buffer[0];
 
-  if (flags === undefined || flags & ~7) throw new Error('Invalid packet flags');
+  if (flags === undefined || flags & ~7) {
+    throw new Error('Invalid packet flags');
+  }
   let offset = 1;
   const fields: PacketHeader = {};
 
   const take = (size: number) => {
-    if (offset + size > buffer.length) throw new Error('Truncated packet header');
+    if (offset + size > buffer.length) {
+      throw new Error('Truncated packet header');
+    }
     const start = offset;
     offset += size;
 
     return start;
   };
 
-  if (flags & 4) fields.relay = buffer.readUInt32BE(take(4));
+  if (flags & 4) {
+    fields.relay = buffer.readUInt32BE(take(4));
+  }
 
-  if (flags & 2) fields.connection = buffer.readUInt16BE(take(2));
+  if (flags & 2) {
+    fields.connection = buffer.readUInt16BE(take(2));
+  }
 
-  if (flags & 1) fields.sequence = buffer.readUInt32BE(take(4));
+  if (flags & 1) {
+    fields.sequence = buffer.readUInt32BE(take(4));
+  }
 
   const actual = {
     ...iv,
@@ -82,7 +92,9 @@ export function decodePacket(data: Uint8Array, key: Uint8Array, iv: Initializati
     sequence: fields.sequence ?? iv.sequence,
   };
 
-  if (buffer.length - offset < 4) throw new Error('Missing packet authentication tag');
+  if (buffer.length - offset < 4) {
+    throw new Error('Missing packet authentication tag');
+  }
 
   return {
     fields,
@@ -116,10 +128,14 @@ export class FrameDecoder {
         incoming = incoming.subarray(size);
       }
 
-      if (this.state === 'header') break;
+      if (this.state === 'header') {
+        break;
+      }
       const length = this.pending.readUInt16BE(0);
 
-      if (length === 0) throw new Error('Empty TCP frame');
+      if (length === 0) {
+        throw new Error('Empty TCP frame');
+      }
       const size = Math.min(length + 2 - this.pending.length, incoming.length);
       this.pending = Buffer.concat([this.pending, incoming.subarray(0, size)]);
       incoming = incoming.subarray(size);
@@ -136,6 +152,8 @@ export class FrameDecoder {
   }
 
   finish() {
-    if (this.pending.length > 0) throw new Error('Truncated TCP frame');
+    if (this.pending.length > 0) {
+      throw new Error('Truncated TCP frame');
+    }
   }
 }

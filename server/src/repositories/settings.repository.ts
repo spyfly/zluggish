@@ -48,9 +48,13 @@ export class SettingsStore {
   static legacy(storage: string, readOnly = false) {
     const path = resolve(storage, 'settings.db');
 
-    if (readOnly && !existsSync(path)) throw new ConfigError('No persisted preferences; initialize storage first');
+    if (readOnly && !existsSync(path)) {
+      throw new ConfigError('No persisted preferences; initialize storage first');
+    }
 
-    if (!readOnly) mkdirSync(storage, { recursive: true });
+    if (!readOnly) {
+      mkdirSync(storage, { recursive: true });
+    }
 
     const db = new DatabaseSync(path, { readOnly, timeout: 5000 });
 
@@ -99,7 +103,9 @@ export class SettingsStore {
         const merged = !!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='rider_document'").get();
 
         if (merged) {
-          if (!readOnly) db.exec('PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON;');
+          if (!readOnly) {
+            db.exec('PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON;');
+          }
 
           return new SettingsStore(db, true);
         }
@@ -123,11 +129,15 @@ export class SettingsStore {
   read(playerId: number): Overrides {
     const cached = this.riders.get(playerId);
 
-    if (cached) return { ...cached };
+    if (cached) {
+      return { ...cached };
+    }
     const row = this.executor.get(query.selectFrom('rider_settings').select('value').where('player_id', '=', playerId));
     const overrides = row ? decodeOverrides(JSON.parse(decodeRow(row).value)) : {};
 
-    if (!this.db.isTransaction) this.riders.set(playerId, overrides);
+    if (!this.db.isTransaction) {
+      this.riders.set(playerId, overrides);
+    }
 
     return { ...overrides };
   }
@@ -144,8 +154,9 @@ export class SettingsStore {
   }
 
   save(playerId: number, overrides: Overrides, expected = this.versioned ? this.revision(playerId) : undefined) {
-    if (expected !== undefined && this.revision(playerId) !== expected)
+    if (expected !== undefined && this.revision(playerId) !== expected) {
       throw new ApplicationError({ status: 409, message: 'Settings changed. Review the new data.' });
+    }
     const candidate = decodePreference({ playerId, overrides });
     const value = JSON.stringify(candidate.overrides);
     this.executor.run(
@@ -159,8 +170,11 @@ export class SettingsStore {
         ),
     );
 
-    if (this.db.isTransaction) this.riders.delete(candidate.playerId);
-    else this.riders.set(candidate.playerId, candidate.overrides);
+    if (this.db.isTransaction) {
+      this.riders.delete(candidate.playerId);
+    } else {
+      this.riders.set(candidate.playerId, candidate.overrides);
+    }
   }
 
   import(id: string, preferences: ReadonlyArray<Preference>) {
@@ -174,8 +188,9 @@ export class SettingsStore {
             query.selectFrom('rider_settings').select('value').where('player_id', '=', preference.playerId),
           );
 
-          if (row && JSON.stringify(this.read(preference.playerId)) !== JSON.stringify(preference.overrides))
+          if (row && JSON.stringify(this.read(preference.playerId)) !== JSON.stringify(preference.overrides)) {
             throw new ConfigError(`Conflicting persisted preferences for rider ${preference.playerId}`);
+          }
 
           this.save(preference.playerId, preference.overrides);
         }
@@ -195,12 +210,16 @@ export class SettingsStore {
   world(id: string) {
     const cached = this.worlds.get(id);
 
-    if (cached) return structuredClone(cached);
+    if (cached) {
+      return structuredClone(cached);
+    }
 
     const row = this.executor.get(query.selectFrom('world_settings').select('value').where('id', '=', id));
     const value = row ? decodeJsonRecord(decodeRow(row).value) : {};
 
-    if (!this.db.isTransaction) this.worlds.set(id, value);
+    if (!this.db.isTransaction) {
+      this.worlds.set(id, value);
+    }
 
     return structuredClone(value);
   }
@@ -212,8 +231,9 @@ export class SettingsStore {
   }
 
   saveWorld(id: string, value: Record<string, Json>, expected = this.versioned ? this.worldRevision(id) : undefined) {
-    if (expected !== undefined && this.worldRevision(id) !== expected)
+    if (expected !== undefined && this.worldRevision(id) !== expected) {
       throw new ApplicationError({ status: 409, message: 'Settings changed. Review the new data.' });
+    }
     const checked = decodeRecord(value);
     const serialized = JSON.stringify(checked);
     this.executor.run(
@@ -227,8 +247,11 @@ export class SettingsStore {
         ),
     );
 
-    if (this.db.isTransaction) this.worlds.delete(id);
-    else this.worlds.set(id, structuredClone(checked));
+    if (this.db.isTransaction) {
+      this.worlds.delete(id);
+    } else {
+      this.worlds.set(id, structuredClone(checked));
+    }
   }
 
   resetWorld(id: string) {
@@ -237,7 +260,9 @@ export class SettingsStore {
   }
 
   close() {
-    if (this.owned && this.db.isOpen) this.db.close();
+    if (this.owned && this.db.isOpen) {
+      this.db.close();
+    }
   }
 }
 
@@ -247,12 +272,15 @@ export class RiderRepository {
   checkRider(storage: string, playerId: number) {
     const path = resolve(storage, 'zluggish.db');
 
-    if (!existsSync(path)) throw new ConfigError('Unknown rider; initialize accounts before changing preferences');
+    if (!existsSync(path)) {
+      throw new ConfigError('Unknown rider; initialize accounts before changing preferences');
+    }
     const db = new DatabaseSync(path, { readOnly: true });
 
     try {
-      if (!new SqliteExecutor(db).get(query.selectFrom('user').select('player_id').where('player_id', '=', playerId)))
+      if (!new SqliteExecutor(db).get(query.selectFrom('user').select('player_id').where('player_id', '=', playerId))) {
         throw new ConfigError('Unknown rider');
+      }
     } finally {
       db.close();
     }

@@ -22,7 +22,9 @@
   function toggle() {
     open = !open;
 
-    if (open && !loading) void refresh();
+    if (open && !loading) {
+      void refresh();
+    }
   }
 </script>
 

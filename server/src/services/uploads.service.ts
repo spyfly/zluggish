@@ -46,10 +46,14 @@ type Attempt = { activity: number; provider: UploadProvider; token: string; deli
 
 /** Throws DeliveryRefusedError when the response proves that the provider rejected the request. */
 async function checked(response: Response, code: string) {
-  if (response.ok) return response;
+  if (response.ok) {
+    return response;
+  }
   await response.body?.cancel();
 
-  if (refused(response.status)) throw new DeliveryRefusedError({ code: `${code}_${response.status}` });
+  if (refused(response.status)) {
+    throw new DeliveryRefusedError({ code: `${code}_${response.status}` });
+  }
   throw new Error(`${code}_${response.status}`);
 }
 
@@ -87,17 +91,25 @@ const make = Effect.gen(function* () {
     const has = (name: Parameters<typeof repositories.riderDocuments.has>[1]) =>
       repositories.riderDocuments.has(player, name);
 
-    if (has(settings.uploads.strava.method === 'free' ? 'strava4_session.txt' : 'strava_token.txt'))
+    if (has(settings.uploads.strava.method === 'free' ? 'strava4_session.txt' : 'strava_token.txt')) {
       providers.push(settings.uploads.strava.method === 'free' ? 'freeStrava' : 'strava');
+    }
 
-    if (has('garth/oauth1_token.json')) providers.push('garmin');
+    if (has('garth/oauth1_token.json')) {
+      providers.push('garmin');
+    }
 
-    if (has('runalyze_token.txt')) providers.push('runalyze');
+    if (has('runalyze_token.txt')) {
+      providers.push('runalyze');
+    }
 
-    if (repositories.connectionsRepository.has(player, 'intervals')) providers.push('intervals');
+    if (repositories.connectionsRepository.has(player, 'intervals')) {
+      providers.push('intervals');
+    }
 
-    if (settings.uploads.zwift.enabled && repositories.connectionsRepository.has(player, 'zwift'))
+    if (settings.uploads.zwift.enabled && repositories.connectionsRepository.has(player, 'zwift')) {
       providers.push('zwift');
+    }
 
     return providers;
   }
@@ -131,34 +143,42 @@ const make = Effect.gen(function* () {
     immediate(repositories.db, () => {
       const stored = repositories.activitiesRepository.fit(activity);
 
-      if (!stored || stored.player !== player)
+      if (!stored || stored.player !== player) {
         throw new ApplicationError({ status: 404, message: 'Activity not found.' });
+      }
 
-      if (!stored.fit?.length || !uploadPayload(activity))
+      if (!stored.fit?.length || !uploadPayload(activity)) {
         throw new ApplicationError({
           status: 409,
           message: 'Only a finished activity with a FIT file can be uploaded.',
         });
+      }
 
-      if (!configured(player).includes(provider))
+      if (!configured(player).includes(provider)) {
         throw new ApplicationError({ status: 409, message: 'Connect this service in Integrations first.' });
+      }
       const state = repositories.uploadsRepository.get(activity, provider)?.state;
 
-      if (state === 'pending' || state === 'sending') return;
+      if (state === 'pending' || state === 'sending') {
+        return;
+      }
 
-      if ((state === 'sent' || state === 'ambiguous') && !again)
+      if ((state === 'sent' || state === 'ambiguous') && !again) {
         throw new ApplicationError({
           status: 409,
           message: 'This activity may already be there. Confirm to upload it again.',
         });
+      }
 
-      if (state === undefined) repositories.uploadsRepository.insert(activity, provider);
-      else
+      if (state === undefined) {
+        repositories.uploadsRepository.insert(activity, provider);
+      } else {
         repositories.uploadsRepository.requeue(
           activity,
           provider,
           Schema.decodeUnknownSync(Schema.Enum(UploadState))(state),
         );
+      }
       repositories.jobsRepository.enqueue('delivery', { activityId: activity, provider });
     });
 
@@ -171,7 +191,9 @@ const make = Effect.gen(function* () {
   function uploadPayload(activity: number) {
     const saved = repositories.completionRepository.get(BigInt(activity));
 
-    if (saved) return fromBinary(ActivitySchema, saved.payload);
+    if (saved) {
+      return fromBinary(ActivitySchema, saved.payload);
+    }
     const row = repositories.activitiesRepository.activityById(activity);
 
     return row?.end_date ? repositories.protobufRepository.decode(ActivitySchema, row) : null;
@@ -182,8 +204,9 @@ const make = Effect.gen(function* () {
   */
   function retry(player: number, ambiguous = false) {
     immediate(repositories.db, () => {
-      for (const { activity, provider } of repositories.uploadsRepository.retry(player, ambiguous))
+      for (const { activity, provider } of repositories.uploadsRepository.retry(player, ambiguous)) {
         repositories.jobsRepository.enqueue('delivery', { activityId: activity, provider });
+      }
     });
 
     return drain();
@@ -194,7 +217,9 @@ const make = Effect.gen(function* () {
     immediate(repositories.db, () => {
       repositories.riderDocuments.remove(player, file);
 
-      if (file === 'garth/oauth1_token.json') repositories.riderDocuments.remove(player, 'garth/oauth2_token.json');
+      if (file === 'garth/oauth1_token.json') {
+        repositories.riderDocuments.remove(player, 'garth/oauth2_token.json');
+      }
       revoke(player);
     });
   }
@@ -206,9 +231,11 @@ const make = Effect.gen(function* () {
     const allowed: Array<string> = configured(player);
 
     atomic(repositories.db, () => {
-      for (const delivery of repositories.uploadsRepository.pendingFor(player))
-        if (!allowed.includes(delivery.provider))
+      for (const delivery of repositories.uploadsRepository.pendingFor(player)) {
+        if (!allowed.includes(delivery.provider)) {
           repositories.uploadsRepository.cancel(delivery.activity_id, delivery.provider);
+        }
+      }
     });
   }
 
@@ -217,16 +244,18 @@ const make = Effect.gen(function* () {
     const interrupted = repositories.uploadsRepository.interrupted();
     const paused = repositories.systemFlagsRepository.get(SystemFlag.UploadPause);
 
-    if (paused !== null)
+    if (paused !== null) {
       context.world.lifecycle.log.warn('upload.paused', 'Uploads are paused; review them with uploads list', {
         reason: paused,
         waiting: repositories.uploadsRepository.waiting().length,
       });
+    }
 
-    if (interrupted > 0)
+    if (interrupted > 0) {
       context.world.lifecycle.log.warn('upload.ambiguous', 'Interrupted uploads need a manual decision', {
         count: interrupted,
       });
+    }
   }
 
   /** Run ready delivery jobs now. */
@@ -254,12 +283,16 @@ const make = Effect.gen(function* () {
     // Check the claim, the delivery and consent, and commit sending, in one short
     // transaction. A replacement handler never sends a delivery that is sending.
     const start = immediate(repositories.db, () => {
-      if (!job.valid()) return null;
+      if (!job.valid()) {
+        return null;
+      }
       const delivery = repositories.uploadsRepository.get(activity, provider);
       const stored = repositories.activitiesRepository.fit(activity);
       const payload = uploadPayload(activity);
 
-      if (!delivery || !stored?.fit?.length || stored.player === null || !payload) return null;
+      if (!delivery || !stored?.fit?.length || stored.player === null || !payload) {
+        return null;
+      }
 
       if (delivery.state === 'sending') {
         repositories.uploadsRepository.abandon(activity, provider);
@@ -267,7 +300,9 @@ const make = Effect.gen(function* () {
         return null;
       }
 
-      if (delivery.state !== 'pending') return null;
+      if (delivery.state !== 'pending') {
+        return null;
+      }
 
       if (!configured(stored.player).includes(provider)) {
         repositories.uploadsRepository.cancel(activity, provider);
@@ -321,8 +356,9 @@ const make = Effect.gen(function* () {
 
     const fields = { playerId: start.player, activityId: activity, provider };
 
-    if (outcome === 'sent') context.world.lifecycle.log.info('upload.succeeded', 'Activity uploaded', fields);
-    else {
+    if (outcome === 'sent') {
+      context.world.lifecycle.log.info('upload.succeeded', 'Activity uploaded', fields);
+    } else {
       context.world.lifecycle.log.warn('upload.failed', 'Activity upload did not complete', {
         ...fields,
         outcome,
@@ -353,14 +389,19 @@ const make = Effect.gen(function* () {
     const folder = context.profiles.folder(player);
     const paths = [];
 
-    for (const photo of repositories.activitiesRepository.listActivityImage(player, activity))
-      if (photo.state === 'ready') paths.push(resolve(folder, 'images', `${photo.id}.jpg`));
+    for (const photo of repositories.activitiesRepository.listActivityImage(player, activity)) {
+      if (photo.state === 'ready') {
+        paths.push(resolve(folder, 'images', `${photo.id}.jpg`));
+      }
+    }
 
-    for (const photo of repositories.activitiesRepository.listActivityMedia(player, activity))
-      if (photo.state === 'ready')
+    for (const photo of repositories.activitiesRepository.listActivityMedia(player, activity)) {
+      if (photo.state === 'ready') {
         paths.push(
           resolve(folder, 'medias', `${photo.id}.${photo.content_type.includes('quicktime') ? 'mov' : 'mp4'}`),
         );
+      }
+    }
 
     return paths;
   }
@@ -368,7 +409,9 @@ const make = Effect.gen(function* () {
   async function strava(player: number, activity: Activity) {
     const text = repositories.riderDocuments.text(player, 'strava_token.txt');
 
-    if (!text) throw new DeliveryRefusedError({ code: 'strava_unauthorized' });
+    if (!text) {
+      throw new DeliveryRefusedError({ code: 'strava_unauthorized' });
+    }
 
     await repositories.stravaRepository.uploadPaid(
       repositories.stravaRepository.parseToken(text),
@@ -386,7 +429,9 @@ const make = Effect.gen(function* () {
   async function freeStrava(player: number, activity: Activity, photos: ReadonlyArray<string>) {
     const cookie = repositories.riderDocuments.text(player, 'strava4_session.txt')?.split(/\r?\n/, 1)[0] ?? '';
 
-    if (!cookie) throw new DeliveryRefusedError({ code: 'strava_session_missing' });
+    if (!cookie) {
+      throw new DeliveryRefusedError({ code: 'strava_session_missing' });
+    }
     await repositories.stravaRepository.uploadFree(
       cookie,
       activity.fitFilename,
@@ -399,8 +444,9 @@ const make = Effect.gen(function* () {
   }
 
   async function garmin(player: number, activity: Activity) {
-    if (!repositories.riderDocuments.has(player, 'garth/oauth1_token.json'))
+    if (!repositories.riderDocuments.has(player, 'garth/oauth1_token.json')) {
       throw new DeliveryRefusedError({ code: 'garmin_unauthorized' });
+    }
 
     await repositories.garminRepository.uploadGarmin(
       repositories.garminRepository.tokenStore(repositories.riderDocuments, player),
@@ -413,7 +459,9 @@ const make = Effect.gen(function* () {
   async function runalyze(player: number, activity: Activity) {
     const token = repositories.riderDocuments.text(player, 'runalyze_token.txt')?.split(/\r?\n/, 1)[0] ?? '';
 
-    if (!token) throw new DeliveryRefusedError({ code: 'runalyze_unauthorized' });
+    if (!token) {
+      throw new DeliveryRefusedError({ code: 'runalyze_unauthorized' });
+    }
     const form = new FormData();
     form.set('file', repositories.sessionRepository.binaryBlob(activity.fit), 'file');
 
@@ -431,15 +479,21 @@ const make = Effect.gen(function* () {
   async function intervals(player: number, activity: Activity) {
     const credentials = repositories.connectionsRepository.read(player, 'intervals');
 
-    if (!credentials) throw new DeliveryRefusedError({ code: 'intervals_unauthorized' });
+    if (!credentials) {
+      throw new DeliveryRefusedError({ code: 'intervals_unauthorized' });
+    }
     const [athlete, key] = credentials;
 
-    if (!isIntervalsAthleteId(athlete)) throw new DeliveryRefusedError({ code: 'intervals_invalid_athlete' });
+    if (!isIntervalsAthleteId(athlete)) {
+      throw new DeliveryRefusedError({ code: 'intervals_invalid_athlete' });
+    }
     const workouts = workoutsService;
     const paired = pairedEvent(activity, Effect.runSync(workouts.stored(player)));
     const query = new URLSearchParams({ name: activity.name });
 
-    if (paired !== null) query.set('paired_event_id', String(paired));
+    if (paired !== null) {
+      query.set('paired_event_id', String(paired));
+    }
     const form = new FormData();
     form.set('file', repositories.sessionRepository.binaryBlob(activity.fit), 'file');
 
@@ -455,7 +509,9 @@ const make = Effect.gen(function* () {
       'intervals',
     );
 
-    if (paired !== null) Effect.runSync(workouts.removeEvent(player, paired));
+    if (paired !== null) {
+      Effect.runSync(workouts.removeEvent(player, paired));
+    }
   }
 
   /** Two requests: create the official activity, then upload its FIT data. The remote
@@ -465,7 +521,9 @@ const make = Effect.gen(function* () {
   async function zwift(player: number, activity: Activity, attempt?: Attempt) {
     const credentials = repositories.connectionsRepository.read(player, 'zwift');
 
-    if (!credentials) throw new DeliveryRefusedError({ code: 'zwift_unauthorized' });
+    if (!credentials) {
+      throw new DeliveryRefusedError({ code: 'zwift_unauthorized' });
+    }
 
     let token: string;
 
@@ -498,8 +556,9 @@ const make = Effect.gen(function* () {
     full.playerId = official;
     const remote = attempt?.delivery.remote_id;
 
-    if (remote) full.id = BigInt(remote);
-    else {
+    if (remote) {
+      full.id = BigInt(remote);
+    } else {
       const draft = clone(ActivitySchema, full);
       clearField(draft, ActivitySchema.field.id);
       clearField(draft, ActivitySchema.field.fit);

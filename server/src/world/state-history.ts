@@ -26,7 +26,9 @@ export class StateHistory {
     this.encoded.push(toBinary(PlayerStateSchema, state));
     this.times.push(state.worldTime);
 
-    if (this.encoded.length <= this.limit) return;
+    if (this.encoded.length <= this.limit) {
+      return;
+    }
     this.encoded.shift();
     this.times.shift();
   }
@@ -61,7 +63,9 @@ export class StateHistory {
   ghost(playerId: number) {
     const writer = new BinaryWriter().tag(ghostPlayerField, WireType.Varint).int32(playerId);
 
-    for (const bytes of this.encoded) writer.tag(ghostStatesField, WireType.LengthDelimited).bytes(bytes);
+    for (const bytes of this.encoded) {
+      writer.tag(ghostStatesField, WireType.LengthDelimited).bytes(bytes);
+    }
 
     return writer.finish();
   }

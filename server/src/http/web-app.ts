@@ -33,7 +33,9 @@ export type WebEnv = { Variables: { sessionId: string; csrf: string } };
 
 /** Matches the public URL exactly, or else the host only: a TLS proxy forwards https requests over http. */
 function sameOrigin(origin: string | undefined, url: string, publicUrl: string | null) {
-  if (publicUrl) return origin === publicUrl;
+  if (publicUrl) {
+    return origin === publicUrl;
+  }
 
   try {
     return !!origin && new URL(origin).host === new URL(url).host;
@@ -89,7 +91,9 @@ export function createWebApp(runtime: HttpRuntime) {
     const before = runtime.effects.runSync(durability.changes());
     await next();
 
-    if (runtime.effects.runSync(durability.changes()) !== before) await runtime.effects.runPromise(durability.flush());
+    if (runtime.effects.runSync(durability.changes()) !== before) {
+      await runtime.effects.runPromise(durability.flush());
+    }
   });
   app.get('/health', (c) => c.json({ name: 'zluggish', version: packageVersion(), status: 'ok' }));
 
@@ -109,8 +113,9 @@ export function createWebApp(runtime: HttpRuntime) {
     c.set('csrf', token ?? '');
 
     if (!['GET', 'HEAD'].includes(c.req.method)) {
-      if (!sameOrigin(c.req.header('Origin'), c.req.url, publicUrl) || c.req.header('X-CSRF-Token') !== c.get('csrf'))
+      if (!sameOrigin(c.req.header('Origin'), c.req.url, publicUrl) || c.req.header('X-CSRF-Token') !== c.get('csrf')) {
         throw new ApplicationError({ status: 403, message: 'Reload the page and retry.' });
+      }
 
       if (
         !(c.req.method === 'POST' && c.req.path === '/api/me/import'
@@ -119,8 +124,9 @@ export function createWebApp(runtime: HttpRuntime) {
               (c.req.path === '/api/me/avatar' || /^\/api\/manage\/users\/\d+\/avatar$/.test(c.req.path))
             ? c.req.header('Content-Type') === 'image/jpeg'
             : c.req.header('Content-Type')?.startsWith('application/json'))
-      )
+      ) {
         throw new ApplicationError({ status: 400, message: 'JSON required.' });
+      }
     }
 
     if (
@@ -129,11 +135,17 @@ export function createWebApp(runtime: HttpRuntime) {
     ) {
       const now = Date.now();
 
-      for (const [key, value] of attempts) if (value.until <= now) attempts.delete(key);
+      for (const [key, value] of attempts) {
+        if (value.until <= now) {
+          attempts.delete(key);
+        }
+      }
       const key = peerAddress(c);
       const limit = attempts.get(key) ?? { count: 0, until: now + 60_000 };
 
-      if (limit.count >= 10 || attempts.size >= 10_000) return c.json({ message: 'Try again shortly.' }, 429);
+      if (limit.count >= 10 || attempts.size >= 10_000) {
+        return c.json({ message: 'Try again shortly.' }, 429);
+      }
       limit.count++;
       attempts.set(key, limit);
     }
@@ -204,7 +216,9 @@ export function createWebApp(runtime: HttpRuntime) {
       const live = unchanged(c);
       const user = yield* managementService.signIn(input.username, input.password);
 
-      if (!live()) throw new ApplicationError({ status: 401, message: 'Session changed.' });
+      if (!live()) {
+        throw new ApplicationError({ status: 401, message: 'Session changed.' });
+      }
 
       return login(c, user);
     }),
@@ -287,7 +301,9 @@ export function createWebApp(runtime: HttpRuntime) {
         (yield* webSessionsService.require(c.get('sessionId'))).player_id,
       );
 
-      if (!(yield* filesService.isFile(path))) throw new ApplicationError({ status: 404, message: 'No photo.' });
+      if (!(yield* filesService.isFile(path))) {
+        throw new ApplicationError({ status: 404, message: 'No photo.' });
+      }
 
       return yield* fileResponse(c, path, { 'Content-Type': 'image/jpeg' });
     }),
@@ -357,22 +373,25 @@ export function createWebApp(runtime: HttpRuntime) {
     const status = yield* tls.status();
     const material = tls.material();
 
-    if (status.mode === 'disabled' || !status.certificate || !material)
+    if (status.mode === 'disabled' || !status.certificate || !material) {
       throw new ApplicationError({ status: 409, message: 'This server has no certificate to install.' });
+    }
 
     // A configured file may hold a chain, and the shared one holds its key: take the first certificate only.
     const certificate = /-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/.exec(material.cert)?.[0];
 
-    if (!certificate)
+    if (!certificate) {
       throw new ApplicationError({ status: 409, message: 'This server has no certificate to install.' });
+    }
     const pem = certificate + '\n';
 
-    if (status.mode === 'legacy')
+    if (status.mode === 'legacy') {
       runtime.world.lifecycle.log.warn(
         'tls.legacy_setup_download',
         'A rider downloaded setup for the shared Zwift certificate, whose private key is public. Generate a server certificate under Manage → Server.',
         { player: user.player_id, download },
       );
+    }
 
     return { pem, certificate: status.certificate };
   });
@@ -458,7 +477,7 @@ export function createWebApp(runtime: HttpRuntime) {
       for (const climb of all) {
         const row = stats.get(climb.road);
 
-        if (row)
+        if (row) {
           climbs.push({
             road: climb.road,
             ...climbFacts(climb.name),
@@ -468,6 +487,7 @@ export function createWebApp(runtime: HttpRuntime) {
             lastRide:
               row.last_world_time === null ? null : new Date(row.last_world_time + WORLD_TIME_EPOCH_MS).toISOString(),
           });
+        }
       }
 
       return c.json({ climbs, total: all.length });
@@ -567,7 +587,9 @@ export function createWebApp(runtime: HttpRuntime) {
         Schema.decodeUnknownSync(NumberFromInput.check(Schema.isInt(), Schema.isGreaterThan(0)))(c.req.param('id')),
       );
 
-      if (!user) throw new ApplicationError({ status: 404, message: 'User not found.' });
+      if (!user) {
+        throw new ApplicationError({ status: 404, message: 'User not found.' });
+      }
 
       return c.json(yield* managementService.publicUser(user));
     }),
@@ -636,14 +658,15 @@ export function createWebApp(runtime: HttpRuntime) {
 
       const path = yield* managementService.avatarPath(id);
 
-      if (!accounts.get(id) || !(yield* filesService.isFile(path)))
+      if (!accounts.get(id) || !(yield* filesService.isFile(path))) {
         throw new ApplicationError({ status: 404, message: 'No photo.' });
+      }
 
       return yield* fileResponse(c, path, { 'Content-Type': 'image/jpeg' });
     }),
   );
 
-  for (const action of ['password', 'disable', 'enable', 'revoke-sessions', 'role'])
+  for (const action of ['password', 'disable', 'enable', 'revoke-sessions', 'role']) {
     appRoutes.on(action === 'role' ? 'PUT' : 'POST', `/api/manage/users/:id/${action}`, (c) =>
       Effect.gen(function* () {
         const managementService = yield* ManagementService;
@@ -658,6 +681,7 @@ export function createWebApp(runtime: HttpRuntime) {
         );
       }),
     );
+  }
 
   appRoutes.patch('/api/manage/users/:id', (c) =>
     Effect.gen(function* () {
@@ -732,7 +756,9 @@ export function createWebApp(runtime: HttpRuntime) {
       const service = yield* BackupService;
       const backup = yield* service.status(operation);
 
-      if (!backup) throw new ApplicationError({ status: 404, message: 'Backup request not found.' });
+      if (!backup) {
+        throw new ApplicationError({ status: 404, message: 'Backup request not found.' });
+      }
 
       return c.json(backup);
     }),
@@ -753,7 +779,7 @@ export function createWebApp(runtime: HttpRuntime) {
 
   app.get('/api/manage/server/logs', (c) => c.json({ entries: runtime.world.lifecycle.log.recentEntries() }));
 
-  for (const action of ['reload-bots', 'bots'])
+  for (const action of ['reload-bots', 'bots']) {
     appRoutes.post(`/api/manage/server/${action}`, (c) =>
       Effect.gen(function* () {
         const managementService = yield* ManagementService;
@@ -775,6 +801,7 @@ export function createWebApp(runtime: HttpRuntime) {
         );
       }),
     );
+  }
 
   appRoutes.patch('/api/manage/settings', (c) =>
     Effect.gen(function* () {
@@ -811,10 +838,14 @@ export function createWebApp(runtime: HttpRuntime) {
 
       const name = c.req.param('file');
 
-      if (!/^[\w.-]+\.(?:js|css|woff2|png|jpg|svg)$/.test(name)) return c.notFound();
+      if (!/^[\w.-]+\.(?:js|css|woff2|png|jpg|svg)$/.test(name)) {
+        return c.notFound();
+      }
       const path = resolve(clientRoot, 'assets', name);
 
-      if (!(yield* filesService.isFile(path))) return c.notFound();
+      if (!(yield* filesService.isFile(path))) {
+        return c.notFound();
+      }
       const ext = name.slice(name.lastIndexOf('.') + 1);
 
       const types = {
@@ -850,7 +881,7 @@ export function createWebApp(runtime: HttpRuntime) {
     '/install/*',
     '/manage',
     '/manage/*',
-  ])
+  ]) {
     appRoutes.get(path, (c) =>
       Effect.gen(function* () {
         const filesService = yield* FilesService;
@@ -862,13 +893,19 @@ export function createWebApp(runtime: HttpRuntime) {
           : c.text('Build the web app before starting.', 503);
       }),
     );
+  }
   app.onError((error, c) => {
-    if (Schema.isSchemaError(error))
+    if (Schema.isSchemaError(error)) {
       return c.json({ message: 'Check the form fields.', fieldErrors: fieldErrors(error) }, 400);
+    }
 
-    if (error instanceof HTTPException) return c.json({ message: error.message }, error.status);
+    if (error instanceof HTTPException) {
+      return c.json({ message: error.message }, error.status);
+    }
 
-    if (error instanceof ApplicationError) return c.json({ message: error.message }, error.status);
+    if (error instanceof ApplicationError) {
+      return c.json({ message: error.message }, error.status);
+    }
 
     const route = c.req.routePath === '*' ? 'unmatched' : c.req.routePath;
 

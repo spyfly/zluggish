@@ -13,8 +13,11 @@ const make = Effect.gen(function* () {
     recipients?: Array<bigint>,
     sender: string = 'Server',
   ) {
-    if (sender === 'Server' && recipients === undefined)
-      for (const bridge of context.bridges ?? []) bridge.send(message);
+    if (sender === 'Server' && recipients === undefined) {
+      for (const bridge of context.bridges ?? []) {
+        bridge.send(message);
+      }
+    }
     context.world.enqueue(
       create(WorldAttributeSchema, {
         serverRealm: 1n,

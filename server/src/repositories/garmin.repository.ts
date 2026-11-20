@@ -17,11 +17,17 @@ function oauth1Token(text: string) {
   const parsed = Schema.decodeUnknownSync(oauth1)(JSON.parse(text));
   const token: OAuth1Token = { oauth_token: parsed.oauth_token, oauth_token_secret: parsed.oauth_token_secret };
 
-  if (parsed.mfa_token !== undefined) token.mfa_token = parsed.mfa_token;
+  if (parsed.mfa_token !== undefined) {
+    token.mfa_token = parsed.mfa_token;
+  }
 
-  if (parsed.mfa_expiration_timestamp !== undefined) token.mfa_expiration_timestamp = parsed.mfa_expiration_timestamp;
+  if (parsed.mfa_expiration_timestamp !== undefined) {
+    token.mfa_expiration_timestamp = parsed.mfa_expiration_timestamp;
+  }
 
-  if (parsed.domain !== undefined) token.domain = parsed.domain;
+  if (parsed.domain !== undefined) {
+    token.domain = parsed.domain;
+  }
 
   return token;
 }
@@ -77,7 +83,9 @@ export class GarminRepository {
   }
 
   garminClient(store: TokenStore | null, domain: string) {
-    if (!['garmin.com', 'garmin.cn'].includes(domain)) throw new Error('Unsupported Garmin domain');
+    if (!['garmin.com', 'garmin.cn'].includes(domain)) {
+      throw new Error('Unsupported Garmin domain');
+    }
 
     return new GarminClient({
       tokenStore: store ?? new MemoryTokenStore(),
@@ -91,7 +99,9 @@ export class GarminRepository {
   async saveAuthorization(store: TokenStore, client: GarminClient) {
     const tokens = client.getTokens();
 
-    if (!tokens) throw new Error('Missing Garmin authorization');
+    if (!tokens) {
+      throw new Error('Missing Garmin authorization');
+    }
     await store.save(tokens);
   }
 
@@ -99,7 +109,9 @@ export class GarminRepository {
   async uploadGarmin(store: TokenStore, domain: string, filename: string, fit: Uint8Array) {
     const client = this.garminClient(store, domain);
 
-    if (!(await client.loadTokens())) throw new DeliveryRefusedError({ code: 'garmin_unauthorized' });
+    if (!(await client.loadTokens())) {
+      throw new DeliveryRefusedError({ code: 'garmin_unauthorized' });
+    }
 
     try {
       await new Garmin(client).importActivity(
@@ -109,12 +121,17 @@ export class GarminRepository {
     } catch (error) {
       const http = error instanceof GarminHttpError ? error : error instanceof Error ? error.cause : null;
 
-      if (http instanceof GarminHttpError && http.status === 409) return;
+      if (http instanceof GarminHttpError && http.status === 409) {
+        return;
+      }
 
-      if (http instanceof GarminHttpError && refused(http.status))
+      if (http instanceof GarminHttpError && refused(http.status)) {
         throw new DeliveryRefusedError({ code: `garmin_${http.status}` });
+      }
 
-      if (error instanceof GarminAuthError) throw new DeliveryRefusedError({ code: 'garmin_unauthorized' });
+      if (error instanceof GarminAuthError) {
+        throw new DeliveryRefusedError({ code: 'garmin_unauthorized' });
+      }
       throw error;
     }
   }

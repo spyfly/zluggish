@@ -67,7 +67,9 @@ await test('simulation ticks recover from failures and stop until restarted', as
   const failure = new Error('tick failed');
 
   const tick = t.mock.method(simulation, 'tick', () => {
-    if (tick.mock.callCount() === 0) throw failure;
+    if (tick.mock.callCount() === 0) {
+      throw failure;
+    }
   });
 
   const log = t.mock.method(f.world.lifecycle.log, 'error', () => {});
@@ -226,7 +228,9 @@ await test('riding, ghost and bookmark loads, blobs, recovery and logout make no
     await simulation.idle();
     await f.effects.runSync(RideRecoveryService).recordings.idle();
   } finally {
-    for (const mock of mocks) mock.mock.restore();
+    for (const mock of mocks) {
+      mock.mock.restore();
+    }
     syncBuiltinESMExports();
   }
 
@@ -314,7 +318,9 @@ await test('synthetic riders carry an FTP: pacers 400, bots and blobs from their
   assert.ok(blob);
   assert.equal(blob.riders.length, 3);
 
-  for (const bot of blob.riders) assert.equal(bot.profile.ftp, 250);
+  for (const bot of blob.riders) {
+    assert.equal(bot.profile.ftp, 250);
+  }
 });
 
 await test('replay bot weights follow changes to the owner’s weight privacy', async (t) => {

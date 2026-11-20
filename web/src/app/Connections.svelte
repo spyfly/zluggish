@@ -144,7 +144,9 @@
 
   // The Strava callback opens the dialog before connections load, so it waits until there is something to show.
   $effect(() => {
-    if (open && connections && dialog && !dialog.open) dialog.showModal();
+    if (open && connections && dialog && !dialog.open) {
+      dialog.showModal();
+    }
   });
 
   /** What the server holds for a provider, each removable on its own, and what stops working without it. */
@@ -152,48 +154,53 @@
     const items: Array<Stored> = [];
 
     if (name === 'strava') {
-      if (connection.saved)
+      if (connection.saved) {
         items.push({
           id: 'strava/api',
           label: 'API application',
           detail: 'Client ID and secret',
           effect: 'Authorizing again needs the client ID and secret.',
         });
+      }
 
-      if (connection.authorized)
+      if (connection.authorized) {
         items.push({
           id: 'strava/authorization',
           label: 'Authorization',
           detail: 'Access granted to your API application',
           effect: 'API uploads stop until you authorize again.',
         });
+      }
 
-      if (connection.cookie)
+      if (connection.cookie) {
         items.push({
           id: 'strava/cookie',
           label: 'Session cookie',
           detail: '_strava4_session',
           effect: 'Session cookie uploads stop until you save a new cookie.',
         });
+      }
 
       return items;
     }
 
-    if (connection.saved)
+    if (connection.saved) {
       items.push({
         id: 'garmin/credentials',
         label: 'Email and password',
         detail: 'Garmin Connect sign-in',
         effect: 'Authorizing again needs your email and password.',
       });
+    }
 
-    if (connection.authorized)
+    if (connection.authorized) {
       items.push({
         id: 'garmin/authorization',
         label: 'Authorization',
         detail: 'Sign-in tokens from Garmin Connect',
         effect: 'Garmin uploads stop until you authorize again.',
       });
+    }
 
     return items;
   }
@@ -202,7 +209,9 @@
     void run(async () => {
       await api(`/api/me/connections/${item.id}`, 'DELETE');
 
-      if (item.id === 'strava/cookie') cookieStatus = 'unchecked';
+      if (item.id === 'strava/cookie') {
+        cookieStatus = 'unchecked';
+      }
       removing = null;
 
       if (item.id.startsWith('garmin/')) {
@@ -217,7 +226,9 @@
   function saveCredentials(name: Provider) {
     const connection = connections?.[name];
 
-    if (!connection) return;
+    if (!connection) {
+      return;
+    }
     void run(async () => {
       await api(`/api/me/connections/${name}`, 'PUT', { username: connection.username, secret: secrets[name] });
       secrets[name] = '';
@@ -262,7 +273,9 @@
     void run(async () => {
       await api(`/api/me/connections/${name}`, 'DELETE');
 
-      if (name === 'strava') cookieStatus = 'unchecked';
+      if (name === 'strava') {
+        cookieStatus = 'unchecked';
+      }
       removing = null;
 
       if (name === 'garmin') {
@@ -290,10 +303,14 @@
 
   // Deliveries finish in the background, so the list refreshes while any is still in flight.
   $effect(() => {
-    if (!jobs.some((job) => ['pending', 'sending'].includes(job.state))) return;
+    if (!jobs.some((job) => ['pending', 'sending'].includes(job.state))) {
+      return;
+    }
 
     const timer = setInterval(() => {
-      if (document.hidden) return;
+      if (document.hidden) {
+        return;
+      }
       api<{ jobs: Array<UploadJob> }>('/api/me/uploads').then(
         (body) => (jobs = body.jobs),
         () => {
@@ -315,13 +332,17 @@
         history.replaceState(null, '', '/integrations');
         open = 'strava';
 
-        if (!authorizationCode) throw new Error('Strava authorization canceled.');
+        if (!authorizationCode) {
+          throw new Error('Strava authorization canceled.');
+        }
         await api('/api/me/connections/strava/authorize', 'POST', { code: authorizationCode, state });
         message = 'Strava authorized.';
       }
     }).then(() => {
       // Verification is not stored, so a saved session cookie is tested again whenever the page opens.
-      if (connections?.strava.cookie && saved.stravaMethod === 'free') void testCookie();
+      if (connections?.strava.cookie && saved.stravaMethod === 'free') {
+        void testCookie();
+      }
     });
   });
 </script>

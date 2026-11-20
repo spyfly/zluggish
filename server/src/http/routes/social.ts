@@ -92,7 +92,9 @@ export function socialRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
     (c) => {
       authenticated(c);
 
-      if (c.req.header('Accept') === 'application/x-protobuf-lite') return c.body(null, 200);
+      if (c.req.header('Accept') === 'application/x-protobuf-lite') {
+        return c.body(null, 200);
+      }
 
       return c.json(
         runtime.effects
@@ -138,7 +140,9 @@ export function socialRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
 
       const user = authenticated(c);
 
-      if (String(user.player_id) !== c.req.param('id')) throw new HTTPException(401);
+      if (String(user.player_id) !== c.req.param('id')) {
+        throw new HTTPException(401);
+      }
 
       const input = Schema.decodeUnknownSync(privacyUpdateSchema)(yield* Effect.promise(() => c.req.json()));
 
@@ -177,7 +181,9 @@ export function socialRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
 
       const user = authenticated(c);
 
-      if (String(user.player_id) !== c.req.param('id')) throw new HTTPException(401);
+      if (String(user.player_id) !== c.req.param('id')) {
+        throw new HTTPException(401);
+      }
       let image: Uint8Array;
 
       if (c.req.header('Content-Type')?.toLowerCase().startsWith('multipart/form-data')) {
@@ -185,12 +191,23 @@ export function socialRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
 
         const file = form.values().find((value) => value instanceof File);
 
-        if (!(file instanceof File)) throw new HTTPException(400);
+        if (!(file instanceof File)) {
+          throw new HTTPException(400);
+        }
         image = new Uint8Array(yield* Effect.promise(() => file.arrayBuffer()));
-      } else image = new Uint8Array(yield* Effect.promise(() => c.req.arrayBuffer()));
+      } else {
+        image = new Uint8Array(yield* Effect.promise(() => c.req.arrayBuffer()));
+      }
 
-      if (image.length < 4 || image[0] !== 0xff || image[1] !== 0xd8 || image.at(-2) !== 0xff || image.at(-1) !== 0xd9)
+      if (
+        image.length < 4 ||
+        image[0] !== 0xff ||
+        image[1] !== 0xd8 ||
+        image.at(-2) !== 0xff ||
+        image.at(-1) !== 0xd9
+      ) {
         throw new HTTPException(400);
+      }
       yield* filesService.write(resolve(yield* profilesService.folder(user.player_id), 'avatarLarge.jpg'), image, true);
 
       return c.body(null, 200);
@@ -203,7 +220,9 @@ export function socialRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
 
     const port = input.securePort ?? input.port;
 
-    if (!port || (input.securePort && !input.secret)) throw new HTTPException(400);
+    if (!port || (input.securePort && !input.secret)) {
+      throw new HTTPException(400);
+    }
 
     const message = create(ServerToClientSchema, {
       playerId: BigInt(user.player_id),
@@ -213,7 +232,9 @@ export function socialRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
       zcProtocol: 2,
     });
 
-    if (input.securePort && input.secret) message.zcKey = Buffer.from(input.secret, 'base64');
+    if (input.securePort && input.secret) {
+      message.zcKey = Buffer.from(input.secret, 'base64');
+    }
     runtime.world.phones.set(BigInt(user.player_id), message);
     runtime.world.lifecycle.companion(BigInt(user.player_id));
 
@@ -288,8 +309,9 @@ export function socialRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
           return c.body(null, 201);
         }
 
-        for (const bridge of runtime.bridges ?? [])
+        for (const bridge of runtime.bridges ?? []) {
           bridge.send(action.message, `${profile.firstName} ${profile.lastName}`);
+        }
         const state = runtime.world.online.get(id);
         recipients = [...runtime.world.online].flatMap(([peerId, peer]) =>
           state &&
@@ -301,7 +323,9 @@ export function socialRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
       } else if (update.waType === WA_TYPE.WAT_B_ACT) {
         const reply = runtime.world.simulation?.gesture(id, update.payload);
 
-        if (reply) yield* socialService.sendMessage(reply, [id]);
+        if (reply) {
+          yield* socialService.sendMessage(reply, [id]);
+        }
       }
 
       runtime.world.enqueue(update, recipients);
@@ -319,7 +343,9 @@ export function socialRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
       const bytes = new Uint8Array(yield* Effect.promise(() => c.req.arrayBuffer()));
       const playback = parseProtobuf(PlaybackDataSchema, bytes);
 
-      if (!playback.time) return c.body(null, 200);
+      if (!playback.time) {
+        return c.body(null, 200);
+      }
       const id = new CryptoRepository().randomUUID();
       yield* filesService.write(resolve(runtime.config.storageDir, 'playbacks', `${id}.playback`), bytes);
       yield* socialService.insertPlayback(
@@ -362,7 +388,9 @@ export function socialRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
         c.req.param('option') === 'pr' ? 1 : 0,
       );
 
-      if (!row) return c.body(null, 200);
+      if (!row) {
+        return c.body(null, 200);
+      }
 
       const parsed = Schema.decodeUnknownSync(playbackRecordSchema)(row);
 
@@ -387,10 +415,14 @@ export function socialRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
 
       const file = c.req.param('filename');
 
-      if (!/^[0-9a-f-]{36}\.playback$/.test(file)) throw new HTTPException(404);
+      if (!/^[0-9a-f-]{36}\.playback$/.test(file)) {
+        throw new HTTPException(404);
+      }
       const path = resolve(runtime.config.storageDir, 'playbacks', file);
 
-      if (!(yield* filesService.exists(path))) throw new HTTPException(404);
+      if (!(yield* filesService.exists(path))) {
+        throw new HTTPException(404);
+      }
 
       return c.body(yield* filesService.read(path));
     }),

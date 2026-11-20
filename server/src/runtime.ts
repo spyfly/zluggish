@@ -144,10 +144,13 @@ const acquireRuntime = Effect.fn('runtime.acquire')(function* (
 
   runtime.bridges = bridges;
 
-  if (bridges.length > 0)
+  if (bridges.length > 0) {
     world.presence = (id, joining) => {
-      for (const bridge of bridges) bridge.online(id, joining);
+      for (const bridge of bridges) {
+        bridge.online(id, joining);
+      }
     };
+  }
 
   return runtime;
 });

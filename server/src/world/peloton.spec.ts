@@ -69,11 +69,15 @@ await test('peloton tick output is independent of the per-tick decode cache', ()
     const left = cached.tick(tick, 1000n);
     // Mutating output must not leak into the next tick through the cache.
 
-    for (const state of left) state.x = -1;
+    for (const state of left) {
+      state.x = -1;
+    }
 
     const right = reference.tick(tick, 1000n);
 
-    for (const state of right) state.x = -1;
+    for (const state of right) {
+      state.x = -1;
+    }
     assert.equal(left.length, 12);
   }
 
@@ -82,7 +86,9 @@ await test('peloton tick output is independent of the per-tick decode cache', ()
   const right = reference.tick(10, 1000n);
   assert.equal(left.length, right.length);
 
-  for (const [i, state] of left.entries()) assert.ok(equals(PlayerStateSchema, state, right[i] ?? state));
+  for (const [i, state] of left.entries()) {
+    assert.ok(equals(PlayerStateSchema, state, right[i] ?? state));
+  }
 });
 
 await test('peloton decodes each pacer state once in the constructor and few per tick', () => {

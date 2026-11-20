@@ -27,13 +27,21 @@
   function detect() {
     const agent = navigator.userAgent;
 
-    if (/iPhone|iPad|iPod/.test(agent) || (/Macintosh/.test(agent) && navigator.maxTouchPoints > 1)) return 'ios';
+    if (/iPhone|iPad|iPod/.test(agent) || (/Macintosh/.test(agent) && navigator.maxTouchPoints > 1)) {
+      return 'ios';
+    }
 
-    if (/Android/.test(agent)) return 'android';
+    if (/Android/.test(agent)) {
+      return 'android';
+    }
 
-    if (/Windows/.test(agent)) return 'windows';
+    if (/Windows/.test(agent)) {
+      return 'windows';
+    }
 
-    if (/Macintosh|Mac OS X/.test(agent)) return 'macos';
+    if (/Macintosh|Mac OS X/.test(agent)) {
+      return 'macos';
+    }
 
     return /Linux|X11|CrOS/.test(agent) ? 'linux' : 'other';
   }

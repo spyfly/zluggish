@@ -27,7 +27,9 @@ const document = Effect.fn('game.document')(function* (props: GamePageModel, ren
 
   const entry = manifest['src/game/client.ts'];
 
-  if (!entry) throw new Error('Build the game app with pnpm build:web first');
+  if (!entry) {
+    throw new Error('Build the game app with pnpm build:web first');
+  }
 
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">${rendered.head}${(entry.css ?? []).map((file) => `<link rel="stylesheet" href="/static/launcher-ui/${file}">`).join('')}</head><body><div id="launcher-ui">${rendered.body}</div><script type="application/json" id="launcher-props">${serialize(props)}</script><script type="module" src="/static/launcher-ui/${entry.file}"></script></body></html>`;
 });
@@ -58,7 +60,9 @@ export const gamePage = Effect.fn('game.page')(function* (
     return c.json(result, model.failed ? (model.errorStatus ?? 400) : 200);
   }
 
-  if (redirect) return c.redirect(redirect);
+  if (redirect) {
+    return c.redirect(redirect);
+  }
   const { renderGamePage } = yield* Effect.promise(() => import('#game'));
 
   return c.html(yield* document(model, renderGamePage(model)));

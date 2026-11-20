@@ -42,7 +42,7 @@ export class DiscordRepository {
         await webhook.send({ content, username, allowedMentions: { parse: [] } });
       },
       presence: (count) => {
-        if (client.isReady())
+        if (client.isReady()) {
           client.user.setPresence({
             activities: count
               ? [
@@ -53,6 +53,7 @@ export class DiscordRepository {
                 ]
               : [],
           });
+        }
       },
       close: async () => {
         webhook.destroy();

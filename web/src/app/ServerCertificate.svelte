@@ -46,9 +46,13 @@
     const days = Math.round((Date.parse(iso) - Date.now()) / 86_400_000);
     const format = new Intl.RelativeTimeFormat([], { numeric: 'auto' });
 
-    if (Math.abs(days) >= 365) return format.format(Math.trunc(days / 365), 'year');
+    if (Math.abs(days) >= 365) {
+      return format.format(Math.trunc(days / 365), 'year');
+    }
 
-    if (Math.abs(days) >= 60) return format.format(Math.trunc(days / 30), 'month');
+    if (Math.abs(days) >= 60) {
+      return format.format(Math.trunc(days / 30), 'month');
+    }
 
     return format.format(days, 'day');
   }

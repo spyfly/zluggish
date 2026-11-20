@@ -248,7 +248,9 @@
     try {
       const body = await api<{ uploads: Array<Upload> }>(`/api/me/activities/${id}/uploads`);
 
-      if (detail?.id === id) uploads = { id, list: body.uploads };
+      if (detail?.id === id) {
+        uploads = { id, list: body.uploads };
+      }
     } catch {
       /* The section stays as it was; the next open or poll tries again. */
     }
@@ -259,7 +261,9 @@
     uploadFailure = '';
 
     // Services that do not have the activity yet start ticked; uploading again is a deliberate choice.
-    if (chooser) chosen = list.flatMap((u) => (uploaded(u) || inFlight(u) ? [] : [u.provider]));
+    if (chooser) {
+      chosen = list.flatMap((u) => (uploaded(u) || inFlight(u) ? [] : [u.provider]));
+    }
   }
 
   async function upload(id: string, list: Array<Upload>) {
@@ -276,7 +280,9 @@
           again,
         });
 
-        if (detail?.id === id) uploads = { id, list: body.uploads };
+        if (detail?.id === id) {
+          uploads = { id, list: body.uploads };
+        }
       } catch (error) {
         failures.push(
           `${services[provider]}: ${error instanceof Error ? error.message : 'the upload could not start.'}`,
@@ -288,7 +294,9 @@
     uploadFailure = failures.join(' ');
 
     // The chooser stays open, so each row shows its upload on the way.
-    if (!failures.length) chosen = [];
+    if (!failures.length) {
+      chosen = [];
+    }
   }
 
   async function loadList(currentPage: number) {
@@ -299,12 +307,15 @@
         `/api/me/activities?page=${currentPage}`,
       );
 
-      if (version !== requestVersion) return;
+      if (version !== requestVersion) {
+        return;
+      }
       activities = body.activities;
       hasMore = body.hasMore;
     } catch (error) {
-      if (version === requestVersion)
+      if (version === requestVersion) {
         failure = error instanceof Error ? error.message : 'Activities could not be loaded.';
+      }
     }
   }
 
@@ -313,14 +324,20 @@
     try {
       const body = await api<Detail>(`/api/me/activities/${id}`);
 
-      if (selectedId !== id) return;
+      if (selectedId !== id) {
+        return;
+      }
       const retry = body.chartPending && attempt < 8;
       detail = body;
       chartWaitExpired = body.chartPending && !retry;
 
-      if (retry) setTimeout(() => void loadDetail(id, attempt + 1), 1500 * (attempt + 1));
+      if (retry) {
+        setTimeout(() => void loadDetail(id, attempt + 1), 1500 * (attempt + 1));
+      }
     } catch (error) {
-      if (selectedId !== id) return;
+      if (selectedId !== id) {
+        return;
+      }
       detail = null;
       failure = error instanceof Error ? error.message : 'The activity could not be loaded.';
     }
@@ -338,17 +355,23 @@
     chooser = false;
     uploadFailure = '';
 
-    if (id) void loadUploads(id);
+    if (id) {
+      void loadUploads(id);
+    }
   });
 
   // Deliveries run in the background, so the section refreshes while any is still on its way.
   $effect(() => {
     const id = uploads?.id;
 
-    if (!id || !uploads?.list.some(inFlight)) return;
+    if (!id || !uploads?.list.some(inFlight)) {
+      return;
+    }
 
     const timer = setInterval(() => {
-      if (!document.hidden) void loadUploads(id);
+      if (!document.hidden) {
+        void loadUploads(id);
+      }
     }, 3000);
 
     return () => clearInterval(timer);
@@ -358,11 +381,15 @@
     const id = selectedId;
     failure = '';
 
-    if (id) void loadDetail(id);
+    if (id) {
+      void loadDetail(id);
+    }
   });
 
   function open(event: MouseEvent, href: string) {
-    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+      return;
+    }
     event.preventDefault();
     showList = href === '/activities';
     go(href);

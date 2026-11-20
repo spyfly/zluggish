@@ -38,7 +38,9 @@ async function riding(t: Parameters<typeof mediumFixture>[0]) {
 }
 
 function ride(world: World, id: bigint, from: number, to: number, courseId = 6) {
-  for (let index = from; index < to; index++) world.receive(id, sample(id, index, courseId));
+  for (let index = from; index < to; index++) {
+    world.receive(id, sample(id, index, courseId));
+  }
 }
 
 await test('checkpoints append only new samples; a cut last record is ignored', async (t) => {

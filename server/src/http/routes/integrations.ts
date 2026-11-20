@@ -25,7 +25,9 @@ export function integrationRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
         yield* settingsService.read(rider.player_id),
       )).devices.zwiftClick.enabled;
 
-      if (!enabled || !credentials) return c.body(null, 204);
+      if (!enabled || !credentials) {
+        return c.body(null, 204);
+      }
 
       // Any failure of the official service means "no device": the client carries on without it.
       return yield* Effect.gen(function* () {

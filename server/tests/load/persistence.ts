@@ -239,13 +239,17 @@ if (backupMiB > 0) {
   const file = openSync(resolve(storage, 'load-backup-input.bin'), 'wx');
 
   try {
-    for (let index = 0; index < backupMiB; index++) writeFileSync(file, chunk);
+    for (let index = 0; index < backupMiB; index++) {
+      writeFileSync(file, chunk);
+    }
   } finally {
     closeSync(file);
   }
 }
 
-if (values['full-fsync']) accounts.db.exec('PRAGMA fullfsync=ON; PRAGMA checkpoint_fullfsync=ON;');
+if (values['full-fsync']) {
+  accounts.db.exec('PRAGMA fullfsync=ON; PRAGMA checkpoint_fullfsync=ON;');
+}
 
 const simulation = new Simulation(runtime);
 
@@ -272,7 +276,9 @@ const driver = setInterval(() => {
   const slot = Math.floor(performance.now() / 50) % 20;
 
   for (const [index, rider] of fleet.entries()) {
-    if (!rider.riding || index % 20 !== slot) continue;
+    if (!rider.riding || index % 20 !== slot) {
+      continue;
+    }
     rider.tick++;
     const state: PlayerState = riderState(rider.id, rider.tick);
     world.receive(rider.id, state);
@@ -302,7 +308,9 @@ async function finish(rider: LoadRider) {
     body: toBinary(ActivitySchema, activity),
   });
 
-  if (response.status !== 200) throw new Error(`Completion failed with HTTP ${response.status}`);
+  if (response.status !== 200) {
+    throw new Error(`Completion failed with HTTP ${response.status}`);
+  }
 }
 
 const phases: Record<string, ReturnType<typeof metrics.summary>> = {};
@@ -326,7 +334,9 @@ await phase('riding', () => Promise.resolve());
 let backupDurationMs: number | null = null;
 
 async function runBackup() {
-  if (backupMiB === 0) return;
+  if (backupMiB === 0) {
+    return;
+  }
   const backup = effects.runSync(BackupService);
   const operation = crypto.randomUUID();
   const start = performance.now();
@@ -341,7 +351,9 @@ async function runBackup() {
       return;
     }
 
-    if (status === 'failed' || performance.now() - start > 120_000) throw new Error('Load-test backup did not finish');
+    if (status === 'failed' || performance.now() - start > 120_000) {
+      throw new Error('Load-test backup did not finish');
+    }
     await sleep(50);
   }
 }
@@ -350,10 +362,14 @@ await phase('completion', async () => {
   const group = fleet.slice(0, finishers);
 
   const media = async () => {
-    if (mediaBytes === 0) return;
+    if (mediaBytes === 0) {
+      return;
+    }
     const rider = fleet.at(-1);
 
-    if (!rider) return;
+    if (!rider) {
+      return;
+    }
 
     const issued = await app.request(`/api/profiles/${rider.id}/activities/${rider.activity}/medias`, {
       method: 'POST',
@@ -383,7 +399,9 @@ await phase('completion', async () => {
 
 // Post-commit work (power curves, exports, charts, deliveries) runs while riders ride.
 await phase('jobs', async () => {
-  while (runtime.effects.runSync(JobsService.use((jobs) => jobs.busy()))) await sleep(100);
+  while (runtime.effects.runSync(JobsService.use((jobs) => jobs.busy()))) {
+    await sleep(100);
+  }
 });
 
 clearInterval(driver);
@@ -433,10 +451,14 @@ accounts.close();
 
 runtime.settings.close();
 
-if (temporaryRoot) rmSync(temporaryRoot, { recursive: true, force: true });
+if (temporaryRoot) {
+  rmSync(temporaryRoot, { recursive: true, force: true });
+}
 
 const text = JSON.stringify(result, null, 2);
 
-if (values.output) writeFileSync(values.output, `${text}\n`);
+if (values.output) {
+  writeFileSync(values.output, `${text}\n`);
+}
 
 process.stdout.write(`${text}\n`);

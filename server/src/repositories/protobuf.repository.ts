@@ -28,7 +28,11 @@ export class ProtobufRows {
     // encoded to base64 JSON and parsed again on the main thread.
     const included = clone(schema, message);
 
-    for (const field of schema.fields) if (exclude.includes(field.name)) clearField(included, field);
+    for (const field of schema.fields) {
+      if (exclude.includes(field.name)) {
+        clearField(included, field);
+      }
+    }
 
     const json = Schema.decodeUnknownSync(Schema.Record(Schema.String, Schema.Json))(
       JSON.parse(
@@ -49,20 +53,25 @@ export class ProtobufRows {
     const values = new Map<string, SQLInputValue>();
 
     for (const field of schema.fields) {
-      if (!columns.has(field.name) || exclude.includes(field.name) || !(field.name in json)) continue;
+      if (!columns.has(field.name) || exclude.includes(field.name) || !(field.name in json)) {
+        continue;
+      }
       const value = json[field.name];
 
-      if (value === undefined) continue;
+      if (value === undefined) {
+        continue;
+      }
 
       if (field.fieldKind === 'scalar' && [3, 4, 6, 16, 18].includes(field.scalar)) {
         values.set(
           field.name,
           BigInt.asIntN(64, BigInt(Schema.decodeUnknownSync(Schema.Union([Schema.String, Schema.Finite]))(value))),
         );
-      } else if (field.fieldKind === 'scalar' && field.scalar === 8) values.set(field.name, value ? 1 : 0);
-      else if (field.fieldKind === 'scalar' && field.scalar === 12)
+      } else if (field.fieldKind === 'scalar' && field.scalar === 8) {
+        values.set(field.name, value ? 1 : 0);
+      } else if (field.fieldKind === 'scalar' && field.scalar === 12) {
         values.set(field.name, Buffer.from(Schema.decodeUnknownSync(Schema.String)(value), 'base64'));
-      else {
+      } else {
         values.set(field.name, isScalar(value) ? value : JSON.stringify(value));
       }
     }
@@ -79,7 +88,9 @@ export class ProtobufRows {
     const values = this.values(table, schema, message, ['id', ...exclude]);
     const keys = values.keys().toArray();
 
-    if (keys.length === 0) throw new Error('Empty database record');
+    if (keys.length === 0) {
+      throw new Error('Empty database record');
+    }
 
     return this.executor.run(query.insertInto(table).values(Object.fromEntries(values))).lastInsertRowid;
   }
@@ -93,8 +104,9 @@ export class ProtobufRows {
   ) {
     const values = this.values(table, schema, message, ['id', ...exclude]);
 
-    if (values.size > 0)
+    if (values.size > 0) {
       this.executor.run(query.updateTable(table).set(Object.fromEntries(values)).where('id', '=', id));
+    }
   }
 
   select<Schema extends DescMessage>(table: Table, schema: Schema, playerId: bigint): Array<ProtobufMessage<Schema>> {
@@ -112,7 +124,9 @@ export class ProtobufRows {
     for (const field of schema.fields) {
       const value = row[field.name];
 
-      if (value === null || value === undefined || field.name === 'fit') continue;
+      if (value === null || value === undefined || field.name === 'fit') {
+        continue;
+      }
 
       if (field.fieldKind === 'scalar' && [3, 4, 6, 16, 18].includes(field.scalar)) {
         json[field.name] = String(
@@ -120,18 +134,21 @@ export class ProtobufRows {
             ? BigInt.asUintN(64, BigInt(Schema.decodeUnknownSync(Schema.Union([Schema.Finite, Schema.BigInt]))(value)))
             : value,
         );
-      } else if (field.fieldKind === 'scalar' && field.scalar === 8) json[field.name] = value === 1n || value === 1;
-      else if (field.fieldKind === 'scalar' && field.scalar === 12)
+      } else if (field.fieldKind === 'scalar' && field.scalar === 8) {
+        json[field.name] = value === 1n || value === 1;
+      } else if (field.fieldKind === 'scalar' && field.scalar === 12) {
         json[field.name] = Buffer.from(Schema.decodeUnknownSync(Schema.instanceOf(Uint8Array))(value)).toString(
           'base64',
         );
-      else if (field.fieldKind === 'message' || field.fieldKind === 'list' || field.fieldKind === 'map')
+      } else if (field.fieldKind === 'message' || field.fieldKind === 'list' || field.fieldKind === 'map') {
         json[field.name] = Schema.decodeUnknownSync(Schema.Json)(
           JSON.parse(Schema.decodeUnknownSync(Schema.String)(value)),
         );
-      else if (field.fieldKind === 'enum' || (field.fieldKind === 'scalar' && field.scalar !== 9))
+      } else if (field.fieldKind === 'enum' || (field.fieldKind === 'scalar' && field.scalar !== 9)) {
         json[field.name] = Number(value);
-      else json[field.name] = Schema.decodeUnknownSync(Schema.String)(value);
+      } else {
+        json[field.name] = Schema.decodeUnknownSync(Schema.String)(value);
+      }
     }
 
     return fromJsonString(schema, JSON.stringify(json));

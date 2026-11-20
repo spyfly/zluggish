@@ -41,7 +41,9 @@ export function serverUnit(certificate: CertificateStatus) {
 
 /** File names start with the first 8 thumbprint digits, so files from different certificates differ. */
 export function setupFileName(certificate: CertificateStatus, extension: string) {
-  if (isLegacy(certificate)) return `${legacyName}.${extension}`;
+  if (isLegacy(certificate)) {
+    return `${legacyName}.${extension}`;
+  }
 
   return `zluggish-zwift-${certificate.thumbprint.slice(0, 8).toLowerCase()}.${extension}`;
 }
@@ -283,7 +285,9 @@ function shellBundles(notFound: Array<string>) {
 
 /** Points the Zwift host names at the server in /etc/hosts, then runs `after`. Without an address, nothing. */
 function shellHosts(script: SetupScript, after: Array<string>) {
-  if (!script.address) return [];
+  if (!script.address) {
+    return [];
+  }
 
   return [
     '',

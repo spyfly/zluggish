@@ -52,7 +52,9 @@ await test(
 
     t.after(() => listeners.close());
 
-    if (!listeners.tcp.listening) await once(listeners.tcp, 'listening');
+    if (!listeners.tcp.listening) {
+      await once(listeners.tcp, 'listening');
+    }
     const { port } = Schema.decodeUnknownSync(Schema.Struct({ port: Schema.Finite }))(listeners.tcp.address());
 
     const connect = async (connection: number) => {
@@ -172,7 +174,9 @@ await test(
     const listeners = startRideListeners(runtime);
     t.after(() => listeners.close());
 
-    if (!listeners.tcp.listening) await once(listeners.tcp, 'listening');
+    if (!listeners.tcp.listening) {
+      await once(listeners.tcp, 'listening');
+    }
     // UDP bind is asynchronous; TCP listen notification does not imply UDP readiness.
     let udpAddress;
 
@@ -282,7 +286,9 @@ await test(
         sequence === 19 ? { relay: user.player_id, connection: 9, sequence } : { sequence },
       );
 
-      if (sequence === 19) assert.equal(packet.length, 24);
+      if (sequence === 19) {
+        assert.equal(packet.length, 24);
+      }
       const incoming = once(udp, 'message');
       udp.send(packet, udpPort, '127.0.0.1');
       const [reply] = await incoming;

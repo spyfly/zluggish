@@ -65,9 +65,13 @@ const isLegacyArray = Schema.is(Schema.Array(Schema.Json));
 const isLegacyObject = Schema.is(Schema.Record(Schema.String, Schema.Json));
 
 function convertKeys(value: LegacyValue): LegacyValue {
-  if (isLegacyArray(value)) return value.map((element) => convertKeys(element));
+  if (isLegacyArray(value)) {
+    return value.map((element) => convertKeys(element));
+  }
 
-  if (!isLegacyObject(value)) return value;
+  if (!isLegacyObject(value)) {
+    return value;
+  }
 
   return Object.fromEntries(Object.entries(value).map(([key, item]) => [camelCase(key), convertKeys(item)]));
 }
@@ -101,11 +105,17 @@ export function migrationCandidate(options: MigrationOptions) {
   const storage = resolve(options.storage);
   const output = resolve(options.output);
 
-  if (basename(output) !== CONFIG_NAME) throw new ConfigError(`Migration output must be named ${CONFIG_NAME}`);
+  if (basename(output) !== CONFIG_NAME) {
+    throw new ConfigError(`Migration output must be named ${CONFIG_NAME}`);
+  }
 
-  if (existsSync(output)) throw new ConfigError('Destination exists; migration never overwrites configuration');
+  if (existsSync(output)) {
+    throw new ConfigError('Destination exists; migration never overwrites configuration');
+  }
 
-  if (!existsSync(storage)) throw new ConfigError('Legacy storage directory does not exist');
+  if (!existsSync(storage)) {
+    throw new ConfigError('Legacy storage directory does not exist');
+  }
   const exists = (name: string) => existsSync(resolve(storage, name));
 
   const text = (name: string) => readFileSync(resolve(storage, name), 'utf8').trimEnd();
@@ -127,13 +137,16 @@ export function migrationCandidate(options: MigrationOptions) {
   if (discordFile) {
     const parsed = decodeDiscord(parseIni(text('discord.cfg')));
 
-    if (Exit.isFailure(parsed)) throw new ConfigError('discord.cfg: invalid legacy configuration');
+    if (Exit.isFailure(parsed)) {
+      throw new ConfigError('discord.cfg: invalid legacy configuration');
+    }
     const values = parsed.value.discord;
     const yes = ['1', 'yes', 'true', 'on'];
     const no = ['0', 'no', 'false', 'off'];
 
-    if (![...yes, ...no].includes(String(values.announce_players).toLowerCase()))
+    if (![...yes, ...no].includes(String(values.announce_players).toLowerCase())) {
       throw new ConfigError('discord.cfg: invalid announce_players');
+    }
 
     discord = {
       enabled: true,
@@ -220,7 +233,9 @@ export function migrationCandidate(options: MigrationOptions) {
           )
           .all();
 
-        for (const row of rows) riders.push(decodeLegacyRider(row));
+        for (const row of rows) {
+          riders.push(decodeLegacyRider(row));
+        }
       }
     } finally {
       db.close();
@@ -232,21 +247,25 @@ export function migrationCandidate(options: MigrationOptions) {
       (name) => /^\d+$/.test(name) && existsSync(resolve(storage, name, 'profile.bin')),
     );
 
-    if (folders.length > 0 && !options.soloPlayer)
+    if (folders.length > 0 && !options.soloPlayer) {
       throw new ConfigError(
         'Legacy solo data needs explicit --solo-player ID; no account is created by config migration',
       );
+    }
 
     if (options.soloPlayer) {
-      if (!folders.includes(String(options.soloPlayer)))
+      if (!folders.includes(String(options.soloPlayer))) {
         throw new ConfigError('--solo-player must identify an existing profile folder');
+      }
 
       riders.push({
         player_id: options.soloPlayer,
         enable_ghosts: exists('enable_ghosts.txt') ? 1 : 0,
       });
     }
-  } else if (options.soloPlayer) throw new ConfigError('--solo-player only applies to legacy solo storage');
+  } else if (options.soloPlayer) {
+    throw new ConfigError('--solo-player only applies to legacy solo storage');
+  }
 
   const preferences: Array<Preference> = riders.map((rider) => {
     const folder = String(rider.player_id);
@@ -267,7 +286,9 @@ export function migrationCandidate(options: MigrationOptions) {
       },
     });
 
-    if (Exit.isFailure(parsed)) throw new ConfigError(`Invalid legacy preferences for rider ${rider.player_id}`);
+    if (Exit.isFailure(parsed)) {
+      throw new ConfigError(`Invalid legacy preferences for rider ${rider.player_id}`);
+    }
 
     return parsed.value;
   });
@@ -279,8 +300,9 @@ export function migrationCandidate(options: MigrationOptions) {
       for (const preference of preferences) {
         const exists = store.has(preference.playerId);
 
-        if (exists && JSON.stringify(store.read(preference.playerId)) !== JSON.stringify(preference.overrides))
+        if (exists && JSON.stringify(store.read(preference.playerId)) !== JSON.stringify(preference.overrides)) {
           throw new ConfigError(`Conflicting persisted preferences for rider ${preference.playerId}`);
+        }
       }
     } finally {
       store.close();
@@ -315,8 +337,9 @@ export async function migrateConfig(options: MigrationOptions) {
     if (existsSync(journalPath)) {
       journal = decodeJournal(JSON.parse(readFileSync(journalPath, 'utf8')));
 
-      if (resolve(options.output) !== journal.output)
+      if (resolve(options.output) !== journal.output) {
         throw new ConfigError('An interrupted migration targets another output; resume that destination first');
+      }
     } else {
       const candidate = migrationCandidate(options);
       const id = new CryptoRepository().randomUUID();
@@ -333,8 +356,9 @@ export async function migrateConfig(options: MigrationOptions) {
       new AssetFiles().writeDurable(journalPath, JSON.stringify(journal));
     }
 
-    if (existsSync(journal.output) && readFileSync(journal.output, 'utf8') !== journal.source)
+    if (existsSync(journal.output) && readFileSync(journal.output, 'utf8') !== journal.source) {
       throw new ConfigError('Migration output changed; recover manually before continuing');
+    }
 
     const settings = SettingsStore.open(options.storage);
 
@@ -344,7 +368,9 @@ export async function migrateConfig(options: MigrationOptions) {
       settings.close();
     }
 
-    if (!existsSync(journal.output)) new AssetFiles().writeDurable(journal.output, journal.source);
+    if (!existsSync(journal.output)) {
+      new AssetFiles().writeDurable(journal.output, journal.source);
+    }
 
     unlinkSync(journalPath);
 

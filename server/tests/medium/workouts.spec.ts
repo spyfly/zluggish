@@ -102,15 +102,22 @@ for (const failure of ['provider unavailable', 'invalid second download']) {
     t.mock.method(globalThis, 'fetch', (input: URL | string) => {
       const url = String(input);
 
-      if (failing && failure === 'provider unavailable') return Promise.resolve(new Response(null, { status: 503 }));
+      if (failing && failure === 'provider unavailable') {
+        return Promise.resolve(new Response(null, { status: 503 }));
+      }
 
-      if (url.endsWith('/events/43/download.zwo')) return Promise.resolve(new Response('<broken>'));
+      if (url.endsWith('/events/43/download.zwo')) {
+        return Promise.resolve(new Response('<broken>'));
+      }
 
-      if (url.endsWith('/download.zwo'))
+      if (url.endsWith('/download.zwo')) {
         return Promise.resolve(new Response(failing ? xml.replace('Medium Tempo', 'Changed') : xml));
+      }
       const events = [{ id: 42, start_date_local: `${day}T08:00:00` }];
 
-      if (failing) events.push({ id: 43, start_date_local: `${day}T09:00:00` });
+      if (failing) {
+        events.push({ id: 43, start_date_local: `${day}T09:00:00` });
+      }
 
       return Promise.resolve(Response.json(events));
     });
@@ -169,8 +176,11 @@ await test('F07 automatic login deadline cancels provider work without replacing
           reject(new Error('provider canceled'));
         };
 
-        if (init.signal.aborted) cancel();
-        else init.signal.addEventListener('abort', cancel, { once: true });
+        if (init.signal.aborted) {
+          cancel();
+        } else {
+          init.signal.addEventListener('abort', cancel, { once: true });
+        }
       }),
   );
   // AbortSignal's timer is unref'ed; keep the test alive until the deadline fires.
@@ -270,8 +280,11 @@ for (const sport of [undefined, 'CYCLING', 'cycling', 'RUNNING', 'running', 'ROW
       assert.equal(response.headers.get('Cache-Control'), 'private, no-store');
       const body = await response.json();
 
-      if (cycling) assert.notDeepEqual(body, empty);
-      else assert.deepEqual(body, empty);
+      if (cycling) {
+        assert.notDeepEqual(body, empty);
+      } else {
+        assert.deepEqual(body, empty);
+      }
       const other = await f.request(path + query, {}, f.other);
       assert.deepEqual(await other.json(), empty);
     }

@@ -5,13 +5,17 @@ import { parentPort, workerData } from 'node:worker_threads';
 
 const port = parentPort;
 
-if (!port) throw new Error('Backup snapshot requires a worker thread');
+if (!port) {
+  throw new Error('Backup snapshot requires a worker thread');
+}
 
 const { storage, config, snapshot } = Schema.decodeUnknownSync(snapshotRequest)(workerData);
 const controller = new AbortController();
 
 port.once('message', (message) => {
-  if (message === 'cancel') controller.abort();
+  if (message === 'cancel') {
+    controller.abort();
+  }
 });
 
 try {

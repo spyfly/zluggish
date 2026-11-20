@@ -178,7 +178,9 @@
       return;
     }
 
-    if (certificateRequested) return;
+    if (certificateRequested) {
+      return;
+    }
     certificateRequested = true;
     api('/api/tls')
       .then((body: TlsStatus) => {
@@ -241,8 +243,11 @@
   async function api(url: string, method = 'GET', data?: ApiPayload | FormData | Blob) {
     const headers = new Headers({ 'X-CSRF-Token': csrf });
 
-    if (data instanceof Blob) headers.set('Content-Type', data.type);
-    else if (!(data instanceof FormData)) headers.set('Content-Type', 'application/json');
+    if (data instanceof Blob) {
+      headers.set('Content-Type', data.type);
+    } else if (!(data instanceof FormData)) {
+      headers.set('Content-Type', 'application/json');
+    }
 
     const { response, body } = await requestJson(url, {
       method,
@@ -252,16 +257,21 @@
       }),
     });
 
-    if (body.csrf) csrf = body.csrf;
+    if (body.csrf) {
+      csrf = body.csrf;
+    }
 
     if (!response.ok) {
       // The server answered, so a retry is a new operation. A lost response keeps the ID for a safe retry.
-      if (method !== 'GET') operation = crypto.randomUUID();
+      if (method !== 'GET') {
+        operation = crypto.randomUUID();
+      }
       fieldErrors = body.fieldErrors ?? {};
       const scope = selected && `/api/manage/users/${selected.player_id}`;
 
-      if (response.status === 409 && scope && (url === scope || url.startsWith(`${scope}/`)))
+      if (response.status === 409 && scope && (url === scope || url.startsWith(`${scope}/`))) {
         conflict = await api(scope);
+      }
 
       if (response.status === 401 && user) {
         user = null;
@@ -275,13 +285,17 @@
       throw new Error(body.message || 'Request failed.');
     }
 
-    if (method !== 'GET') operation = crypto.randomUUID();
+    if (method !== 'GET') {
+      operation = crypto.randomUUID();
+    }
 
     return body;
   }
 
   function go(next: string) {
-    if (next !== path) history.pushState({}, '', next);
+    if (next !== path) {
+      history.pushState({}, '', next);
+    }
     path = next;
   }
 
@@ -292,7 +306,9 @@
   }
 
   async function run(work: () => Promise<void>, scope = '') {
-    if (busy) return;
+    if (busy) {
+      return;
+    }
     busy = true;
     message = '';
     failed = false;
@@ -316,21 +332,31 @@
 
   /** Loads what the current route shows. Direct navigation to any route works. */
   async function enter() {
-    if (!user) return;
+    if (!user) {
+      return;
+    }
 
-    if (title === 'Profile' || avatar === undefined) await loadProfile();
+    if (title === 'Profile' || avatar === undefined) {
+      await loadProfile();
+    }
 
     if (!manage) {
       // Integrations reads the saved Strava method and TrainingPeaks folder from the same settings.
-      if (path === '/settings' || path === '/integrations') await loadSettings();
+      if (path === '/settings' || path === '/integrations') {
+        await loadSettings();
+      }
 
       return;
     }
 
-    if (!administrator) return;
+    if (!administrator) {
+      return;
+    }
     await loadUsers();
 
-    if (path === '/manage/server') await loadServer();
+    if (path === '/manage/server') {
+      await loadServer();
+    }
 
     if (selected) {
       select();
@@ -389,7 +415,9 @@
   }
 
   async function saveSettings() {
-    if (!settings) return;
+    if (!settings) {
+      return;
+    }
     settings = await api('/api/me/settings', 'PATCH', settingsBody(settings));
   }
 
@@ -437,7 +465,9 @@
     canvas.width = canvas.height = Math.min(side, 512);
     const context = canvas.getContext('2d');
 
-    if (!context) throw new Error('Could not process the image.');
+    if (!context) {
+      throw new Error('Could not process the image.');
+    }
     context.drawImage(
       bitmap,
       (bitmap.width - side) / 2,
@@ -457,11 +487,15 @@
   }
 
   function uploadPhoto(file: File | undefined) {
-    if (!file) return;
+    if (!file) {
+      return;
+    }
     void run(async () => {
       profileAvatar = (await api(`${profileBase}/avatar`, 'PUT', await squarePhoto(file))).avatar;
 
-      if (!profileId) avatar = profileAvatar;
+      if (!profileId) {
+        avatar = profileAvatar;
+      }
       done('Restart Zwift for the changes to take effect.');
     });
   }
@@ -510,7 +544,9 @@
       mode = setupUsers.length ? 'existing' : 'new';
       keyAccepted = true;
     } catch (error) {
-      if (!(error instanceof Error) || error.message !== 'Setup refused.') throw error;
+      if (!(error instanceof Error) || error.message !== 'Setup refused.') {
+        throw error;
+      }
       fieldErrors = { key: ['This key does not match. Copy it again from the server console.'] };
     }
   }
@@ -560,7 +596,9 @@
   type UserAction = 'disable' | 'enable' | 'role' | 'revoke-sessions' | 'password';
 
   function ask(action: UserAction) {
-    if (!selected) return;
+    if (!selected) {
+      return;
+    }
     const who = name(selected);
     const progress = selected.connected ? ` ${who} is riding now and can lose unsaved ride progress.` : '';
 
@@ -609,7 +647,9 @@
   }
 
   async function mutate(action: UserAction) {
-    if (!selected) return;
+    if (!selected) {
+      return;
+    }
 
     if (action === 'password' && targetPassword !== targetConfirm) {
       fieldErrors = { confirm: ['Passwords do not match.'] };
@@ -743,14 +783,18 @@
           operation,
         });
 
-        if (!body.ok) throw new Error(body.message ?? 'Operation failed.');
+        if (!body.ok) {
+          throw new Error(body.message ?? 'Operation failed.');
+        }
         done(body.message ?? finished);
       },
     };
   }
 
   async function sendBots() {
-    if (botUser === null) throw new Error('Choose a user who is riding now.');
+    if (botUser === null) {
+      throw new Error('Choose a user who is riding now.');
+    }
 
     const body: { ok: boolean; message: string | null } = await api('/api/manage/server/bots', 'POST', {
       operation,
@@ -759,7 +803,9 @@
       ...(botCommand === 'peloton' && botArgument && { argument: botArgument }),
     });
 
-    if (!body.ok) throw new Error(body.message ?? 'Operation failed.');
+    if (!body.ok) {
+      throw new Error(body.message ?? 'Operation failed.');
+    }
     done(body.message ?? 'Sent to the bots.');
   }
 
@@ -785,16 +831,24 @@
       try {
         user = (await api('/api/me')).user;
       } catch (error) {
-        if (error instanceof ConnectionError) throw error;
+        if (error instanceof ConnectionError) {
+          throw error;
+        }
 
-        if (!['/sign-in', '/setup'].includes(path)) go('/sign-in');
+        if (!['/sign-in', '/setup'].includes(path)) {
+          go('/sign-in');
+        }
 
         return;
       }
 
-      if (['/sign-in', '/setup'].includes(path)) go('/');
+      if (['/sign-in', '/setup'].includes(path)) {
+        go('/');
+      }
 
-      if (manage && !administrator) go('/');
+      if (manage && !administrator) {
+        go('/');
+      }
       await enter();
     }).finally(() => {
       loading = false;

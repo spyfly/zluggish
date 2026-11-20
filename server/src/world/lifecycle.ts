@@ -55,10 +55,14 @@ export class Lifecycle {
     if (this.companions.size > 1000) {
       const oldest = this.companions.keys().next().value;
 
-      if (oldest !== undefined) this.companions.delete(oldest);
+      if (oldest !== undefined) {
+        this.companions.delete(oldest);
+      }
     }
 
-    if (previous !== undefined && now - previous < 120_000) return;
+    if (previous !== undefined && now - previous < 120_000) {
+      return;
+    }
     this.log.info('companion.registered', 'Companion app registered', { playerId, signal: 'phone_registration' });
   }
 
@@ -81,7 +85,9 @@ export class Lifecycle {
     ride.counterReset ||= distance < ride.distance;
     ride.distance = distance;
 
-    if (!this.intervalSeconds || now - ride.progress < this.intervalSeconds * 1000) return;
+    if (!this.intervalSeconds || now - ride.progress < this.intervalSeconds * 1000) {
+      return;
+    }
     ride.progress = now;
     this.log.info('ride.progress', 'Ride progress', {
       playerId,
@@ -99,7 +105,7 @@ export class Lifecycle {
     const ride = this.rides.get(playerId);
     this.rides.delete(playerId);
 
-    if (ride)
+    if (ride) {
       this.log.info('ride.ended', 'Ride ended', {
         playerId,
         rideId: ride.rideId,
@@ -107,11 +113,14 @@ export class Lifecycle {
         distanceMeters: ride.distance,
         elapsedSeconds: Math.floor((this.now() - ride.started) / 1000),
       });
+    }
     const clientId = this.clients.get(playerId)?.clientId;
     this.clients.delete(playerId);
     this.companions.delete(playerId);
 
-    if (clientId) this.log.info('game.disconnected', 'Game disconnected', { playerId, clientId, reason });
+    if (clientId) {
+      this.log.info('game.disconnected', 'Game disconnected', { playerId, clientId, reason });
+    }
   }
 
   diagnostic(event: string, message: string, warning = false) {
@@ -127,7 +136,9 @@ export class Lifecycle {
     const write = warning ? this.log.warn : this.log.verbose;
     write(event, message, { suppressed: previous?.suppressed ?? 0 });
 
-    if (this.diagnostics.size >= 100) this.diagnostics.clear();
+    if (this.diagnostics.size >= 100) {
+      this.diagnostics.clear();
+    }
     this.diagnostics.set(event, { time: now, suppressed: 0 });
   }
 
@@ -135,14 +146,22 @@ export class Lifecycle {
     const now = this.now();
 
     for (const [id, client] of this.clients) {
-      if (!this.rides.has(id) && now - client.seen >= 30_000) this.end(id, 'inactivity_timeout');
+      if (!this.rides.has(id) && now - client.seen >= 30_000) {
+        this.end(id, 'inactivity_timeout');
+      }
     }
 
-    for (const [id, seen] of this.companions) if (now - seen >= 120_000) this.companions.delete(id);
+    for (const [id, seen] of this.companions) {
+      if (now - seen >= 120_000) {
+        this.companions.delete(id);
+      }
+    }
   }
 
   close() {
-    for (const id of new Set([...this.clients.keys(), ...this.rides.keys()])) this.end(id, 'shutdown');
+    for (const id of new Set([...this.clients.keys(), ...this.rides.keys()])) {
+      this.end(id, 'shutdown');
+    }
     this.companions.clear();
     this.diagnostics.clear();
   }

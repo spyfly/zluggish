@@ -84,19 +84,25 @@ export class GestureDirector {
         behind: rider.gap > 0,
       });
 
-      if (rider.dropping && !old.dropping) peeling.push(rider);
+      if (rider.dropping && !old.dropping) {
+        peeling.push(rider);
+      }
 
       if (
         (old.phase === 'approach' && rider.phase === 'pull' && maybe(0.35)) ||
         (old.behind && rider.gap < 0 && !rider.phase && maybe(0.2))
-      )
+      ) {
         enqueue(rider, 8);
+      }
 
-      if (rider.rate >= -0.4 || rider.gap <= 0) this.surging.delete(rider.profile.id);
-      else if (!this.surging.has(rider.profile.id) && old.behind && rider.gap >= 4) {
+      if (rider.rate >= -0.4 || rider.gap <= 0) {
+        this.surging.delete(rider.profile.id);
+      } else if (!this.surging.has(rider.profile.id) && old.behind && rider.gap >= 4) {
         this.surging.add(rider.profile.id);
 
-        if (maybe(0.5)) enqueue(rider, 4);
+        if (maybe(0.5)) {
+          enqueue(rider, 4);
+        }
       }
     }
 
@@ -104,22 +110,30 @@ export class GestureDirector {
       .sort((a, b) => a.gap - b.gap)
       .slice(0, 2)
       .entries()) {
-      if (index === 0 && maybe(0.6)) enqueue(rider, 0);
-      else if (maybe(0.4)) enqueue(rider, 7);
+      if (index === 0 && maybe(0.6)) {
+        enqueue(rider, 0);
+      } else if (maybe(0.4)) {
+        enqueue(rider, 7);
+      }
     }
 
-    if (riders.every((rider) => !(rider.gap < 0))) this.frontSince ??= now;
-    else if (this.frontSince !== null) {
+    if (riders.every((rider) => !(rider.gap < 0))) {
+      this.frontSince ??= now;
+    } else if (this.frontSince !== null) {
       const long = now - this.frontSince >= 40;
       this.frontSince = null;
       const leader = [...riders].sort((a, b) => a.gap - b.gap)[0];
 
-      if (long && leader && maybe(0.6)) enqueue(leader, 5);
+      if (long && leader && maybe(0.6)) {
+        enqueue(leader, 5);
+      }
     }
 
     this.queue = this.queue.filter((entry) => entry.expires > now);
 
-    if (speed < 2 || now - this.last < 5) return null;
+    if (speed < 2 || now - this.last < 5) {
+      return null;
+    }
 
     const index = this.queue.findIndex((entry) => (this.cooldown.get(entry.rider.profile.id) ?? 0) <= now);
 
@@ -132,10 +146,14 @@ export class GestureDirector {
         (rider) => Math.abs(rider.gap) <= 15 && (this.cooldown.get(rider.profile.id) ?? 0) <= now,
       );
 
-      if (near.length > 0 && maybe(1)) selected = { expires: now + 6, rider: this.rng.pick(near), action: 3 };
+      if (near.length > 0 && maybe(1)) {
+        selected = { expires: now + 6, rider: this.rng.pick(near), action: 3 };
+      }
     }
 
-    if (!selected?.rider.state) return null;
+    if (!selected?.rider.state) {
+      return null;
+    }
     this.last = now;
     this.cooldown.set(selected.rider.profile.id, now + 12);
 

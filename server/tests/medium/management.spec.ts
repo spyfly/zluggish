@@ -195,8 +195,9 @@ await test('web and game routes and credential stores are isolated; mutations ne
     401,
   );
 
-  for (const path of ['/riders/add/', '/signup/', '/api/users'])
+  for (const path of ['/riders/add/', '/signup/', '/api/users']) {
     assert.equal(await responseStatus(f.app.request(path, { method: 'POST' })), 403);
+  }
 });
 
 await test('stale asynchronous verification cannot sign in or complete setup', async (t) => {

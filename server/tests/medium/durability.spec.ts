@@ -77,10 +77,11 @@ await test('a delivery flushes its sending state before the provider request', a
   const flush = DurabilityRepository.prototype.flush;
 
   t.mock.method(DurabilityRepository.prototype, 'flush', function (this: DurabilityRepository) {
-    if (f.accounts.db.isOpen)
+    if (f.accounts.db.isOpen) {
       order.push(
         `flush:${f.effects.runSync(UploadsService.use((service) => service.status(f.rider.player_id)))[0]?.state ?? 'none'}`,
       );
+    }
 
     return flush.call(this);
   });

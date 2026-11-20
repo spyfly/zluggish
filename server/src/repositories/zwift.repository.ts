@@ -19,7 +19,9 @@ export class ZwiftRepository {
       signal,
     });
 
-    if (!response.ok) throw new Error('Zwift login was rejected');
+    if (!response.ok) {
+      throw new Error('Zwift login was rejected');
+    }
 
     return Schema.decodeUnknownSync(
       Schema.Struct({ access_token: Schema.String, refresh_token: Schema.optional(Schema.String) }),

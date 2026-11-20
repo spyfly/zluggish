@@ -65,7 +65,9 @@
   let failed = $state(false);
 
   async function run(work: () => Promise<void>) {
-    if (busy) return;
+    if (busy) {
+      return;
+    }
     busy = true;
     message = '';
     failed = false;
@@ -87,7 +89,9 @@
   }
 
   onMount(() => {
-    if (path === '/import') return;
+    if (path === '/import') {
+      return;
+    }
 
     if (path === '/export') {
       void run(async () => {

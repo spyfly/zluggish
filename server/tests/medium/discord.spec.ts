@@ -89,7 +89,9 @@ await test('Discord delivery failure releases capacity for the next message', as
   const bridge = Effect.runSync(
     discordService(f).bridge({
       send: (content) => {
-        if (fail) return Promise.reject(new Error('offline'));
+        if (fail) {
+          return Promise.reject(new Error('offline'));
+        }
         sent.push(content);
 
         return Promise.resolve();

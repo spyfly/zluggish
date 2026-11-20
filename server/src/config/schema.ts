@@ -19,11 +19,17 @@ const advertisedIp = Schema.String.check(
 
 const listenerHost = Schema.String.check(
   satisfies((value: string) => {
-    if (isIP(value)) return true;
+    if (isIP(value)) {
+      return true;
+    }
 
-    if (/^[\d.]+$/.test(value)) return false;
+    if (/^[\d.]+$/.test(value)) {
+      return false;
+    }
 
-    if (value.length > 253) return false;
+    if (value.length > 253) {
+      return false;
+    }
 
     const labels = (value.endsWith('.') ? value.slice(0, -1) : value).split('.');
 

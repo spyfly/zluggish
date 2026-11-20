@@ -35,7 +35,9 @@ function matrixService(context: RepositoryContext) {
 }
 
 async function until(condition: () => boolean) {
-  for (let attempt = 0; attempt < 200 && !condition(); attempt++) await sleep(10);
+  for (let attempt = 0; attempt < 200 && !condition(); attempt++) {
+    await sleep(10);
+  }
   assert.ok(condition());
 }
 
@@ -86,13 +88,21 @@ async function homeserver(t: TestContext) {
       return reply(response, 200, { user_id: '@bot:test', device_id: 'DEVICE', access_token: 'token-1' });
     }
 
-    if (!authorized) return reply(response, 401, { errcode: 'M_UNKNOWN_TOKEN' });
+    if (!authorized) {
+      return reply(response, 401, { errcode: 'M_UNKNOWN_TOKEN' });
+    }
 
-    if (path === '/account/whoami') return reply(response, 200, { user_id: '@bot:test' });
+    if (path === '/account/whoami') {
+      return reply(response, 200, { user_id: '@bot:test' });
+    }
 
-    if (path === '/join/#ride:test') return reply(response, 200, { room_id: '!room:test' });
+    if (path === '/join/#ride:test') {
+      return reply(response, 200, { room_id: '!room:test' });
+    }
 
-    if (path.startsWith('/presence/')) return reply(response, 200, {});
+    if (path.startsWith('/presence/')) {
+      return reply(response, 200, {});
+    }
 
     if (path.startsWith('/rooms/!room:test/send/m.room.message/')) {
       state.sent.push(Schema.decodeUnknownSync(Schema.Struct({ body: Schema.String }))(JSON.parse(body)).body);
@@ -152,7 +162,9 @@ async function homeserver(t: TestContext) {
   state.url = `http://127.0.0.1:${port}`;
 
   t.after(async () => {
-    for (const response of held) response.destroy();
+    for (const response of held) {
+      response.destroy();
+    }
     server.closeAllConnections();
     await new Promise((done) => {
       server.close(done);
@@ -227,7 +239,9 @@ await test('Matrix transport relays new room chat and keeps one device across re
   const session = resolve(dir, 'matrix-session.json');
 
   // Windows has no POSIX permission bits to check.
-  if (process.platform !== 'win32') assert.equal(statSync(session).mode & 0o777, 0o600);
+  if (process.platform !== 'win32') {
+    assert.equal(statSync(session).mode & 0o777, 0o600);
+  }
   assert.equal(JSON.parse(readFileSync(session, 'utf8')).deviceId, 'DEVICE');
   assert.equal(server.logins.length, 1);
   assert.deepEqual(server.logins[0]?.identifier, { type: 'm.id.user', user: 'bot' });

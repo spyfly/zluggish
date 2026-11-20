@@ -27,10 +27,14 @@ export class ProfileDownloadRepository {
         signal,
       });
 
-      if (!response.ok) throw new Error('Official profile download failed');
+      if (!response.ok) {
+        throw new Error('Official profile download failed');
+      }
       const bytes = new Uint8Array(await response.arrayBuffer());
 
-      if (bytes.length > 16 * 1024 * 1024) throw new Error('Official profile download is too large');
+      if (bytes.length > 16 * 1024 * 1024) {
+        throw new Error('Official profile download is too large');
+      }
 
       return bytes;
     };
@@ -47,11 +51,14 @@ export class ProfileDownloadRepository {
           ),
         );
 
-        if (login.economyConfig)
+        if (login.economyConfig) {
           files['economy_config.txt'] = Buffer.from(toJsonString(EconomyConfigSchema, login.economyConfig));
+        }
       }
 
-      if (achievements) files['achievements.bin'] = await read('api/achievement/loadPlayerAchievements');
+      if (achievements) {
+        files['achievements.bin'] = await read('api/achievement/loadPlayerAchievements');
+      }
 
       return files;
     } finally {

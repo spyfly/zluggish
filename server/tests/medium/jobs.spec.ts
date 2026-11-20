@@ -246,7 +246,9 @@ await test('a job that cannot succeed fails at once, and each type runs at most 
     }),
   );
 
-  for (let index = 0; index < 6; index++) repository.enqueue('chart', { index });
+  for (let index = 0; index < 6; index++) {
+    repository.enqueue('chart', { index });
+  }
   await Effect.runPromise(jobs.drain());
   assert.equal(peak, 2);
   assert.ok(repository.list('chart').every((job) => job.state === 'done'));

@@ -10,8 +10,9 @@ export function backupDirectory(storage: string) {
   const parent = dirname(source);
   const directory = resolve(parent, 'backups');
 
-  if (source === parent || source === directory)
+  if (source === parent || source === directory) {
     throw new ConfigError('Storage and backups must be separate directories');
+  }
 
   return directory;
 }
@@ -42,8 +43,9 @@ export function isNightlyBackup(name: string) {
 
 /** Backup names are also used as directory names. */
 export function backupPath(directory: string, name: string) {
-  if (name !== basename(name) || name === '' || name === '.' || name === '..')
+  if (name !== basename(name) || name === '' || name === '.' || name === '..') {
     throw new ConfigError('Invalid backup name');
+  }
 
   return resolve(directory, name);
 }

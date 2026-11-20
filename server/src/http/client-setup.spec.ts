@@ -95,7 +95,9 @@ await test(
     for (const tool of ['awk', 'cat', 'cp', 'cut', 'getent', 'mktemp', 'openssl', 'rm', 'sed', 'sort', 'tr']) {
       const path = spawnSync('sh', ['-c', `command -v ${tool}`], { encoding: 'utf8' }).stdout.trim();
 
-      if (path) symlinkSync(path, resolve(bin, tool));
+      if (path) {
+        symlinkSync(path, resolve(bin, tool));
+      }
     }
 
     const zwift = resolve(root, 'Zwift');
@@ -174,7 +176,9 @@ await test(
     for (const tool of ['awk', 'cat', 'cp', 'mktemp', 'openssl', 'rm', 'sed', 'tr']) {
       const path = spawnSync('sh', ['-c', `command -v ${tool}`], { encoding: 'utf8' }).stdout.trim();
 
-      if (path) symlinkSync(path, resolve(bin, tool));
+      if (path) {
+        symlinkSync(path, resolve(bin, tool));
+      }
     }
 
     const data = resolve(root, 'Library', 'Application Support', 'Zwift', 'data');

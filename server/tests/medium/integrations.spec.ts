@@ -29,7 +29,9 @@ function browser(app: ReturnType<typeof createGameApp>) {
       const response = await app.request(path, { ...init, headers });
       const set = response.headers.getSetCookie().at(-1);
 
-      if (set) cookie = set.split(';', 1)[0] ?? '';
+      if (set) {
+        cookie = set.split(';', 1)[0] ?? '';
+      }
 
       return response;
     },
@@ -200,7 +202,9 @@ await test('an expired Strava token is saved before an upload whose result is un
   t.mock.method(globalThis, 'fetch', (input: URL | string) => {
     calls.push(String(input));
 
-    if (String(input).includes('/api/v3/uploads')) return Promise.reject(new Error('offline'));
+    if (String(input).includes('/api/v3/uploads')) {
+      return Promise.reject(new Error('offline'));
+    }
 
     return Promise.resolve(
       Response.json({
@@ -230,8 +234,9 @@ await test('game app has no server operations even for the first legacy owner', 
   const client = browser(f.app);
   await client.signIn(owner.player_id, owner.username);
 
-  for (const path of ['/restart', '/cancelrestart', '/reloadbots'])
+  for (const path of ['/restart', '/cancelrestart', '/reloadbots']) {
     assert.equal(await responseStatus(client.form(path, { confirm_action: 'on' })), 404);
+  }
 });
 
 await test('per-rider variants override the base set and unknown names stay explicit', async (t) => {

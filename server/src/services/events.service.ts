@@ -66,7 +66,9 @@ const make = Effect.gen(function* () {
   ) {
     const row = yield* findNotification(id, player);
 
-    if (!row) return yield* new ApplicationError({ status: 404 });
+    if (!row) {
+      return yield* new ApplicationError({ status: 404 });
+    }
 
     const notification = Schema.decodeUnknownSync(Schema.Record(Schema.String, Schema.Json))(
       JSON.parse(Schema.decodeUnknownSync(Schema.String)(row.json)),
@@ -98,7 +100,9 @@ const make = Effect.gen(function* () {
   const read = Effect.fn('EventsService.read')(function* (id: string) {
     const row = yield* findPrivateEvent(id);
 
-    if (!row) return yield* new ApplicationError({ status: 404 });
+    if (!row) {
+      return yield* new ApplicationError({ status: 404 });
+    }
 
     return decodeMeetup(JSON.parse(Schema.decodeUnknownSync(Schema.String)(row.json)));
   });
@@ -148,7 +152,7 @@ const make = Effect.gen(function* () {
 
     const recipients = [event.organizerProfileId, ...event.invitedProfileIds];
 
-    for (const id of recipients)
+    for (const id of recipients) {
       context.world.enqueue(
         create(WorldAttributeSchema, {
           serverRealm: 1n,
@@ -162,6 +166,7 @@ const make = Effect.gen(function* () {
         }),
         [BigInt(id)],
       );
+    }
   });
 
   const notify = Effect.fn('EventsService.notify')(function* (event: Meetup, id: number) {
@@ -250,8 +255,11 @@ const make = Effect.gen(function* () {
   const createMeetup = Effect.fn('EventsService.createMeetup')(function* (user: User, input: MeetupInput) {
     input.invitedProfileIds = [...new Set(input.invitedProfileIds)].filter((id) => id !== user.player_id);
 
-    for (const id of input.invitedProfileIds)
-      if (!context.accounts.get(id)) return yield* new ApplicationError({ status: 400 });
+    for (const id of input.invitedProfileIds) {
+      if (!context.accounts.get(id)) {
+        return yield* new ApplicationError({ status: 400 });
+      }
+    }
 
     const event = yield* transaction(context.accounts.db)(
       Effect.gen(function* () {
@@ -286,7 +294,9 @@ const make = Effect.gen(function* () {
 
         saveEvent(event);
 
-        for (const id of input.invitedProfileIds) yield* notify(event, id);
+        for (const id of input.invitedProfileIds) {
+          yield* notify(event, id);
+        }
 
         return event;
       }),
@@ -318,8 +328,11 @@ const make = Effect.gen(function* () {
   ) {
     update.invitedProfileIds = [...new Set(update.invitedProfileIds)].filter((id) => id !== event.organizerProfileId);
 
-    for (const id of update.invitedProfileIds)
-      if (!context.accounts.get(id)) return yield* new ApplicationError({ status: 400 });
+    for (const id of update.invitedProfileIds) {
+      if (!context.accounts.get(id)) {
+        return yield* new ApplicationError({ status: 400 });
+      }
+    }
     const next = { ...event, ...update, updateDate: new Date().toISOString() };
     next.eventInvites = [
       { invitedProfile: profileOf(event.organizerProfileId), status: 'ACCEPTED' },
@@ -363,7 +376,11 @@ const make = Effect.gen(function* () {
           yield* updateNotification(JSON.stringify(notification), Schema.decodeUnknownSync(Schema.Finite)(row.id));
         }
 
-        for (const id of update.invitedProfileIds) if (!event.invitedProfileIds.includes(id)) yield* notify(next, id);
+        for (const id of update.invitedProfileIds) {
+          if (!event.invitedProfileIds.includes(id)) {
+            yield* notify(next, id);
+          }
+        }
         commit();
       }),
     );
@@ -380,7 +397,9 @@ const make = Effect.gen(function* () {
   ) {
     const invite = event.eventInvites.find((invite) => invite.invitedProfile.id === playerId);
 
-    if (!invite) return yield* new ApplicationError({ status: 403 });
+    if (!invite) {
+      return yield* new ApplicationError({ status: 403 });
+    }
     invite.status = accepting ? 'ACCEPTED' : 'REJECTED';
     saveEvent(event);
   });
