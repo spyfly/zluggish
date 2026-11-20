@@ -318,17 +318,19 @@ export async function pruneNightlyBackups(storage: string) {
   const directory = backupDirectory(storage);
   const entries = await readdir(directory, { withFileTypes: true });
 
-  const nightly = entries
-    .flatMap((entry) => {
-      const archive = entry.isFile() && entry.name.endsWith(archiveSuffix);
-      const name = archive ? entry.name.slice(0, -archiveSuffix.length) : entry.name;
-      const timestamp = nightlyBackupTimestamp(name);
+  const nightly: Array<{ name: string; timestamp: string }> = [];
 
-      return timestamp && (archive || (entry.isDirectory() && existsSync(resolve(directory, name, backupManifest))))
-        ? [{ name: entry.name, timestamp }]
-        : [];
-    })
-    .toSorted((a, b) => b.timestamp.localeCompare(a.timestamp));
+  for (const entry of entries) {
+    const archive = entry.isFile() && entry.name.endsWith(archiveSuffix);
+    const name = archive ? entry.name.slice(0, -archiveSuffix.length) : entry.name;
+    const timestamp = nightlyBackupTimestamp(name);
+
+    if (timestamp && (archive || (entry.isDirectory() && existsSync(resolve(directory, name, backupManifest))))) {
+      nightly.push({ name: entry.name, timestamp });
+    }
+  }
+
+  nightly.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 
   for (const { name } of nightly.slice(10)) {
     await rm(resolve(directory, name), { recursive: true, force: true });
