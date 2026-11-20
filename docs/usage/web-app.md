@@ -36,13 +36,11 @@ All users have these pages in the menu:
 
 ## Administrator pages
 
-Administrators also have **Users** and **Server** under **Manage**:
+Administrators also have **Users**, **Server** and **Companion** under **Manage**:
 
 - **Users**: make, enable, disable and delete users. Give or remove the administrator role. Set passwords, end sessions and edit the settings of a user.
+- **Companion**: upload the Zwift Companion app and patch it for this server, and download or remove the Java tools it may need. See [Zwift Companion app](../install/companion-app.md).
 - **Server**: see and rotate the [server certificate](../install/certificate.md). Make a backup. Reload or control bots, and edit stored world settings, such as blob and peloton overrides. Edit and delete events. Show the effective configuration.
-
-On the **Companion** page, administrators also upload and patch the Zwift Companion app, and download or remove the
-Java tools it may need.
 
 Changes to `zluggish.config.ts` need a server restart.
 

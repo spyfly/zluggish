@@ -806,6 +806,13 @@ export function createWebApp(runtime: HttpRuntime) {
       return c.json(yield* companion.remove());
     }),
   );
+  appRoutes.delete('/api/manage/companion/pending', (c) =>
+    Effect.gen(function* () {
+      const companion = yield* CompanionService;
+
+      return c.json(yield* companion.discard());
+    }),
+  );
   appRoutes.post('/api/manage/companion/toolchain', (c) =>
     Effect.gen(function* () {
       const companion = yield* CompanionService;

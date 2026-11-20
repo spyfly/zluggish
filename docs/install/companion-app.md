@@ -30,7 +30,7 @@ Do this once as the administrator, and again for a new Companion version.
      swaps in its own certificate. This takes seconds and needs nothing else.
    - The app from the Play Store, as an `.apk`, or as an `.apks`, `.xapk` or `.apkm` bundle of split APKs. The server
      rebuilds its resources, which needs the Java tools. See below.
-3. In the web app, open **Companion** and drop the file on **Upload Zwift Companion**.
+3. In the web app, open **Manage → Companion** and drop the file on **Upload Zwift Companion**.
 
 The server signs the app with its own key, kept in `storage/companion/signer.pem`. Android installs an update only
 when it carries the same signature, so keep backups of storage: with a new key, every rider uninstalls once. Backups
@@ -41,8 +41,9 @@ over the old app.
 
 ### Java tools
 
-Only an app straight from the Play Store needs them. Under **Companion → Java tools**, select **Download Java
-tools**. The server downloads:
+Only an app straight from the Play Store needs them, and the server never downloads them unasked. When you upload
+such an app, the upload waits and asks: select **Download Java tools and continue**, or **Discard upload**. You can
+also download them ahead of time under **Manage → Companion → Java tools**. The server downloads:
 
 - An [Eclipse Temurin](https://adoptium.net) Java 21 runtime, about 50 MB. If the server already has Java 11 or later
   on its `PATH`, it uses that instead.

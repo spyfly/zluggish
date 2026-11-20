@@ -1,6 +1,6 @@
 import { RuntimeContext } from '#src/context';
 import { ApplicationError } from '#src/errors';
-import type { ApkSigner } from '#src/repositories/apk.repository';
+import type { ApkSigner, ApkUpload } from '#src/repositories/apk.repository';
 import { ApkRepository } from '#src/repositories/apk.repository';
 import type { CertificateMaterial } from '#src/repositories/certificate.repository';
 import { CertificateRepository } from '#src/repositories/certificate.repository';
@@ -35,7 +35,8 @@ export type CompanionStep =
 
 export interface CompanionActivity {
   readonly kind: 'toolchain' | 'patch' | 'rekey';
-  readonly state: 'running' | 'done' | 'failed';
+  /** `waiting`: an upload needs the Java tools, and holds until the administrator downloads them or discards it. */
+  readonly state: 'running' | 'waiting' | 'done' | 'failed';
   readonly steps: readonly CompanionStep[];
   readonly step: CompanionStep;
   /** How far the current step is, from 0 to 1, when it can tell. */
@@ -80,7 +81,15 @@ export interface CompanionStatus {
 export interface CompanionAdminStatus extends CompanionStatus {
   readonly toolchain: ToolchainState & { readonly folder: string };
   readonly activity: CompanionActivity | null;
+  /** True while an upload waits for the Java tools. */
+  readonly pending: boolean;
   readonly uploadLimit: number;
+}
+
+/** What an upload needs: the certificate entries to swap, or none when its resources must be rebuilt. */
+interface Plan {
+  readonly upload: Exclude<ApkUpload, { kind: 'unknown' }>;
+  readonly rekey: readonly string[];
 }
 
 const make = Effect.gen(function* () {
@@ -101,6 +110,9 @@ const make = Effect.gen(function* () {
   let activity: CompanionActivity | null = null;
   let abort: AbortController | null = null;
   let rekeyAfter = false;
+
+  /** An upload that needs the Java tools, kept until they are downloaded or the administrator discards it. */
+  let pending: { path: string; workspace: string; plan: Plan } | null = null;
 
   async function published(): Promise<Published | null> {
     const text = await files.readAsync(metaPath);
@@ -188,6 +200,7 @@ const make = Effect.gen(function* () {
       ...(await status()),
       toolchain: { ...(await toolchain.state()), folder: toolchain.folder },
       activity,
+      pending: pending !== null,
       uploadLimit: companionUploadLimit,
     };
   }
@@ -276,15 +289,13 @@ const make = Effect.gen(function* () {
   }
 
   /** Check what was uploaded before the job starts, so the administrator hears about a wrong file at once. */
-  async function inspect(path: string) {
+  async function inspect(path: string): Promise<Plan> {
     const upload = await apk.inspect(path);
 
     if (upload.kind === 'unknown')
       throw new ApplicationError({ status: 400, message: 'This is not an APK, APKS, XAPK or APKM file.' });
 
-    const none: string[] = [];
-
-    if (upload.kind === 'bundle') return { upload, rekey: none };
+    if (upload.kind === 'bundle') return { upload, rekey: [] };
     const manifest = await apk.manifest(path);
 
     if (manifest.packageName !== companionPackage)
@@ -299,12 +310,36 @@ const make = Effect.gen(function* () {
     return { upload, rekey: await apk.trustedCertificates(path) };
   }
 
-  async function patch(
-    path: string,
-    workspace: string,
-    plan: Awaited<ReturnType<typeof inspect>>,
-    signal: AbortSignal,
-  ) {
+  /** The steps a job takes for an upload, after it is received. */
+  function stepsFor(plan: Plan): CompanionStep[] {
+    if (plan.rekey.length > 0) return ['inspect', 'sign', 'publish'];
+
+    return [
+      'inspect',
+      ...(plan.upload.kind === 'bundle' ? (['merge'] as const) : []),
+      'decode',
+      'patch',
+      'build',
+      'sign',
+      'publish',
+    ];
+  }
+
+  function start(job: { path: string; workspace: string; plan: Plan }) {
+    const signal = begin('patch', stepsFor(job.plan));
+    void patch(job.path, job.workspace, job.plan, signal);
+  }
+
+  async function discardPending() {
+    const held = pending;
+    pending = null;
+
+    if (activity?.state === 'waiting') activity = null;
+
+    if (held) await apk.removeTree(held.workspace);
+  }
+
+  async function patch(path: string, workspace: string, plan: Plan, signal: AbortSignal) {
     try {
       const { pem, fingerprint } = serverCertificate();
 
@@ -320,10 +355,7 @@ const make = Effect.gen(function* () {
       const tools = await toolchain.state();
 
       if (!tools.java || !tools.editor)
-        throw new ApplicationError({
-          status: 409,
-          message: 'This app was never patched, so the server rebuilds it with Java. Download the Java tools first.',
-        });
+        throw new Error('The Java tools are no longer installed. Upload the app again.');
 
       let source = path;
 
@@ -421,11 +453,14 @@ const make = Effect.gen(function* () {
         ? { path: appPath, filename: `zwift-companion-${app.versionName.replaceAll(/[^\w.-]/g, '')}-zluggish.apk` }
         : null;
     }),
-    /** Receive an upload and start patching it. Resolves once the file is checked; the job runs on. */
+    /** Receive an upload and start patching it. Resolves once the file is checked; the job runs on. An upload that
+    needs the Java tools waits for them instead: the server never downloads them unasked.
+    */
     upload: Effect.fn('CompanionService.upload')(function* (body: ReadableStream<Uint8Array>) {
       if (activity?.state === 'running')
         throw new ApplicationError({ status: 409, message: 'Wait for the current Companion job to finish.' });
       serverCertificate();
+      yield* Effect.promise(discardPending);
 
       const workspace = yield* Effect.promise(() => apk.workspace());
       const path = resolve(workspace, 'upload');
@@ -447,21 +482,21 @@ const make = Effect.gen(function* () {
         }
       });
 
-      const steps: CompanionStep[] =
-        plan.rekey.length > 0
-          ? ['inspect', 'sign', 'publish']
-          : [
-              'inspect',
-              ...(plan.upload.kind === 'bundle' ? (['merge'] as const) : []),
-              'decode',
-              'patch',
-              'build',
-              'sign',
-              'publish',
-            ];
+      const tools = yield* Effect.promise(() => toolchain.state());
 
-      const signal = begin('patch', steps);
-      void patch(path, workspace, plan, signal);
+      if (plan.rekey.length === 0 && (!tools.java || !tools.editor)) {
+        pending = { path, workspace, plan };
+        activity = {
+          kind: 'patch',
+          state: 'waiting',
+          steps: stepsFor(plan),
+          step: 'decode',
+          progress: null,
+          message: null,
+          startedAt: new Date().toISOString(),
+          finishedAt: null,
+        };
+      } else start({ path, workspace, plan });
 
       return yield* Effect.promise(adminStatus);
     }),
@@ -486,6 +521,12 @@ const make = Effect.gen(function* () {
             folder: toolchain.folder,
           });
           finish();
+
+          // The upload that asked for the tools continues on its own.
+          const held = pending;
+          pending = null;
+
+          if (held) start(held);
         } catch (error) {
           log.warn('companion.toolchain_failed', 'Downloading the Java tools failed', {
             error: error instanceof Error ? error : String(error),
@@ -493,6 +534,14 @@ const make = Effect.gen(function* () {
           finish(error instanceof Error ? error.message : String(error));
         }
       })();
+
+      return yield* Effect.promise(adminStatus);
+    }),
+    /** Drop the upload that waits for the Java tools. */
+    discard: Effect.fn('CompanionService.discard')(function* () {
+      if (activity?.state === 'running' && activity.kind !== 'toolchain')
+        throw new ApplicationError({ status: 409, message: 'Wait for the current Companion job to finish.' });
+      yield* Effect.promise(discardPending);
 
       return yield* Effect.promise(adminStatus);
     }),

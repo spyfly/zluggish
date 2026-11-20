@@ -120,12 +120,17 @@ await test('the administrator patches the Companion app and every rider download
     second.certificate?.fingerprint256,
   );
 
-  // An app that was never patched is rebuilt with the Java tools, which this server has not downloaded.
-  assert.equal(await responseStatus(admin.request('/api/manage/companion/app', 'PUT', unpatched)), 202);
-  const failed = await settled(admin);
-  assert.equal(failed.activity.state, 'failed');
-  assert.match(failed.activity.message, /Download the Java tools first/);
-  assert.equal(failed.app.versionName, '3.91.0', 'the published app stays');
+  // An app that was never patched needs the Java tools. The server never downloads them unasked: the upload waits.
+  const held = await json(admin.request('/api/manage/companion/app', 'PUT', unpatched));
+  assert.equal(held.activity.state, 'waiting');
+  assert.equal(held.pending, true);
+  assert.deepEqual(held.activity.steps, ['inspect', 'decode', 'patch', 'build', 'sign', 'publish']);
+  assert.equal(held.app.versionName, '3.91.0', 'the published app stays');
+  assert.equal(await responseStatus(web.request('/api/manage/companion/pending', 'DELETE', {})), 403);
+
+  const discarded = await json(admin.request('/api/manage/companion/pending', 'DELETE', {}));
+  assert.equal(discarded.pending, false);
+  assert.equal(discarded.activity, null);
 
   assert.equal(await responseStatus(admin.request('/api/manage/companion/app', 'DELETE', {})), 200);
   assert.equal(await responseStatus(web.request('/api/companion/app')), 404);

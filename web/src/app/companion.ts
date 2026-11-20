@@ -27,7 +27,8 @@ export type CompanionStep =
 
 export type CompanionActivity = {
   kind: 'toolchain' | 'patch' | 'rekey';
-  state: 'running' | 'done' | 'failed';
+  /** `waiting`: an upload needs the Java tools, and holds until they are downloaded or it is discarded. */
+  state: 'running' | 'waiting' | 'done' | 'failed';
   steps: CompanionStep[];
   step: CompanionStep;
   progress: number | null;
@@ -46,5 +47,14 @@ export type CompanionAdminStatus = CompanionStatus & {
     folder: string;
   };
   activity: CompanionActivity | null;
+  /** True while an upload waits for the Java tools. */
+  pending: boolean;
   uploadLimit: number;
 };
+
+/** A file size as riders read it: whole megabytes, or gigabytes from 1 GB. */
+export function megabytes(bytes: number) {
+  return bytes >= 1_000_000_000
+    ? `${Math.round(bytes / 100_000_000) / 10} GB`
+    : `${Math.max(1, Math.round(bytes / 1_000_000))} MB`;
+}
