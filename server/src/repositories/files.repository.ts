@@ -168,7 +168,6 @@ export class AssetFiles {
     }
   }
 
-  /** Size and modification time; null when the path is missing. */
   async statAsync(path: string) {
     try {
       const info = await stat(path);
@@ -182,7 +181,6 @@ export class AssetFiles {
     }
   }
 
-  /** Remove a directory tree. */
   async removeTreeAsync(path: string) {
     await rm(path, { recursive: true, force: true });
   }

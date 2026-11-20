@@ -27,7 +27,6 @@ export const preferenceSchema = Schema.Struct({
 
 export type Preference = typeof preferenceSchema.Type;
 
-/** Overrides reject keys they do not declare. */
 export const decodeOverrides = Schema.decodeUnknownSync(overrideSchema, strict);
 
 export const decodePreference = Schema.decodeUnknownSync(preferenceSchema, strict);

@@ -15,7 +15,6 @@
 
   type Review = z.infer<typeof reviewSchema>;
 
-  /** A staged import, ready for the rider to review. */
   const stagedResponse = z.object({ review: reviewSchema.nullable() });
 
   const connectionResponse = z.object({ connected: z.boolean(), upload: z.boolean(), click: z.boolean() });

@@ -33,7 +33,6 @@ const migrations: Array<{ version: number; up: (db: DatabaseSync) => void }> = [
   { version: 10, up: (db) => db.exec(webSessionSQL) },
 ];
 
-/** The schema version this release writes. */
 export const SCHEMA_VERSION = STORAGE_VERSION + migrations.length;
 
 function version(db: DatabaseSync) {

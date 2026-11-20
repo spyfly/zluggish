@@ -202,7 +202,6 @@ export class ActivitiesRepository {
     };
   }
 
-  /** Reservations older than the cutoff, and failed media, with their owners. */
   abandonedMedia(table: 'activity_image' | 'activity_media', before: number) {
     return this.executor.all(
       query
@@ -240,7 +239,6 @@ export class ActivitiesRepository {
     );
   }
 
-  /** A rider's own activities, newest first, with whether each holds a FIT payload and how many ready images. */
   ownActivities(player: number | bigint, id?: IntegerInput, page?: number) {
     let selection = query
       .selectFrom('activity')

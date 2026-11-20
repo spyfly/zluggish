@@ -79,7 +79,6 @@ export class AccountsRepository {
     return matches.length === 1 ? (matches[0] ?? null) : null;
   }
 
-  /** Every rider whose login name normalizes to the same value. */
   sameLoginName(username: string) {
     const wanted = normalizeLoginName(username);
 

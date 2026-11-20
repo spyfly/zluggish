@@ -22,11 +22,8 @@
   }: {
     api: Api;
     busy: boolean;
-    /** Asks the administrator before the action runs. */
     confirm: (confirmation: Confirmation) => void;
-    /** Reports the outcome in the page notice. */
     done: (message: string) => void;
-    /** Hears the certificate status whenever it loads or changes. */
     onstatus?: ((status: TlsStatus) => void) | undefined;
   } = $props();
 
@@ -43,7 +40,6 @@
   const day = (iso: string) =>
     new Date(iso).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' });
 
-  /** How long ago, or how long from now, in the largest whole unit. */
   function relative(iso: string) {
     const days = Math.round((Date.parse(iso) - Date.now()) / 86_400_000);
     const format = new Intl.RelativeTimeFormat([], { numeric: 'auto' });

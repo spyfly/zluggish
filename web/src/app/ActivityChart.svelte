@@ -18,7 +18,6 @@
   const height = 140;
   const count = $derived(chart.timeInSec.length);
 
-  // The profile runs along distance; an activity without distance samples runs along time.
   const along = $derived(chart.distanceInCm.some((d) => d > 0) ? chart.distanceInCm : chart.timeInSec);
   const end = $derived(Math.max(1, along.at(-1) ?? 1));
 

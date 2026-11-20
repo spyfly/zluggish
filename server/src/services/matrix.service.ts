@@ -34,7 +34,6 @@ const make = Effect.gen(function* () {
     };
   });
 
-  /** Connect to Matrix with the configured credentials. */
   const start = Effect.fn('MatrixService.start')(function* () {
     const transport = context.accounts.repositories.matrixRepository.openMatrixTransport(
       settings(),

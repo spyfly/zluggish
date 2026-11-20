@@ -2,7 +2,6 @@ import { Effect, Schema } from 'effect';
 
 const emptyMessage = Schema.String.pipe(Schema.optionalKey, Schema.withConstructorDefault(Effect.succeed('')));
 
-/** A request the application rejects, with the HTTP status that reports it. */
 export class ApplicationError extends Schema.TaggedError<ApplicationError>()('ApplicationError', {
   status: Schema.Literals([400, 401, 403, 404, 409, 503]),
   message: emptyMessage,
@@ -42,7 +41,6 @@ export class JobError extends Schema.TaggedError<JobError>()('JobError', {
   }
 }
 
-/** The FIT worker queue has no room for another file. */
 export class FitQueueFullError extends Schema.TaggedError<FitQueueFullError>()('FitQueueFullError', {}) {
   override get message() {
     return 'FIT processing queue is full';

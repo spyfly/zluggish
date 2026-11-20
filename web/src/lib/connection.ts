@@ -3,7 +3,6 @@ import { z } from 'zod';
 
 const jsonObject = z.record(z.string(), z.json());
 
-/** A JSON object response body. */
 export type JsonObject = z.output<typeof jsonObject>;
 
 export const connection = writable({ unavailable: false, checking: false, retryIn: 0 });

@@ -110,7 +110,6 @@
     </div>
   </aside>
 {:else if menu}
-  <!-- A click on the backdrop lands on the dialog itself; a click on any link or button inside navigates or acts. -->
   <dialog
     id="menu"
     class="drawer"
@@ -222,7 +221,6 @@
     stroke-linecap: round;
   }
 
-  /* The menu slides in from the left over the dimmed page. */
   .drawer {
     position: fixed;
     inset: 0 auto 0 0;
@@ -319,7 +317,6 @@
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }
-  /* Quiet, there for support questions, not competing with the wordmark. */
   .version {
     padding: 0;
     border: 0;

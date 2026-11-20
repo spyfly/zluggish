@@ -156,7 +156,6 @@ const make = Effect.gen(function* () {
       return jobs.enqueue(type, payload, delayMs);
     }),
 
-    /** Poll for ready jobs every interval until close. */
     start: Effect.fn('JobsService.start')(function* (intervalMs: number = 1000) {
       if (status === 'stopped' || poller) {
         return;
@@ -170,7 +169,6 @@ const make = Effect.gen(function* () {
       poll();
     }),
 
-    /** True while a handler runs or a ready job waits. */
     busy: Effect.fn('JobsService.busy')(function* () {
       if (running.size > 0) {
         return true;

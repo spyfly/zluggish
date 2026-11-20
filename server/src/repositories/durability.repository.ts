@@ -26,7 +26,6 @@ export class DurabilityRepository {
     this.active = true;
   }
 
-  /** Rows changed on the main connection since it opened. */
   changes() {
     return Schema.decodeUnknownSync(Schema.Finite)(this.db.prepare('SELECT total_changes() AS n').get()?.n);
   }

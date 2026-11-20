@@ -176,8 +176,6 @@ export class Trail {
     }
   }
 
-  // collecting -> ready with >3.2m across >=2 samples; >=8s age is stale.
-  // push detects course/teleport discontinuity, clears history and increments generation.
   ready() {
     const head = this.entries.at(-1);
 

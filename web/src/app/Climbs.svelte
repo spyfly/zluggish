@@ -33,7 +33,6 @@
 
   const ridden = (climb: Climb) => (climb.lastRide ? Date.parse(climb.lastRide) : Number.NEGATIVE_INFINITY);
 
-  /** The most recently ridden climb first. */
   const ordered = $derived([...(climbs ?? [])].sort((a, b) => ridden(b) - ridden(a)));
   const rides = $derived((climbs ?? []).reduce((sum, climb) => sum + climb.rides, 0));
 
@@ -174,14 +173,12 @@
     margin: 0;
     padding-block: 0.25rem;
   }
-  /* How far through the collection the rider is, as a footnote to the list. */
   .summary {
     margin: 0.75rem 0 0;
     padding-inline: 0.25rem;
     color: var(--muted);
   }
 
-  /* One climb per row, led by how much it climbs: the heights line up in the first column. */
   .climbs li {
     display: grid;
     grid-template-columns: 8.5rem minmax(0, 1fr) 7rem 8.5rem 8.5rem;
@@ -280,8 +277,6 @@
     line-height: 1.45;
   }
 
-  /* Narrow screens: the height keeps its own column; the date and the Strava links each become one line
-     under the name. */
   @media (max-width: 44rem) {
     .climbs li {
       grid-template-columns: 4.5rem minmax(0, 1fr) auto;

@@ -163,7 +163,6 @@ await test('choosing a rider asks for the password unless this computer remember
   assert.ok(client.jar.get(remembered));
   assert.ok(!client.jar.get(remembered)?.includes('first'));
 
-  // Back on the rider list, choosing the remembered rider signs in without the password.
   await client.picker();
   const again = await client.form('/login/', { player_id: String(rider.player_id) });
   assert.equal(again.status, 302);
@@ -186,7 +185,6 @@ await test('choosing a rider asks for the password unless this computer remember
 await test('choosing a rider without a password fails on the rider list', async (t) => {
   const f = runtimeFixture(t);
   const rider = await f.accounts.create('Legacy Rider', 'test-password');
-  // Account migration clears legacy password hashes.
   f.accounts.db.prepare('UPDATE user SET pass_hash=NULL WHERE player_id=?').run(rider.player_id);
   const warn = t.mock.method(f.world.lifecycle.log, 'warn', () => {});
   const client = browser(f.app);

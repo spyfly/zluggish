@@ -326,7 +326,6 @@
     }, 'uploads');
   }
 
-  // Deliveries finish in the background, so the list refreshes while any is still in flight.
   $effect(() => {
     if (!jobs.some((job) => ['pending', 'sending'].includes(job.state))) {
       return;
@@ -478,7 +477,6 @@
   {/if}
 </section>
 
-<!-- One dialog serves every integration; it opens over the dimmed settings page and closes back to the tiles. -->
 <dialog
   class="integration"
   aria-labelledby="integration-title"
@@ -937,7 +935,6 @@
     font-weight: 800;
   }
 
-  /* One row per stored credential; confirming a removal opens beneath it, naming what stops working. */
   .stored {
     margin: 0;
     padding: 0;

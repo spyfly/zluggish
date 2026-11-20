@@ -43,12 +43,10 @@ function open(storage: string) {
     return repository.byUsername(username);
   }
 
-  /** True when another rider already uses this login name after normalization. */
   function loginNameTaken(username: string, except?: number) {
     return repository.sameLoginName(username).some((rider) => rider.player_id !== except);
   }
 
-  // Setup is one-way: first owner creation commits its marker in the same account transaction.
   const identity = (value: string) => resolveIdentity(value, get);
 
   /** Direct creation for tests and offline tools. Riders are otherwise created only in the management area. */
@@ -76,7 +74,6 @@ function open(storage: string) {
           .map(Number),
       ];
 
-      // TODO: migrate to uuid before we release the first version
       const id = Math.max(0, ...occupied) + 1;
 
       if (!Number.isSafeInteger(id) || id > 2_147_483_647) {
@@ -170,7 +167,6 @@ function open(storage: string) {
     db,
     repository,
     repositories,
-    /** Called with a rider whose sessions a password change revoked. */
     get onRevoke() {
       return onRevoke;
     },

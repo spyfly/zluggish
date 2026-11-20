@@ -1,6 +1,5 @@
 import type { CertificateStatus } from '#src/services/tls.service';
 
-/** The Zwift host names that a client's hosts file points at the server. */
 export const zwiftHostNames = ['us-or-rly101.zwift.com', 'secure.zwift.com', 'cdn.zwift.com', 'launcher.zwift.com'];
 
 /** The shared zwift.com certificate in assets/ssl: its SHA-1 thumbprint and the first line of its body.
@@ -12,7 +11,6 @@ export const legacyCertificate = {
 };
 
 export interface SetupScript {
-  /** The PEM certificate to trust. */
   readonly pem: string;
   readonly certificate: CertificateStatus;
   /** IP address for the hosts file, or empty to leave the hosts file alone. */
@@ -234,7 +232,6 @@ function shellPrelude(script: SetupScript, name: string) {
   ];
 }
 
-/** Updates each Zwift cacert.pem that find_bundles lists, or prints `notFound` when there is none. */
 function shellBundles(notFound: Array<string>) {
   return [
     '# Drop earlier Zluggish blocks, private keys and the shared certificate; then add this certificate.',
@@ -283,7 +280,6 @@ function shellBundles(notFound: Array<string>) {
   ];
 }
 
-/** Points the Zwift host names at the server in /etc/hosts, then runs `after`. Without an address, nothing. */
 function shellHosts(script: SetupScript, after: Array<string>) {
   if (!script.address) {
     return [];

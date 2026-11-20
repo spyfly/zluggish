@@ -12,7 +12,6 @@ import { TlsService } from '#src/services/tls.service';
 import { Context, Effect, Layer, Schema } from 'effect';
 import { dirname, resolve } from 'node:path';
 
-/** The Zwift Companion app's package name on Android. */
 const companionPackage = 'com.zwift.android.prod';
 
 /** The raw resource a rebuilt app reads the server certificate from. */
@@ -21,7 +20,6 @@ const certificateResource = 'zluggish_server_cert';
 /** The largest upload: Companion is about 180 MB, a bundle of splits a little more. */
 export const companionUploadLimit = 1_000_000_000;
 
-/** The steps of a job, in order, as the web app lists them. */
 export type CompanionStep =
   | 'runtime'
   | 'editor'
@@ -39,7 +37,6 @@ export interface CompanionActivity {
   readonly state: 'running' | 'waiting' | 'done' | 'failed';
   readonly steps: ReadonlyArray<CompanionStep>;
   readonly step: CompanionStep;
-  /** How far the current step is, from 0 to 1, when it can tell. */
   readonly progress: number | null;
   readonly message: string | null;
   readonly startedAt: string;
@@ -73,15 +70,12 @@ export interface CompanionStatus {
     readonly current: boolean;
   } | null;
   readonly tlsMode: 'managed' | 'legacy' | 'custom' | 'disabled';
-  /** The address a rider points the Zwift names at. */
   readonly serverAddress: string;
 }
 
-/** What the administrator sees as well: the Java tools and the job in progress. */
 export interface CompanionAdminStatus extends CompanionStatus {
   readonly toolchain: ToolchainState & { readonly folder: string };
   readonly activity: CompanionActivity | null;
-  /** True while an upload waits for the Java tools. */
   readonly pending: boolean;
   readonly uploadLimit: number;
 }
@@ -241,7 +235,6 @@ const make = Effect.gen(function* () {
     }
   }
 
-  /** End the job: done, or failed with the reason the administrator reads. */
   function finish(failure?: string) {
     if (!activity) {
       return;
@@ -333,7 +326,6 @@ const make = Effect.gen(function* () {
     return { upload, rekey: await apk.trustedCertificates(path) };
   }
 
-  /** The steps a job takes for an upload, after it is received. */
   function stepsFor(plan: Plan): Array<CompanionStep> {
     if (plan.rekey.length > 0) {
       return ['inspect', 'sign', 'publish'];
@@ -482,7 +474,6 @@ const make = Effect.gen(function* () {
     adminStatus: Effect.fn('CompanionService.adminStatus')(function* () {
       return yield* Effect.promise(adminStatus);
     }),
-    /** The published app's file and the name to download it as, or null. */
     download: Effect.fn('CompanionService.download')(function* () {
       const app = yield* Effect.promise(published);
 
@@ -580,7 +571,6 @@ const make = Effect.gen(function* () {
 
       return yield* Effect.promise(adminStatus);
     }),
-    /** Drop the upload that waits for the Java tools. */
     discard: Effect.fn('CompanionService.discard')(function* () {
       if (activity?.state === 'running' && activity.kind !== 'toolchain') {
         throw new ApplicationError({ status: 409, message: 'Wait for the current Companion job to finish.' });
@@ -599,7 +589,6 @@ const make = Effect.gen(function* () {
 
       return yield* Effect.promise(adminStatus);
     }),
-    /** Stop the running job. */
     cancel: Effect.fn('CompanionService.cancel')(function* () {
       abort?.abort(new Error('Stopped by the administrator.'));
 
@@ -608,7 +597,6 @@ const make = Effect.gen(function* () {
   };
 });
 
-/** Patches the Zwift Companion Android app to trust this server, and serves it to riders. */
 export class CompanionService extends Context.Service<CompanionService, Effect.Success<typeof make>>()(
   'zluggish/CompanionService',
 ) {

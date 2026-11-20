@@ -154,7 +154,6 @@ export function legacyPlan(storage: string): LegacyPlan {
   return plan;
 }
 
-/** Remove the removable legacy files, then empty legacy folders. */
 export function removeLegacy(storage: string, plan: LegacyPlan) {
   for (const file of plan.removable) {
     rmSync(file.path, { force: true });

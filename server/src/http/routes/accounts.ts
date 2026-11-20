@@ -202,7 +202,6 @@ export function accountRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
     },
   );
 
-  // The user list; an error shows above it.
   function loginPage(c: Context<RuntimeEnv>, error = '') {
     return model(
       c,
@@ -278,7 +277,6 @@ export function accountRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
       }
 
       if (user && !step) {
-        // Choosing a rider signs in at once when this computer remembers them; otherwise it opens their password step.
         signedIn = sessions.remembered(getCookie(c, rememberCookie(user.player_id)) ?? '', user.player_id);
 
         if (!signedIn) {

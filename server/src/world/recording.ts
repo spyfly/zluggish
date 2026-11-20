@@ -71,7 +71,6 @@ export class Recording {
     }
   }
 
-  /** A fresh, independently mutable copy. */
   state(index: number): PlayerState {
     const offset = this.offsets[index];
     const size = this.sizes[index];

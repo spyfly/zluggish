@@ -8,7 +8,6 @@ import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { crc32, createInflateRaw, deflateRawSync, inflateRawSync } from 'node:zlib';
 
-/** One file in a zip archive, as its central directory lists it. */
 interface ZipEntry {
   readonly name: string;
   readonly nameBytes: Buffer;
@@ -26,7 +25,6 @@ interface ZipEntry {
   readonly localOffset: number;
 }
 
-/** What an APK's manifest says about the app. */
 export interface ApkManifest {
   readonly packageName: string;
   readonly versionName: string;
@@ -38,14 +36,11 @@ export interface ApkManifest {
 export interface ApkSigner {
   readonly key: string;
   readonly certificate: Uint8Array;
-  /** The DER SubjectPublicKeyInfo of the certificate's key. */
   readonly publicKey: Uint8Array;
 }
 
 export interface RewriteOptions {
-  /** Entries to drop from the archive. */
   readonly drop?: (name: string) => boolean;
-  /** Entries whose contents change, or new entries, keyed by name. */
   readonly replace?: ReadonlyMap<string, Uint8Array>;
 }
 
@@ -173,7 +168,6 @@ async function centralDirectory(handle: FileHandle) {
   return entries;
 }
 
-/** Where an entry's stored or compressed bytes start. */
 async function dataOffset(handle: FileHandle, entry: ZipEntry) {
   const header = await readAt(handle, entry.localOffset, 30);
 
@@ -297,11 +291,9 @@ function readBinaryXml(buffer: Buffer) {
   return elements;
 }
 
-/** Reads, rewrites and signs APK files. */
 export class ApkRepository {
   constructor(private readonly crypto = new CryptoRepository()) {}
 
-  /** Whether a file is one APK, a bundle of split APKs, or neither. */
   async inspect(path: string): Promise<ApkUpload> {
     const handle = await open(path, 'r');
 
@@ -352,7 +344,6 @@ export class ApkRepository {
     }
   }
 
-  /** The package, version and minimum SDK from the APK's binary manifest. */
   async manifest(path: string): Promise<ApkManifest> {
     const handle = await open(path, 'r');
 
@@ -717,7 +708,6 @@ export class ApkRepository {
     }
   }
 
-  /** The res folder of a decoded APK: the one holding values/public.xml. */
   private async resourceFolder(folder: string): Promise<string | null> {
     for (const entry of await readdir(folder, { withFileTypes: true, recursive: true })) {
       if (!(entry.isFile() && entry.name === 'public.xml')) {
@@ -734,7 +724,6 @@ export class ApkRepository {
     return null;
   }
 
-  /** A new private folder for one job's files, in the system's temporary folder. */
   async workspace() {
     return mkdtemp(join(tmpdir(), 'zluggish-companion-'));
   }

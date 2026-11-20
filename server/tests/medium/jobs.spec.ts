@@ -15,7 +15,6 @@ import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { Effect, Layer, Schema } from 'effect';
 
-/** A job runner of its own for the fixture, with no handlers registered. */
 function jobRunner(f: Awaited<ReturnType<typeof mediumFixture>>) {
   return Effect.runSync(
     Effect.gen(function* () {
@@ -73,7 +72,6 @@ await test('a stopped process does not lose its job; a new claim runs it after t
   const first = jobs.claim('retention', 30_000);
   assert.ok(first);
   assert.equal(jobs.claim('retention', 30_000), null, 'a valid lease blocks another claim');
-  // The process stops: nothing finishes the claim. A restart claims again after expiry.
   now += 30_000;
   const second = jobs.claim('retention', 30_000);
   assert.ok(second);

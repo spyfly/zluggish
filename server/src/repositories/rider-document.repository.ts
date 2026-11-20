@@ -25,7 +25,6 @@ export class RiderDocuments {
     this.executor = new SqliteExecutor(db);
   }
 
-  /** The 32-byte credentials key; created on first use. */
   key() {
     const file = resolve(this.storage, 'credentials-key.bin');
     let key: Buffer;

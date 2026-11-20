@@ -1,6 +1,5 @@
 import { z } from 'zod';
 
-/** An account as the management API reports it. */
 export const userSchema = z.object({
   player_id: z.number(),
   username: z.string(),
@@ -31,7 +30,6 @@ export type SetupUser = z.infer<typeof setupUserSchema>;
 
 export const setupResponse = z.object({ complete: z.boolean(), version: z.string(), zwiftVersion: z.string() });
 
-/** Signing in, finishing setup and reading the current user. */
 export const signedInResponse = z.object({ user: userSchema });
 
 export const setupKeyResponse = z.object({ users: z.array(setupUserSchema) });
@@ -75,7 +73,6 @@ export const eventsResponse = z.object({ events: z.array(managedEventSchema) });
 
 export const backupResponse = z.object({ state: z.string(), name: z.string() });
 
-/** The result of a server operation, such as reloading bots. */
 export const outcomeResponse = z.object({ ok: z.boolean(), message: z.string().nullable() });
 
 export const serverLogsResponse = z.object({ entries: z.array(z.string()) });

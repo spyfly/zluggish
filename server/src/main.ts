@@ -71,7 +71,6 @@ function closeHttp(listener: ReturnType<typeof startHttp>) {
   });
 }
 
-/** Acquire a listener into the current scope. */
 const listening = <A>(
   open: () => A,
   close: (listener: A) => void | Promise<void>,
@@ -82,7 +81,6 @@ const listening = <A>(
     }),
   );
 
-/** Open the runtime and every listener into the current scope, and report readiness. */
 const serve = Effect.fn('server.start')(function* () {
   const webConfig = config.network.web;
 

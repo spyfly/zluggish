@@ -6,7 +6,6 @@ import { resolve } from 'node:path';
 /** The Zwift host names that the client reaches over HTTPS. */
 export const zwiftHosts = ['*.zwift.com', 'zwift.com'] as const;
 
-/** A server key and the self-signed certificate for it, both PEM. */
 export interface CertificateMaterial {
   readonly cert: string;
   readonly key: string;
@@ -48,7 +47,6 @@ const critical = element(0x01, Buffer.from([0xff]));
 const explicit = (index: number, inner: Uint8Array) => element(0xa0 | index, inner);
 const bits = (bytes: Uint8Array, unused = 0) => element(0x03, Buffer.from([unused]), bytes);
 
-/** A non-negative INTEGER from big-endian bytes. */
 function integer(bytes: Uint8Array) {
   let start = 0;
 
@@ -90,7 +88,6 @@ const extension = (id: string, value: Uint8Array, isCritical = false) =>
 
 const attribute = (id: string, value: string) => set(sequence(oid(id), utf8(value)));
 
-/** The content bounds of the DER element at `at`. */
 function bounds(der: Uint8Array, at: number) {
   const first = der[at + 1] ?? 0;
   const lengthBytes = first < 0x80 ? 0 : first & 0x7f;
@@ -121,7 +118,6 @@ const certificatePem = (der: Uint8Array) =>
       .match(/.{1,64}/g) ?? []
   ).join('\n')}\n-----END CERTIFICATE-----\n`;
 
-/** Generates, stores and reads the server's own TLS key and certificate. */
 export class CertificateRepository {
   constructor(
     private readonly crypto = new CryptoRepository(),
@@ -236,7 +232,6 @@ export class CertificateRepository {
     await this.files.writeDurableAsync(path, material.key + material.cert, true);
   }
 
-  /** The configured or bundled key and certificate files. */
   readFiles(certFile: string, keyFile: string): CertificateMaterial {
     return { cert: readFileSync(certFile, 'utf8'), key: readFileSync(keyFile, 'utf8') };
   }

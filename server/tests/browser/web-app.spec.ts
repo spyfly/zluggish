@@ -64,7 +64,6 @@ for (const existing of [false, true]) {
       }
 
       await page.getByRole('button', { name: 'Complete setup' }).click();
-      // Setup lands in the management area.
       await page
         .getByText('No other users yet. Create a user so that somebody else can ride on this server.', {
           exact: true,
@@ -72,7 +71,6 @@ for (const existing of [false, true]) {
         .waitFor();
       assert.equal(await page.locator('main[data-page="manage"]').count(), 1);
       await page.getByRole('button', { name: 'Create user' }).click();
-      // Creating a user is its own page with one form.
       const create = page.locator('form').filter({ has: page.getByLabel('Confirm password', { exact: true }) });
       await create.getByLabel('First name').fill('Second');
       await create.getByLabel('Last name').fill('Rider');
@@ -83,13 +81,11 @@ for (const existing of [false, true]) {
       await page.getByText('Second Rider can now sign in.', { exact: true }).waitFor();
       assert.match(page.url(), /\/manage\/users\/\d+$/);
 
-      // Destructive actions ask first, and the dialog names the rider.
       await page.getByRole('button', { name: 'End sessions', exact: true }).click();
       await page.getByRole('alertdialog', { name: 'End all sessions of Second Rider?' }).waitFor();
       await page.keyboard.press('Escape');
       assert.equal(await page.getByRole('alertdialog').count(), 0);
 
-      // Every page is one item in the side menu.
       await page.getByRole('button', { name: 'Menu', exact: true }).click();
       await page.getByRole('link', { name: 'Profile', exact: true }).click();
       await page.getByRole('heading', { name: 'Profile' }).waitFor();
@@ -103,7 +99,6 @@ for (const existing of [false, true]) {
       await page.getByRole('link', { name: 'Users', exact: true }).click();
       await page.getByRole('link', { name: /Second Rider/ }).waitFor();
 
-      // A deep link loads the rider directly.
       await page.goto(page.url().replace(/\/manage.*$/, '/manage/users/2'));
       await page
         .getByRole('region', { name: 'Account', exact: true })

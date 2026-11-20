@@ -29,7 +29,6 @@ import { World } from '#src/world/state';
 
 const tokensSchema = Schema.Struct({ access: Schema.String, refresh: Schema.String, id: Schema.String });
 
-/** Release with a plain cleanup function, which may be async. */
 const releasing = (dispose: () => void | Promise<void>): Effect.Effect<void, never, Scope.Scope> =>
   Effect.addFinalizer(() =>
     Effect.promise(async () => {
@@ -117,7 +116,6 @@ const acquireRuntime = Effect.fn('runtime.acquire')(function* (
   yield* Effect.promise(() => simulation.ready);
   simulation.start();
 
-  // Ride completion permissions expire on a one-second sweep.
   yield* Effect.sleep(1000).pipe(
     Effect.andThen(effects.runSync(RideCompletionService).sweep()),
     Effect.forever,
