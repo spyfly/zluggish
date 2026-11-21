@@ -12,8 +12,11 @@ const make = Effect.gen(function* () {
     ),
     setAllowed: Effect.fn('ZwiftUpdatesService.setAllowed')((allowed: boolean) =>
       Effect.sync(() => {
-        if (allowed) flags.set(SystemFlag.ZwiftUpdatesAllowed, 'true');
-        else flags.clear(SystemFlag.ZwiftUpdatesAllowed);
+        if (allowed) {
+          flags.set(SystemFlag.ZwiftUpdatesAllowed, 'true');
+        } else {
+          flags.clear(SystemFlag.ZwiftUpdatesAllowed);
+        }
       }),
     ),
   };

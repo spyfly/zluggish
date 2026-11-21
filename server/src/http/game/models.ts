@@ -18,7 +18,7 @@ export function checkbox(name: string, label: string, value = false): GameField 
 export function form(
   id: string,
   action: string,
-  fields: GameField[],
+  fields: Array<GameField>,
   label: string,
   options: Partial<GameForm> = {},
 ): GameForm {
@@ -40,7 +40,7 @@ export function model(
   c: Context<RuntimeEnv>,
   kind: GamePageModel['kind'],
   title: string,
-  forms: GameForm[],
+  forms: Array<GameForm>,
   extra: Partial<GamePageModel> = {},
 ): GamePageModel {
   return {

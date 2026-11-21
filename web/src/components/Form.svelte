@@ -2,7 +2,9 @@
   import { untrack } from 'svelte';
   import { requestJson } from '../lib/connection';
   import type { Snippet } from 'svelte';
-  import type { FormResult, GameForm, GamePageModel, GameSaved } from '../lib/game-app.dto';
+  import { decode } from '../lib/api';
+  import { savedFormResult } from '../lib/game-app';
+  import type { GameForm, GamePageModel } from '../lib/game-app.dto';
   import { safeNavigation, validation, values, visible } from '../lib/forms.js';
   import UserRow from './UserRow.svelte';
 
@@ -32,7 +34,7 @@
   let submitted = $state(false);
   let pending = $state(false);
   let message = $state('');
-  let serverErrors = $state<Record<string, string[]>>({});
+  let serverErrors = $state<Record<string, Array<string>>>({});
   let failed = $state(false);
   let form: HTMLFormElement;
   let controller: AbortController | undefined;
@@ -52,7 +54,9 @@
     };
 
     const restore = (event: PageTransitionEvent) => {
-      if (event.persisted) location.reload();
+      if (event.persisted) {
+        location.reload();
+      }
     };
 
     window.addEventListener('pagehide', leave);
@@ -66,16 +70,21 @@
   });
 
   $effect(() => {
-    if (locked)
+    if (locked) {
       untrack(() => {
         controller?.abort();
         draft = values(model);
         clearSecrets();
       });
+    }
   });
 
   function clearSecrets() {
-    for (const field of model.fields) if (field.type === 'password') draft[field.name] = '';
+    for (const field of model.fields) {
+      if (field.type === 'password') {
+        draft[field.name] = '';
+      }
+    }
   }
 
   function fail(text: string) {
@@ -126,7 +135,9 @@
 
     const body = new FormData(form);
 
-    if (button?.name) body.set(button.name, button.value);
+    if (button?.name) {
+      body.set(button.name, button.value);
+    }
     pending = true;
     failed = false;
     message = 'Submitting…';
@@ -142,10 +153,11 @@
         signal: controller.signal,
       });
 
-      // SAFETY: this route's same-origin server wrapper owns the FormResult contract.
-      const result = resultBody as FormResult<GameSaved>;
+      const result = decode(savedFormResult, resultBody);
 
-      if (!alive || controller.signal.aborted || locked) return;
+      if (!alive || controller.signal.aborted || locked) {
+        return;
+      }
 
       if (!result.ok) {
         fail(result.message);
@@ -163,10 +175,14 @@
 
       clearSecrets();
 
-      if ('confirm_action' in draft) draft.confirm_action = false;
+      if ('confirm_action' in draft) {
+        draft.confirm_action = false;
+      }
 
       if (result.redirectTo) {
-        if (!safeNavigation(result.redirectTo)) throw new Error('Unsafe navigation');
+        if (!safeNavigation(result.redirectTo)) {
+          throw new Error('Unsafe navigation');
+        }
 
         if (['/login/', '/riders/switch/'].includes(model.action)) {
           const channel = 'BroadcastChannel' in window ? new BroadcastChannel('zluggish-session-change') : undefined;
@@ -184,9 +200,13 @@
       if (saved) {
         draft = values(saved);
         baseline = values(saved);
-      } else baseline = { ...draft };
+      } else {
+        baseline = { ...draft };
+      }
 
-      if (result.data.page) onpage(result.data.page);
+      if (result.data.page) {
+        onpage(result.data.page);
+      }
       message = result.message ?? 'Saved.';
       touched = {};
       submitted = false;
@@ -195,7 +215,9 @@
         fail('Could not submit. Your draft is kept. Try again.');
       }
     } finally {
-      if (alive) pending = false;
+      if (alive) {
+        pending = false;
+      }
     }
   }
 </script>

@@ -19,11 +19,17 @@ const advertisedIp = Schema.String.check(
 
 const listenerHost = Schema.String.check(
   satisfies((value: string) => {
-    if (isIP(value)) return true;
+    if (isIP(value)) {
+      return true;
+    }
 
-    if (/^[\d.]+$/.test(value)) return false;
+    if (/^[\d.]+$/.test(value)) {
+      return false;
+    }
 
-    if (value.length > 253) return false;
+    if (value.length > 253) {
+      return false;
+    }
 
     const labels = (value.endsWith('.') ? value.slice(0, -1) : value).split('.');
 
@@ -61,6 +67,7 @@ function section<const Fields extends Schema.Struct.Fields>(fields: Fields) {
 
   // SAFETY: every field of a section is optional in its encoded form (a default or an optional key),
   // so the empty object is a valid encoded section.
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion
   return struct.pipe(withDefault({} as typeof struct.Encoded));
 }
 
@@ -221,7 +228,12 @@ export const configSchema = Schema.Struct({
     migrationBackups: PositiveInt.pipe(withDefault(2)),
     temporaryFileHours: PositiveInt.pipe(withDefault(24)),
   }),
-  tls: section({ certFile: optionalPath.pipe(withDefault('')), keyFile: optionalPath.pipe(withDefault('')) }),
+  tls: section({
+    certFile: optionalPath.pipe(withDefault('')),
+    keyFile: optionalPath.pipe(withDefault('')),
+    /** Lifetime of the certificate the server generates for itself. */
+    lifetimeYears: IntBetween(1, 20).pipe(withDefault(5)),
+  }),
   pelotons: Schema.Array(peloton).pipe(withDefault([])),
   soloBlob: section({
     enabled: flag(false),

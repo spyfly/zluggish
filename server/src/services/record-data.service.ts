@@ -11,7 +11,7 @@ const make = Effect.gen(function* () {
     table: Table,
     schema: Schema,
     message: ProtobufMessage<Schema>,
-    exclude: string[] = [],
+    exclude: Array<string> = [],
   ) {
     return repositories.protobufRepository.insert(table, schema, message, exclude);
   });
@@ -21,7 +21,7 @@ const make = Effect.gen(function* () {
     id: bigint,
     schema: Schema,
     message: ProtobufMessage<Schema>,
-    exclude: string[] = [],
+    exclude: Array<string> = [],
   ) {
     repositories.protobufRepository.update(table, id, schema, message, exclude);
   });

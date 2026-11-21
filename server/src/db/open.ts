@@ -26,14 +26,13 @@ const isVersionRow = Schema.is(Schema.Struct({ version: Schema.Finite }));
 /** Ordinary schema migrations after the storage merge. Each runs in one transaction at
 startup. A migration that changes existing data needs a backup first (storage backup).
 */
-const migrations: { version: number; up: (db: DatabaseSync) => void }[] = [
+const migrations: Array<{ version: number; up: (db: DatabaseSync) => void }> = [
   { version: 7, up: (db) => db.exec(indexesSQL) },
   { version: 8, up: (db) => db.exec(administratorSchemaSQL) },
   { version: 9, up: (db) => db.exec(dropManagementAuditSQL) },
   { version: 10, up: (db) => db.exec(webSessionSQL) },
 ];
 
-/** The schema version this release writes. */
 export const SCHEMA_VERSION = STORAGE_VERSION + migrations.length;
 
 function version(db: DatabaseSync) {
@@ -54,8 +53,9 @@ export function configureConnection(db: DatabaseSync) {
 Incompatible schema/hash/folder evidence requires explicit account migration.
 */
 export function openDatabase(storage: string): DatabaseSync {
-  if (existsSync(resolve(storage, StorageFile.RestoreMarker)))
+  if (existsSync(resolve(storage, StorageFile.RestoreMarker))) {
     throw new ConfigError('A storage restore did not finish; run storage restore again while the server is stopped');
+  }
 
   resolvePendingMigration(storage);
 
@@ -81,8 +81,9 @@ export function openDatabase(storage: string): DatabaseSync {
           .map((row) => row.name),
       );
 
-      if (version !== undefined && version > SCHEMA_VERSION)
+      if (version !== undefined && version > SCHEMA_VERSION) {
         throw new ConfigError('The database is newer than this release; use a newer release');
+      }
 
       if (
         version === undefined ||
@@ -93,8 +94,9 @@ export function openDatabase(storage: string): DatabaseSync {
           .prepare("SELECT 1 FROM user WHERE pass_hash IS NOT NULL AND pass_hash NOT LIKE '$argon2id$%' LIMIT 1")
           .get() ||
         !inspection.prepare("SELECT 1 FROM sqlite_master WHERE name='account_state'").get()
-      )
+      ) {
         throw new ConfigError('Account database upgrade required; run accounts migrate while stopped');
+      }
     } finally {
       inspection.close();
     }
@@ -102,7 +104,9 @@ export function openDatabase(storage: string): DatabaseSync {
     throw new ConfigError('Legacy rider folders require accounts migrate; refusing to create new identities');
   }
 
-  if (legacyVersion === 4 || (!fresh && existingPath !== path)) backupLegacyStorage(storage, 'pre-migration');
+  if (legacyVersion === 4 || (!fresh && existingPath !== path)) {
+    backupLegacyStorage(storage, 'pre-migration');
+  }
 
   if (!fresh && existingPath !== path) {
     const source = new DatabaseSync(existingPath);
@@ -119,10 +123,14 @@ export function openDatabase(storage: string): DatabaseSync {
   // A settings.db from an offline config migration is a legacy store: merge it.
   const legacySettings = existsSync(resolve(storage, StorageFile.Settings));
 
-  if (fresh && legacySettings) backupLegacyStorage(storage, 'pre-migration');
+  if (fresh && legacySettings) {
+    backupLegacyStorage(storage, 'pre-migration');
+  }
 
   // Back up an existing v5 store before opening it for writes.
-  if (legacyVersion === 5) migrateStorage(storage);
+  if (legacyVersion === 5) {
+    migrateStorage(storage);
+  }
 
   mkdirSync(storage, { recursive: true });
   let db = new DatabaseSync(path, { timeout: 5000 });
@@ -135,8 +143,9 @@ export function openDatabase(storage: string): DatabaseSync {
       db.exec(createSchemaSQL);
       db.exec(completionSchemaSQL);
 
-      if (legacySettings) db.exec('INSERT INTO version VALUES (5)');
-      else {
+      if (legacySettings) {
+        db.exec('INSERT INTO version VALUES (5)');
+      } else {
         db.exec(storageSchemaSQL);
         db.exec(`INSERT INTO version VALUES (${STORAGE_VERSION})`);
       }
@@ -160,7 +169,9 @@ export function openDatabase(storage: string): DatabaseSync {
     configureConnection(db);
 
     for (const migration of migrations) {
-      if (migration.version <= version(db)) continue;
+      if (migration.version <= version(db)) {
+        continue;
+      }
       db.exec('BEGIN IMMEDIATE');
       migration.up(db);
       db.prepare('UPDATE version SET version=?').run(migration.version);
@@ -169,9 +180,13 @@ export function openDatabase(storage: string): DatabaseSync {
 
     return db;
   } catch (error) {
-    if (db.isOpen && db.isTransaction) db.exec('ROLLBACK');
+    if (db.isOpen && db.isTransaction) {
+      db.exec('ROLLBACK');
+    }
 
-    if (db.isOpen) db.close();
+    if (db.isOpen) {
+      db.close();
+    }
     throw error;
   }
 }

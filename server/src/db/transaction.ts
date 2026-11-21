@@ -15,13 +15,14 @@ export function immediate<T>(db: DatabaseSync, operation: () => T): T {
 
       return result;
     } catch (error) {
-      if (db.isTransaction) db.exec('ROLLBACK');
+      if (db.isTransaction) {
+        db.exec('ROLLBACK');
+      }
       throw error;
     }
   });
 }
 
-/** Join the caller's transaction, or run in a new one. */
 export function atomic<T>(db: DatabaseSync, operation: () => T): T {
   return db.isTransaction ? operation() : immediate(db, operation);
 }
@@ -34,7 +35,9 @@ export function transaction(db: DatabaseSync) {
   return <A, E, R>(body: Effect.Effect<A, E, R>): Effect.Effect<A, E, R> =>
     Effect.flatMap(Effect.context<R>(), (context) =>
       Effect.suspend(() => {
-        if (db.isTransaction) return Effect.runSyncExitWith(context)(body);
+        if (db.isTransaction) {
+          return Effect.runSyncExitWith(context)(body);
+        }
 
         return metrics.time(Metric.DatabaseTransaction, () => {
           db.exec('BEGIN IMMEDIATE');
@@ -45,7 +48,9 @@ export function transaction(db: DatabaseSync) {
 
             return exit;
           } catch (error) {
-            if (db.isTransaction) db.exec('ROLLBACK');
+            if (db.isTransaction) {
+              db.exec('ROLLBACK');
+            }
             throw error;
           }
         });

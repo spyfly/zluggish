@@ -9,9 +9,20 @@ const make = Effect.gen(function* () {
     return files.existsSync(path);
   });
 
-  /** Whether path names a regular file. */
   const isFile = Effect.fn('FilesService.isFile')(function* (path: string) {
     return files.existsSync(path) && files.statSync(path).isFile();
+  });
+
+  const size = Effect.fn('FilesService.size')(function* (path: string) {
+    return files.statSync(path).size;
+  });
+
+  /** Stream the inclusive byte range of path, for files too large to hold in memory. */
+  const readStream = Effect.fn('FilesService.readStream')(function* (
+    path: string,
+    range: { start: number; end: number },
+  ) {
+    return files.createReadStream(path, range);
   });
 
   const read = Effect.fn('FilesService.read')(function* (path: string) {
@@ -23,14 +34,17 @@ const make = Effect.gen(function* () {
   });
 
   /** Write path durably; an existing file is kept unless replace is set. */
-  const write = Effect.fn('FilesService.write')(function* (path: string, data: string | Uint8Array, replace = false) {
+  const write = Effect.fn('FilesService.write')(function* (
+    path: string,
+    data: string | Uint8Array,
+    replace: boolean = false,
+  ) {
     files.writeDurable(path, data, replace);
   });
 
-  return { exists, isFile, read, readText, write };
+  return { exists, isFile, size, readStream, read, readText, write };
 });
 
-/** Files in the asset and storage folders. */
 export class FilesService extends Context.Service<FilesService, Effect.Success<typeof make>>()(
   'zluggish/FilesService',
 ) {

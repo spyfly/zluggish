@@ -13,7 +13,6 @@ function activityChart(bytes: Uint8Array) {
   return metrics.time(Metric.FitProcessing, () => new FitDecoder().chart(bytes));
 }
 
-/** Chart data computed in the FIT worker thread. */
 function chart(bytes: Uint8Array) {
   return fitWorkers.chart(bytes);
 }
@@ -40,9 +39,11 @@ const make = Effect.gen(function* () {
   ) {
     const weight = repositories.profileRepository.get(playerId).weightInGrams / 1000;
 
-    if (weight <= 0) return;
+    if (weight <= 0) {
+      return;
+    }
 
-    for (const { time, power } of curve.bests)
+    for (const { time, power } of curve.bests) {
       repositories.fitnessRepository.insertPowerCurve(
         playerId,
         String(time),
@@ -51,6 +52,7 @@ const make = Effect.gen(function* () {
         curve.timestamp,
         activity,
       );
+    }
   });
 
   return { savePowerCurve, insertPowerBests };

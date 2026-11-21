@@ -24,7 +24,9 @@ const make = Effect.gen(function* () {
 
     return {
       receive(author: string, content: string) {
-        if (!chat.closed) chat.relay(author, content);
+        if (!chat.closed) {
+          chat.relay(author, content);
+        }
       },
       send: chat.send,
       online: chat.online,
@@ -32,7 +34,6 @@ const make = Effect.gen(function* () {
     };
   });
 
-  /** Connect to Matrix with the configured credentials. */
   const start = Effect.fn('MatrixService.start')(function* () {
     const transport = context.accounts.repositories.matrixRepository.openMatrixTransport(
       settings(),

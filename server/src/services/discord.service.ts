@@ -22,13 +22,17 @@ const make = Effect.gen(function* () {
 
     return {
       receive(channel: string, author: string, bot: boolean, content: string) {
-        if (chat.closed || bot || channel !== String(settings().channel)) return;
+        if (chat.closed || bot || channel !== String(settings().channel)) {
+          return;
+        }
         chat.relay(author, content);
       },
       welcome(member: string) {
         const message = settings().welcomeMessage;
 
-        if (message) chat.send(`${member}\n${message}`);
+        if (message) {
+          chat.send(`${member}\n${message}`);
+        }
       },
       send: chat.send,
       online: chat.online,
@@ -36,7 +40,6 @@ const make = Effect.gen(function* () {
     };
   });
 
-  /** Connect to Discord with the configured credentials. */
   const start = Effect.fn('DiscordService.start')(function* () {
     const transport = context.accounts.repositories.discordRepository.openDiscordTransport(settings(), {
       receive: (channel, author, bot, content) => receiver.receive(channel, author, bot, content),

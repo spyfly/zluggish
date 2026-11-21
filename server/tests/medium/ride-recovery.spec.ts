@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readdirSync, readFileSync, truncateSync, utimesSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
+import { StateHistory } from '#src/world/state-history';
 import { Effect, Layer, Schema } from 'effect';
 
 const sample = (id: bigint, index: number, courseId = 6) =>
@@ -37,7 +38,9 @@ async function riding(t: Parameters<typeof mediumFixture>[0]) {
 }
 
 function ride(world: World, id: bigint, from: number, to: number, courseId = 6) {
-  for (let index = from; index < to; index++) world.receive(id, sample(id, index, courseId));
+  for (let index = from; index < to; index++) {
+    world.receive(id, sample(id, index, courseId));
+  }
 }
 
 await test('checkpoints append only new samples; a cut last record is ignored', async (t) => {
@@ -79,7 +82,9 @@ await test('a restarted server resumes a recent ride on the same course and its 
   t.after(() => Effect.runPromise(restarted.close()));
   world.login(id, new Uint8Array(16));
   await restarted.recordings.idle();
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  await new Promise((resolve) => {
+    setTimeout(resolve, 20);
+  });
   ride(world, id, 20, 25);
   await Effect.runPromise(restarted.checkpoint());
   assert.equal(world.histories.get(id)?.length, 25);
@@ -95,7 +100,7 @@ await test('a restarted server resumes a recent ride on the same course and its 
   });
 
   const { id: activity } = Schema.decodeUnknownSync(Schema.Struct({ id: Schema.Finite }))(await response.json());
-  f.world.histories.set(id, world.histories.get(id) ?? []);
+  f.world.histories.set(id, world.histories.get(id) ?? new StateHistory());
   services.effects.runSync(
     ActivitiesService.use((service) =>
       service.finalize(
@@ -110,7 +115,9 @@ await test('a restarted server resumes a recent ride on the same course and its 
       ),
     ),
   );
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  await new Promise((resolve) => {
+    setTimeout(resolve, 50);
+  });
   const folder = resolve(f.profiles.folder(f.rider.player_id), 'ghosts', '6', '1');
   const ghost = fromBinary(GhostSchema, readFileSync(resolve(folder, readdirSync(folder)[0] ?? '')));
   assert.equal(ghost.states.length, 25);
@@ -121,7 +128,9 @@ await test('a recording on another course or past the resume window is discarded
   ride(f.world, id, 0, 5);
   await f.effects.runPromise(RideRecoveryService.use((service) => service.checkpoint()));
   f.world.login(id, new Uint8Array(16));
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  await new Promise((resolve) => {
+    setTimeout(resolve, 20);
+  });
   ride(f.world, id, 5, 6, 7);
   await f.effects.runPromise(RideRecoveryService.use((service) => service.checkpoint()));
   await f.effects.runSync(RideRecoveryService).recordings.idle();
@@ -132,7 +141,9 @@ await test('a recording on another course or past the resume window is discarded
   const old = (Date.now() - 16 * 60_000) / 1000;
   utimesSync(path, old, old);
   f.world.login(id, new Uint8Array(16));
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  await new Promise((resolve) => {
+    setTimeout(resolve, 20);
+  });
   await f.effects.runSync(RideRecoveryService).recordings.idle();
   assert.equal(existsSync(path), false);
 });
@@ -149,6 +160,8 @@ await test('a connection end neither completes nor uploads a ride, and keeps the
   assert.equal(f.accounts.db.prepare('SELECT count(*) AS n FROM job').get()?.n, 0);
 
   f.world.logout(id, 'activity_finished');
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  await new Promise((resolve) => {
+    setTimeout(resolve, 20);
+  });
   assert.equal(existsSync(path), false);
 });

@@ -2,7 +2,7 @@ import type { PlayerState } from '#src/protocol/generated/udp-node-msgs_pb';
 import { PlayerStateSchema } from '#src/protocol/generated/udp-node-msgs_pb';
 import { Metric, metrics } from '#src/repositories/metrics.repository';
 import { fromBinary } from '@bufbuild/protobuf';
-import { sizeDelimitedEncode, sizeDelimitedPeek } from '@bufbuild/protobuf/wire';
+import { BinaryWriter, sizeDelimitedPeek } from '@bufbuild/protobuf/wire';
 import { mkdir, open, readFile, rm, stat } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 
@@ -22,9 +22,14 @@ export class RideRecoveryRepository {
     return resolve(this.storage, String(player), 'ride-recovery.bin');
   }
 
-  /** Appends in order for each rider. Past the size limit, nothing more is recorded. */
-  append(player: number, states: PlayerState[]) {
-    const data = Buffer.concat(states.map((state) => sizeDelimitedEncode(PlayerStateSchema, state)));
+  /** Appends encoded states in order for each rider. Past the size limit, nothing more is recorded. */
+  append(player: number, states: ReadonlyArray<Uint8Array>) {
+    const writer = new BinaryWriter();
+
+    for (const state of states) {
+      writer.bytes(state);
+    }
+    const data = writer.finish();
 
     const write = (this.writes.get(player) ?? Promise.resolve()).then(() =>
       metrics.timeAsync(Metric.RecoveryAppend, async () => {
@@ -34,7 +39,9 @@ export class RideRecoveryRepository {
           .then((info) => info.size)
           .catch(() => 0);
 
-        if (size + data.length > this.maxBytes) return;
+        if (size + data.length > this.maxBytes) {
+          return;
+        }
         await mkdir(dirname(path), { recursive: true });
         const handle = await open(path, 'a', 0o600);
 
@@ -52,7 +59,9 @@ export class RideRecoveryRepository {
     const settled = write.catch(() => {});
     this.writes.set(player, settled);
     void settled.finally(() => {
-      if (this.writes.get(player) === settled) this.writes.delete(player);
+      if (this.writes.get(player) === settled) {
+        this.writes.delete(player);
+      }
     });
 
     return write;
@@ -67,17 +76,21 @@ export class RideRecoveryRepository {
     try {
       [data, modified] = await Promise.all([readFile(path), stat(path).then((info) => info.mtimeMs)]);
     } catch (error) {
-      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return null;
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+        return null;
+      }
       throw error;
     }
 
-    const states: PlayerState[] = [];
+    const states: Array<PlayerState> = [];
     let rest = data;
 
     for (;;) {
       const peek = sizeDelimitedPeek(rest);
 
-      if (peek.eof || peek.offset + peek.size > rest.length) break;
+      if (peek.eof || peek.offset + peek.size > rest.length) {
+        break;
+      }
 
       try {
         states.push(fromBinary(PlayerStateSchema, rest.subarray(peek.offset, peek.offset + peek.size)));
@@ -96,7 +109,6 @@ export class RideRecoveryRepository {
     await rm(this.path(player), { force: true });
   }
 
-  /** Wait for every pending append. */
   async idle() {
     await Promise.all(this.writes.values());
   }

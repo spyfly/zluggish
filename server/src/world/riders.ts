@@ -4,7 +4,8 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Schema } from 'effect';
 import { Strict } from '#src/schema';
-import { PlayerProfileSchema, type PlayerProfile } from '#src/protocol/generated/profile_pb';
+import { PlayerProfileSchema } from '#src/protocol/generated/profile_pb';
+import type { PlayerProfile } from '#src/protocol/generated/profile_pb';
 import { Random } from '#src/world/geometry';
 
 type RiderSpec = Record<string, typeof Schema.Json.Type>;
@@ -34,7 +35,7 @@ export class RiderPool {
 
   readonly dictionary: RiderSpec;
 
-  readonly names: readonly RiderSpec[];
+  readonly names: ReadonlyArray<RiderSpec>;
 
   constructor(
     assets: string,
@@ -45,11 +46,11 @@ export class RiderPool {
       JSON.parse(readFileSync(resolve(assets, 'data/game_dictionary.txt'), 'utf8')),
     );
 
-    if (ridersFile)
+    if (ridersFile) {
       this.names = Schema.decodeUnknownSync(
         Schema.Struct({ riders: Schema.Array(Schema.Record(Schema.String, Schema.Json)) }),
       )(JSON.parse(readFileSync(ridersFile, 'utf8'))).riders;
-    else {
+    } else {
       const names = Schema.decodeUnknownSync(
         Schema.Struct({
           male_first_names: Schema.Array(Schema.String),
@@ -85,10 +86,13 @@ export class RiderPool {
         'hairColour',
         'facialHairType',
         'facialHairColour',
-      ] as const)
+      ] as const) {
         mergeFromJson(PlayerProfileSchema, profile, { [field]: body[field] });
+      }
     }
 
+    // The JSON round trip yields the JSON form mergeFromJson expects; structuredClone would keep non-JSON values.
+    // oxlint-disable-next-line unicorn/prefer-structured-clone, typescript/no-unsafe-argument
     mergeFromJson(PlayerProfileSchema, profile, JSON.parse(JSON.stringify(equipment)));
   }
 
@@ -106,6 +110,7 @@ export class RiderPool {
       lastName: String(id),
       isMale: rng.value() > 0.5,
       weightInGrams: Math.round(rng.between(62, 86) * 1000),
+      privacyBits: 4n,
       heightInMillimeters: Math.round(rng.between(165, 192) * 10),
     });
 
@@ -142,10 +147,13 @@ export class RiderPool {
       for (const field of PlayerProfileSchema.fields) {
         const value = spec[field.localName] ?? spec[field.name];
 
-        if (value !== undefined) values[field.jsonName] = value;
+        if (value !== undefined) {
+          values[field.jsonName] = value;
+        }
       }
 
       // SAFETY: decoded JSON values are plain JSON; protobuf only reads them.
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion
       mergeFromJson(PlayerProfileSchema, profile, values as JsonValue, {
         ignoreUnknownFields: true,
       });

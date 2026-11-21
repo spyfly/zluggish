@@ -27,7 +27,9 @@ async function browserFixture(t: TestContext) {
   const server = serve({ fetch: f.app.fetch, hostname: '127.0.0.1', port: 0 });
   t.after(() => server.close());
 
-  if (!server.listening) await once(server, 'listening');
+  if (!server.listening) {
+    await once(server, 'listening');
+  }
   const address = Schema.decodeUnknownSync(Schema.Struct({ port: Schema.Finite }))(server.address());
   const origin = `http://127.0.0.1:${address.port}`;
   const browser = await chromium.launch();
@@ -36,7 +38,9 @@ async function browserFixture(t: TestContext) {
   const web = serve({ fetch: createWebApp(f).fetch, hostname: '127.0.0.1', port: 0 });
   t.after(() => web.close());
 
-  if (!web.listening) await once(web, 'listening');
+  if (!web.listening) {
+    await once(web, 'listening');
+  }
   const webAddress = Schema.decodeUnknownSync(Schema.Struct({ port: Schema.Finite }))(web.address());
 
   return { ...f, origin, browser, webOrigin: `http://127.0.0.1:${webAddress.port}` };
@@ -66,7 +70,9 @@ async function signIn(page: Page, origin: string, id: number, password = 'test-p
   await page.locator(`form:has(input[name=player_id][value="${id}"]) button`).click();
   await page.getByLabel('Password', { exact: true }).fill(password);
 
-  if (remember) await page.getByLabel('Remember password', { exact: true }).check();
+  if (remember) {
+    await page.getByLabel('Remember password', { exact: true }).check();
+  }
   // A sign-in password is not a setting, so the form must not report unsaved changes.
   assert.equal(await page.getByText('Unsaved changes').count(), 0);
   await page.getByRole('button', { name: 'Sign in' }).click();
@@ -84,7 +90,7 @@ for (const javaScriptEnabled of [true, false]) {
     });
 
     const page = await context.newPage();
-    const errors: string[] = [];
+    const errors: Array<string> = [];
     page.on('pageerror', (error) => {
       errors.push(error.message);
     });
@@ -324,8 +330,9 @@ for (const app of ['webapp', 'launcher']) {
     page.setDefaultTimeout(7000);
     const rider = await f.accounts.create('Outage Rider', 'test-password', 'outage');
 
-    if (app === 'webapp') await webSignIn(page, f, rider);
-    else {
+    if (app === 'webapp') {
+      await webSignIn(page, f, rider);
+    } else {
       await page.goto(`${f.origin}/login/`);
       await page.locator(`form:has(input[name=player_id][value="${rider.player_id}"]) button`).click();
     }

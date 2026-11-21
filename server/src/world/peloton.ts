@@ -1,6 +1,7 @@
 import type { ResolvedConfig } from '#src/config/index';
 import type { PlayerProfile } from '#src/protocol/generated/profile_pb';
 import type { PlayerState } from '#src/protocol/generated/udp-node-msgs_pb';
+import type { Recording } from '#src/world/recording';
 import { clamp, continuous, interpolate, Random } from '#src/world/geometry';
 import type { RiderPool } from '#src/world/riders';
 
@@ -8,10 +9,11 @@ const rank = (preference: string) => (preference === 'front' ? 0 : preference ==
 
 export interface ReplayRider {
   profile: PlayerProfile;
-  states: PlayerState[];
+  recording: Recording;
   position: number;
   folder: string;
   pacer: boolean;
+  ownerId?: number | undefined;
 }
 
 type PelotonConfig = ResolvedConfig['pelotons'][number];
@@ -40,21 +42,24 @@ Slot shuffles are synchronous swaps admitted by nextShuffle; replay wrap is owne
 by Simulation.tick. previous=null initializes motion, not a paused rider state.
 */
 export class Peloton {
-  readonly riders: Follower[] = [];
+  readonly riders: Array<Follower> = [];
 
-  readonly slots: [number, number][] = [];
+  readonly slots: Array<[number, number]> = [];
 
-  readonly starts: number[] = [];
+  readonly starts: Array<number> = [];
 
-  readonly lengths: number[] = [];
+  readonly lengths: Array<number> = [];
 
-  readonly grades: number[];
+  readonly grades: Array<number>;
 
   readonly rng: Random;
 
   readonly length: number;
 
   nextShuffle = 0;
+
+  /** Decoded pacer states of the current tick only; riders cluster on a few indices. */
+  private readonly decoded = new Map<number, PlayerState>();
 
   constructor(
     readonly index: number,
@@ -64,13 +69,19 @@ export class Peloton {
   ) {
     this.rng = new Random(Number(pacer.profile.id));
     let distance = 0;
-    const raw: number[] = [];
+    const raw: Array<number> = [];
 
-    for (let i = 0; i < pacer.states.length; i++) {
-      const a = pacer.states[i];
-      const b = pacer.states[(i + 1) % pacer.states.length];
+    const states = pacer.recording.length;
+    const first = states > 0 ? pacer.recording.state(0) : undefined;
+    const powers: Array<number> = [];
+    let a = first;
 
-      if (!a || !b) continue;
+    for (let i = 0; i < states && a && first; i++) {
+      const b = i + 1 < states ? pacer.recording.state(i + 1) : first;
+
+      if (a.power > 0) {
+        powers.push(a.power);
+      }
       const elapsed = Number(b.worldTime - a.worldTime);
       const seconds = elapsed > 0 && elapsed < 5000 ? elapsed / 1000 : 1;
 
@@ -80,6 +91,7 @@ export class Peloton {
       this.lengths.push(length);
       distance += length;
       raw.push(continuous(a, b) && length > 1 ? clamp((b.yAltitude - a.yAltitude) / 100 / length, -0.25, 0.25) : 0);
+      a = b;
     }
 
     this.length = distance;
@@ -90,8 +102,6 @@ export class Peloton {
           0,
         ) / 7,
     );
-
-    const powers = pacer.states.filter((state) => state.power > 0).map((state) => state.power);
 
     const wkg =
       powers.length > 0
@@ -137,11 +147,12 @@ export class Peloton {
 
     const beside = Math.min(config.besidePacer, count);
 
-    for (let i = 0; i < beside; i++)
+    for (let i = 0; i < beside; i++) {
       this.slots.push([
         0.6 + Math.floor(i / 2) * config.rowGap * 0.3,
         (i % 2 ? 1 : -1) * config.lateralSpacing * (1 + Math.floor(i / 2)),
       ]);
+    }
 
     const columns = config.columns || clamp(Math.round(Math.sqrt(count / 2.5)) + 1, 2, 6);
 
@@ -150,8 +161,9 @@ export class Peloton {
 
       const stagger = width === columns ? config.lateralSpacing * 0.25 * (row % 2 ? 1 : -1) : 0;
 
-      for (let column = 0; column < width && this.slots.length < count; column++)
+      for (let column = 0; column < width && this.slots.length < count; column++) {
         this.slots.push([row * config.rowGap, (column - (width - 1) / 2) * config.lateralSpacing + stagger]);
+      }
     }
 
     const order = this.riders
@@ -168,8 +180,22 @@ export class Peloton {
     }
   }
 
+  private at(index: number) {
+    const cached = this.decoded.get(index);
+
+    if (cached) {
+      return cached;
+    }
+    const state = this.pacer.recording.state(index);
+    this.decoded.set(index, state);
+
+    return state;
+  }
+
   tick(now: number, time: bigint, seconds = 1) {
-    if (this.pacer.states.length === 0 || !this.length) return [];
+    if (this.pacer.recording.length === 0 || !this.length) {
+      return [];
+    }
 
     if (this.config.dynamics > 0 && now >= this.nextShuffle && this.riders.length > 1) {
       const rider = this.rng.pick(this.riders);
@@ -187,6 +213,8 @@ export class Peloton {
 
       this.nextShuffle = now + this.config.shuffleInterval * this.rng.between(0.5, 1.5);
     }
+
+    this.decoded.clear();
 
     const grade = this.grades[this.pacer.position] ?? 0;
 
@@ -217,11 +245,17 @@ export class Peloton {
 
       let index = this.starts.findIndex((start, i) => distance >= start && distance < start + (this.lengths[i] ?? 0));
 
-      if (index < 0) index = 0;
-      const a = this.pacer.states[index];
-      const b = this.pacer.states[(index + 1) % this.pacer.states.length];
+      if (index < 0) {
+        index = 0;
+      }
 
-      if (!a || !b) throw new Error('Empty pacer route');
+      if (this.pacer.recording.length === 0) {
+        throw new Error('Empty pacer route');
+      }
+
+      // a and b are only read: interpolate() clones before it mutates.
+      const a = this.at(index);
+      const b = this.at((index + 1) % this.pacer.recording.length);
 
       const state = interpolate(a, b, clamp((distance - (this.starts[index] ?? 0)) / (this.lengths[index] ?? 1), 0, 1));
 

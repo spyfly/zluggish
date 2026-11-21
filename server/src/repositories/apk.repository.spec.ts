@@ -1,0 +1,246 @@
+import { ApkRepository, isJarSignature } from '#src/repositories/apk.repository';
+import { CertificateRepository } from '#src/repositories/certificate.repository';
+import { CryptoRepository } from '#src/repositories/crypto.repository';
+import assert from 'node:assert/strict';
+import { createHash, createPublicKey, verify } from 'node:crypto';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { resolve } from 'node:path';
+import { test } from 'node:test';
+import { binaryManifest, contents, listEntries, u32, zip } from '#tests/support/apk';
+
+const repository = new ApkRepository();
+const crypto = new CryptoRepository();
+const certificates = new CertificateRepository();
+const signerMaterial = await certificates.createApkSigner({ serverId: '0123456789ab', years: 50, now: new Date() });
+const server = await certificates.create({ serverId: '0123456789ab', years: 5, now: new Date() });
+
+const signer = {
+  key: signerMaterial.key,
+  certificate: Buffer.from(signerMaterial.cert.replaceAll(/-----[A-Z ]+-----|\s/g, ''), 'base64'),
+  publicKey: crypto.certificatePublicKey(signerMaterial.cert),
+};
+
+/** Verify an APK Signature Scheme v2 signature from the spec, without the repository's code. */
+function verifyV2(archive: Buffer) {
+  const eocd = archive.lastIndexOf(Buffer.from([0x50, 0x4b, 5, 6]));
+  const directory = archive.readUInt32LE(eocd + 16);
+  assert.equal(archive.toString('ascii', directory - 16, directory), 'APK Sig Block 42');
+  const size = Number(archive.readBigUInt64LE(directory - 24));
+  const block = directory - size - 8;
+  assert.equal(Number(archive.readBigUInt64LE(block)), size);
+  assert.equal(archive.readUInt32LE(block + 16), 0x71_09_87_1a);
+
+  const prefixed = (buffer: Buffer, at: number) => {
+    const length = buffer.readUInt32LE(at);
+
+    return { value: buffer.subarray(at + 4, at + 4 + length), next: at + 4 + length };
+  };
+
+  const value = archive.subarray(block + 20, directory - 24);
+  const signerBlock = prefixed(prefixed(value, 0).value, 0).value;
+  const signedData = prefixed(signerBlock, 0);
+  const signatures = prefixed(signerBlock, signedData.next);
+  const publicKey = prefixed(signerBlock, signatures.next).value;
+  const signature = prefixed(signatures.value, 0).value;
+  assert.equal(signature.readUInt32LE(0), 0x02_01);
+  const key = createPublicKey({ key: publicKey, format: 'der', type: 'spki' });
+  assert.ok(verify('sha256', signedData.value, key, prefixed(signature, 4).value), 'the signature verifies');
+
+  const digest = prefixed(prefixed(prefixed(signedData.value, 0).value, 0).value, 4).value;
+  const end = Buffer.from(archive.subarray(eocd));
+  end.writeUInt32LE(block, 16);
+  const chunks: Array<Buffer> = [];
+
+  for (const section of [archive.subarray(0, block), archive.subarray(directory, eocd), end]) {
+    for (let at = 0; at < section.length; at += 1024 * 1024) {
+      const chunk = section.subarray(at, at + 1024 * 1024);
+      chunks.push(
+        createHash('sha256')
+          .update(Buffer.from([0xa5]))
+          .update(u32(chunk.length))
+          .update(chunk)
+          .digest(),
+      );
+    }
+  }
+
+  const expected = createHash('sha256')
+    .update(Buffer.from([0x5a]))
+    .update(u32(chunks.length))
+    .update(Buffer.concat(chunks))
+    .digest();
+
+  assert.deepEqual(digest, expected, 'the digest covers the archive');
+
+  return publicKey;
+}
+
+function workspace() {
+  const folder = mkdtempSync(resolve(tmpdir(), 'zluggish-apk-'));
+
+  return { folder, [Symbol.dispose]: () => rmSync(folder, { recursive: true, force: true }) };
+}
+
+const manifest = binaryManifest('com.zwift.android.prod', '3.91.0', 2175, 28);
+const library = Buffer.alloc(40_000, 7);
+
+const patched = zip([
+  ['AndroidManifest.xml', manifest, true],
+  ['META-INF/MANIFEST.MF', Buffer.from('Manifest-Version: 1.0\n'), true],
+  ['META-INF/ANDROIDD.SF', Buffer.from('signature'), true],
+  ['META-INF/ANDROIDD.RSA', Buffer.from('block'), false],
+  ['classes.dex', Buffer.alloc(3000, 1), true],
+  ['resources.arsc', Buffer.alloc(1001, 2), true],
+  ['res/raw/cert-zwift-com.pem', Buffer.from(server.cert), true],
+  ['res/raw/ride_on.wav', Buffer.alloc(501, 3), false],
+  ['lib/arm64-v8a/libapp.so', library, true],
+  ['lib/x86_64/libapp.so', library, false],
+]);
+
+await test('reads the package, version and minimum SDK from a binary manifest', async () => {
+  using space = workspace();
+  const path = resolve(space.folder, 'app.apk');
+  writeFileSync(path, patched);
+
+  assert.deepEqual(await repository.inspect(path), { kind: 'apk' });
+  assert.deepEqual(await repository.manifest(path), {
+    packageName: 'com.zwift.android.prod',
+    versionName: '3.91.0',
+    versionCode: 2175,
+    minSdk: 28,
+  });
+  assert.deepEqual(await repository.trustedCertificates(path), ['res/raw/cert-zwift-com.pem']);
+});
+
+await test('tells a bundle of split APKs from an APK and from other files', async () => {
+  using space = workspace();
+  const bundle = resolve(space.folder, 'app.apks');
+  const other = resolve(space.folder, 'notes.txt');
+  writeFileSync(
+    bundle,
+    zip([
+      ['base.apk', patched, false],
+      ['split_config.arm64_v8a.apk', patched, true],
+      ['info.json', Buffer.from('{}'), true],
+    ]),
+  );
+  writeFileSync(other, 'not a zip');
+
+  assert.deepEqual(await repository.inspect(bundle), {
+    kind: 'bundle',
+    apks: ['base.apk', 'split_config.arm64_v8a.apk'],
+  });
+  assert.deepEqual(await repository.inspect(other), { kind: 'unknown' });
+
+  await repository.extractApks(bundle, resolve(space.folder, 'splits'));
+  assert.deepEqual(readFileSync(resolve(space.folder, 'splits', 'split_config.arm64_v8a.apk')), patched);
+});
+
+await test('swaps the trusted certificate, aligns stored entries and signs with v2', async () => {
+  using space = workspace();
+  const input = resolve(space.folder, 'in.apk');
+  const output = resolve(space.folder, 'out.apk');
+  writeFileSync(input, patched);
+
+  await repository.rewrite(input, output, signer, {
+    replace: new Map([['res/raw/cert-zwift-com.pem', Buffer.from(server.cert)]]),
+  });
+
+  const archive = readFileSync(output);
+  const entries = listEntries(archive);
+
+  assert.deepEqual(verifyV2(archive), signer.publicKey);
+  assert.equal(contents(archive, 'res/raw/cert-zwift-com.pem').toString('utf8'), server.cert);
+  assert.deepEqual(contents(archive, 'AndroidManifest.xml'), manifest);
+  assert.deepEqual(contents(archive, 'lib/arm64-v8a/libapp.so'), library);
+  assert.ok(
+    entries.keys().every((name) => !isJarSignature(name)),
+    'the v1 signature is gone',
+  );
+  assert.ok(entries.has('res/raw/ride_on.wav'));
+
+  for (const [name, entry] of entries) {
+    assert.equal(entry.flags & 0x08, 0, `${name} needs no data descriptor`);
+
+    if (name.endsWith('.so') || name === 'resources.arsc') {
+      assert.equal(entry.method, 0, `${name} is stored`);
+    }
+
+    if (name.endsWith('.so')) {
+      assert.equal(entry.start % 16_384, 0, `${name} starts on a 16 KB page`);
+    } else if (entry.method === 0) {
+      assert.equal(entry.start % 4, 0, `${name} is 4-byte aligned`);
+    }
+  }
+
+  // A second pass over its own output, as after a certificate rotation, keeps the signer.
+  const again = resolve(space.folder, 'again.apk');
+  await repository.rewrite(output, again, signer, {
+    replace: new Map([['res/raw/cert-zwift-com.pem', Buffer.from('x')]]),
+  });
+  assert.deepEqual(verifyV2(readFileSync(again)), signer.publicKey);
+});
+
+await test('points a decoded app at the certificate and declares the new resources', async () => {
+  using space = workspace();
+  const res = resolve(space.folder, 'resources', 'package_1', 'res');
+  mkdirSync(resolve(res, 'values'), { recursive: true });
+  mkdirSync(resolve(res, 'xml'), { recursive: true });
+  writeFileSync(
+    resolve(space.folder, 'AndroidManifest.xml'),
+    '<manifest package="com.zwift.android.prod">\n  <application android:networkSecurityConfig="@xml/network_security_config" android:label="Companion">\n  </application>\n</manifest>\n',
+  );
+  writeFileSync(
+    resolve(res, 'values', 'public.xml'),
+    '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n  <public id="0x7f130008" type="raw" name="ride_on" />\n  <public id="0x7f18000d" type="xml" name="network_security_config" />\n  <public id="0x7f18000e" type="xml" name="remote_config_defaults" />\n</resources>\n',
+  );
+  writeFileSync(
+    resolve(res, 'xml', 'network_security_config.xml'),
+    '<network-security-config><domain-config><pin-set /></domain-config></network-security-config>',
+  );
+  writeFileSync(
+    resolve(res, 'xml', 'remote_config_defaults.xml'),
+    '<defaultsMap><entry>\n<key>react_native_fitness_view</key>\n<value>false</value>\n</entry></defaultsMap>',
+  );
+
+  await repository.patchDecoded(space.folder, server.cert, 'zluggish_server_cert');
+
+  assert.equal(readFileSync(resolve(res, 'raw', 'zluggish_server_cert.pem'), 'utf8'), server.cert);
+  const config = readFileSync(resolve(res, 'xml', 'network_security_config.xml'), 'utf8');
+  assert.match(config, /<certificates src="@raw\/zluggish_server_cert" \/>/);
+  assert.match(config, /<certificates src="system" \/>/);
+  assert.doesNotMatch(config, /pin-set|src="user"/);
+  assert.match(
+    readFileSync(resolve(res, 'values', 'public.xml'), 'utf8'),
+    /id="0x7f130009" type="raw" name="zluggish_server_cert"/,
+  );
+  assert.match(readFileSync(resolve(res, 'xml', 'remote_config_defaults.xml'), 'utf8'), /<value>true<\/value>/);
+
+  await repository.patchDecoded(space.folder, server.cert, 'zluggish_server_cert');
+  assert.equal(readFileSync(resolve(res, 'values', 'public.xml'), 'utf8').match(/zluggish_server_cert/g)?.length, 1);
+});
+
+await test('gives an app without a network security config a new one', async () => {
+  using space = workspace();
+  const res = resolve(space.folder, 'res');
+  mkdirSync(resolve(res, 'values'), { recursive: true });
+  writeFileSync(
+    resolve(space.folder, 'AndroidManifest.xml'),
+    '<manifest>\n  <application android:label="Companion" />\n</manifest>\n',
+  );
+  writeFileSync(
+    resolve(res, 'values', 'public.xml'),
+    '<resources>\n  <public id="0x7f080001" type="drawable" name="icon" />\n</resources>\n',
+  );
+
+  await repository.patchDecoded(space.folder, server.cert, 'zluggish_server_cert');
+
+  assert.match(
+    readFileSync(resolve(space.folder, 'AndroidManifest.xml'), 'utf8'),
+    /<application android:networkSecurityConfig="@xml\/zluggish_network_security_config" android:label/,
+  );
+  const declared = readFileSync(resolve(res, 'values', 'public.xml'), 'utf8');
+  assert.match(declared, /id="0x7f090000" type="raw" name="zluggish_server_cert"/);
+  assert.match(declared, /id="0x7f0a0000" type="xml" name="zluggish_network_security_config"/);
+});

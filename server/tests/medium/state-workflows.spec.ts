@@ -13,7 +13,8 @@ import { UploadsRepository } from '#src/repositories/uploads.repository';
 import { GarminRepository } from '#src/repositories/garmin.repository';
 import { mediumFixture } from '#tests/medium/support';
 import { create } from '@bufbuild/protobuf';
-import { GarminClient, type LoginResult, type Tokens, type MfaState } from 'garminconnect-js';
+import { GarminClient } from 'garminconnect-js';
+import type { LoginResult, Tokens, MfaState } from 'garminconnect-js';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -98,14 +99,18 @@ await test('the job runner finishes admitted work at close and admits nothing af
   );
   f.effects.runSync(jobs.enqueue('retention', {}));
   f.effects.runSync(jobs.start());
-  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => {
+    setImmediate(resolve);
+  });
   assert.equal(runs, 1);
   const closing = f.effects.runPromise(jobs.close());
   f.effects.runSync(jobs.enqueue('retention', {}));
   gate.resolve();
   await closing;
   f.effects.runSync(jobs.start());
-  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => {
+    setImmediate(resolve);
+  });
   assert.equal(runs, 1);
   assert.deepEqual(
     f.accounts.repositories.jobsRepository.list('retention').map((job) => job.state),
@@ -296,7 +301,7 @@ await test('an obsolete Garmin login cannot publish tokens or erase the newer MF
   assert.equal(publish.mock.callCount(), 1);
 });
 
-for (const reason of ['expiry', 'logout', 'password', 'disconnect'] as const)
+for (const reason of ['expiry', 'logout', 'password', 'disconnect'] as const) {
   await test(`Garmin continuation rejects ${reason}`, async (t) => {
     const f = await mediumFixture(t);
     const opened = webSession(f);
@@ -348,6 +353,7 @@ for (const reason of ['expiry', 'logout', 'password', 'disconnect'] as const)
     );
     assert.equal(resume.mock.callCount(), 0);
   });
+}
 
 await test('Strava authorization cannot publish a token after web sign-out', async (t) => {
   const f = await mediumFixture(t);

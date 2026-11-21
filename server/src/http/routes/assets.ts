@@ -1,5 +1,6 @@
 import { Effect } from 'effect';
 import { effectRoutes } from '#src/http/effect';
+import { fileResponse } from '#src/http/file-response';
 import { FilesService } from '#src/services/files.service';
 import { packageRoot } from '#src/config/load';
 import { gamePage } from '#src/http/game/render';
@@ -36,17 +37,18 @@ export function assetRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
   const appRoutes = effectRoutes(app, runtime);
 
   const serve = (prefix: string, root: string) =>
+    // Streamed: mochi route videos are tens of megabytes each and the game requests several at once.
     appRoutes.get(`${prefix}/*`, (c) =>
       Effect.gen(function* () {
         const filesService = yield* FilesService;
 
         const file = inside(root, c.req.path.slice(prefix.length));
 
-        if (!file || !(yield* filesService.isFile(file))) return c.notFound();
+        if (!file || !(yield* filesService.isFile(file))) {
+          return c.notFound();
+        }
 
-        return c.body(yield* filesService.read(file), 200, {
-          'Content-Type': types.get(extname(file)) ?? 'application/octet-stream',
-        });
+        return yield* fileResponse(c, file, { 'Content-Type': types.get(extname(file)) ?? 'application/octet-stream' });
       }),
     );
 
@@ -59,10 +61,11 @@ export function assetRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
         c.req.path.slice('/static/launcher-ui/assets'.length),
       );
 
-      if (!file || !c.req.path.startsWith('/static/launcher-ui/assets/') || !(yield* filesService.isFile(file)))
+      if (!file || !c.req.path.startsWith('/static/launcher-ui/assets/') || !(yield* filesService.isFile(file))) {
         return c.notFound();
+      }
 
-      return c.body(yield* filesService.read(file), 200, {
+      return yield* fileResponse(c, file, {
         'Content-Type': types.get(extname(file)) ?? 'application/octet-stream',
         'Cache-Control': 'public, max-age=31536000, immutable',
       });

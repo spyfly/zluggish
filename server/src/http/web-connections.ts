@@ -1,3 +1,4 @@
+import { IntervalsAthleteId } from '#src/dtos/intervals.dto';
 import { AccountsService } from '#src/services/auth.service';
 import { WebSessionsService } from '#src/services/web-session.service';
 import { UploadsService } from '#src/services/uploads.service';
@@ -53,7 +54,9 @@ export function asProviderFailure(runtime: HttpRuntime, status: 400 | 503, messa
 }
 
 export function providerFailure(runtime: HttpRuntime, cause: unknown, status: 400 | 503, message: string) {
-  if (cause instanceof UnreadableCredentialsError) return cause;
+  if (cause instanceof UnreadableCredentialsError) {
+    return cause;
+  }
   runtime.world.lifecycle.log.warn('connections.provider_failed', message, {
     error: cause instanceof Error ? cause : String(cause),
   });
@@ -104,11 +107,14 @@ export function webConnectionRoutes(app: Hono<WebEnv>, runtime: HttpRuntime) {
       const name = Schema.decodeUnknownSync(provider)(c.req.param('provider'));
       const input = Schema.decodeUnknownSync(credentials)(yield* Effect.promise(() => c.req.json()));
 
-      if (name === 'intervals')
-        Schema.decodeUnknownSync(Schema.String.check(Schema.isPattern(/^\d+$/)))(input.username);
+      if (name === 'intervals') {
+        Schema.decodeUnknownSync(IntervalsAthleteId)(input.username);
+      }
       const secret = input.secret || (yield* connectionsService.inspect(player, name)).credentials?.[1];
 
-      if (!secret) throw new ApplicationError({ status: 400, message: 'Enter a secret.' });
+      if (!secret) {
+        throw new ApplicationError({ status: 400, message: 'Enter a secret.' });
+      }
       yield* connectionsService.save(player, name, [input.username, secret]);
 
       return c.json({ ok: true });
@@ -148,7 +154,9 @@ export function webConnectionRoutes(app: Hono<WebEnv>, runtime: HttpRuntime) {
       if (name === 'strava') {
         yield* uploadsService.disconnect(player, 'strava_token.txt');
         yield* uploadsService.disconnect(player, 'strava4_session.txt');
-      } else if (name === 'garmin') yield* uploadsService.disconnect(player, 'garth/oauth1_token.json');
+      } else if (name === 'garmin') {
+        yield* uploadsService.disconnect(player, 'garth/oauth1_token.json');
+      }
 
       return c.json({ ok: true });
     }),
@@ -165,9 +173,13 @@ export function webConnectionRoutes(app: Hono<WebEnv>, runtime: HttpRuntime) {
       const player = (yield* webSessionsService.require(c.get('sessionId'))).player_id;
       const name = Schema.decodeUnknownSync(credential)(`${c.req.param('provider')}/${c.req.param('credential')}`);
 
-      if (name === 'strava/api') yield* connectionsService.remove(player, 'strava');
-      else if (name === 'garmin/credentials') yield* connectionsService.remove(player, 'garmin');
-      else yield* uploadsService.disconnect(player, tokens[name]);
+      if (name === 'strava/api') {
+        yield* connectionsService.remove(player, 'strava');
+      } else if (name === 'garmin/credentials') {
+        yield* connectionsService.remove(player, 'garmin');
+      } else {
+        yield* uploadsService.disconnect(player, tokens[name]);
+      }
 
       return c.json({ ok: true });
     }),
@@ -218,10 +230,11 @@ export function webConnectionRoutes(app: Hono<WebEnv>, runtime: HttpRuntime) {
       )(yield* Effect.promise(() => c.req.json()));
 
       if (input.code) {
-        const session = (yield* webSessionsService.find(id))!;
+        const session = yield* webSessionsService.session(id);
 
-        if (!session.stravaState || input.state !== session.stravaState)
+        if (!session.stravaState || input.state !== session.stravaState) {
           throw new ApplicationError({ status: 403, message: 'Authorization expired.' });
+        }
         delete session.stravaState;
 
         yield* integrationsService
@@ -233,10 +246,12 @@ export function webConnectionRoutes(app: Hono<WebEnv>, runtime: HttpRuntime) {
 
       const client = yield* connectionsService.read(user.player_id, 'strava');
 
-      if (!client) throw new ApplicationError({ status: 400, message: 'Save Strava API credentials first.' });
+      if (!client) {
+        throw new ApplicationError({ status: 400, message: 'Save Strava API credentials first.' });
+      }
       const redirect = new URL('/integrations', runtime.config.network.web.publicUrl ?? c.req.url).href;
       const state = yield* webSessionsService.token();
-      (yield* webSessionsService.find(id))!.stravaState = state;
+      (yield* webSessionsService.session(id)).stravaState = state;
 
       return c.json({ url: yield* integrationsService.authorizationUrl(client[0], state, redirect) });
     }),
@@ -252,7 +267,9 @@ export function webConnectionRoutes(app: Hono<WebEnv>, runtime: HttpRuntime) {
       const player = (yield* webSessionsService.require(c.get('sessionId'))).player_id;
       const cookie = (yield* documentsService.text(player, 'strava4_session.txt'))?.split(/\r?\n/, 1)[0];
 
-      if (!cookie) throw new ApplicationError({ status: 400, message: 'Save a session cookie first.' });
+      if (!cookie) {
+        throw new ApplicationError({ status: 400, message: 'Save a session cookie first.' });
+      }
 
       const valid = yield* integrationsService
         .checkSession(cookie, (fresh) =>
@@ -292,8 +309,9 @@ export function webConnectionRoutes(app: Hono<WebEnv>, runtime: HttpRuntime) {
         .sync(user.player_id)
         .pipe(asProviderFailure(runtime, 503, 'Workout sync failed. Existing workouts were retained.'));
 
-      if (!(yield* webSessionsService.current(id, identity)))
+      if (!(yield* webSessionsService.current(id, identity))) {
         throw new ApplicationError({ status: 401, message: 'Session changed.' });
+      }
 
       return c.json({ message });
     }),

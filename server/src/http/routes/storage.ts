@@ -1,4 +1,5 @@
 import { effectRoutes } from '#src/http/effect';
+import { fileResponse } from '#src/http/file-response';
 import { StorageService } from '#src/services/storage.service';
 import { fileUploadSchema } from '#src/dtos/storage.dto';
 import { Effect, Schema } from 'effect';
@@ -78,11 +79,13 @@ export function storageRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
         );
 
         upload = { folder: input.folder, filename: input.name, file: Buffer.from(input.content, 'base64') };
-      } else upload = parseProtobuf(ZFileProtoSchema, new Uint8Array(yield* Effect.promise(() => c.req.arrayBuffer())));
+      } else {
+        upload = parseProtobuf(ZFileProtoSchema, new Uint8Array(yield* Effect.promise(() => c.req.arrayBuffer())));
+      }
 
       const { id, folder, name, timestamp } = yield* storageService.upload(user.player_id, upload);
 
-      if (c.req.header('Accept')?.includes('application/json'))
+      if (c.req.header('Accept')?.includes('application/json')) {
         return c.json({
           id,
           folder,
@@ -90,6 +93,7 @@ export function storageRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
           content: null,
           lastModified: new Date(timestamp * 1000).toISOString().replace('Z', '+0000'),
         });
+      }
 
       return c.body(
         toBinary(
@@ -139,7 +143,7 @@ export function storageRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
         return c.body(null, 200);
       }
 
-      return c.body(yield* storageService.download(user.player_id, c.req.param('id')));
+      return yield* fileResponse(c, yield* storageService.downloadPath(user.player_id, c.req.param('id')));
     }),
   );
 }

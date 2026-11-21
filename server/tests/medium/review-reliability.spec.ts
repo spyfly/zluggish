@@ -16,7 +16,8 @@ import { UploadsService } from '#src/services/uploads.service';
 import { Simulation } from '#src/world/simulation';
 import { binary, decode, mediumFixture, mediumWeb } from '#tests/medium/support';
 import { create, toBinary } from '@bufbuild/protobuf';
-import { Encoder, Profile, type FileIdMesg, type RecordMesg } from '@garmin/fitsdk';
+import { Encoder, Profile } from '@garmin/fitsdk';
+import type { FileIdMesg, RecordMesg } from '@garmin/fitsdk';
 import assert from 'node:assert/strict';
 import { EventEmitter, once } from 'node:events';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
@@ -27,7 +28,7 @@ import { Schema } from 'effect';
 await test('deleting a queued activity while another upload is sending prevents its later delivery', async (t) => {
   const f = await mediumFixture(t);
   f.effects.runSync(DocumentsService.use((service) => service.put(f.rider.player_id, 'runalyze_token.txt', 'test')));
-  const ids: number[] = [];
+  const ids: Array<number> = [];
 
   const data = {
     playerId: BigInt(f.rider.player_id),
@@ -64,7 +65,9 @@ await test('deleting a queued activity while another upload is sending prevents 
   const deleted = await f.request(`/api/profiles/${f.rider.player_id}/activities/${ids[1]}`, { method: 'DELETE' });
   assert.equal(deleted.status, 200);
   const draining = f.effects.runPromise(JobsService.use((service) => service.drain()));
-  await new Promise((resolve) => setImmediate(resolve));
+  await new Promise((resolve) => {
+    setImmediate(resolve);
+  });
   delivery.emit('release');
   await draining;
   assert.equal(uploads.mock.callCount(), 1);
@@ -213,13 +216,15 @@ await test('charts retain running records with no power and intermittent sensor 
   const f = await mediumFixture(t);
   const encoder = new Encoder();
 
-  const records: RecordMesg[] = [
+  const records: Array<RecordMesg> = [
     { timestamp: 1_000_000, distance: 0, speed: 3, heartRate: 120 },
     { timestamp: 1_000_001, distance: 3, speed: 3 },
     { timestamp: 1_000_002, distance: 6, speed: 3, heartRate: 130 },
   ];
 
-  for (const record of records) encoder.onMesg(Schema.decodeUnknownSync(Schema.Finite)(Profile.MesgNum.RECORD), record);
+  for (const record of records) {
+    encoder.onMesg(Schema.decodeUnknownSync(Schema.Finite)(Profile.MesgNum.RECORD), record);
+  }
   const chart = f.effects.runSync(ActivitiesService.use((service) => service.activityChart(encoder.close())));
   assert.deepEqual(chart.timeInSec, [0, 1, 2]);
   assert.deepEqual(chart.distanceInCm, [0, 300, 600]);
@@ -320,7 +325,9 @@ await test('charts keep records without optional sensors and power curves includ
         speed: 10,
       };
 
-      if (power !== undefined) record.power = power;
+      if (power !== undefined) {
+        record.power = power;
+      }
 
       encoder.onMesg(Schema.decodeUnknownSync(Schema.Finite)(Profile.MesgNum.RECORD), record);
     }
@@ -368,7 +375,9 @@ await test('ghost recordings apply migrated equipment and randomized body overri
   t.after(() => simulation.close());
   await simulation.ready;
 
-  for (const state of states) simulation.receive(BigInt(f.rider.player_id), state);
+  for (const state of states) {
+    simulation.receive(BigInt(f.rider.player_id), state);
+  }
   await simulation.idle();
   const ghost = f.profiles.synthetic.get(BigInt(f.rider.player_id) + 10_000_000n);
   assert.ok(ghost);

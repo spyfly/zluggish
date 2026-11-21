@@ -1,10 +1,11 @@
 import { RuntimeContext } from '#src/context';
 import { activityMediaSchema } from '#src/dtos/activities.dto';
 import { ApplicationError } from '#src/errors';
-import { ActivitySchema, FitnessPrivacy, type Activity } from '#src/protocol/generated/activity_pb';
+import { ActivitySchema, FitnessPrivacy } from '#src/protocol/generated/activity_pb';
+import type { Activity } from '#src/protocol/generated/activity_pb';
 import { ActivityPrivacyType, Sport, StreaksSchema } from '#src/protocol/generated/profile_pb';
-import { GhostSchema, WA_TYPE, WorldAttributeSchema } from '#src/protocol/generated/udp-node-msgs_pb';
-import { ActivitiesRepository } from '#src/repositories/activities.repository';
+import { WA_TYPE, WorldAttributeSchema } from '#src/protocol/generated/udp-node-msgs_pb';
+import type { ActivitiesRepository } from '#src/repositories/activities.repository';
 import { immediate } from '#src/db/transaction';
 import { Metric, metrics } from '#src/repositories/metrics.repository';
 import type { RunningJob } from '#src/repositories/jobs.repository';
@@ -16,16 +17,16 @@ import { SettingsService } from '#src/services/settings.service';
 import { StreakService } from '#src/services/streak.service';
 import { UploadsService } from '#src/services/uploads.service';
 import { course, worldTime } from '#src/world/state';
+import { StateHistory } from '#src/world/state-history';
 import { clearField, clone, create, toBinary } from '@bufbuild/protobuf';
 import { dirname, resolve } from 'node:path';
 import { Context, Effect, Layer, Option, Schema } from 'effect';
 
-/** Comma-separated identifiers in a job payload. */
 function identifiers(job: RunningJob, key: string) {
   return job.text(key).split(',').filter(Boolean);
 }
 
-function ids(rows: readonly { id: number }[]) {
+function ids(rows: ReadonlyArray<{ id: number }>) {
   return rows.map((row) => row.id).join(',');
 }
 
@@ -53,9 +54,13 @@ function fitnessVisible(activity: Activity, viewer: number) {
 
 /** The activity as viewer may see it: a public summary hides sensitive fitness data. */
 function forViewer(activity: Activity, viewer: number) {
-  if (!visible(activity, viewer)) throw new ApplicationError({ status: 404 });
+  if (!visible(activity, viewer)) {
+    throw new ApplicationError({ status: 404 });
+  }
 
-  if (fitnessVisible(activity, viewer)) return activity;
+  if (fitnessVisible(activity, viewer)) {
+    return activity;
+  }
 
   // Construct a public summary: unknown/future protobuf fields must not leak either.
   return create(ActivitySchema, {
@@ -75,6 +80,8 @@ function forViewer(activity: Activity, viewer: number) {
   });
 }
 
+const decodeJson = Schema.decodeUnknownSync(Schema.fromJsonString(Schema.Json));
+
 const make = Effect.gen(function* () {
   const context = yield* RuntimeContext;
   const repositories = context.accounts.repositories;
@@ -86,7 +93,11 @@ const make = Effect.gen(function* () {
   const mediaTokens = new Map<string, { token: Buffer; expires: number; status: 'issued' | 'receiving' }>();
 
   function issueMedia(id: string) {
-    for (const [key, entry] of mediaTokens) if (entry.expires < Date.now()) mediaTokens.delete(key);
+    for (const [key, entry] of mediaTokens) {
+      if (entry.expires < Date.now()) {
+        mediaTokens.delete(key);
+      }
+    }
 
     const entry = {
       token: repositories.cryptoRepository.randomBytes(32),
@@ -111,21 +122,28 @@ const make = Effect.gen(function* () {
       entry.expires < Date.now() ||
       token.length !== entry.token.length ||
       !repositories.cryptoRepository.timingSafeEqual(token, entry.token)
-    )
+    ) {
       throw new ApplicationError({ status: 403 });
+    }
     entry.status = 'receiving';
 
     try {
-      if (!repositories.activitiesRepository.findActivityMedia(id)) throw new ApplicationError({ status: 404 });
+      if (!repositories.activitiesRepository.findActivityMedia(id)) {
+        throw new ApplicationError({ status: 404 });
+      }
       const bytes = new Uint8Array(await read());
 
-      if (mediaTokens.get(id) !== entry || entry.expires < Date.now()) throw new ApplicationError({ status: 403 });
+      if (mediaTokens.get(id) !== entry || entry.expires < Date.now()) {
+        throw new ApplicationError({ status: 403 });
+      }
 
       const row = Schema.decodeUnknownOption(activityMediaSchema)(
         repositories.activitiesRepository.findActivityMedia(id),
       );
 
-      if (Option.isNone(row)) throw new ApplicationError({ status: 404 });
+      if (Option.isNone(row)) {
+        throw new ApplicationError({ status: 404 });
+      }
       const extension = row.value.content_type.includes('quicktime') ? 'mov' : 'mp4';
       const path = resolve(context.profiles.folder(row.value.player_id), 'medias', `${id}.${extension}`);
       await repositories.filesRepository.writeDurableAsync(path, bytes, true);
@@ -139,7 +157,9 @@ const make = Effect.gen(function* () {
 
       mediaTokens.delete(id);
     } catch (error) {
-      if (mediaTokens.get(id) === entry) entry.status = 'issued';
+      if (mediaTokens.get(id) === entry) {
+        entry.status = 'issued';
+      }
       throw error;
     }
   }
@@ -150,14 +170,17 @@ const make = Effect.gen(function* () {
   function finalized(activity: Activity) {
     const saved = repositories.completionRepository.get(activity.id);
 
-    if (!saved) return false;
+    if (!saved) {
+      return false;
+    }
     const stored = repositories.activitiesRepository.fit(activity.id)?.fit ?? new Uint8Array();
 
     if (
       !Buffer.from(saved.payload).equals(Buffer.from(toBinary(ActivitySchema, withoutFit(activity)))) ||
       !Buffer.from(stored).equals(Buffer.from(activity.fit))
-    )
+    ) {
       throw new ApplicationError({ status: 409, message: 'Completed activities cannot be replaced.' });
+    }
 
     return true;
   }
@@ -174,12 +197,19 @@ const make = Effect.gen(function* () {
     metrics.record(Metric.QueueDepth, ++queuedSaves);
 
     const result = turn
-      .then(() => new Promise<void>((resolve) => setImmediate(resolve)))
+      .then(
+        () =>
+          new Promise<void>((resolve) => {
+            setImmediate(resolve);
+          }),
+      )
       .then(() => {
         queuedSaves--;
         metrics.record(Metric.QueueWait, performance.now() - queued);
 
-        if (validate() === false) return 'unchanged';
+        if (validate() === false) {
+          return 'unchanged';
+        }
 
         return save(activity, finish);
       });
@@ -191,7 +221,9 @@ const make = Effect.gen(function* () {
 
   /** Draft edits, durable completion and discard are distinct from ending a ride. */
   function save(activity: Activity, finish: boolean) {
-    if (finalized(activity)) return 'unchanged';
+    if (finalized(activity)) {
+      return 'unchanged';
+    }
 
     if (!finish) {
       repositories.protobufRepository.update('activity', activity.id, ActivitySchema, activity, ['fit']);
@@ -216,7 +248,9 @@ const make = Effect.gen(function* () {
 
   function finalize(activity: Activity) {
     try {
-      if (!complete(activity)) return;
+      if (!complete(activity)) {
+        return;
+      }
     } catch (error) {
       context.world.lifecycle.log.error('activity.save_failed', 'Activity save failed', {
         playerId: activity.playerId,
@@ -240,7 +274,7 @@ const make = Effect.gen(function* () {
   function complete(activity: Activity) {
     const player = Number(activity.playerId);
     const id = Number(activity.id);
-    const history = context.world.histories.get(activity.playerId) ?? [];
+    const history = context.world.histories.get(activity.playerId) ?? new StateHistory();
 
     const settings = SettingsService.resolveRiderSettings(context.config.riderDefaults, context.settings.read(player));
 
@@ -249,7 +283,9 @@ const make = Effect.gen(function* () {
 
     const committed = immediate(repositories.db, () => {
       // A concurrent finalization committed first: return its result unchanged.
-      if (finalized(activity)) return null;
+      if (finalized(activity)) {
+        return null;
+      }
       repositories.protobufRepository.update('activity', activity.id, ActivitySchema, activity, ['fit']);
       repositories.activitiesRepository.setFit(activity.id, activity.fit);
 
@@ -257,7 +293,9 @@ const make = Effect.gen(function* () {
         ? StreakService.advancedStreak(Effect.runSync(streakService.streaksFor(player)), activity)
         : null;
 
-      if (advanced) repositories.streakRepository.saveStreaks(player, advanced);
+      if (advanced) {
+        repositories.streakRepository.saveStreaks(player, advanced);
+      }
       const snapshot = advanced ? toBinary(StreaksSchema, advanced) : null;
 
       repositories.completionRepository.insert(
@@ -267,9 +305,11 @@ const make = Effect.gen(function* () {
         snapshot,
       );
 
-      for (const provider of providers)
-        if (repositories.uploadsRepository.insert(id, provider))
+      for (const provider of providers) {
+        if (repositories.uploadsRepository.insert(id, provider)) {
           repositories.jobsRepository.enqueue('delivery', { activityId: id, provider });
+        }
+      }
 
       if (activity.fit.length > 0) {
         repositories.jobsRepository.enqueue('power_curve', { activityId: id });
@@ -281,13 +321,15 @@ const make = Effect.gen(function* () {
       return { streak: snapshot };
     });
 
-    if (!committed) return false;
+    if (!committed) {
+      return false;
+    }
 
     // The ghost recording is an optional artifact from memory: written after the
     // commit, off the main thread. A crash before the write loses only the recording.
-    const state = history.at(-1);
+    const state = history.state(-1);
 
-    if (state && settings.ghosts.enabled)
+    if (state && settings.ghosts.enabled) {
       void repositories.filesRepository
         .writeDurableAsync(
           resolve(
@@ -299,7 +341,7 @@ const make = Effect.gen(function* () {
               : [String((state.aux3 >>> 8) & 0xff_ff), ...(state.f19 & 4 ? [] : ['reverse'])]),
             `activity-${activity.id}.bin`,
           ),
-          toBinary(GhostSchema, create(GhostSchema, { playerId: player, states: history })),
+          history.ghost(player),
           true,
         )
         .catch(() => {
@@ -308,8 +350,9 @@ const make = Effect.gen(function* () {
             playerId: activity.playerId,
           });
         });
+    }
 
-    if (committed.streak)
+    if (committed.streak) {
       context.world.enqueue(
         create(WorldAttributeSchema, {
           serverRealm: 1n,
@@ -320,6 +363,7 @@ const make = Effect.gen(function* () {
         }),
         [activity.playerId],
       );
+    }
 
     return true;
   }
@@ -333,7 +377,9 @@ const make = Effect.gen(function* () {
   */
   function deleteActivity(id: bigint, player: number) {
     immediate(repositories.db, () => {
-      if (!repositories.activitiesRepository.findActivity(id, player)) throw new ApplicationError({ status: 404 });
+      if (!repositories.activitiesRepository.findActivity(id, player)) {
+        throw new ApplicationError({ status: 404 });
+      }
 
       const payload = {
         activityId: Number(id),
@@ -407,14 +453,19 @@ const make = Effect.gen(function* () {
 
     for (const row of Schema.decodeUnknownSync(
       Schema.Array(Schema.Struct({ id: Schema.Finite, state: Schema.String })),
-    )(repositories.activitiesRepository.listActivityImage(player, activity)))
-      if (row.state === 'ready') paths.push(resolve(folder, 'images', `${row.id}.jpg`));
+    )(repositories.activitiesRepository.listActivityImage(player, activity))) {
+      if (row.state === 'ready') {
+        paths.push(resolve(folder, 'images', `${row.id}.jpg`));
+      }
+    }
 
     for (const row of Schema.decodeUnknownSync(
       Schema.Array(Schema.Struct({ id: Schema.Finite, content_type: Schema.String, state: Schema.String })),
-    )(repositories.activitiesRepository.listActivityMedia(player, activity)))
-      if (row.state === 'ready')
+    )(repositories.activitiesRepository.listActivityMedia(player, activity))) {
+      if (row.state === 'ready') {
         paths.push(resolve(folder, 'medias', `${row.id}.${row.content_type.includes('quicktime') ? 'mov' : 'mp4'}`));
+      }
+    }
 
     return paths.filter((path) => repositories.filesRepository.existsSync(path));
   }
@@ -501,11 +552,12 @@ const make = Effect.gen(function* () {
     });
   }
 
-  /** One own activity with its ready images and chart. The chart is null while its job runs. */
   function ownDetail(player: number, id: string) {
     const [activity] = own(player, id);
 
-    if (!activity) throw new ApplicationError({ status: 404, message: 'Activity not found.' });
+    if (!activity) {
+      throw new ApplicationError({ status: 404, message: 'Activity not found.' });
+    }
 
     const images = Schema.decodeUnknownSync(Schema.Array(Schema.Struct({ id: Schema.Finite, state: Schema.String })))(
       repositories.activitiesRepository.listActivityImage(player, id),
@@ -516,7 +568,7 @@ const make = Effect.gen(function* () {
     const fileId = activity.fit ? chartFile(BigInt(id)) : null;
 
     const chart =
-      fileId === null ? null : JSON.parse(repositories.filesRepository.readFileSync(chartPath(fileId), 'utf8'));
+      fileId === null ? null : decodeJson(repositories.filesRepository.readFileSync(chartPath(fileId), 'utf8'));
 
     return { ...activity, imageIds: images, chart, chartPending: activity.fit && chart === null };
   }
@@ -525,8 +577,9 @@ const make = Effect.gen(function* () {
   function ownFit(player: number, id: string) {
     const stored = repositories.activitiesRepository.fit(id);
 
-    if (!stored?.fit || stored.player !== player)
+    if (!stored?.fit || stored.player !== player) {
       throw new ApplicationError({ status: 404, message: 'FIT file not found.' });
+    }
 
     const base = stored.filename
       .normalize('NFKD')
@@ -539,18 +592,22 @@ const make = Effect.gen(function* () {
     };
   }
 
-  /** A ready image of an own activity. */
-  function ownImage(player: number, activity: string, image: number) {
+  function ownImagePath(player: number, activity: string, image: number) {
     const ready = Schema.decodeUnknownSync(Schema.Array(Schema.Struct({ id: Schema.Finite, state: Schema.String })))(
       repositories.activitiesRepository.listActivityImage(player, activity),
     ).some((row) => row.id === image && row.state === 'ready');
 
     const path = resolve(context.profiles.folder(player), 'images', `${image}.jpg`);
 
-    if (!ready || !repositories.filesRepository.existsSync(path))
+    if (
+      !ready ||
+      !repositories.filesRepository.existsSync(path) ||
+      !repositories.filesRepository.statSync(path).isFile()
+    ) {
       throw new ApplicationError({ status: 404, message: 'Image not found.' });
+    }
 
-    return repositories.filesRepository.readFileSync(path);
+    return path;
   }
 
   function recentActivities(...values: Parameters<ActivitiesRepository['recentActivities']>) {
@@ -581,25 +638,28 @@ const make = Effect.gen(function* () {
     Effect.runSync(streakService.updateStreaks(id, activity));
   }
 
-  /** Recreate a rider's power curves from canonical FIT payloads, as jobs. */
   function rebuildPowerCurves(player: number) {
     immediate(repositories.db, () => {
       repositories.fitnessRepository.deletePowerCurve(player);
 
-      for (const activity of repositories.activitiesRepository.withFit(player))
+      for (const activity of repositories.activitiesRepository.withFit(player)) {
         repositories.jobsRepository.enqueue('power_curve', { activityId: activity });
+      }
     });
   }
 
-  /** The chart of a completed activity, or null while its job runs. */
   function chartFile(activity: bigint) {
     const row = repositories.activitiesRepository.findActivityFile(activity);
     const fileId = row ? Schema.decodeUnknownSync(Schema.Finite)(row.id) : null;
 
-    if (fileId !== null && repositories.filesRepository.existsSync(chartPath(fileId))) return fileId;
+    if (fileId !== null && repositories.filesRepository.existsSync(chartPath(fileId))) {
+      return fileId;
+    }
 
     // Imported activities can have a canonical FIT payload without a completion record.
-    if (!repositories.activitiesRepository.fit(activity)?.fit?.length) return null;
+    if (!repositories.activitiesRepository.fit(activity)?.fit?.length) {
+      return null;
+    }
 
     immediate(repositories.db, () => {
       const id = fileId ?? Number(repositories.activitiesRepository.insertActivityFile(activity).lastInsertRowid);
@@ -634,18 +694,23 @@ const make = Effect.gen(function* () {
       await repositories.filesRepository.writeStagedAsync(attempt, data);
 
       job.commit(() => {
-        if (!exists()) return;
+        if (!exists()) {
+          return;
+        }
         repositories.filesRepository.renameSync(attempt, path);
         published = true;
       });
 
-      if (published) await repositories.filesRepository.syncDirectoryAsync(dirname(path));
+      if (published) {
+        await repositories.filesRepository.syncDirectoryAsync(dirname(path));
+      }
     } finally {
-      if (!published) await repositories.filesRepository.removeAsync(attempt);
+      if (!published) {
+        await repositories.filesRepository.removeAsync(attempt);
+      }
     }
   }
 
-  /** Register a job handler written as an async function. */
   const register = (type: JobType, handler: Omit<JobHandler, 'run'> & { run: (job: RunningJob) => Promise<void> }) =>
     Effect.runSync(jobs.register(type, { ...handler, run: (job) => Effect.promise(() => handler.run(job)) }));
 
@@ -658,12 +723,16 @@ const make = Effect.gen(function* () {
         const id = job.number('activityId');
         const stored = repositories.activitiesRepository.fit(id);
 
-        if (!stored?.fit || stored.player === null) return;
+        if (!stored?.fit || stored.player === null) {
+          return;
+        }
         const player = stored.player;
         const curve = await FitService.powerBests(stored.fit);
 
         job.commit(() => {
-          if (!repositories.activitiesRepository.findActivity(id, player)) return;
+          if (!repositories.activitiesRepository.findActivity(id, player)) {
+            return;
+          }
           repositories.fitnessRepository.deleteActivityPowerCurve(id);
           Effect.runSync(fitService.insertPowerBests(player, curve, id));
         });
@@ -678,7 +747,9 @@ const make = Effect.gen(function* () {
         const id = job.number('activityId');
         const stored = repositories.activitiesRepository.fit(id);
 
-        if (!stored?.fit || stored.player === null) return;
+        if (!stored?.fit || stored.player === null) {
+          return;
+        }
         const player = stored.player;
 
         await publish(
@@ -699,7 +770,9 @@ const make = Effect.gen(function* () {
         const fileId = job.number('fileId');
         const stored = repositories.activitiesRepository.fit(id);
 
-        if (!stored?.fit) return;
+        if (!stored?.fit) {
+          return;
+        }
         const chart = await FitService.chart(stored.fit);
 
         await publish(
@@ -747,13 +820,17 @@ const make = Effect.gen(function* () {
         const id = job.number('activityId');
         const saved = repositories.completionRepository.get(BigInt(id));
 
-        if (!saved) return;
+        if (!saved) {
+          return;
+        }
         const providers = Effect.runSync(uploadsService.configured(saved.player_id));
 
         job.commit(() => {
-          for (const provider of providers)
-            if (repositories.uploadsRepository.insert(id, provider))
+          for (const provider of providers) {
+            if (repositories.uploadsRepository.insert(id, provider)) {
               repositories.jobsRepository.enqueue('delivery', { activityId: id, provider });
+            }
+          }
         });
 
         await Promise.resolve();
@@ -864,14 +941,13 @@ const make = Effect.gen(function* () {
       return photos(player, activity);
     }),
 
-    companion: Effect.fn('ActivitiesService.companion')(function* (activity: Activity, details = false) {
+    companion: Effect.fn('ActivitiesService.companion')(function* (activity: Activity, details: boolean = false) {
       return companion(activity, details);
     }),
     /** A rider's own activities for the web app. The rider owns them, so fitness privacy does not apply. */
     own: Effect.fn('ActivitiesService.own')(function* (player: number, id?: string, page?: number) {
       return own(player, id, page);
     }),
-    /** One own activity with its ready images and chart. The chart is null while its job runs. */
     ownDetail: Effect.fn('ActivitiesService.ownDetail')(function* (player: number, id: string) {
       return ownDetail(player, id);
     }),
@@ -879,9 +955,12 @@ const make = Effect.gen(function* () {
     ownFit: Effect.fn('ActivitiesService.ownFit')(function* (player: number, id: string) {
       return ownFit(player, id);
     }),
-    /** A ready image of an own activity. */
-    ownImage: Effect.fn('ActivitiesService.ownImage')(function* (player: number, activity: string, image: number) {
-      return ownImage(player, activity, image);
+    ownImagePath: Effect.fn('ActivitiesService.ownImagePath')(function* (
+      player: number,
+      activity: string,
+      image: number,
+    ) {
+      return ownImagePath(player, activity, image);
     }),
 
     recentActivities: Effect.fn('ActivitiesService.recentActivities')(function* (
@@ -919,11 +998,9 @@ const make = Effect.gen(function* () {
     updateStreaks: Effect.fn('ActivitiesService.updateStreaks')(function* (id: number, activity: Activity) {
       return updateStreaks(id, activity);
     }),
-    /** Recreate a rider's power curves from canonical FIT payloads, as jobs. */
     rebuildPowerCurves: Effect.fn('ActivitiesService.rebuildPowerCurves')(function* (player: number) {
       return rebuildPowerCurves(player);
     }),
-    /** The chart of a completed activity, or null while its job runs. */
     chartFile: Effect.fn('ActivitiesService.chartFile')(function* (activity: bigint) {
       return chartFile(activity);
     }),

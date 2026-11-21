@@ -1,6 +1,10 @@
+import { create } from '@bufbuild/protobuf';
+import { packageRoot } from '#src/config/load';
 import { PlayerProfileSchema, PlayerProfilesSchema } from '#src/protocol/generated/profile_pb';
+import { RiderPool } from '#src/world/riders';
 import { binary, decode, mediumFixture } from '#tests/medium/support';
 import assert from 'node:assert/strict';
+import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { Schema } from 'effect';
 
@@ -191,4 +195,24 @@ await test('anonymous and other-rider profile projections retain appearance but 
   const own = await decode(await f.request('/api/profiles/me'), PlayerProfileSchema);
   assert.equal(own.email, 'secret@example.test');
   assert.equal(own.weightInGrams, 80_000);
+});
+
+await test('bot profiles expose their weight but clones of real riders keep it hidden', async (t) => {
+  const f = await mediumFixture(t);
+  const botId = 9_000_001n;
+  const ghostId = 9_000_002n;
+  const pool = new RiderPool(resolve(packageRoot(), '../assets'), '');
+  f.profiles.synthetic.set(botId, pool.profile(botId));
+  f.profiles.synthetic.set(ghostId, create(PlayerProfileSchema, { id: ghostId, weightInGrams: 80_000 }));
+
+  for (const [id, weight] of [
+    [botId, f.profiles.synthetic.get(botId)?.weightInGrams],
+    [ghostId, 0],
+  ] as const) {
+    const response = await f.app.request(`/api/profiles?id=${id}`, { headers: f.headers(f.other) });
+    const body = await decode(response, PlayerProfilesSchema);
+
+    assert.ok(weight !== undefined);
+    assert.equal(body.profiles[0]?.weightInGrams, weight);
+  }
 });

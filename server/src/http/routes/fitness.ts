@@ -39,7 +39,9 @@ export function fitnessRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
           )
         : Date.now();
 
-      if (!Number.isFinite(date)) throw new HTTPException(404);
+      if (!Number.isFinite(date)) {
+        throw new HTTPException(404);
+      }
 
       const { weeks, goals, streak, useMetric } = yield* fitnessService.metrics(user.player_id, date, !!json);
 

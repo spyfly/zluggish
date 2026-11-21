@@ -20,7 +20,9 @@ const fileRow = Schema.Struct({
 });
 
 function safeName(value: string) {
-  if (!value || value === '.' || value === '..' || /[\\/\0]/.test(value)) throw new ApplicationError({ status: 400 });
+  if (!value || value === '.' || value === '..' || /[\\/\0]/.test(value)) {
+    throw new ApplicationError({ status: 400 });
+  }
 
   return value;
 }
@@ -39,9 +41,11 @@ const make = Effect.gen(function* () {
     const stored = repositories.riderDocuments.get(id, 'achievements.bin');
     const achievements = stored ? fromBinary(AchievementsSchema, stored) : create(AchievementsSchema);
 
-    for (const achievement of incoming.achievements)
-      if (achievements.achievements.every((item) => item.id !== achievement.id))
+    for (const achievement of incoming.achievements) {
+      if (achievements.achievements.every((item) => item.id !== achievement.id)) {
         achievements.achievements.push(achievement);
+      }
+    }
     repositories.riderDocuments.put(id, 'achievements.bin', toBinary(AchievementsSchema, achievements));
   });
 
@@ -58,8 +62,8 @@ const make = Effect.gen(function* () {
 
     if (unlockBikes) {
       // A stored attribute can contain both progress and unrelated settings.
-      for (let index = 0; index < attributes.length; index++) {
-        const attribute = clone(AttributesSchema, attributes[index]!);
+      for (const [index, stored] of attributes.entries()) {
+        const attribute = clone(AttributesSchema, stored);
         delete attribute.bikeProgress;
         attributes[index] = attribute;
       }
@@ -80,12 +84,13 @@ const make = Effect.gen(function* () {
       for (const signature of new Set([
         ...Object.keys(dictionary.bikeframes),
         ...Object.keys(dictionary.bikeframesextra),
-      ]))
+      ])) {
         attributes.push(
           create(AttributesSchema, {
             bikeProgress: { signature, level: 5, percentage: 1, lastUpgrade: now, time: now },
           }),
         );
+      }
     }
 
     return create(UserStorageSchema, { attributes });
@@ -101,11 +106,14 @@ const make = Effect.gen(function* () {
         const existing = reflect(AttributesSchema, old);
 
         for (const field of AttributesSchema.fields) {
-          if (field.fieldKind !== 'message' || !incomingFields.isSet(field) || !existing.isSet(field)) continue;
+          if (field.fieldKind !== 'message' || !incomingFields.isSet(field) || !existing.isSet(field)) {
+            continue;
+          }
           const signature = field.message.fields.find((nested) => nested.name === 'signature');
 
-          if (!signature || existing.get(field).get(signature) === incomingFields.get(field).get(signature))
+          if (!signature || existing.get(field).get(signature) === incomingFields.get(field).get(signature)) {
             existing.clear(field);
+          }
         }
 
         return AttributesSchema.fields.some((field) => existing.isSet(field)) || !!existing.getUnknown()?.length;
@@ -128,14 +136,17 @@ const make = Effect.gen(function* () {
   ) {
     const folder = safeName(upload.folder);
 
-    if (folder.startsWith('.')) return yield* new ApplicationError({ status: 400 });
+    if (folder.startsWith('.')) {
+      return yield* new ApplicationError({ status: 400 });
+    }
     const name = safeName(upload.filename);
     repositories.filesRepository.write(resolve(context.profiles.folder(id), folder, name), upload.file);
     const existing = repositories.storageRepository.findZfile(id, folder, name);
     const timestamp = Math.floor(Date.now() / 1000);
 
-    if (existing)
+    if (existing) {
       repositories.storageRepository.updateZfileTimestamp(timestamp, Schema.decodeUnknownSync(fileRow)(existing).id);
+    }
 
     const fileId = existing
       ? Schema.decodeUnknownSync(fileRow)(existing).id
@@ -151,7 +162,9 @@ const make = Effect.gen(function* () {
   function owned(id: number, fileId: string) {
     const parsed = Schema.decodeUnknownOption(fileRow)(repositories.storageRepository.findZfileRow(fileId, id));
 
-    if (Option.isNone(parsed)) throw new ApplicationError({ status: 404 });
+    if (Option.isNone(parsed)) {
+      throw new ApplicationError({ status: 404 });
+    }
 
     return parsed.value;
   }
@@ -164,19 +177,19 @@ const make = Effect.gen(function* () {
     repositories.storageRepository.deleteZfile(row.id);
   });
 
-  const download = Effect.fn('StorageService.download')(function* (id: number, fileId: string) {
+  const downloadPath = Effect.fn('StorageService.downloadPath')(function* (id: number, fileId: string) {
     const row = owned(id, fileId);
 
-    const contents = repositories.filesRepository.read(
-      resolve(context.profiles.folder(id), safeName(row.folder), safeName(row.filename)),
-    );
+    const path = resolve(context.profiles.folder(id), safeName(row.folder), safeName(row.filename));
 
-    if (!contents) return yield* new ApplicationError({ status: 404 });
+    if (!repositories.filesRepository.existsSync(path) || !repositories.filesRepository.statSync(path).isFile()) {
+      return yield* new ApplicationError({ status: 404 });
+    }
 
-    return contents;
+    return path;
   });
 
-  return { achievements, unlock, attributes, saveAttributes, upload, list, delete: deleteEntry, download };
+  return { achievements, unlock, attributes, saveAttributes, upload, list, delete: deleteEntry, downloadPath };
 });
 
 export class StorageService extends Context.Service<StorageService, Effect.Success<typeof make>>()(

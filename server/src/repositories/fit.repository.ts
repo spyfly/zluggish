@@ -81,7 +81,9 @@ export class FitRepository {
   }
 
   private start() {
-    if (this.worker) return this.worker;
+    if (this.worker) {
+      return this.worker;
+    }
     const extension = import.meta.url.endsWith('.ts') ? 'ts' : 'js';
     const worker = new Worker(new URL(`fit.worker.${extension}`, import.meta.url));
     worker.unref();
@@ -92,12 +94,19 @@ export class FitRepository {
       this.pending.delete(parsed.id);
       metrics.record(Metric.FitProcessing, parsed.duration);
 
-      if (this.pending.size === 0) worker.unref();
+      if (this.pending.size === 0) {
+        worker.unref();
+      }
 
-      if (!pending) return;
+      if (!pending) {
+        return;
+      }
 
-      if (parsed.error === undefined) pending.resolve(parsed.result ?? null);
-      else pending.reject(new Error(parsed.error));
+      if (parsed.error === undefined) {
+        pending.resolve(parsed.result ?? null);
+      } else {
+        pending.reject(new Error(parsed.error));
+      }
     });
 
     worker.on('error', (error) => this.fail(error instanceof Error ? error : new Error('FIT worker failed')));
@@ -110,7 +119,9 @@ export class FitRepository {
   private fail(error: Error) {
     this.worker = null;
 
-    for (const pending of this.pending.values()) pending.reject(error);
+    for (const pending of this.pending.values()) {
+      pending.reject(error);
+    }
     this.pending.clear();
   }
 

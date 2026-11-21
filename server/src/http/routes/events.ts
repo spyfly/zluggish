@@ -2,7 +2,8 @@ import { EventCatalogService } from '#src/services/event-catalog.service';
 import { effectRoutes } from '#src/http/effect';
 import { EventsService } from '#src/services/events.service';
 import { notificationUpdateSchema } from '#src/dtos/events.dto';
-import { decodeMeetupInput, type Meetup } from '#src/dtos/meetup.dto';
+import { decodeMeetupInput } from '#src/dtos/meetup.dto';
+import type { Meetup } from '#src/dtos/meetup.dto';
 import { authenticated } from '#src/http/routes/accounts';
 import type { HttpRuntime as Runtime, RuntimeEnv } from '#src/http/runtime';
 import {
@@ -51,13 +52,13 @@ export function eventRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
   appRoutes.get('/api/event-feed', (c) =>
     Effect.gen(function* () {
       const eventsService = yield* EventsService;
+      const events = yield* eventsService.eventsAt(runtime.assets, limit(c.req.query('limit')), c.req.query('sport'));
+      const data = yield* Effect.forEach(events, (event) =>
+        eventsService.eventJSON(event).pipe(Effect.map((event) => ({ event }))),
+      );
 
       return c.json({
-        data: (yield* eventsService.eventsAt(runtime.assets, limit(c.req.query('limit')), c.req.query('sport'))).map(
-          (event) => ({
-            event: eventsService.eventJSON(event),
-          }),
-        ),
+        data,
         cursor: null,
       });
     }),
@@ -104,7 +105,9 @@ export function eventRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
       const user = authenticated(c);
       let start = Number(c.req.query('start_date') ?? 0);
 
-      if (start === -1_800_000) start += Date.now();
+      if (start === -1_800_000) {
+        start += Date.now();
+      }
 
       const events = (yield* eventsService.all()).filter(
         (event) =>
@@ -113,8 +116,9 @@ export function eventRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
             (c.req.query('organizer_only_past_events') === 'true' && event.organizerProfileId === user.player_id)),
       );
 
-      if (c.req.header('Accept')?.includes('application/json'))
+      if (c.req.header('Accept')?.includes('application/json')) {
         return c.json(events.map((event) => social(event, user.player_id)));
+      }
 
       return c.body(
         toBinary(
@@ -165,10 +169,14 @@ export function eventRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
       const user = authenticated(c);
       const event = yield* eventsService.read(c.req.param('id'));
 
-      if (!visible(event, user.player_id)) throw new HTTPException(403);
+      if (!visible(event, user.player_id)) {
+        throw new HTTPException(403);
+      }
 
       if (c.req.method === 'GET') {
-        if (c.req.header('Accept')?.includes('application/json')) return c.json(social(event, user.player_id));
+        if (c.req.header('Accept')?.includes('application/json')) {
+          return c.json(social(event, user.player_id));
+        }
 
         return c.body(
           toBinary(
@@ -205,7 +213,9 @@ export function eventRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
         );
       }
 
-      if (event.organizerProfileId !== user.player_id) throw new HTTPException(403);
+      if (event.organizerProfileId !== user.player_id) {
+        throw new HTTPException(403);
+      }
 
       if (c.req.method === 'DELETE') {
         yield* eventsService.deleteMeetup(event);
@@ -259,13 +269,17 @@ export function eventRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
       const user = authenticated(c);
       const event = yield* eventsService.read(c.req.param('id'));
 
-      if (!visible(event, user.player_id)) throw new HTTPException(403);
+      if (!visible(event, user.player_id)) {
+        throw new HTTPException(403);
+      }
 
       const leader = [...runtime.world.online].find(
         ([id, state]) => id !== BigInt(user.player_id) && state.groupId === BigInt(event.id),
       );
 
-      if (!leader) return c.body(null, 200);
+      if (!leader) {
+        return c.body(null, 200);
+      }
 
       return c.body(
         toBinary(

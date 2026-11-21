@@ -8,11 +8,17 @@ await test('AES-GCM packets match Python byte-for-byte for every header combinat
   for (const vector of fixtures.packets) {
     const fields: PacketHeader = {};
 
-    if (vector.flags & 4) fields.relay = 123;
+    if (vector.flags & 4) {
+      fields.relay = 123;
+    }
 
-    if (vector.flags & 2) fields.connection = 7;
+    if (vector.flags & 2) {
+      fields.connection = 7;
+    }
 
-    if (vector.flags & 1) fields.sequence = 42;
+    if (vector.flags & 1) {
+      fields.sequence = 42;
+    }
     const iv = { device: 1, channel: 2, connection: 7, sequence: 42 };
 
     const encoded = encodePacket(Buffer.from(fixtures.payload, 'hex'), Buffer.from(fixtures.key, 'hex'), iv, fields);

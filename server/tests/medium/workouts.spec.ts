@@ -24,9 +24,9 @@ await test('F07 browser home and Android login share one refresh; saved-token lo
   const f = await mediumFixture(t);
   const browser = await mediumBrowser(f);
   f.effects.runSync(
-    ConnectionsService.use((service) => service.save(f.rider.player_id, 'intervals', ['123', 'medium-key'])),
+    ConnectionsService.use((service) => service.save(f.rider.player_id, 'intervals', ['i123', 'medium-key'])),
   );
-  const calls: { url: URL; signal: AbortSignal | null | undefined }[] = [];
+  const calls: Array<{ url: URL; signal: AbortSignal | null | undefined }> = [];
 
   t.mock.method(globalThis, 'fetch', async (input: URL | string, init?: RequestInit) => {
     const url = new URL(String(input));
@@ -37,8 +37,13 @@ await test('F07 browser home and Android login share one refresh; saved-token lo
     );
     await Promise.resolve();
 
-    if (url.pathname.endsWith('/download.zwo')) return new Response(xml);
-    assert.equal(url.pathname, '/api/v1/athlete/123/events');
+    if (url.pathname.endsWith('/download.zwo')) {
+      assert.equal(url.pathname, '/api/v1/athlete/i123/events/42/download.zwo');
+
+      return new Response(xml);
+    }
+
+    assert.equal(url.pathname, '/api/v1/athlete/i123/events');
     assert.equal(url.searchParams.get('oldest'), day);
     assert.equal(url.searchParams.get('newest'), day);
 
@@ -97,15 +102,22 @@ for (const failure of ['provider unavailable', 'invalid second download']) {
     t.mock.method(globalThis, 'fetch', (input: URL | string) => {
       const url = String(input);
 
-      if (failing && failure === 'provider unavailable') return Promise.resolve(new Response(null, { status: 503 }));
+      if (failing && failure === 'provider unavailable') {
+        return Promise.resolve(new Response(null, { status: 503 }));
+      }
 
-      if (url.endsWith('/events/43/download.zwo')) return Promise.resolve(new Response('<broken>'));
+      if (url.endsWith('/events/43/download.zwo')) {
+        return Promise.resolve(new Response('<broken>'));
+      }
 
-      if (url.endsWith('/download.zwo'))
+      if (url.endsWith('/download.zwo')) {
         return Promise.resolve(new Response(failing ? xml.replace('Medium Tempo', 'Changed') : xml));
+      }
       const events = [{ id: 42, start_date_local: `${day}T08:00:00` }];
 
-      if (failing) events.push({ id: 43, start_date_local: `${day}T09:00:00` });
+      if (failing) {
+        events.push({ id: 43, start_date_local: `${day}T09:00:00` });
+      }
 
       return Promise.resolve(Response.json(events));
     });
@@ -164,8 +176,11 @@ await test('F07 automatic login deadline cancels provider work without replacing
           reject(new Error('provider canceled'));
         };
 
-        if (init.signal.aborted) cancel();
-        else init.signal.addEventListener('abort', cancel, { once: true });
+        if (init.signal.aborted) {
+          cancel();
+        } else {
+          init.signal.addEventListener('abort', cancel, { once: true });
+        }
       }),
   );
   // AbortSignal's timer is unref'ed; keep the test alive until the deadline fires.
@@ -265,8 +280,11 @@ for (const sport of [undefined, 'CYCLING', 'cycling', 'RUNNING', 'running', 'ROW
       assert.equal(response.headers.get('Cache-Control'), 'private, no-store');
       const body = await response.json();
 
-      if (cycling) assert.notDeepEqual(body, empty);
-      else assert.deepEqual(body, empty);
+      if (cycling) {
+        assert.notDeepEqual(body, empty);
+      } else {
+        assert.deepEqual(body, empty);
+      }
       const other = await f.request(path + query, {}, f.other);
       assert.deepEqual(await other.json(), empty);
     }

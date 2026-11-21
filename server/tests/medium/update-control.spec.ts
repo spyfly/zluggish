@@ -85,7 +85,8 @@ await test('the admin update control gates version checks and downloads on both 
 
     assert.equal(response.status, 200);
 
-    const body = await response.json();
+    const body: unknown = await response.json();
+    assert.ok(body && typeof body === 'object' && 'zwiftUpdates' in body);
 
     return body.zwiftUpdates;
   };
@@ -101,8 +102,9 @@ await test('the admin update control gates version checks and downloads on both 
   assert.equal(await responseStatus(cdn.request(macVersion)), 200);
   assert.equal(await responseStatus(cdn.request(`${root}Launcher_ver_cur.xml`)), 200);
 
-  for (const path of [unknown, manifest, launcher, macLauncher])
+  for (const path of [unknown, manifest, launcher, macLauncher]) {
     assert.equal(await responseStatus(cdn.request(path)), 404);
+  }
   assert.equal(upstream.mock.callCount(), 0);
   const asset = await cdn.request('/gameassets/asset-proxy-test.xml');
   assert.equal(await asset.text(), 'from Zwift');

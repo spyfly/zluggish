@@ -2,6 +2,7 @@ import { AccountsService } from '#src/services/auth.service';
 import { ImportsService } from '#src/services/profile-import.service';
 import { FilesService } from '#src/services/files.service';
 import { effectRoutes } from '#src/http/effect';
+import { fileResponse } from '#src/http/file-response';
 import { ProfilesService } from '#src/services/profile.service';
 import { profileUpdateSchema } from '#src/dtos/profiles.dto';
 import { parseProtobuf } from '#src/http/protobuf';
@@ -32,9 +33,11 @@ export function profileRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
 
       const path = resolve(yield* profilesService.folder(id), 'avatarLarge.jpg');
 
-      if (!(yield* filesService.exists(path))) throw new HTTPException(404);
+      if (!(yield* filesService.isFile(path))) {
+        throw new HTTPException(404);
+      }
 
-      return c.body(yield* filesService.read(path), 200, { 'Content-Type': 'image/jpeg' });
+      return yield* fileResponse(c, path, { 'Content-Type': 'image/jpeg' });
     }),
   );
 
@@ -90,8 +93,9 @@ export function profileRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
         !runtime.effects.runSync(AccountsService).get(id) &&
         !profilesService.synthetic.has(BigInt(id)) &&
         !(yield* profilesService.exists(id))
-      )
+      ) {
         throw new HTTPException(404);
+      }
       const profile = yield* profilesService.forViewer(yield* profilesService.get(id), viewer.player_id);
 
       return c.json(
@@ -110,33 +114,54 @@ export function profileRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
 
       const user = authenticated(c);
 
-      if (String(user.player_id) !== c.req.param('id')) throw new HTTPException(401);
+      if (String(user.player_id) !== c.req.param('id')) {
+        throw new HTTPException(401);
+      }
 
       const update = Schema.decodeUnknownSync(profileUpdateSchema)(yield* Effect.promise(() => c.req.json()));
 
       const profile = yield* profilesService.get(user.player_id);
 
-      if (update.countryCode !== undefined) profile.countryCode = update.countryCode;
+      if (update.countryCode !== undefined) {
+        profile.countryCode = update.countryCode;
+      }
 
-      if (update.dob !== undefined) profile.dob = update.dob;
+      if (update.dob !== undefined) {
+        profile.dob = update.dob;
+      }
 
-      if (update.emailAddress !== undefined) profile.email = update.emailAddress;
+      if (update.emailAddress !== undefined) {
+        profile.email = update.emailAddress;
+      }
 
-      if (update.firstName !== undefined) profile.firstName = update.firstName;
+      if (update.firstName !== undefined) {
+        profile.firstName = update.firstName;
+      }
 
-      if (update.lastName !== undefined) profile.lastName = update.lastName;
+      if (update.lastName !== undefined) {
+        profile.lastName = update.lastName;
+      }
 
-      if (update.height !== undefined) profile.heightInMillimeters = update.height;
+      if (update.height !== undefined) {
+        profile.heightInMillimeters = update.height;
+      }
 
-      if (update.male !== undefined) profile.isMale = update.male;
+      if (update.male !== undefined) {
+        profile.isMale = update.male;
+      }
 
-      if (update.useMetric !== undefined) profile.useMetric = update.useMetric;
+      if (update.useMetric !== undefined) {
+        profile.useMetric = update.useMetric;
+      }
 
-      if (update.weight !== undefined) profile.weightInGrams = update.weight;
+      if (update.weight !== undefined) {
+        profile.weightInGrams = update.weight;
+      }
       const current = runtime.effects.runSync(AccountsService).get(user.player_id);
 
-      if (!current?.enabled || current.auth_version !== user.auth_version || current.revision !== user.revision)
+      if (!current?.enabled || current.auth_version !== user.auth_version || current.revision !== user.revision) {
         throw new HTTPException(409, { message: 'User changed. Reload and retry.' });
+      }
       yield* profilesService.save(user.player_id, profile);
 
       return yield* profileResponse(c, user.player_id);
@@ -148,9 +173,13 @@ export function profileRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
 
       const user = authenticated(c);
 
-      if (c.req.param('id') === '0') throw new HTTPException(400);
+      if (c.req.param('id') === '0') {
+        throw new HTTPException(400);
+      }
 
-      if (String(user.player_id) !== c.req.param('id')) throw new HTTPException(401);
+      if (String(user.player_id) !== c.req.param('id')) {
+        throw new HTTPException(401);
+      }
 
       const profile = parseProtobuf(
         PlayerProfileSchema,
@@ -159,8 +188,9 @@ export function profileRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
 
       const current = runtime.effects.runSync(AccountsService).get(user.player_id);
 
-      if (!current?.enabled || current.auth_version !== user.auth_version || current.revision !== user.revision)
+      if (!current?.enabled || current.auth_version !== user.auth_version || current.revision !== user.revision) {
         throw new HTTPException(409, { message: 'User changed. Reload and retry.' });
+      }
       yield* profilesService.save(user.player_id, profile);
 
       return c.body(null, 204);

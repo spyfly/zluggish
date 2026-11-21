@@ -1,4 +1,5 @@
 import { ManagementService } from '#src/services/management.service';
+import { TlsService } from '#src/services/tls.service';
 import { Resources } from '#src/node/lifecycle/resources';
 import { ConfigError } from '#src/config/index';
 import type { LoadOptions } from '#src/config/load';
@@ -23,20 +24,27 @@ const { values } = parseArgs({
 
 const options: LoadOptions = {};
 
-if (values.config !== undefined) options.path = values.config;
+if (values.config !== undefined) {
+  options.path = values.config;
+}
 
-if (values['storage-dir'] !== undefined) options.storageDir = values['storage-dir'];
+if (values['storage-dir'] !== undefined) {
+  options.storageDir = values['storage-dir'];
+}
 
-const { config, path: configPath } = await loadConfig(prepareContainerConfig(options)).catch((error) => {
-  if (!(error instanceof ConfigError)) throw error;
+const { config, path: configPath } = await loadConfig(prepareContainerConfig(options)).catch((error: unknown) => {
+  if (!(error instanceof ConfigError)) {
+    throw error;
+  }
   console.error(`ConfigError: ${error.message}`);
   // This is the server CLI entry point; config failure must stop before runtime startup.
   // eslint-disable-next-line unicorn/no-process-exit
   process.exit(1);
 });
 
-if (existsSync(resolve(config.storageDir, '.config-migration.json')))
+if (existsSync(resolve(config.storageDir, '.config-migration.json'))) {
   throw new ConfigError('Interrupted config migration; resume config migrate before starting');
+}
 
 const root = packageRoot();
 
@@ -52,15 +60,17 @@ const variants = readFileSync(resolve(assets, 'data/variants.txt'), 'utf8');
 
 /** Close an HTTP listener; one that never started counts as closed. */
 function closeHttp(listener: ReturnType<typeof startHttp>) {
-  return new Promise<void>((resolve, reject) =>
+  return new Promise<void>((resolve, reject) => {
     listener.close((error) => {
-      if (error && (!('code' in error) || error.code !== 'ERR_SERVER_NOT_RUNNING')) reject(error);
-      else resolve();
-    }),
-  );
+      if (error && (!('code' in error) || error.code !== 'ERR_SERVER_NOT_RUNNING')) {
+        reject(error);
+      } else {
+        resolve();
+      }
+    });
+  });
 }
 
-/** Acquire a listener into the current scope. */
 const listening = <A>(
   open: () => A,
   close: (listener: A) => void | Promise<void>,
@@ -71,7 +81,6 @@ const listening = <A>(
     }),
   );
 
-/** Open the runtime and every listener into the current scope, and report readiness. */
 const serve = Effect.fn('server.start')(function* () {
   const webConfig = config.network.web;
 
@@ -84,8 +93,9 @@ const serve = Effect.fn('server.start')(function* () {
       config.network.udp.port,
       ...(config.dns.enabled ? [53] : []),
     ].includes(webConfig.port)
-  )
+  ) {
     throw new ConfigError('The web port must differ from every game listener port.');
+  }
 
   const owner = yield* Effect.acquireRelease(
     Effect.promise(() => openRuntime(config, assets, configPath)),
@@ -97,13 +107,26 @@ const serve = Effect.fn('server.start')(function* () {
   const host = api.host ?? config.network.host;
   const listener: HttpListenerOptions = { port: api.port, host };
 
-  if (api.useCert)
-    listener.tls = {
-      cert: readFileSync(config.tls.certFile || resolve(assets, 'ssl/cert-zwift-com.pem')),
-      key: readFileSync(config.tls.keyFile || resolve(assets, 'ssl/key-zwift-com.pem')),
-    };
+  const tls = owner.runtime.effects.runSync(TlsService);
+  const material = tls.material();
+
+  if (material) {
+    listener.tls = material;
+  }
 
   const server = yield* listening(() => startHttp(app, listener), closeHttp);
+
+  // A rotated certificate applies to new connections at once; open ones keep the old one until they close.
+  yield* Effect.acquireRelease(
+    Effect.sync(() =>
+      tls.subscribe((next) => {
+        if ('setSecureContext' in server) {
+          server.setSecureContext(next);
+        }
+      }),
+    ),
+    (stop) => Effect.sync(stop),
+  );
 
   const setupKey = webConfig.enabled
     ? owner.runtime.effects.runSync(ManagementService.use((management) => management.issueSetupKey()))
@@ -133,11 +156,12 @@ const serve = Effect.fn('server.start')(function* () {
 
   const log = owner.runtime.world.lifecycle.log;
 
-  if (config.accounts.allowSelfRegistration !== undefined)
+  if (config.accounts.allowSelfRegistration !== undefined) {
     log.warn(
       'config.deprecated',
       'accounts.allowSelfRegistration is deprecated and ignored. Only an administrator creates riders, in the web app. Remove it from the configuration.',
     );
+  }
 
   const listeners = [server, cdn, ...(web ? [web] : []), ride.tcp, ride.udp, ...(dns ? [dns.socket] : [])];
 
@@ -165,29 +189,32 @@ const serve = Effect.fn('server.start')(function* () {
 
     console.log(`Web app: ${address}`);
 
-    if (!webConfig.publicUrl?.startsWith('https:') && !['127.0.0.1', '::1', 'localhost'].includes(bind))
+    if (!webConfig.publicUrl?.startsWith('https:') && !['127.0.0.1', '::1', 'localhost'].includes(bind)) {
       console.log('The web app sends passwords over the network without encryption.');
+    }
 
-    if (setupKey)
+    if (setupKey) {
       console.log(
         `============================================================\nZluggish first-time setup\nOpen: ${address}/setup\nSetup key: ${setupKey}\nThis key works until setup is complete or the server stops.\n============================================================`,
       );
+    }
   }
 
   log.info('server.ready', 'Zluggish is ready', {
     host,
     port: api.port,
-    tls: api.useCert,
+    tls: tls.mode(),
     dns: !!dns,
     cdnPort: config.network.cdn.port,
     tcpPort: config.network.tcp.port,
     udpPort: config.network.udp.port,
   });
 
-  for (const socket of [server, cdn, ride.tcp, ...(web ? [web] : [])])
+  for (const socket of [server, cdn, ride.tcp, ...(web ? [web] : [])]) {
     socket.on('error', (error) => {
       log.error('server.listener_failed', 'Network listener failed', { error });
     });
+  }
 
   return { log, server, web, cdn };
 });
@@ -202,16 +229,24 @@ async function start() {
     let state: 'ready' | 'stopping' | 'stopped' | 'failed' = 'ready';
 
     function shutdown() {
-      if (state !== 'ready') return;
+      if (state !== 'ready') {
+        return;
+      }
       state = 'stopping';
       log.info('server.stopping', 'Zluggish is stopping');
 
       const timer = setTimeout(() => {
-        if ('closeAllConnections' in server) server.closeAllConnections();
+        if ('closeAllConnections' in server) {
+          server.closeAllConnections();
+        }
 
-        if (web && 'closeAllConnections' in web) web.closeAllConnections();
+        if (web && 'closeAllConnections' in web) {
+          web.closeAllConnections();
+        }
 
-        if ('closeAllConnections' in cdn) cdn.closeAllConnections();
+        if ('closeAllConnections' in cdn) {
+          cdn.closeAllConnections();
+        }
         log.error('server.stop_timeout', 'Shutdown timed out');
         process.exitCode = 1;
       }, 5000);
@@ -224,7 +259,7 @@ async function start() {
           state = 'stopped';
           log.info('server.stopped', 'Zluggish stopped');
         })
-        .catch((error) => {
+        .catch((error: unknown) => {
           clearTimeout(timer);
           state = 'failed';
           log.error('server.stop_failed', 'Shutdown failed', { error: error instanceof Error ? error : String(error) });

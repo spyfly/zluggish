@@ -50,7 +50,7 @@ const columns = [
   'power_units',
 ] as const;
 
-function ids(rows: { id: number }[]) {
+function ids(rows: Array<{ id: number }>) {
   return new Set(rows.map((row) => row.id));
 }
 
@@ -130,8 +130,9 @@ export class ActivitiesRepository {
         'activity_media',
         'activity_upload',
         'activity_completion',
-      ] as const)
+      ] as const) {
         this.executor.run(query.deleteFrom(table).where('activity_id', '=', integer(id)));
+      }
       this.deleteActivity(id, player);
     });
   }
@@ -201,7 +202,6 @@ export class ActivitiesRepository {
     };
   }
 
-  /** Reservations older than the cutoff, and failed media, with their owners. */
   abandonedMedia(table: 'activity_image' | 'activity_media', before: number) {
     return this.executor.all(
       query
@@ -239,7 +239,6 @@ export class ActivitiesRepository {
     );
   }
 
-  /** A rider's own activities, newest first, with whether each holds a FIT payload and how many ready images. */
   ownActivities(player: number | bigint, id?: IntegerInput, page?: number) {
     let selection = query
       .selectFrom('activity')
@@ -253,11 +252,15 @@ export class ActivitiesRepository {
       .where('player_id', '=', player)
       .where('distanceInMeters', '>', 1);
 
-    if (id !== undefined) selection = selection.where('id', '=', integer(id));
+    if (id !== undefined) {
+      selection = selection.where('id', '=', integer(id));
+    }
 
     selection = selection.orderBy('date', 'desc').orderBy('id', 'desc');
 
-    if (page !== undefined) selection = selection.limit(21).offset(page * 20);
+    if (page !== undefined) {
+      selection = selection.limit(21).offset(page * 20);
+    }
 
     return this.executor.all(selection, true);
   }
@@ -284,11 +287,17 @@ export class ActivitiesRepository {
         ]),
       );
 
-    if (player !== null) selection = selection.where('player_id', '=', player);
+    if (player !== null) {
+      selection = selection.where('player_id', '=', player);
+    }
 
-    if (before !== null) selection = selection.where('id', '<', integer(before));
+    if (before !== null) {
+      selection = selection.where('id', '<', integer(before));
+    }
 
-    if (!includeUnfinished) selection = selection.where('end_date', 'is not', null);
+    if (!includeUnfinished) {
+      selection = selection.where('end_date', 'is not', null);
+    }
 
     return this.executor.all(selection.orderBy('date', 'desc').limit(limit), true);
   }

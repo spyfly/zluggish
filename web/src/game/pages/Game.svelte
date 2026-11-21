@@ -18,7 +18,9 @@
 
   $effect(() => {
     // The launcher's public loading screen has no rider session to monitor.
-    if (!current.csrf) return;
+    if (!current.csrf) {
+      return;
+    }
 
     const channel = 'BroadcastChannel' in window ? new BroadcastChannel('zluggish-session-change') : undefined;
     let controller: AbortController | undefined;
@@ -26,7 +28,9 @@
     channel?.addEventListener('message', expire);
 
     async function check() {
-      if (document.hidden || locked) return;
+      if (document.hidden || locked) {
+        return;
+      }
       controller?.abort();
       controller = new AbortController();
 
@@ -37,7 +41,9 @@
           signal: controller.signal,
         });
 
-        if (alive && [401, 409].includes(response.status)) expire();
+        if (alive && [401, 409].includes(response.status)) {
+          expire();
+        }
       } catch {
         /* A network error is not proof that the session expired. */
       }
@@ -67,6 +73,19 @@
   version={current.version}
   zwiftVersion={current.zwiftVersion}
 >
+  {#snippet aside()}
+    {#if current.webApp && (current.kind === 'dashboard' || current.kind === 'login')}
+      <a class="web-app" href={current.webApp} target="_blank" rel="noopener noreferrer">
+        Manage your account
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3h7v7M13 3 4 12" /></svg>
+        <span class="visually-hidden">(opens the web app in your browser)</span>
+      </a>
+    {/if}
+  {/snippet}
+  {#if current.warning}<p class="security" role="alert">
+      <strong>Unsafe connection.</strong>
+      {current.warning}
+    </p>{/if}
   {#key failures}{#if current.message}<p class="notice" role={current.failed ? 'alert' : 'status'}>
         {current.message}
       </p>{/if}{/key}
@@ -99,13 +118,62 @@
       </Form>
     </div>
   {/each}
-  {#if current.kind === 'dashboard'}
-    <p class="settings-note">Use the separate webapp to change settings.</p>
-  {/if}
 </Layout>
 
 <style>
-  .settings-note {
-    color: var(--muted);
+  .web-app {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-left: 0.4rem;
+    padding: 0.3rem 0.7rem 0.3rem 0.8rem;
+    border: 1.5px solid rgb(255 255 255 / 0.35);
+    border-radius: 999px;
+    color: var(--text);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    white-space: nowrap;
+    text-decoration: none;
+  }
+  .web-app svg {
+    width: 0.8rem;
+    height: 0.8rem;
+    fill: none;
+    stroke: var(--orange);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .web-app:hover {
+    border-color: var(--orange);
+    background: rgb(255 255 255 / 0.08);
+  }
+  .web-app:focus-visible {
+    outline: 2px solid var(--orange);
+    outline-offset: 2px;
+  }
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  /* Sized for the small launcher window: one compact strip above the page. */
+  .security {
+    max-width: none;
+    margin: 0 0 0.75rem;
+    padding: 0.5rem 0.75rem;
+    border-left: 3px solid #ff6b57;
+    border-radius: 0 8px 8px 0;
+    background: rgb(255 90 70 / 0.16);
+    color: var(--alarm);
+    font-size: 0.8125rem;
+    line-height: 1.35;
+  }
+  .security strong {
+    color: var(--text);
+    font-weight: 800;
   }
 </style>

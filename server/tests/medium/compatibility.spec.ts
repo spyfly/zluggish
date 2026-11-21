@@ -20,7 +20,7 @@ await test('Companion and game zfiles negotiate independently and refresh overwr
   const other = await f.accounts.create('Other Rider', 'test-password');
   const authorization = { Authorization: `Bearer ${f.sessions.tokens(user, f.tokens).access_token}` };
 
-  for (const companion of [true, false])
+  for (const companion of [true, false]) {
     for (const json of [true, false]) {
       const response = await f.app.request('/api/zfiles', {
         method: 'POST',
@@ -57,8 +57,11 @@ await test('Companion and game zfiles negotiate independently and refresh overwr
           content: null,
           lastModified: new Date(Math.floor(Date.now() / 1000) * 1000).toISOString().replace('Z', '+0000'),
         });
-      } else assert.equal(fromBinary(ZFileProtoSchema, new Uint8Array(await response.arrayBuffer())).id, 1n);
+      } else {
+        assert.equal(fromBinary(ZFileProtoSchema, new Uint8Array(await response.arrayBuffer())).id, 1n);
+      }
     }
+  }
 
   f.accounts.db.prepare('UPDATE zfile SET timestamp=123 WHERE id=1').run();
 
@@ -172,9 +175,13 @@ await test('saved-game achievements and portal thresholds survive repeated reads
   insert.run(other.player_id);
 
   for (let count = 0; count <= 25; count++) {
-    if (count) insert.run(user.player_id);
+    if (count) {
+      insert.run(user.player_id);
+    }
 
-    if (![0, 1, 9, 10, 24, 25].includes(count)) continue;
+    if (![0, 1, 9, 10, 24, 25].includes(count)) {
+      continue;
+    }
     const response = await f.app.request('/api/achievement/loadPlayerAchievements', { headers });
 
     const ids = fromBinary(AchievementsSchema, new Uint8Array(await response.arrayBuffer())).achievements.map(
@@ -187,8 +194,9 @@ await test('saved-game achievements and portal thresholds survive repeated reads
       [1, 211],
       [10, 212],
       [25, 213],
-    ] as const)
+    ] as const) {
       assert.equal(ids.includes(badge), count >= minimum);
+    }
     assert.equal(ids.length, new Set(ids).size);
   }
 

@@ -11,6 +11,8 @@ import type { DatabaseSync } from 'node:sqlite';
 export class Profiles {
   readonly synthetic = new Map<bigint, PlayerProfile>();
 
+  private readonly replayOwners = new Map<bigint, number>();
+
   // Each committed change advances the source version and replaces the cache entry.
   private readonly cache = new Map<number, PlayerProfile>();
 
@@ -35,10 +37,45 @@ export class Profiles {
   get(id: number): PlayerProfile {
     const synthetic = this.synthetic.get(BigInt(id));
 
-    if (synthetic) return clone(PlayerProfileSchema, synthetic);
+    if (!synthetic) {
+      return this.getStored(id);
+    }
+
+    const profile = clone(PlayerProfileSchema, synthetic);
+    const ownerId = this.replayOwners.get(profile.id);
+
+    if (ownerId !== undefined && this.exists(ownerId)) {
+      const owner = this.getStored(ownerId);
+
+      if (owner.privacyBits & 4n && owner.weightInGrams > 0) {
+        profile.weightInGrams = owner.weightInGrams;
+      }
+    }
+
+    return profile;
+  }
+
+  setReplayProfile(profile: PlayerProfile, ownerId: number | undefined) {
+    this.synthetic.set(profile.id, profile);
+
+    if (ownerId === undefined) {
+      this.replayOwners.delete(profile.id);
+    } else {
+      this.replayOwners.set(profile.id, ownerId);
+    }
+  }
+
+  deleteReplayProfile(id: bigint) {
+    this.synthetic.delete(id);
+    this.replayOwners.delete(id);
+  }
+
+  private getStored(id: number): PlayerProfile {
     const cached = this.cache.get(id);
 
-    if (cached) return clone(PlayerProfileSchema, cached);
+    if (cached) {
+      return clone(PlayerProfileSchema, cached);
+    }
     const profile = this.decode(id, this.documents.get(id, 'profile.bin'));
     this.cache.set(id, profile);
 
@@ -64,7 +101,9 @@ export class Profiles {
 
     const user = this.accounts.get(id);
 
-    if (!user) throw new Error('Unknown rider');
+    if (!user) {
+      throw new Error('Unknown rider');
+    }
 
     return create(PlayerProfileSchema, {
       id: BigInt(id),
@@ -91,7 +130,9 @@ export class Profiles {
     });
     this.invalidate(id);
 
-    if (!joined) this.cache.set(id, clone(PlayerProfileSchema, profile));
+    if (!joined) {
+      this.cache.set(id, clone(PlayerProfileSchema, profile));
+    }
   }
 
   /** Call after any change to the stored profile or account names outside save(). */

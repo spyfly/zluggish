@@ -21,7 +21,7 @@ import { responseStatus } from '#tests/support/html';
 
 const flush = () => Promise.resolve();
 
-async function json(request: Response | Promise<Response>) {
+async function json(request: Response | Promise<Response>): Promise<any> {
   const response = await request;
 
   return response.json();
@@ -32,7 +32,9 @@ await test('requests without cookies allocate no web sessions, and anonymous wri
   const web = createWebApp(f);
   const sessions = f.effects.runSync(WebSessionsService);
 
-  for (let i = 0; i < 200; i++) assert.equal(await responseStatus(web.request('http://local:8080/api/setup')), 200);
+  for (let i = 0; i < 200; i++) {
+    assert.equal(await responseStatus(web.request('http://local:8080/api/setup')), 200);
+  }
   assert.equal(sessions.sessions.size, 0);
 
   const state = await web.request('http://local:8080/api/setup');
@@ -179,7 +181,7 @@ await test('bot commands run only from the management area, once per operation',
   assert.equal(simulation.command(id, 'peloton 5'), 'Use the web app management area for server commands.');
 
   const opened = Effect.runSync(service.sessions.create(f.accounts.identityOf(owner), Date.now() + 900_000));
-  const sent: string[] = [];
+  const sent: Array<string> = [];
 
   const dispatch = {
     reload: flush,
@@ -268,13 +270,14 @@ await test('administrators can dispatch after the old confirmation deadline; ret
 await test('ride completion rejects malformed ride identities with 400', async (t) => {
   const f = runtimeFixture(t);
 
-  for (const path of ['/api/profiles/abc/activities/1', '/api/profiles/1/activities/nope'])
+  for (const path of ['/api/profiles/abc/activities/1', '/api/profiles/1/activities/nope']) {
     assert.equal(
       await responseStatus(
         f.app.request(path, { method: 'PUT', headers: { Authorization: 'Bearer stale' }, body: 'x' }),
       ),
       400,
     );
+  }
 });
 
 await test('the game app bundle contains no web app code', () => {
@@ -291,8 +294,9 @@ await test('the game app bundle contains no web app code', () => {
   for (const file of bundles) {
     const text = readFileSync(file, 'utf8');
 
-    for (const marker of ['/api/manage', '/api/session', '/api/me', 'Confirm your password to manage'])
+    for (const marker of ['/api/manage', '/api/session', '/api/me', 'Confirm your password to manage']) {
       assert.equal(text.includes(marker), false, `${file} contains ${marker}`);
+    }
   }
 });
 
@@ -356,7 +360,10 @@ await test('imported activities without completion records rebuild missing chart
   );
 
   assert.equal(detail.chartPending, false);
-  assert.ok(detail.chart.timeInSec.length > 0);
+  const { timeInSec } = Schema.decodeUnknownSync(Schema.Struct({ timeInSec: Schema.Array(Schema.Finite) }))(
+    detail.chart,
+  );
+  assert.ok(timeInSec.length > 0);
 });
 
 await test('web app lists an activity whose Strava ids exceed 32 bits', async (t) => {
@@ -392,10 +399,10 @@ await test('web app lists an activity whose Strava ids exceed 32 bits', async (t
   });
 
   assert.equal(list.status, 200);
-  const body = await json(list);
+  const body: { activities: Array<{ id: string; name: string }> } = await json(list);
 
   assert.deepEqual(
-    body.activities.map((a: { id: string; name: string }) => [a.id, a.name]),
+    body.activities.map((a) => [a.id, a.name]),
     [[String(id), 'Strava synced']],
   );
 });
@@ -443,15 +450,10 @@ await test('riders list, inspect and download only their own activities in the w
   const owner = as(f.rider);
   const other = as(f.other);
 
-  const list = await json(owner('/api/me/activities'));
+  const list: { activities: Array<{ id: string; name: string; fit: boolean; images: number; world: number }> } =
+    await json(owner('/api/me/activities'));
   assert.deepEqual(
-    list.activities.map((a: { id: string; name: string; fit: boolean; images: number; world: number }) => [
-      a.id,
-      a.name,
-      a.fit,
-      a.images,
-      a.world,
-    ]),
+    list.activities.map((a) => [a.id, a.name, a.fit, a.images, a.world]),
     [[String(id), 'Volcano loop', true, 1, 6]],
   );
   const others = await json(other('/api/me/activities'));
@@ -473,13 +475,15 @@ await test('riders list, inspect and download only their own activities in the w
   assert.equal(jpg.headers.get('Content-Type'), 'image/jpeg');
   assert.match(jpg.headers.get('Content-Disposition') ?? '', /attachment/);
   assert.deepEqual([...new Uint8Array(await jpg.arrayBuffer())], [0xff, 0xd8, 1]);
+  assert.equal(jpg.headers.get('Content-Length'), '3');
 
   for (const path of [
     `/api/me/activities/${id}`,
     `/api/me/activities/${id}/fit`,
     `/api/me/activities/${id}/images/${image}`,
-  ])
+  ]) {
     assert.equal(await responseStatus(other(path)), 404);
+  }
   assert.equal(await responseStatus(owner('/api/me/activities/1%27')), 400);
   assert.equal(await responseStatus(web.request(`http://local:8080/api/me/activities`)), 401);
 });

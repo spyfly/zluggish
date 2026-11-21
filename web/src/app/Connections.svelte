@@ -1,6 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import TextField from './TextField.svelte';
+  import { z } from 'zod';
+  import { ignored } from '../lib/api';
+  import type { Api } from '../lib/api';
 
   let {
     api,
@@ -9,7 +12,7 @@
     saved,
     save,
   }: {
-    api: <Body>(url: string, method?: string, data?: Record<string, string | boolean>) => Promise<Body>;
+    api: Api;
     stravaMethod: string;
     bridgeFolder: string;
     /** The settings the server holds, so a tile does not change before its choice is saved. */
@@ -21,9 +24,27 @@
 
   type Integration = Provider | 'trainingpeaks';
 
-  type Connection = { username: string; saved: boolean; unreadable: boolean; authorized?: boolean; cookie?: boolean };
+  const connectionSchema = z.object({
+    username: z.string(),
+    saved: z.boolean(),
+    unreadable: z.boolean(),
+    authorized: z.boolean().optional(),
+    cookie: z.boolean().optional(),
+  });
 
-  type UploadJob = { activity_id: number; provider: string; state: string };
+  type Connection = z.infer<typeof connectionSchema>;
+
+  const connectionsResponse = z.object({
+    strava: connectionSchema,
+    garmin: connectionSchema,
+    intervals: connectionSchema,
+  });
+
+  const jobsResponse = z.object({
+    jobs: z.array(z.object({ activity_id: z.number(), provider: z.string(), state: z.string() })),
+  });
+
+  type UploadJob = z.infer<typeof jobsResponse>['jobs'][number];
 
   type Credential =
     | 'strava/api'
@@ -43,7 +64,7 @@
     cookieStatus = 'checking';
 
     try {
-      const { valid } = await api<{ valid: boolean }>('/api/me/connections/strava/test', 'POST', {});
+      const { valid } = await api(z.object({ valid: z.boolean() }), '/api/me/connections/strava/test', 'POST', {});
       cookieStatus = valid ? 'valid' : 'invalid';
     } catch {
       cookieStatus = 'error';
@@ -56,7 +77,7 @@
   let message = $state('');
   let failed = $state(false);
   let where = $state<'integration' | 'uploads'>('integration');
-  let jobs = $state<UploadJob[]>([]);
+  let jobs = $state<Array<UploadJob>>([]);
   let confirmUnknown = $state(false);
   let open = $state<Integration | null>(null);
   let removing = $state<Credential | null>(null);
@@ -65,7 +86,7 @@
   /** Set on press, so dragging a text selection out of a field does not close the dialog on release. */
   let pressedBackdrop = false;
 
-  const integrations: { name: Integration; title: string }[] = [
+  const integrations: Array<{ name: Integration; title: string }> = [
     { name: 'strava', title: 'Strava' },
     { name: 'garmin', title: 'Garmin' },
     { name: 'intervals', title: 'Intervals.icu' },
@@ -119,8 +140,8 @@
 
     try {
       await action();
-      connections = await api<Record<Provider, Connection>>('/api/me/connections');
-      jobs = (await api<{ jobs: UploadJob[] }>('/api/me/uploads')).jobs;
+      connections = await api(connectionsResponse, '/api/me/connections');
+      jobs = (await api(jobsResponse, '/api/me/uploads')).jobs;
     } catch (error) {
       failed = true;
       message = error instanceof Error ? error.message : 'Could not save connection.';
@@ -144,65 +165,74 @@
 
   // The Strava callback opens the dialog before connections load, so it waits until there is something to show.
   $effect(() => {
-    if (open && connections && dialog && !dialog.open) dialog.showModal();
+    if (open && connections && dialog && !dialog.open) {
+      dialog.showModal();
+    }
   });
 
   /** What the server holds for a provider, each removable on its own, and what stops working without it. */
   function stored(name: 'strava' | 'garmin', connection: Connection) {
-    const items: Stored[] = [];
+    const items: Array<Stored> = [];
 
     if (name === 'strava') {
-      if (connection.saved)
+      if (connection.saved) {
         items.push({
           id: 'strava/api',
           label: 'API application',
           detail: 'Client ID and secret',
           effect: 'Authorizing again needs the client ID and secret.',
         });
+      }
 
-      if (connection.authorized)
+      if (connection.authorized) {
         items.push({
           id: 'strava/authorization',
           label: 'Authorization',
           detail: 'Access granted to your API application',
           effect: 'API uploads stop until you authorize again.',
         });
+      }
 
-      if (connection.cookie)
+      if (connection.cookie) {
         items.push({
           id: 'strava/cookie',
           label: 'Session cookie',
           detail: '_strava4_session',
           effect: 'Session cookie uploads stop until you save a new cookie.',
         });
+      }
 
       return items;
     }
 
-    if (connection.saved)
+    if (connection.saved) {
       items.push({
         id: 'garmin/credentials',
         label: 'Email and password',
         detail: 'Garmin Connect sign-in',
         effect: 'Authorizing again needs your email and password.',
       });
+    }
 
-    if (connection.authorized)
+    if (connection.authorized) {
       items.push({
         id: 'garmin/authorization',
         label: 'Authorization',
         detail: 'Sign-in tokens from Garmin Connect',
         effect: 'Garmin uploads stop until you authorize again.',
       });
+    }
 
     return items;
   }
 
   function removeCredential(item: Stored) {
     void run(async () => {
-      await api(`/api/me/connections/${item.id}`, 'DELETE');
+      await api(ignored, `/api/me/connections/${item.id}`, 'DELETE');
 
-      if (item.id === 'strava/cookie') cookieStatus = 'unchecked';
+      if (item.id === 'strava/cookie') {
+        cookieStatus = 'unchecked';
+      }
       removing = null;
 
       if (item.id.startsWith('garmin/')) {
@@ -215,8 +245,16 @@
   }
 
   function saveCredentials(name: Provider) {
+    const connection = connections?.[name];
+
+    if (!connection) {
+      return;
+    }
     void run(async () => {
-      await api(`/api/me/connections/${name}`, 'PUT', { username: connections![name].username, secret: secrets[name] });
+      await api(ignored, `/api/me/connections/${name}`, 'PUT', {
+        username: connection.username,
+        secret: secrets[name],
+      });
       secrets[name] = '';
       message = 'Credentials saved.';
     });
@@ -237,7 +275,8 @@
 
   function authorize(name: Provider) {
     void run(async () => {
-      const result = await api<{ url?: string; status?: string }>(
+      const result = await api(
+        z.object({ url: z.string().optional(), status: z.string().optional() }),
         `/api/me/connections/${name}/authorize`,
         'POST',
         name === 'garmin' && mfa ? { code } : {},
@@ -257,9 +296,11 @@
 
   function disconnect(name: Provider) {
     void run(async () => {
-      await api(`/api/me/connections/${name}`, 'DELETE');
+      await api(ignored, `/api/me/connections/${name}`, 'DELETE');
 
-      if (name === 'strava') cookieStatus = 'unchecked';
+      if (name === 'strava') {
+        cookieStatus = 'unchecked';
+      }
       removing = null;
 
       if (name === 'garmin') {
@@ -273,25 +314,28 @@
 
   function sync(provider: 'intervals' | 'trainingpeaks') {
     void run(async () => {
-      message = (await api<{ message: string }>('/api/me/workouts/sync', 'POST', { provider })).message;
+      message = (await api(z.object({ message: z.string() }), '/api/me/workouts/sync', 'POST', { provider })).message;
     });
   }
 
   function retry(ambiguous: boolean) {
     void run(async () => {
-      await api('/api/me/uploads/retry', 'POST', { ambiguous });
+      await api(ignored, '/api/me/uploads/retry', 'POST', { ambiguous });
       confirmUnknown = false;
       message = 'Retry requested. Check the provider before retrying again.';
     }, 'uploads');
   }
 
-  // Deliveries finish in the background, so the list refreshes while any is still in flight.
   $effect(() => {
-    if (!jobs.some((job) => ['pending', 'sending'].includes(job.state))) return;
+    if (!jobs.some((job) => ['pending', 'sending'].includes(job.state))) {
+      return;
+    }
 
     const timer = setInterval(() => {
-      if (document.hidden) return;
-      api<{ jobs: UploadJob[] }>('/api/me/uploads').then(
+      if (document.hidden) {
+        return;
+      }
+      api(jobsResponse, '/api/me/uploads').then(
         (body) => (jobs = body.jobs),
         () => {
           /* The next tick tries again. */
@@ -312,13 +356,17 @@
         history.replaceState(null, '', '/integrations');
         open = 'strava';
 
-        if (!authorizationCode) throw new Error('Strava authorization canceled.');
-        await api('/api/me/connections/strava/authorize', 'POST', { code: authorizationCode, state });
+        if (!authorizationCode) {
+          throw new Error('Strava authorization canceled.');
+        }
+        await api(ignored, '/api/me/connections/strava/authorize', 'POST', { code: authorizationCode, state });
         message = 'Strava authorized.';
       }
     }).then(() => {
       // Verification is not stored, so a saved session cookie is tested again whenever the page opens.
-      if (connections?.strava.cookie && saved.stravaMethod === 'free') void testCookie();
+      if (connections?.strava.cookie && saved.stravaMethod === 'free') {
+        void testCookie();
+      }
     });
   });
 </script>
@@ -429,7 +477,6 @@
   {/if}
 </section>
 
-<!-- One dialog serves every integration; it opens over the dimmed settings page and closes back to the tiles. -->
 <dialog
   class="integration"
   aria-labelledby="integration-title"
@@ -502,7 +549,7 @@
             onsubmit={(event) => {
               event.preventDefault();
               void run(async () => {
-                await api('/api/me/connections/strava/cookie', 'PUT', { cookie });
+                await api(ignored, '/api/me/connections/strava/cookie', 'PUT', { cookie });
                 cookie = '';
                 message = 'Session cookie saved.';
                 await testCookie();
@@ -888,7 +935,6 @@
     font-weight: 800;
   }
 
-  /* One row per stored credential; confirming a removal opens beneath it, naming what stops working. */
   .stored {
     margin: 0;
     padding: 0;

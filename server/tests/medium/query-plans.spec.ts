@@ -33,7 +33,9 @@ await test('the main queries use an index on several years of history', async (t
   const db = f.accounts.db;
   const riders = [];
 
-  for (let index = 0; index < 5; index++) riders.push(await f.accounts.create(`Rider ${index}`, 'test-password'));
+  for (let index = 0; index < 5; index++) {
+    riders.push(await f.accounts.create(`Rider ${index}`, 'test-password'));
+  }
 
   db.exec('BEGIN');
   const day = 86_400_000;
@@ -51,7 +53,7 @@ await test('the main queries use an index on several years of history', async (t
     'INSERT INTO power_curve (player_id, time, power, power_wkg, timestamp, activity_id) VALUES (?, ?, ?, 3, ?, ?)',
   );
 
-  for (const rider of riders)
+  for (const rider of riders) {
     for (let i = 0; i < 4 * 365; i++) {
       const date = new Date(start + i * day).toISOString();
       const id = Number(activity.run(rider.player_id, 'Ride', date, date, date, 20_000).lastInsertRowid);
@@ -59,10 +61,11 @@ await test('the main queries use an index on several years of history', async (t
       curve.run(rider.player_id, '300', 250, (start + i * day) / 1000, id);
       segment.run(rider.player_id, i % 50, start + i * day, 60_000 + i, date);
     }
+  }
 
   db.exec('COMMIT; ANALYZE;');
 
-  const captured: { sql: string; args: SQLInputValue[] }[] = [];
+  const captured: Array<{ sql: string; args: Array<SQLInputValue> }> = [];
   const prepare = db.prepare.bind(db);
 
   t.mock.method(db, 'prepare', (sql: string) => {
@@ -71,7 +74,7 @@ await test('the main queries use an index on several years of history', async (t
     for (const method of ['all', 'get'] as const) {
       const original = statement[method].bind(statement);
 
-      t.mock.method(statement, method, (...args: SQLInputValue[]) => {
+      t.mock.method(statement, method, (...args: Array<SQLInputValue>) => {
         captured.push({ sql, args });
 
         return original(...args);
@@ -113,10 +116,12 @@ await test('the main queries use an index on several years of history', async (t
   f.effects.runSync(StorageService.use((storage) => storage.list(rider.player_id, 'customworkouts')));
   db.prepare('SELECT 1').get();
 
-  const plans = new Map<string, string[]>();
+  const plans = new Map<string, Array<string>>();
 
   for (const { sql, args } of captured) {
-    if (!/^select/i.test(sql) || plans.has(sql)) continue;
+    if (!/^select/i.test(sql) || plans.has(sql)) {
+      continue;
+    }
     const rows = prepare(`EXPLAIN QUERY PLAN ${sql}`).all(...args);
     plans.set(
       sql,
@@ -126,9 +131,10 @@ await test('the main queries use an index on several years of history', async (t
 
   assert.ok(plans.size >= 12, `captured ${plans.size} queries`);
 
-  for (const [sql, details] of plans)
+  for (const [sql, details] of plans) {
     for (const detail of details) {
       const scan = /^SCAN (\w+)$/.exec(detail);
       assert.ok(!scan || !tables.has(scan[1] ?? ''), `${detail} in ${sql}`);
     }
+  }
 });

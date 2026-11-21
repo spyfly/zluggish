@@ -68,16 +68,18 @@ export function createGameApp(metadata: PublicMetadata, runtime?: Runtime) {
 
   app.use('*', bodyLimit({ maxSize: 16 * 1024 * 1024 }));
 
-  if (runtime)
+  if (runtime) {
     app.use('*', async (_c, next) => {
       const durability = runtime.effects.runSync(DurabilityService);
       const before = runtime.effects.runSync(durability.changes());
       await next();
 
       // A save is acknowledged by its response: the WAL is flushed before it leaves.
-      if (runtime.effects.runSync(durability.changes()) !== before)
+      if (runtime.effects.runSync(durability.changes()) !== before) {
         await runtime.effects.runPromise(durability.flush());
+      }
     });
+  }
 
   if (runtime) {
     rideCompletionRoutes(app, runtime);
@@ -112,8 +114,9 @@ export function createGameApp(metadata: PublicMetadata, runtime?: Runtime) {
     const response = create(FeatureResponseSchema);
 
     for (const params of request.params) {
-      for (const param of params.param)
+      for (const param of params.param) {
         response.variants.push(known.get(param) ?? create(FeatureResponse_ParamsSchema, { name: param }));
+      }
     }
 
     return toBinary(FeatureResponseSchema, response);
@@ -130,14 +133,16 @@ export function createGameApp(metadata: PublicMetadata, runtime?: Runtime) {
 
       const files = runtime.effects.runSync(FilesService);
 
-      if (runtime.effects.runSync(files.exists(file)))
+      if (runtime.effects.runSync(files.exists(file))) {
         try {
           for (const variant of fromJsonString(FeatureResponseSchema, runtime.effects.runSync(files.readText(file)))
-            .variants)
+            .variants) {
             known.set(variant.name, variant);
+          }
         } catch {
           log.warn('config.variants_invalid', 'Ignoring invalid variants override', { playerId: user.player_id });
         }
+      }
     }
 
     const mochi = known.get('game_mochi');
@@ -170,18 +175,20 @@ export function createGameApp(metadata: PublicMetadata, runtime?: Runtime) {
     }),
   );
 
-  if (runtime)
+  if (runtime) {
     app.post('/experimentation/v1/variant', async (c) =>
       c.body(variantResponse(new Uint8Array(await c.req.arrayBuffer()), variantsFor(authenticated(c))), 200, {
         'Content-Type': 'text/html; charset=utf-8',
       }),
     );
+  }
   app.onError((error, c) => {
     if (browserJson(c)) {
       c.header('Cache-Control', 'no-store');
 
-      if (Schema.isSchemaError(error))
+      if (Schema.isSchemaError(error)) {
         return c.json({ ok: false, message: 'Check the form fields.', fieldErrors: fieldErrors(error) }, 400);
+      }
 
       if (error instanceof HTTPException || error instanceof ApplicationError) {
         const status = error.status;
@@ -195,12 +202,17 @@ export function createGameApp(metadata: PublicMetadata, runtime?: Runtime) {
       return c.json({ ok: false, message: 'Could not save. Try again.' }, 500);
     }
 
-    if (error instanceof ApplicationError)
+    if (error instanceof ApplicationError) {
       return new HTTPException(error.status, { message: error.message }).getResponse();
+    }
 
-    if (error instanceof HTTPException) return error.getResponse();
+    if (error instanceof HTTPException) {
+      return error.getResponse();
+    }
 
-    if (Schema.isSchemaError(error)) return c.text('Invalid request', 400);
+    if (Schema.isSchemaError(error)) {
+      return c.text('Invalid request', 400);
+    }
 
     log.error('http.failed', 'Request failed unexpectedly', {
       requestId: c.get('requestId'),

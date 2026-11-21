@@ -13,7 +13,7 @@ const obsolete = new Set(['last_activity.bin']);
 
 export type LegacyFile = { path: string; bytes: number };
 
-export type LegacyPlan = { removable: LegacyFile[]; kept: { path: string; reason: string }[] };
+export type LegacyPlan = { removable: Array<LegacyFile>; kept: Array<{ path: string; reason: string }> };
 
 const crypto = new CryptoRepository();
 
@@ -24,13 +24,16 @@ nothing reads it). Changed files, unknown files and orphaned riders are kept.
 export function legacyPlan(storage: string): LegacyPlan {
   const manifest = readManifest(storage);
 
-  if (manifest?.state !== 'published') throw new ConfigError('No published storage migration; nothing to clean');
+  if (manifest?.state !== 'published') {
+    throw new ConfigError('No published storage migration; nothing to clean');
+  }
 
   const archived = manifest.backup.endsWith(archiveSuffix);
   const backupPath = archived ? manifest.backup : resolve(manifest.backup, 'backup-manifest.json');
 
-  if (!existsSync(backupPath))
+  if (!existsSync(backupPath)) {
     throw new ConfigError(`The migration backup ${manifest.backup} is missing; keep the legacy files`);
+  }
 
   const backup = Schema.decodeUnknownSync(Schema.Struct({ checksums: Schema.Record(Schema.String, Schema.String) }))(
     JSON.parse(archived ? readArchivedFile(backupPath, 'backup-manifest.json') : readFileSync(backupPath, 'utf8')),
@@ -54,9 +57,13 @@ export function legacyPlan(storage: string): LegacyPlan {
     const backedUp = (path: string) => backup[relative(storage, path)] === crypto.sha256(readFileSync(path));
 
     const consider = (path: string, imported: boolean) => {
-      if (!backedUp(path)) plan.kept.push({ path, reason: 'not identical to the migration backup' });
-      else if (imported) plan.removable.push({ path, bytes: statSync(path).size });
-      else plan.kept.push({ path, reason: 'not in the database' });
+      if (!backedUp(path)) {
+        plan.kept.push({ path, reason: 'not identical to the migration backup' });
+      } else if (imported) {
+        plan.removable.push({ path, bytes: statSync(path).size });
+      } else {
+        plan.kept.push({ path, reason: 'not in the database' });
+      }
     };
 
     const document = db.prepare('SELECT data, encrypted FROM rider_document WHERE player_id=? AND name=?');
@@ -66,11 +73,17 @@ export function legacyPlan(storage: string): LegacyPlan {
     const stored = (player: number, name: string) => {
       const row = document.get(player, name);
 
-      if (!row) return false;
+      if (!row) {
+        return false;
+      }
 
-      if (row.encrypted === 0) return true;
+      if (row.encrypted === 0) {
+        return true;
+      }
 
-      if (key === null) return false;
+      if (key === null) {
+        return false;
+      }
 
       try {
         crypto.decryptSecret(key, Schema.decodeUnknownSync(Schema.instanceOf(Uint8Array))(row.data));
@@ -82,7 +95,9 @@ export function legacyPlan(storage: string): LegacyPlan {
     };
 
     for (const folder of readdirSync(storage)) {
-      if (!/^\d+$/.test(folder) || !statSync(resolve(storage, folder)).isDirectory()) continue;
+      if (!/^\d+$/.test(folder) || !statSync(resolve(storage, folder)).isDirectory()) {
+        continue;
+      }
       const player = Number(folder);
       const root = resolve(storage, folder);
 
@@ -94,7 +109,9 @@ export function legacyPlan(storage: string): LegacyPlan {
       for (const name of [...Object.values(RiderDocumentName), ...obsolete]) {
         const path = resolve(root, name);
 
-        if (existsSync(path)) consider(path, obsolete.has(name) || stored(player, name));
+        if (existsSync(path)) {
+          consider(path, obsolete.has(name) || stored(player, name));
+        }
       }
 
       for (const path of files(resolve(root, 'bookmarks'))) {
@@ -121,8 +138,11 @@ export function legacyPlan(storage: string): LegacyPlan {
           ].every((sql) => JSON.stringify(legacy.prepare(sql).all()) === JSON.stringify(db.prepare(sql).all())) &&
           backup[StorageFile.Settings] !== undefined;
 
-        if (merged) plan.removable.push({ path: settings, bytes: statSync(settings).size });
-        else plan.kept.push({ path: settings, reason: 'rows differ from the database; resolve them first' });
+        if (merged) {
+          plan.removable.push({ path: settings, bytes: statSync(settings).size });
+        } else {
+          plan.kept.push({ path: settings, reason: 'rows differ from the database; resolve them first' });
+        }
       } finally {
         legacy.close();
       }
@@ -134,39 +154,55 @@ export function legacyPlan(storage: string): LegacyPlan {
   return plan;
 }
 
-/** Remove the removable legacy files, then empty legacy folders. */
 export function removeLegacy(storage: string, plan: LegacyPlan) {
   for (const file of plan.removable) {
     rmSync(file.path, { force: true });
 
-    if (basename(file.path) === StorageFile.Settings)
-      for (const suffix of ['-wal', '-shm', '-journal']) rmSync(`${file.path}${suffix}`, { force: true });
+    if (basename(file.path) === StorageFile.Settings) {
+      for (const suffix of ['-wal', '-shm', '-journal']) {
+        rmSync(`${file.path}${suffix}`, { force: true });
+      }
+    }
   }
 
   for (const folder of readdirSync(storage)) {
-    if (!/^\d+$/.test(folder)) continue;
+    if (!/^\d+$/.test(folder)) {
+      continue;
+    }
 
-    for (const name of ['bookmarks', 'garth']) removeEmpty(resolve(storage, folder, name));
+    for (const name of ['bookmarks', 'garth']) {
+      removeEmpty(resolve(storage, folder, name));
+    }
   }
 }
 
-function files(path: string): string[] {
-  if (!existsSync(path)) return [];
+function files(path: string): Array<string> {
+  if (!existsSync(path)) {
+    return [];
+  }
 
-  const found: string[] = [];
+  const found: Array<string> = [];
 
-  for (const entry of readdirSync(path, { withFileTypes: true }))
-    if (entry.isDirectory()) found.push(...files(resolve(path, entry.name)));
-    else if (entry.isFile()) found.push(resolve(path, entry.name));
+  for (const entry of readdirSync(path, { withFileTypes: true })) {
+    if (entry.isDirectory()) {
+      found.push(...files(resolve(path, entry.name)));
+    } else if (entry.isFile()) {
+      found.push(resolve(path, entry.name));
+    }
+  }
 
   return found;
 }
 
 function removeEmpty(path: string): boolean {
-  if (!existsSync(path) || !statSync(path).isDirectory()) return false;
+  if (!existsSync(path) || !statSync(path).isDirectory()) {
+    return false;
+  }
   const empty = readdirSync(path).every((name) => removeEmpty(resolve(path, name)));
 
-  if (empty) rmSync(path, { recursive: true });
+  if (empty) {
+    rmSync(path, { recursive: true });
+  }
 
   return empty;
 }

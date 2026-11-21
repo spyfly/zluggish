@@ -25,7 +25,9 @@ for (const upgrade of ['startup', 'accounts migrate'] as const) {
     settings.save(2, { 'ghosts.enabled': false });
     settings.close();
 
-    if (upgrade === 'accounts migrate') migrateAccounts(storage);
+    if (upgrade === 'accounts migrate') {
+      migrateAccounts(storage);
+    }
     const reopened = openDatabase(storage);
 
     const columns = new Set(

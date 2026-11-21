@@ -17,7 +17,9 @@ export class BlobBehavior {
   }
 
   expire(now: number) {
-    if (this.current.mode === null || now <= this.current.until) return false;
+    if (this.current.mode === null || now <= this.current.until) {
+      return false;
+    }
     this.current = { mode: null };
 
     return true;

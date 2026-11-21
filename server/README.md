@@ -205,8 +205,8 @@ These commands run offline: stop the server first. They use the selected config'
 | `uploads resume --confirm`                     | Allow automatic deliveries again.                                                                                                                    |
 
 ```sh
-node server/dist/src/cli/bin.js --storage-dir ./storage storage backup --output /backups/zluggish-2026-11-16
-node server/dist/src/cli/bin.js --storage-dir ./storage storage restore --input /backups/zluggish-2026-11-16
+node server/dist/src/cli/bin.js --storage-dir ./storage storage backup --output ./storage/backups/zluggish-2026-11-16
+node server/dist/src/cli/bin.js --storage-dir ./storage storage restore --input ./storage/backups/zluggish-2026-11-16
 node server/dist/src/cli/bin.js --storage-dir ./storage uploads list
 node server/dist/src/cli/bin.js --storage-dir ./storage uploads resume --confirm
 ```
@@ -215,6 +215,6 @@ A restored backup cannot know which deliveries the providers received after the 
 
 ## Development tools
 
-Shared ESLint, Oxlint, Prettier, and mise configuration live in this folder. Run `mise run check` from `server/` to build, lint, typecheck, test, and check formatting for the server and its CLI. ESLint uses TypeScript-aware correctness rules, import checks and Unicorn conventions. Its starting configuration came from `immich-app/immich`'s `server/eslint.config.mjs`. The vendored Oxlint rules record their source revision in [UPSTREAM.md](tools/oxlint/anti-slop/UPSTREAM.md).
+Shared ESLint, Oxlint, Prettier, and mise configuration live in this folder. Run `mise run check` from `server/` to build, lint, typecheck, test, and check formatting for the server and its CLI. ESLint uses TypeScript-aware correctness rules, import checks and Unicorn conventions. Its starting configuration came from `immich-app/immich`'s `server/eslint.config.mjs`. Oxlint uses [`@cloudflare/oxlint-config`](https://github.com/cloudflare/oxlint-config) with type-aware rules; project exceptions and their reasons are recorded in `oxlint.config.ts`.
 
-From `server/`, run `pnpm lint`, `pnpm typecheck`, `pnpm test`, or `pnpm format` for individual checks. `pnpm lint:fix` and `pnpm format:fix` apply automatic fixes. Generated protobuf codecs, bundled assets and vendored lint rules are excluded from application linting and formatting.
+From `server/`, run `pnpm lint`, `pnpm typecheck`, `pnpm test`, or `pnpm format` for individual checks. `pnpm lint:fix` and `pnpm format:fix` apply automatic fixes. Generated protobuf codecs and bundled assets are excluded from application linting and formatting.

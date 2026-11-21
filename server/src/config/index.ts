@@ -23,7 +23,6 @@ const decodeConfig = Schema.decodeUnknownSync(configSchema, strict);
 
 const decodeRiderSettings = Schema.decodeUnknownSync(riderSettingsSchema, strict);
 
-/** A ConfigError naming each invalid field. */
 export function validationError(error: Schema.SchemaError): ConfigError {
   return new ConfigError(
     schemaProblems(error)
@@ -34,12 +33,15 @@ export function validationError(error: Schema.SchemaError): ConfigError {
 
 /** Freeze a decoded configuration and everything it contains: the runtime shares it. */
 function freezeDeep<T extends object>(value: T): T {
-  for (const item of Object.values(value)) if (Predicate.isObject(item)) freezeDeep(item);
+  for (const item of Object.values(value)) {
+    if (Predicate.isObject(item)) {
+      freezeDeep(item);
+    }
+  }
 
   return Object.freeze(value);
 }
 
-/** Run `decode`, reporting schema failures as a ConfigError. */
 function decoding<A>(decode: () => A): A {
   try {
     return decode();
@@ -48,7 +50,6 @@ function decoding<A>(decode: () => A): A {
   }
 }
 
-/** Decode an unvalidated configuration object, or throw a ConfigError naming each invalid field. */
 export const decodeConfigInput = (...input: Parameters<typeof decodeConfig>): ResolvedConfig =>
   decoding(() => decodeConfig(...input));
 
@@ -56,18 +57,25 @@ export function validateConfig(value: ConfigInput): ResolvedConfig {
   const config = decodeConfigInput(value);
   const ids = config.pelotons.map((p) => p.id);
 
-  if (new Set(ids).size !== ids.length) throw new ConfigError('pelotons: duplicate group ID');
+  if (new Set(ids).size !== ids.length) {
+    throw new ConfigError('pelotons: duplicate group ID');
+  }
 
-  if (config.integrations.discord.enabled && !config.integrations.discord.credentialsFile)
+  if (config.integrations.discord.enabled && !config.integrations.discord.credentialsFile) {
     throw new ConfigError('integrations.discord.credentialsFile: required when enabled');
+  }
 
-  if (config.integrations.matrix.enabled)
-    for (const field of ['credentialsFile', 'homeserver', 'user', 'room'] as const)
-      if (!config.integrations.matrix[field])
+  if (config.integrations.matrix.enabled) {
+    for (const field of ['credentialsFile', 'homeserver', 'user', 'room'] as const) {
+      if (!config.integrations.matrix[field]) {
         throw new ConfigError(`integrations.matrix.${field}: required when enabled`);
+      }
+    }
+  }
 
-  if (Boolean(config.tls.certFile) !== Boolean(config.tls.keyFile))
+  if (Boolean(config.tls.certFile) !== Boolean(config.tls.keyFile)) {
     throw new ConfigError('tls.certFile and tls.keyFile: both required when configuring custom TLS');
+  }
 
   return freezeDeep(config);
 }
@@ -77,18 +85,25 @@ export function validateRiderSettings(value: typeof riderSettingsSchema.Encoded)
 }
 
 export function envBoolean(value: string | undefined, fallback = false): boolean {
-  if (value === undefined) return fallback;
+  if (value === undefined) {
+    return fallback;
+  }
 
-  if (value !== 'true' && value !== 'false') throw new ConfigError('Expected true or false environment value');
+  if (value !== 'true' && value !== 'false') {
+    throw new ConfigError('Expected true or false environment value');
+  }
 
   return value === 'true';
 }
 
 export function envInteger(value: string | undefined, fallback: number): number {
-  if (value === undefined) return fallback;
+  if (value === undefined) {
+    return fallback;
+  }
 
-  if (!/^-?\d+$/.test(value) || !Number.isSafeInteger(Number(value)))
+  if (!/^-?\d+$/.test(value) || !Number.isSafeInteger(Number(value))) {
     throw new ConfigError('Expected integer environment value');
+  }
 
   return Number(value);
 }

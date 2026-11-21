@@ -76,9 +76,13 @@ function legacy(t: TestContext) {
   const root = mkdtempSync(resolve(tmpdir(), 'zluggish-legacy-'));
   const storage = resolve(root, 'storage');
   mkdirSync(storage);
-  const databases: DatabaseSync[] = [];
+  const databases: Array<DatabaseSync> = [];
   t.after(() => {
-    for (const database of databases) if (database.isOpen) database.close();
+    for (const database of databases) {
+      if (database.isOpen) {
+        database.close();
+      }
+    }
     rmSync(root, { recursive: true, force: true });
   });
   const db = legacyDatabase(storage);
@@ -166,8 +170,9 @@ await test('the storage merge imports every legacy store once and keeps the lega
   assert.equal(db.prepare('SELECT name FROM bookmark WHERE player_id=1').get()?.name, 'Home');
 
   // Every document holds the exact file bytes, unknown fields and identifiers included.
-  for (const name of imported)
+  for (const name of imported) {
     assert.deepEqual(Buffer.from(documents.get(1, name) ?? []), readFileSync(resolve(storage, '1', name)), name);
+  }
 
   assert.equal(
     fromBinary(PlayerProfileSchema, documents.get(1, 'profile.bin') ?? new Uint8Array()).id,
@@ -233,16 +238,32 @@ await test('the storage merge imports every legacy store once and keeps the lega
     JSON.parse(readArchivedFile(manifest.backup, 'backup-manifest.json')),
   );
 
-  for (const name of ['zluggish.db', 'settings.db', '1/streaks.bin', '1/medias/1.mp4', 'credentials-key.bin'])
+  for (const name of ['zluggish.db', 'settings.db', '1/streaks.bin', '1/medias/1.mp4', 'credentials-key.bin']) {
     assert.ok(backup.checksums[join(...name.split('/'))], `backup holds ${name}`);
+  }
 
-  for (const name of ['settings.db', '1/profile.bin', '1/strava_token.txt', '1/bookmarks/6/0/Home.bin'])
+  for (const name of ['settings.db', '1/profile.bin', '1/strava_token.txt', '1/bookmarks/6/0/Home.bin']) {
     assert.ok(existsSync(resolve(storage, name)), `legacy ${name} is kept`);
+  }
 });
 
 await test('legacy credentials written with another key are reported and left in place', (t) => {
   const { storage, open } = legacy(t);
-  write(storage, '2/garmin_credentials.bin', crypto.encryptCredentials(crypto.randomBytes(32), ['user', 'pass']));
+  let credentials: Uint8Array;
+
+  // CFB8 has no authentication, so a wrong key can occasionally produce valid UTF-8 with two lines.
+  // Choose a key that this decoder definitely rejects so the migration case is deterministic.
+  while (true) {
+    credentials = crypto.encryptCredentials(crypto.randomBytes(32), ['user', 'pass']);
+
+    try {
+      crypto.decryptCredentials(key, credentials);
+    } catch {
+      break;
+    }
+  }
+
+  write(storage, '2/garmin_credentials.bin', credentials);
   const db = open();
 
   assert.equal(new RiderDocuments(db, storage).has(2, 'garmin_credentials.bin'), false);
@@ -273,8 +294,8 @@ await test('a legacy backup preserves the storage tree and the original schema',
     JSON.parse(readFileSync(resolve(storage, StorageFile.Manifest), 'utf8')),
   );
 
-  assert.equal(resolve(manifest.backup, '..'), resolve(storage, '..', 'backups'));
-  assert.equal(existsSync(resolve(storage, 'backups')), false);
+  assert.equal(resolve(manifest.backup, '..'), resolve(storage, 'backups'));
+  assert.equal(existsSync(resolve(storage, '..', 'backups')), false);
   write(storage, 'custom/local.cfg', 'changed setting');
   assert.match(manifest.backup, /\.tar\.gz$/);
   assert.equal(readArchivedFile(manifest.backup, 'custom/local.cfg'), 'original setting');
@@ -294,9 +315,9 @@ await test('a legacy backup preserves the storage tree and the original schema',
 await test('a repeated start does not migrate again', (t) => {
   const { storage, open } = legacy(t);
   open().close();
-  const before = readdirSync(resolve(storage, '..', 'backups'));
+  const before = readdirSync(resolve(storage, 'backups'));
   const db = open();
-  assert.deepEqual(readdirSync(resolve(storage, '..', 'backups')), before);
+  assert.deepEqual(readdirSync(resolve(storage, 'backups')), before);
   assert.equal(db.prepare('SELECT count(*) AS n FROM rider_document').get()?.n, 6);
 });
 
@@ -311,7 +332,7 @@ for (const [point, prepare] of [
       rmSync(resolve(storage, '1/streaks.bin'));
     },
   ],
-] as const)
+] as const) {
   await test(`a stopped completion applies progression once: ${point}`, (t) => {
     const { storage, open } = legacy(t);
 
@@ -335,6 +356,7 @@ for (const [point, prepare] of [
       ['completion_deliveries', 'fit_export', 'power_curve'],
     );
   });
+}
 
 await test('a stopped completion whose journal disagrees with the rider files stops the migration', (t) => {
   const { storage, open } = legacy(t);
@@ -373,14 +395,16 @@ await test('committed data in a legacy WAL file is migrated', (t) => {
   assert.equal(migrated.prepare('SELECT first_name FROM user WHERE player_id=2').get()?.first_name, 'Walled');
 });
 
-for (const step of Object.values(MigrationStep))
+for (const step of Object.values(MigrationStep)) {
   await test(`a stop after the ${step} step restarts into one complete database`, (t) => {
     const { storage, open } = legacy(t);
 
     assert.throws(
       () =>
         migrateStorage(storage, (reached) => {
-          if (reached === step) throw new Error('stopped');
+          if (reached === step) {
+            throw new Error('stopped');
+          }
         }),
       /stopped/,
     );
@@ -392,13 +416,16 @@ for (const step of Object.values(MigrationStep))
     assert.equal(existsSync(resolve(storage, StorageFile.Temporary)), false);
     assert.ok(existsSync(resolve(storage, '1/profile.bin')));
   });
+}
 
 await test('an interrupted publication with an unknown database stops with a recovery instruction', (t) => {
   const { storage, open } = legacy(t);
   assert.throws(
     () =>
       migrateStorage(storage, (reached) => {
-        if (reached === 'publishing') throw new Error('stopped');
+        if (reached === 'publishing') {
+          throw new Error('stopped');
+        }
       }),
     /stopped/,
   );
@@ -416,7 +443,7 @@ for (const [problem, damage] of [
       db.close();
     },
   ],
-] as const)
+] as const) {
   await test(`${problem} stops the migration and keeps the source`, (t) => {
     const { storage, open } = legacy(t);
     damage(storage);
@@ -425,6 +452,7 @@ for (const [problem, damage] of [
     assert.deepEqual(readFileSync(resolve(storage, 'zluggish.db')), before);
     assert.equal(existsSync(resolve(storage, StorageFile.Temporary)), false);
   });
+}
 
 await test('a legacy cleanup preview removes nothing and lists only imported, backed-up files', (t) => {
   const { storage, open } = legacy(t);
@@ -449,7 +477,9 @@ await test('a legacy cleanup preview removes nothing and lists only imported, ba
     ],
   );
 
-  for (const file of plan.removable) assert.ok(existsSync(file.path));
+  for (const file of plan.removable) {
+    assert.ok(existsSync(file.path));
+  }
 });
 
 await test('a legacy cleanup removes the imported files and keeps media, exports and keys', (t) => {
@@ -457,13 +487,15 @@ await test('a legacy cleanup removes the imported files and keeps media, exports
   open().close();
   removeLegacy(storage, legacyPlan(storage));
 
-  for (const name of [...imported, 'last_activity.bin', 'bookmarks', 'garth'])
+  for (const name of [...imported, 'last_activity.bin', 'bookmarks', 'garth']) {
     assert.equal(existsSync(resolve(storage, '1', name)), false, name);
+  }
 
   assert.equal(existsSync(resolve(storage, 'settings.db')), false);
 
-  for (const name of ['1/fit/10 - ride.fit', '1/medias/1.mp4', '99/profile.bin', StorageFile.CredentialsKey])
+  for (const name of ['1/fit/10 - ride.fit', '1/medias/1.mp4', '99/profile.bin', StorageFile.CredentialsKey]) {
     assert.ok(existsSync(resolve(storage, name)), name);
+  }
 
   const db = open();
   assert.equal(new RiderDocuments(db, storage).text(1, 'runalyze_token.txt'), 'runalyze');
@@ -513,7 +545,7 @@ await test('a failed initial archive leaves existing legacy storage byte-for-byt
         }),
     );
 
-  writeFileSync(resolve(storage, '..', 'backups'), 'blocks backup directory');
+  writeFileSync(resolve(storage, 'backups'), 'blocks backup directory');
   const before = snapshot();
 
   assert.throws(() => open(), /backup/i);
@@ -532,10 +564,10 @@ await test('a failed initial archive creates no database when only legacy settin
   settings.close();
   const settingsPath = resolve(storage, StorageFile.Settings);
   const before = readFileSync(settingsPath);
-  writeFileSync(resolve(root, 'backups'), 'blocks backup directory');
+  writeFileSync(resolve(storage, 'backups'), 'blocks backup directory');
 
   assert.throws(() => openDatabase(storage), /backup/i);
-  assert.deepEqual(readdirSync(storage), [StorageFile.Settings]);
+  assert.deepEqual(readdirSync(storage).toSorted(), ['backups', StorageFile.Settings].toSorted());
   assert.deepEqual(readFileSync(settingsPath), before);
 });
 
@@ -550,7 +582,7 @@ await test('an unreadable legacy database leaves no partial archive or migration
   assert.throws(() => open(), /not a database/i);
   assert.deepEqual(readFileSync(database), original);
   assert.equal(readFileSync(settings, 'utf8'), invalid);
-  assert.deepEqual(readdirSync(resolve(storage, '..', 'backups')), []);
+  assert.deepEqual(readdirSync(resolve(storage, 'backups')), []);
   assert.equal(existsSync(resolve(storage, StorageFile.Manifest)), false);
   assert.equal(existsSync(resolve(storage, StorageFile.Temporary)), false);
 });

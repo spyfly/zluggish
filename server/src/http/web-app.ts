@@ -1,4 +1,7 @@
 import { BackupService } from '#src/services/backup.service';
+import { TlsService } from '#src/services/tls.service';
+import { CompanionService, companionUploadLimit } from '#src/services/companion.service';
+import { linuxSetupScript, macosSetupScript, setupFileName, windowsSetupScript } from '#src/http/client-setup';
 import { AccountsService } from '#src/services/auth.service';
 import { ManagementService } from '#src/services/management.service';
 import { WebSessionsService } from '#src/services/web-session.service';
@@ -6,23 +9,25 @@ import { ActivitiesService } from '#src/services/activities.service';
 import { DurabilityService } from '#src/services/durability.service';
 import { FilesService } from '#src/services/files.service';
 import { effectRoutes } from '#src/http/effect';
+import { fileResponse } from '#src/http/file-response';
 import { RecordsService } from '#src/services/records.service';
 import { ZwiftUpdatesService } from '#src/services/zwift-updates.service';
 import { webConnectionRoutes } from '#src/http/web-connections';
 import { webProfileRoutes } from '#src/http/web-profile';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
-import type { Context } from 'hono';
+import type { Context, Next } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { Effect, Schema } from 'effect';
-import { fieldErrors, NumberFromInput, Strict } from '#src/schema';
+import { fieldErrors, NumberFromInput, satisfies, Strict } from '#src/schema';
 import { ApplicationError, UnreadableCredentialsError } from '#src/errors';
 import { credentials, password, newUser } from '#src/dtos/management.dto';
 import type { HttpRuntime } from '#src/http/runtime';
 import { climbFacts, readClimbSegments, readClimbs } from '#src/http/climbs';
 import { peerAddress } from '#src/http/routes/accounts';
 import { WORLD_TIME_EPOCH_MS } from '#src/world/state';
+import { isIP } from 'node:net';
 import { resolve } from 'node:path';
 import { packageRoot, packageVersion, supportedZwiftVersion } from '#src/config/load';
 
@@ -30,7 +35,9 @@ export type WebEnv = { Variables: { sessionId: string; csrf: string } };
 
 /** Matches the public URL exactly, or else the host only: a TLS proxy forwards https requests over http. */
 function sameOrigin(origin: string | undefined, url: string, publicUrl: string | null) {
-  if (publicUrl) return origin === publicUrl;
+  if (publicUrl) {
+    return origin === publicUrl;
+  }
 
   try {
     return !!origin && new URL(origin).host === new URL(url).host;
@@ -67,8 +74,15 @@ export function createWebApp(runtime: HttpRuntime) {
     return () => !id || sessions.sessions.get(id) === before;
   };
 
-  app.use('*', async (c, next) => {
+  /** The Companion app upload: raw APK bytes, streamed to disk. */
+  const companionUpload = (c: Context<WebEnv>) => c.req.method === 'PUT' && c.req.path === '/api/manage/companion/app';
+
+  app.use('*', async (c: Context<WebEnv, string>, next: Next) => {
     const upload = c.req.method === 'POST' && c.req.path === '/api/me/import';
+
+    if (companionUpload(c)) {
+      return bodyLimit({ maxSize: companionUploadLimit })(c, next);
+    }
 
     const avatar =
       c.req.method === 'PUT' &&
@@ -86,11 +100,13 @@ export function createWebApp(runtime: HttpRuntime) {
     const before = runtime.effects.runSync(durability.changes());
     await next();
 
-    if (runtime.effects.runSync(durability.changes()) !== before) await runtime.effects.runPromise(durability.flush());
+    if (runtime.effects.runSync(durability.changes()) !== before) {
+      await runtime.effects.runPromise(durability.flush());
+    }
   });
   app.get('/health', (c) => c.json({ name: 'zluggish', version: packageVersion(), status: 'ok' }));
 
-  app.use('/api/*', async (c, next) => {
+  app.use('/api/*', async (c: Context<WebEnv>, next: Next) => {
     // This listener accepts only its own opaque session store. Bearer tokens are never used.
     const id = getCookie(c, cookie);
     const session = runtime.effects.runSync(sessions.find(id));
@@ -102,22 +118,26 @@ export function createWebApp(runtime: HttpRuntime) {
       setCookie(c, csrfCookie, token, cookieOptions(c));
     }
 
-    c.set('sessionId', session ? id! : '');
-    c.set('csrf', token!);
+    c.set('sessionId', session && id ? id : '');
+    c.set('csrf', token ?? '');
 
     if (!['GET', 'HEAD'].includes(c.req.method)) {
-      if (!sameOrigin(c.req.header('Origin'), c.req.url, publicUrl) || c.req.header('X-CSRF-Token') !== c.get('csrf'))
+      if (!sameOrigin(c.req.header('Origin'), c.req.url, publicUrl) || c.req.header('X-CSRF-Token') !== c.get('csrf')) {
         throw new ApplicationError({ status: 403, message: 'Reload the page and retry.' });
+      }
 
       if (
         !(c.req.method === 'POST' && c.req.path === '/api/me/import'
           ? c.req.header('Content-Type')?.startsWith('multipart/form-data;')
-          : c.req.method === 'PUT' &&
-              (c.req.path === '/api/me/avatar' || /^\/api\/manage\/users\/\d+\/avatar$/.test(c.req.path))
-            ? c.req.header('Content-Type') === 'image/jpeg'
-            : c.req.header('Content-Type')?.startsWith('application/json'))
-      )
+          : companionUpload(c)
+            ? c.req.header('Content-Type') === 'application/octet-stream'
+            : c.req.method === 'PUT' &&
+                (c.req.path === '/api/me/avatar' || /^\/api\/manage\/users\/\d+\/avatar$/.test(c.req.path))
+              ? c.req.header('Content-Type') === 'image/jpeg'
+              : c.req.header('Content-Type')?.startsWith('application/json'))
+      ) {
         throw new ApplicationError({ status: 400, message: 'JSON required.' });
+      }
     }
 
     if (
@@ -126,11 +146,17 @@ export function createWebApp(runtime: HttpRuntime) {
     ) {
       const now = Date.now();
 
-      for (const [key, value] of attempts) if (value.until <= now) attempts.delete(key);
+      for (const [key, value] of attempts) {
+        if (value.until <= now) {
+          attempts.delete(key);
+        }
+      }
       const key = peerAddress(c);
       const limit = attempts.get(key) ?? { count: 0, until: now + 60_000 };
 
-      if (limit.count >= 10 || attempts.size >= 10_000) return c.json({ message: 'Try again shortly.' }, 429);
+      if (limit.count >= 10 || attempts.size >= 10_000) {
+        return c.json({ message: 'Try again shortly.' }, 429);
+      }
       limit.count++;
       attempts.set(key, limit);
     }
@@ -201,7 +227,9 @@ export function createWebApp(runtime: HttpRuntime) {
       const live = unchanged(c);
       const user = yield* managementService.signIn(input.username, input.password);
 
-      if (!live()) throw new ApplicationError({ status: 401, message: 'Session changed.' });
+      if (!live()) {
+        throw new ApplicationError({ status: 401, message: 'Session changed.' });
+      }
 
       return login(c, user);
     }),
@@ -237,7 +265,7 @@ export function createWebApp(runtime: HttpRuntime) {
       const input = Schema.decodeUnknownSync(Strict({ password }))(yield* Effect.promise(() => c.req.json()));
       yield* managementService.confirm(c.get('sessionId'), input.password);
 
-      return c.json({ confirmedUntil: (yield* webSessionsService.find(c.get('sessionId')))!.confirmedUntil });
+      return c.json({ confirmedUntil: (yield* webSessionsService.session(c.get('sessionId'))).confirmedUntil });
     }),
   );
   appRoutes.post('/api/me/password', (c) =>
@@ -284,9 +312,11 @@ export function createWebApp(runtime: HttpRuntime) {
         (yield* webSessionsService.require(c.get('sessionId'))).player_id,
       );
 
-      if (!(yield* filesService.exists(path))) throw new ApplicationError({ status: 404, message: 'No photo.' });
+      if (!(yield* filesService.isFile(path))) {
+        throw new ApplicationError({ status: 404, message: 'No photo.' });
+      }
 
-      return c.body(new Uint8Array(yield* filesService.read(path)), 200, { 'Content-Type': 'image/jpeg' });
+      return yield* fileResponse(c, path, { 'Content-Type': 'image/jpeg' });
     }),
   );
   appRoutes.put('/api/me/avatar', (c) =>
@@ -335,6 +365,117 @@ export function createWebApp(runtime: HttpRuntime) {
   webConnectionRoutes(app, runtime);
   webProfileRoutes(app, runtime);
 
+  appRoutes.get('/api/tls', (c) =>
+    Effect.gen(function* () {
+      const tls = yield* TlsService;
+      yield* sessions.require(c.get('sessionId'));
+
+      return c.json(yield* tls.status());
+    }),
+  );
+
+  /** The certificate that the server presents, without its key. While a server still uses the shared certificate,
+  riders can install that one too, with a warning, so that new computers connect until the administrator rotates it.
+  */
+  const installable = Effect.fn('web.tls.installable')(function* (c: Context<WebEnv>, download: string) {
+    const tls = yield* TlsService;
+    const user = yield* sessions.require(c.get('sessionId'));
+    const status = yield* tls.status();
+    const material = tls.material();
+
+    if (status.mode === 'disabled' || !status.certificate || !material) {
+      throw new ApplicationError({ status: 409, message: 'This server has no certificate to install.' });
+    }
+
+    // A configured file may hold a chain, and the shared one holds its key: take the first certificate only.
+    const certificate = /-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/.exec(material.cert)?.[0];
+
+    if (!certificate) {
+      throw new ApplicationError({ status: 409, message: 'This server has no certificate to install.' });
+    }
+    const pem = certificate + '\n';
+
+    if (status.mode === 'legacy') {
+      runtime.world.lifecycle.log.warn(
+        'tls.legacy_setup_download',
+        'A rider downloaded setup for the shared Zwift certificate, whose private key is public. Generate a server certificate under Manage → Server.',
+        { player: user.player_id, download },
+      );
+    }
+
+    return { pem, certificate: status.certificate };
+  });
+
+  appRoutes.get('/api/tls/certificate', (c) =>
+    Effect.gen(function* () {
+      const der = c.req.query('format') === 'der';
+      const { pem, certificate } = yield* installable(c, der ? 'certificate.cer' : 'certificate.crt');
+
+      const body = der ? Buffer.from(pem.replaceAll(/-----[A-Z ]+-----|\s/g, ''), 'base64') : Buffer.from(pem, 'utf8');
+
+      return c.body(new Uint8Array(body), 200, {
+        'Content-Type': der ? 'application/pkix-cert' : 'application/x-pem-file',
+        'Content-Disposition': `attachment; filename="${setupFileName(certificate, der ? 'cer' : 'crt')}"`,
+      });
+    }),
+  );
+
+  const setupAddress = Schema.String.check(
+    Schema.isMaxLength(45),
+    satisfies((value: string) => value === '' || isIP(value) !== 0, 'Expected an IP address'),
+  );
+
+  const setupPlatform = Schema.Literals(['windows', 'linux', 'macos']);
+
+  appRoutes.get('/api/tls/setup/:platform', (c) =>
+    Effect.gen(function* () {
+      const platform = Schema.decodeUnknownSync(setupPlatform)(c.req.param('platform'));
+      const address = Schema.decodeUnknownSync(setupAddress)(c.req.query('address') ?? '');
+      const { pem, certificate } = yield* installable(c, `${platform} script`);
+      const script = { pem, certificate, address, version: packageVersion(), now: new Date() };
+
+      if (platform === 'windows') {
+        return c.body(windowsSetupScript(script), 200, {
+          'Content-Type': 'application/x-bat; charset=us-ascii',
+          'Content-Disposition': `attachment; filename="${setupFileName(certificate, 'bat')}"`,
+        });
+      }
+
+      return c.body(platform === 'macos' ? macosSetupScript(script) : linuxSetupScript(script), 200, {
+        'Content-Type': 'application/x-sh; charset=us-ascii',
+        'Content-Disposition': `attachment; filename="${setupFileName(certificate, 'sh')}"`,
+      });
+    }),
+  );
+
+  appRoutes.get('/api/companion', (c) =>
+    Effect.gen(function* () {
+      const companion = yield* CompanionService;
+      yield* sessions.require(c.get('sessionId'));
+
+      return c.json(yield* companion.status());
+    }),
+  );
+  appRoutes.get('/api/companion/app', (c) =>
+    Effect.gen(function* () {
+      const companion = yield* CompanionService;
+      const user = yield* sessions.require(c.get('sessionId'));
+      const app = yield* companion.download();
+
+      if (!app) {
+        throw new ApplicationError({ status: 404, message: 'There is no Companion app on this server yet.' });
+      }
+      runtime.world.lifecycle.log.info('companion.download', 'A rider downloaded the Zwift Companion app', {
+        player: user.player_id,
+      });
+
+      return yield* fileResponse(c, app.path, {
+        'Content-Type': 'application/vnd.android.package-archive',
+        'Content-Disposition': `attachment; filename="${app.filename}"`,
+      });
+    }),
+  );
+
   const activityId = Schema.String.check(Schema.isPattern(/^\d{1,19}$/));
   appRoutes.get('/api/me/activities', (c) =>
     Effect.gen(function* () {
@@ -374,7 +515,7 @@ export function createWebApp(runtime: HttpRuntime) {
       for (const climb of all) {
         const row = stats.get(climb.road);
 
-        if (row)
+        if (row) {
           climbs.push({
             road: climb.road,
             ...climbFacts(climb.name),
@@ -384,6 +525,7 @@ export function createWebApp(runtime: HttpRuntime) {
             lastRide:
               row.last_world_time === null ? null : new Date(row.last_world_time + WORLD_TIME_EPOCH_MS).toISOString(),
           });
+        }
       }
 
       return c.json({ climbs, total: all.length });
@@ -432,13 +574,13 @@ export function createWebApp(runtime: HttpRuntime) {
         c.req.param('image'),
       );
 
-      const jpg = yield* activitiesService.ownImage(
+      const path = yield* activitiesService.ownImagePath(
         (yield* webSessionsService.require(c.get('sessionId'))).player_id,
         id,
         image,
       );
 
-      return c.body(jpg, 200, {
+      return yield* fileResponse(c, path, {
         'Content-Type': 'image/jpeg',
         ...(c.req.query('download') !== undefined && {
           'Content-Disposition': `attachment; filename="${id}-${image}.jpg"`,
@@ -483,7 +625,9 @@ export function createWebApp(runtime: HttpRuntime) {
         Schema.decodeUnknownSync(NumberFromInput.check(Schema.isInt(), Schema.isGreaterThan(0)))(c.req.param('id')),
       );
 
-      if (!user) throw new ApplicationError({ status: 404, message: 'User not found.' });
+      if (!user) {
+        throw new ApplicationError({ status: 404, message: 'User not found.' });
+      }
 
       return c.json(yield* managementService.publicUser(user));
     }),
@@ -552,14 +696,15 @@ export function createWebApp(runtime: HttpRuntime) {
 
       const path = yield* managementService.avatarPath(id);
 
-      if (!accounts.get(id) || !(yield* filesService.exists(path)))
+      if (!accounts.get(id) || !(yield* filesService.isFile(path))) {
         throw new ApplicationError({ status: 404, message: 'No photo.' });
+      }
 
-      return c.body(new Uint8Array(yield* filesService.read(path)), 200, { 'Content-Type': 'image/jpeg' });
+      return yield* fileResponse(c, path, { 'Content-Type': 'image/jpeg' });
     }),
   );
 
-  for (const action of ['password', 'disable', 'enable', 'revoke-sessions', 'role'])
+  for (const action of ['password', 'disable', 'enable', 'revoke-sessions', 'role']) {
     appRoutes.on(action === 'role' ? 'PUT' : 'POST', `/api/manage/users/:id/${action}`, (c) =>
       Effect.gen(function* () {
         const managementService = yield* ManagementService;
@@ -574,6 +719,7 @@ export function createWebApp(runtime: HttpRuntime) {
         );
       }),
     );
+  }
 
   appRoutes.patch('/api/manage/users/:id', (c) =>
     Effect.gen(function* () {
@@ -641,7 +787,9 @@ export function createWebApp(runtime: HttpRuntime) {
       const available = runtime.config.proxy.mode !== 'disabled';
       const zwiftUpdates = yield* ZwiftUpdatesService;
 
-      if (allowed && !available) throw new ApplicationError({ status: 409, message: 'The CDN proxy is disabled.' });
+      if (allowed && !available) {
+        throw new ApplicationError({ status: 409, message: 'The CDN proxy is disabled.' });
+      }
 
       yield* zwiftUpdates.setAllowed(allowed);
 
@@ -669,15 +817,85 @@ export function createWebApp(runtime: HttpRuntime) {
       const service = yield* BackupService;
       const backup = yield* service.status(operation);
 
-      if (!backup) throw new ApplicationError({ status: 404, message: 'Backup request not found.' });
+      if (!backup) {
+        throw new ApplicationError({ status: 404, message: 'Backup request not found.' });
+      }
 
       return c.json(backup);
     }),
   );
 
+  appRoutes.post('/api/manage/server/certificate', (c) =>
+    Effect.gen(function* () {
+      const input = Schema.decodeUnknownSync(Strict({ operation: backupOperation }))(
+        yield* Effect.promise(() => c.req.json()),
+      );
+
+      const tls = yield* TlsService;
+      yield* sessions.require(c.get('sessionId'), true);
+
+      return c.json(yield* tls.rotate(input.operation));
+    }),
+  );
+
+  appRoutes.get('/api/manage/companion', (c) =>
+    Effect.gen(function* () {
+      const companion = yield* CompanionService;
+
+      return c.json(yield* companion.adminStatus());
+    }),
+  );
+  appRoutes.put('/api/manage/companion/app', (c) =>
+    Effect.gen(function* () {
+      const companion = yield* CompanionService;
+      const body = c.req.raw.body;
+
+      if (!body) {
+        throw new ApplicationError({ status: 400, message: 'Choose an APK file to upload.' });
+      }
+
+      return c.json(yield* companion.upload(body), 202);
+    }),
+  );
+  appRoutes.delete('/api/manage/companion/app', (c) =>
+    Effect.gen(function* () {
+      const companion = yield* CompanionService;
+
+      return c.json(yield* companion.remove());
+    }),
+  );
+  appRoutes.delete('/api/manage/companion/pending', (c) =>
+    Effect.gen(function* () {
+      const companion = yield* CompanionService;
+
+      return c.json(yield* companion.discard());
+    }),
+  );
+  appRoutes.post('/api/manage/companion/toolchain', (c) =>
+    Effect.gen(function* () {
+      const companion = yield* CompanionService;
+
+      return c.json(yield* companion.installToolchain(), 202);
+    }),
+  );
+  appRoutes.delete('/api/manage/companion/toolchain', (c) =>
+    Effect.gen(function* () {
+      const companion = yield* CompanionService;
+
+      return c.json(yield* companion.removeToolchain());
+    }),
+  );
+  appRoutes.post('/api/manage/companion/cancel', (c) =>
+    Effect.gen(function* () {
+      const companion = yield* CompanionService;
+
+      return c.json(yield* companion.cancel());
+    }),
+  );
+
   app.get('/api/manage/server/logs', (c) => c.json({ entries: runtime.world.lifecycle.log.recentEntries() }));
 
-  for (const action of ['reload-bots', 'bots'])
+  for (const action of ['reload-bots', 'bots']) {
     appRoutes.post(`/api/manage/server/${action}`, (c) =>
       Effect.gen(function* () {
         const managementService = yield* ManagementService;
@@ -699,6 +917,7 @@ export function createWebApp(runtime: HttpRuntime) {
         );
       }),
     );
+  }
 
   appRoutes.patch('/api/manage/settings', (c) =>
     Effect.gen(function* () {
@@ -735,11 +954,15 @@ export function createWebApp(runtime: HttpRuntime) {
 
       const name = c.req.param('file');
 
-      if (!/^[\w.-]+\.(?:js|css|woff2|png|jpg|svg)$/.test(name)) return c.notFound();
+      if (!/^[\w.-]+\.(?:js|css|woff2|png|jpg|svg)$/.test(name)) {
+        return c.notFound();
+      }
       const path = resolve(clientRoot, 'assets', name);
 
-      if (!(yield* filesService.exists(path))) return c.notFound();
-      const ext = name.split('.').at(-1)!;
+      if (!(yield* filesService.isFile(path))) {
+        return c.notFound();
+      }
+      const ext = name.slice(name.lastIndexOf('.') + 1);
 
       const types = {
         js: 'text/javascript',
@@ -751,7 +974,8 @@ export function createWebApp(runtime: HttpRuntime) {
       };
 
       // SAFETY: the filename extension was restricted to these MIME types above.
-      return c.body(yield* filesService.read(path), 200, { 'Content-Type': types[ext as keyof typeof types]! });
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+      return yield* fileResponse(c, path, { 'Content-Type': types[ext as keyof typeof types] });
     }),
   );
 
@@ -769,9 +993,13 @@ export function createWebApp(runtime: HttpRuntime) {
     '/activities',
     '/activities/*',
     '/climbs',
+    '/install',
+    '/install/*',
+    '/companion',
+    '/companion/*',
     '/manage',
     '/manage/*',
-  ])
+  ]) {
     appRoutes.get(path, (c) =>
       Effect.gen(function* () {
         const filesService = yield* FilesService;
@@ -783,13 +1011,19 @@ export function createWebApp(runtime: HttpRuntime) {
           : c.text('Build the web app before starting.', 503);
       }),
     );
+  }
   app.onError((error, c) => {
-    if (Schema.isSchemaError(error))
+    if (Schema.isSchemaError(error)) {
       return c.json({ message: 'Check the form fields.', fieldErrors: fieldErrors(error) }, 400);
+    }
 
-    if (error instanceof HTTPException) return c.json({ message: error.message }, error.status);
+    if (error instanceof HTTPException) {
+      return c.json({ message: error.message }, error.status);
+    }
 
-    if (error instanceof ApplicationError) return c.json({ message: error.message }, error.status);
+    if (error instanceof ApplicationError) {
+      return c.json({ message: error.message }, error.status);
+    }
 
     const route = c.req.routePath === '*' ? 'unmatched' : c.req.routePath;
 

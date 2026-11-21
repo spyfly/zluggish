@@ -18,7 +18,7 @@ import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { Effect, Layer, Schema } from 'effect';
 
-for (const companion of [false, true])
+for (const companion of [false, true]) {
   for (const json of [false, true]) {
     await test(`F01 zfile lifecycle: Companion=${companion}, JSON response=${json}`, async (t) => {
       t.mock.timers.enable({ apis: ['Date'], now: Date.UTC(2026, 10, 13, 12) });
@@ -69,12 +69,14 @@ for (const companion of [false, true])
       const updated = json ? await second.json() : await decode(second, ZFileProtoSchema);
       assert.equal(String(updated.id), String(metadata.id));
 
-      if (json)
+      if (json) {
         assert.equal(
           updated.lastModified,
           new Date(Date.UTC(2026, 10, 13, 12, 0, 5)).toISOString().replace('Z', '+0000'),
         );
-      else assert.equal(updated.timestamp, BigInt(Date.UTC(2026, 10, 13, 12, 0, 5) / 1000));
+      } else {
+        assert.equal(updated.timestamp, BigInt(Date.UTC(2026, 10, 13, 12, 0, 5) / 1000));
+      }
       const listed = await decode(await f.request('/api/zfiles/list?folder=customworkouts'), ZFilesProtoSchema);
       assert.equal(listed.zfiles.length, 1);
       assert.equal(listed.zfiles[0]?.timestamp, BigInt(Date.UTC(2026, 10, 13, 12, 0, 5) / 1000));
@@ -87,6 +89,12 @@ for (const companion of [false, true])
         assert.equal(response2.status, 404);
       }
 
+      // Downloads stream from disk, so a byte range is answered directly.
+      const range = await f.request(`/api/zfiles/${metadata.id}/download`, { headers: { Range: 'bytes=2-4' } });
+      assert.equal(range.status, 206);
+      assert.equal(range.headers.get('Content-Range'), 'bytes 2-4/11');
+      assert.equal(await range.text(), 'pla');
+
       const response3 = await f.request(`/api/zfiles/${metadata.id}`, { method: 'DELETE' }, f.other);
       assert.equal(response3.status, 404);
       const response4 = await f.request(`/api/zfiles/${metadata.id}`, { method: 'DELETE' });
@@ -97,6 +105,7 @@ for (const companion of [false, true])
       assert.equal(f.accounts.db.prepare('SELECT count(*) AS n FROM zfile').get()?.n, 0);
     });
   }
+}
 
 await test('F01 invalid base64 and unsafe filenames cannot create files or metadata', async (t) => {
   const f = await mediumFixture(t);
@@ -302,7 +311,7 @@ await test('CDN workout endpoint serves exactly the cached XML', async (t) => {
 await test('zfile uploads cannot create internal import journals through either upload format', async (t) => {
   const f = await mediumFixture(t);
 
-  for (const folder of ['.import-review', `.ts-import-${'a'.repeat(32)}`, '.hidden'])
+  for (const folder of ['.import-review', `.ts-import-${'a'.repeat(32)}`, '.hidden']) {
     for (const companion of [false, true]) {
       const response = await f.request('/api/zfiles', {
         method: 'POST',
@@ -317,6 +326,7 @@ await test('zfile uploads cannot create internal import journals through either 
       assert.equal(response.status, 400);
       assert.equal(existsSync(resolve(f.profiles.folder(f.rider.player_id), folder)), false);
     }
+  }
 
   assert.equal(f.accounts.db.prepare('SELECT count(*) AS n FROM zfile').get()?.n, 0);
   assert.doesNotThrow(() => f.effects.runSync(ImportsService.use((service) => service.recover())));

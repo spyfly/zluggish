@@ -12,7 +12,6 @@ import { create, fromBinary } from '@bufbuild/protobuf';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-/** The Discord service over the given runtime context. */
 function discordService(context: RepositoryContext) {
   return Effect.runSync(
     Effect.gen(function* () {
@@ -29,8 +28,8 @@ function discordService(context: RepositoryContext) {
 await test('Discord bridges only configured human chat, handles commands and stops after close', async (t) => {
   const f = runtimeFixture(t);
   const user = await f.accounts.create('Discord Rider', 'test-password');
-  const sent: string[] = [];
-  const presence: number[] = [];
+  const sent: Array<string> = [];
+  const presence: Array<number> = [];
   let closed = false;
 
   const runtime = {
@@ -83,13 +82,15 @@ await test('Discord bridges only configured human chat, handles commands and sto
 
 await test('Discord delivery failure releases capacity for the next message', async (t) => {
   const f = runtimeFixture(t);
-  const sent: string[] = [];
+  const sent: Array<string> = [];
   let fail = true;
 
   const bridge = Effect.runSync(
     discordService(f).bridge({
       send: (content) => {
-        if (fail) return Promise.reject(new Error('offline'));
+        if (fail) {
+          return Promise.reject(new Error('offline'));
+        }
         sent.push(content);
 
         return Promise.resolve();
@@ -101,11 +102,15 @@ await test('Discord delivery failure releases capacity for the next message', as
 
   const warnings = t.mock.method(console, 'warn', () => {});
   bridge.send('failed');
-  await new Promise<void>((done) => setImmediate(done));
+  await new Promise<void>((done) => {
+    setImmediate(done);
+  });
   assert.equal(warnings.mock.callCount(), 1);
   fail = false;
   bridge.send('next');
-  await new Promise<void>((done) => setImmediate(done));
+  await new Promise<void>((done) => {
+    setImmediate(done);
+  });
   assert.deepEqual(sent, ['next']);
   await bridge.close();
 });

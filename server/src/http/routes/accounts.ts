@@ -13,7 +13,7 @@ import type { HttpRuntime as Runtime, RuntimeEnv } from '#src/http/runtime';
 import type { User } from '#src/repositories/accounts.repository';
 import { REMEMBER_SECONDS, SessionsService } from '#src/services/browser-session.service';
 import { getConnInfo } from '@hono/node-server/conninfo';
-import type { Context, Hono } from 'hono';
+import type { Context, Hono, Next } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { HTTPException } from 'hono/http-exception';
 import { resolve } from 'node:path';
@@ -23,7 +23,9 @@ import { orElse, PositiveIntFromString } from '#src/schema';
 export function authenticated(c: Context<RuntimeEnv>) {
   const rider = c.get('user');
 
-  if (!rider) throw new HTTPException(401);
+  if (!rider) {
+    throw new HTTPException(401);
+  }
 
   return rider;
 }
@@ -69,7 +71,7 @@ function unlockPage(c: Context<RuntimeEnv>, user: User, error = '') {
   );
 }
 
-type FormFields = Readonly<Record<string, string | File | readonly (string | File)[]>>;
+type FormFields = Readonly<Record<string, string | File | ReadonlyArray<string | File>>>;
 
 export async function csrf(c: Context<RuntimeEnv>, runtime: Runtime): Promise<FormFields> {
   const form = await c.req.parseBody();
@@ -78,10 +80,11 @@ export async function csrf(c: Context<RuntimeEnv>, runtime: Runtime): Promise<Fo
     !runtime.effects
       .runSync(SessionsService)
       .validCsrf(c.get('browser'), Schema.decodeUnknownSync(Schema.String.pipe(orElse('')))(form.csrf_token))
-  )
+  ) {
     throw new HTTPException(400, {
       message: 'The form expired. Reload and retry.',
     });
+  }
 
   return Schema.decodeUnknownSync(
     Schema.Record(
@@ -107,7 +110,7 @@ export function accountRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
   const accounts = runtime.effects.runSync(AccountsService);
   const sessions = runtime.effects.runSync(SessionsService);
   const { world } = runtime;
-  app.use('*', async (c, next) => {
+  app.use('*', async (c: Context<RuntimeEnv>, next: Next) => {
     const authorization = c.req.header('Authorization');
     const existing = getCookie(c, 'zluggish_session');
 
@@ -140,7 +143,7 @@ export function accountRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
     c.set('browser', opened.session);
     c.set('browserId', opened.id);
 
-    if (persistent && existing !== opened.id)
+    if (persistent && existing !== opened.id) {
       setCookie(c, 'zluggish_session', opened.id, {
         httpOnly: true,
         sameSite: 'Lax',
@@ -148,20 +151,26 @@ export function accountRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
         path: '/',
         maxAge: 86_400,
       });
+    }
     c.set(
       'user',
       authorization ? sessions.bearer(authorization.replace(/^Bearer /i, '')) : sessions.user(opened.session),
     );
 
-    if (authorization && !c.get('user')) throw new HTTPException(401);
+    if (authorization && !c.get('user')) {
+      throw new HTTPException(401);
+    }
 
-    if (browserPage || browserJson(c)) c.header('Cache-Control', 'no-store');
+    if (browserPage || browserJson(c)) {
+      c.header('Cache-Control', 'no-store');
+    }
     const context = c.req.header('X-Game-Context');
 
-    if (browserJson(c) && context && context !== c.get('browser').csrf)
+    if (browserJson(c) && context && context !== c.get('browser').csrf) {
       throw new HTTPException(c.get('user') ? 409 : 401, {
         message: 'Your session or user changed. Reload and retry.',
       });
+    }
     await next();
   });
 
@@ -193,7 +202,6 @@ export function accountRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
     },
   );
 
-  // The user list; an error shows above it.
   function loginPage(c: Context<RuntimeEnv>, error = '') {
     return model(
       c,
@@ -269,22 +277,29 @@ export function accountRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
       }
 
       if (user && !step) {
-        // Choosing a rider signs in at once when this computer remembers them; otherwise it opens their password step.
         signedIn = sessions.remembered(getCookie(c, rememberCookie(user.player_id)) ?? '', user.player_id);
 
-        if (!signedIn) return runtime.effects.runPromise(gamePage(c, unlockPage(c, user)));
-      } else if (user && (await accounts.verify(user, password))) signedIn = user;
+        if (!signedIn) {
+          return runtime.effects.runPromise(gamePage(c, unlockPage(c, user)));
+        }
+      } else if (user && (await accounts.verify(user, password))) {
+        signedIn = user;
+      }
 
       if (signedIn) {
         const user = signedIn;
 
-        if (!accounts.identity(accounts.identityOf(user))) throw new HTTPException(401);
+        if (!accounts.identity(accounts.identityOf(user))) {
+          throw new HTTPException(401);
+        }
 
-        if (sessions.browsers.get(c.get('browserId')) !== session) throw new HTTPException(401);
+        if (sessions.browsers.get(c.get('browserId')) !== session) {
+          throw new HTTPException(401);
+        }
         const secure = c.req.url.startsWith('https:');
 
         // Set before the session cookie: clients and tests read the session from the last Set-Cookie header.
-        if (!step || form.remember === 'on')
+        if (!step || form.remember === 'on') {
           setCookie(c, rememberCookie(user.player_id), sessions.remember(user), {
             httpOnly: true,
             sameSite: 'Strict',
@@ -292,7 +307,9 @@ export function accountRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
             path: '/login/',
             maxAge: REMEMBER_SECONDS,
           });
-        else deleteCookie(c, rememberCookie(user.player_id), { path: '/login/' });
+        } else {
+          deleteCookie(c, rememberCookie(user.player_id), { path: '/login/' });
+        }
         sessions.end(c.get('browserId'));
         const fresh = sessions.open();
         sessions.transition(fresh.session, {
@@ -401,7 +418,9 @@ export function accountRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
   );
 
   app.get('/ui/status/session', (c) => {
-    if (!c.get('browserId')) throw new HTTPException(401);
+    if (!c.get('browserId')) {
+      throw new HTTPException(401);
+    }
     c.header('Cache-Control', 'no-store');
 
     return c.body(null, 204);
@@ -427,7 +446,9 @@ export function accountRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
       return c.redirect('/login/');
     }
 
-    if (world.active(user.player_id)) throw new HTTPException(409);
+    if (world.active(user.player_id)) {
+      throw new HTTPException(409);
+    }
 
     return c.redirect(
       `http://zwift/?code=zwift_refresh_token${sessions.token(runtime.effects.runSync(AccountsService).identityOf(user), runtime.tokens.refresh)}`,
@@ -438,19 +459,27 @@ export function accountRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
     const user = authenticated(c);
     const form = await csrf(c, runtime);
 
-    if (!c.get('browser').selected) return c.redirect('/login/');
+    if (!c.get('browser').selected) {
+      return c.redirect('/login/');
+    }
 
-    if (world.active(user.player_id)) throw new HTTPException(409);
+    if (world.active(user.player_id)) {
+      throw new HTTPException(409);
+    }
 
     const address = peerAddress(c);
 
-    if (form.map && form.map !== 'CALENDAR')
+    if (form.map && form.map !== 'CALENDAR') {
       world.mapOverrides.set(address, Schema.decodeUnknownSync(Schema.String)(form.map));
-    else if (form.map === 'CALENDAR') world.mapOverrides.delete(address);
+    } else if (form.map === 'CALENDAR') {
+      world.mapOverrides.delete(address);
+    }
 
-    if (form.climb && form.climb !== 'CALENDAR')
+    if (form.climb && form.climb !== 'CALENDAR') {
       world.climbOverrides.set(address, Schema.decodeUnknownSync(Schema.String)(form.climb));
-    else if (form.climb === 'CALENDAR') world.climbOverrides.delete(address);
+    } else if (form.climb === 'CALENDAR') {
+      world.climbOverrides.delete(address);
+    }
 
     return c.redirect('/ride');
   });
@@ -474,24 +503,29 @@ export function accountRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
         ? Schema.decodeUnknownSync(Schema.String)(form.code)
         : Schema.decodeUnknownSync(Schema.String)(form.refresh_token);
 
-      if (form.code && !token.startsWith('zwift_refresh_token')) throw new HTTPException(401);
+      if (form.code && !token.startsWith('zwift_refresh_token')) {
+        throw new HTTPException(401);
+      }
 
       user = sessions.bearer(form.code ? token.slice(19) : token);
 
-      if (!user) throw new HTTPException(401);
+      if (!user) {
+        throw new HTTPException(401);
+      }
     }
 
     const result = sessions.tokens(user, runtime.tokens);
 
-    if (form.username)
+    if (form.username) {
       runtime.world.lifecycle.log.info('auth.login_succeeded', 'User logged in', {
         playerId: user.player_id,
         flow: 'credentials',
       });
-    else
+    } else {
       runtime.world.lifecycle.log.verbose('auth.token_exchanged', 'Authentication token exchanged', {
         playerId: user.player_id,
       });
+    }
 
     return c.json(result);
   });
@@ -505,11 +539,14 @@ export function accountRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
     if (
       user.pass_hash &&
       !(await accounts.verify(user, Schema.decodeUnknownSync(Schema.String.pipe(orElse('')))(form.current_password)))
-    )
+    ) {
       throw new HTTPException(403);
+    }
     const password = Schema.decodeUnknownSync(Schema.String.check(Schema.isMinLength(1)))(form['password-new']);
 
-    if (password !== form['password-confirm']) throw new HTTPException(400);
+    if (password !== form['password-confirm']) {
+      throw new HTTPException(400);
+    }
 
     await accounts.changePassword(
       user.player_id,
@@ -526,7 +563,9 @@ export function accountRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
   app.get('/logout/:username', (c) => {
     const user = c.get('user');
 
-    if (user) runtime.world.lifecycle.log.info('auth.logout', 'User logged out', { playerId: user.player_id });
+    if (user) {
+      runtime.world.lifecycle.log.info('auth.logout', 'User logged out', { playerId: user.player_id });
+    }
     sessions.end(c.get('browserId'));
 
     return c.redirect('/login/');

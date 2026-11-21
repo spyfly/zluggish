@@ -25,6 +25,8 @@ import { JobsService } from '#src/services/jobs.service';
 import { ImportsService } from '#src/services/profile-import.service';
 import { DurabilityService } from '#src/services/durability.service';
 import { BackupService } from '#src/services/backup.service';
+import { CompanionService } from '#src/services/companion.service';
+import { TlsService } from '#src/services/tls.service';
 import { RetentionService } from '#src/services/retention.service';
 import { UploadsService } from '#src/services/uploads.service';
 import { ActivitiesService } from '#src/services/activities.service';
@@ -40,7 +42,6 @@ import { SessionsService } from '#src/services/browser-session.service';
 import { ZwiftUpdatesService } from '#src/services/zwift-updates.service';
 import { Layer, ManagedRuntime } from 'effect';
 
-/** Services that use only repositories. */
 const foundationLayer = Layer.mergeAll(
   StreakService.layer,
   WebSessionsService.layer,
@@ -55,10 +56,10 @@ const foundationLayer = Layer.mergeAll(
   ProfileJsonService.layer,
   FilesService.layer,
   DocumentsService.layer,
+  TlsService.layer,
   ZwiftUpdatesService.layer,
 );
 
-/** Uploads, which the account and activity services cancel and query, and the chat that bridges share. */
 const sharedLayer = Layer.mergeAll(UploadsService.layer, ChatService.layer).pipe(Layer.provideMerge(foundationLayer));
 
 /** The account, activity and world services. Each tier may use the ones below it. */
@@ -71,6 +72,7 @@ const featuresLayer = Layer.mergeAll(
   RideCompletionService.layer,
   RetentionService.layer,
   BackupService.layer,
+  CompanionService.layer,
   ConnectionsService.layer,
   IntegrationsService.layer,
   EventsService.layer,
@@ -108,6 +110,8 @@ export type AppServices =
   | DurabilityService
   | RetentionService
   | BackupService
+  | CompanionService
+  | TlsService
   | StreakService
   | FitService
   | AchievementService
@@ -131,7 +135,6 @@ export type AppServices =
   | ZwiftUpdatesService
   | RecordsService;
 
-/** The application layer for one runtime context. */
 export function appLayer(context: RepositoryContext) {
   return servicesLayer.pipe(
     Layer.provideMerge(

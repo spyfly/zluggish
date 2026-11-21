@@ -1,4 +1,6 @@
-import { uuid, metadataSchema, storedEntrySchema, type StoredEntry } from '#src/dtos/workout.dto';
+import { isIntervalsAthleteId } from '#src/dtos/intervals.dto';
+import { uuid, metadataSchema, storedEntrySchema } from '#src/dtos/workout.dto';
+import type { StoredEntry } from '#src/dtos/workout.dto';
 import { RuntimeContext } from '#src/context';
 import { UnreadableCredentialsError } from '#src/errors';
 import { SettingsService } from '#src/services/settings.service';
@@ -37,8 +39,9 @@ function parseXML(content: string) {
     /<!DOCTYPE|<!ENTITY/i.test(content) ||
     Buffer.byteLength(content) > 16 * 1024 * 1024 ||
     XMLValidator.validate(content) !== true
-  )
+  ) {
     throw new Error('Invalid workout XML');
+  }
 
   return Schema.decodeUnknownSync(documentSchema)(parser.parse(content));
 }
@@ -49,13 +52,17 @@ function workoutDetails(content: string) {
   const root = Schema.decodeUnknownSync(documentSchema)(document.workout_file);
   const workout = Schema.decodeUnknownSync(documentSchema)(root.workout);
 
-  if (!['bike', 'cycling'].includes(String(root.sportType ?? 'bike').toLowerCase())) return null;
+  if (!['bike', 'cycling'].includes(String(root.sportType ?? 'bike').toLowerCase())) {
+    return null;
+  }
   const zones = [0, 0, 0, 0, 0, 0];
   let duration = 0;
   let known = true;
 
   function add(seconds: number, low: number, high = low) {
-    if (seconds <= 0) return;
+    if (seconds <= 0) {
+      return;
+    }
     duration += seconds;
 
     if (low < 0 || high < 0) {
@@ -66,9 +73,13 @@ function workoutDetails(content: string) {
 
     const cuts = [0, 1];
 
-    if (low !== high)
-      for (const limit of [0.55, 0.75, 0.9, 1.05, 1.2])
-        if (Math.min(low, high) < limit && limit < Math.max(low, high)) cuts.push((limit - low) / (high - low));
+    if (low !== high) {
+      for (const limit of [0.55, 0.75, 0.9, 1.05, 1.2]) {
+        if (Math.min(low, high) < limit && limit < Math.max(low, high)) {
+          cuts.push((limit - low) / (high - low));
+        }
+      }
+    }
     cuts.sort((a, b) => a - b);
 
     for (let index = 1; index < cuts.length; index++) {
@@ -83,25 +94,34 @@ function workoutDetails(content: string) {
     }
   }
 
-  for (const [tag, value] of Object.entries(workout))
+  for (const [tag, value] of Object.entries(workout)) {
     for (const entry of Array.isArray(value) ? value : [value]) {
       const parsed = Schema.decodeUnknownOption(stepSchema)(entry);
 
-      if (Option.isNone(parsed)) continue;
+      if (Option.isNone(parsed)) {
+        continue;
+      }
       const step = parsed.value;
 
       if (tag === 'IntervalsT') {
         const repeat = number(step['@_Repeat']);
 
-        if (!Number.isSafeInteger(repeat) || repeat < 1 || repeat > 604_800) return null;
+        if (!Number.isSafeInteger(repeat) || repeat < 1 || repeat > 604_800) {
+          return null;
+        }
         add(repeat * number(step['@_OnDuration']), number(step['@_OnPower'], -1));
         add(repeat * number(step['@_OffDuration']), number(step['@_OffPower'], -1));
-      } else if (['Warmup', 'Cooldown', 'Ramp'].includes(tag))
+      } else if (['Warmup', 'Cooldown', 'Ramp'].includes(tag)) {
         add(number(step['@_Duration']), number(step['@_PowerLow'], -1), number(step['@_PowerHigh'], -1));
-      else add(number(step['@_Duration']), number(step['@_Power'], -1));
+      } else {
+        add(number(step['@_Duration']), number(step['@_Power'], -1));
+      }
     }
+  }
 
-  if (duration <= 0 || duration > 604_800) return null;
+  if (duration <= 0 || duration > 604_800) {
+    return null;
+  }
   const exact = zones.map((value) => (100 * value) / duration);
   const percentages = known ? exact.map((element) => Math.floor(element)) : [0, 0, 0, 0, 0, 0];
 
@@ -112,7 +132,9 @@ function workoutDetails(content: string) {
 
     const remaining = 100 - percentages.reduce((sum, value) => sum + value, 0);
 
-    for (const item of order.slice(0, remaining)) percentages[item.index] = (percentages[item.index] ?? 0) + 1;
+    for (const item of order.slice(0, remaining)) {
+      percentages[item.index] = (percentages[item.index] ?? 0) + 1;
+    }
   }
 
   return {
@@ -156,9 +178,13 @@ const make = Effect.gen(function* () {
 
       commit?.();
     } catch (error) {
-      for (const [file, content] of previous)
-        if (content === null) repositories.filesRepository.rmSync(file, { force: true });
-        else repositories.filesRepository.writeDurable(file, content, true);
+      for (const [file, content] of previous) {
+        if (content === null) {
+          repositories.filesRepository.rmSync(file, { force: true });
+        } else {
+          repositories.filesRepository.writeDurable(file, content, true);
+        }
+      }
       throw error;
     }
   }
@@ -168,9 +194,13 @@ const make = Effect.gen(function* () {
 
     const available = [];
 
-    if (repositories.connectionsRepository.has(id, 'intervals')) available.push('intervals-icu');
+    if (repositories.connectionsRepository.has(id, 'intervals')) {
+      available.push('intervals-icu');
+    }
 
-    if (settings.workouts.trainingpeaks.bridgeFolder) available.push('trainingpeaks');
+    if (settings.workouts.trainingpeaks.bridgeFolder) {
+      available.push('trainingpeaks');
+    }
 
     const file = resolve(runtime.profiles.folder(id), 'active_workout_provider.txt');
 
@@ -184,7 +214,9 @@ const make = Effect.gen(function* () {
   function entriesOf(id: number) {
     const file = resolve(runtime.profiles.folder(id), 'intervals_icu_workout.json');
 
-    if (!repositories.filesRepository.existsSync(file)) return [];
+    if (!repositories.filesRepository.existsSync(file)) {
+      return [];
+    }
 
     const raw = Schema.decodeUnknownSync(documentSchema)(
       JSON.parse(repositories.filesRepository.readFileSync(file, 'utf8')),
@@ -199,10 +231,12 @@ const make = Effect.gen(function* () {
 
   /** Unmodified stored entries, including fields the schema does not read. */
   function storedOf(id: number) {
-    const none: StoredEntry[] = [];
+    const none: Array<StoredEntry> = [];
     const file = metadataFileOf(id);
 
-    if (!repositories.filesRepository.existsSync(file)) return { collection: false, entries: none };
+    if (!repositories.filesRepository.existsSync(file)) {
+      return { collection: false, entries: none };
+    }
 
     const raw: unknown = JSON.parse(repositories.filesRepository.readFileSync(file, 'utf8'));
 
@@ -219,12 +253,16 @@ const make = Effect.gen(function* () {
 
     const removed = entries.filter((entry) => String(entry.event_id) === String(eventId));
 
-    if (removed.length === 0) return;
+    if (removed.length === 0) {
+      return;
+    }
 
     for (const entry of removed) {
       const file = fileOf(entry.workout_id ?? '');
 
-      if (file && repositories.filesRepository.existsSync(file)) repositories.filesRepository.rmSync(file);
+      if (file && repositories.filesRepository.existsSync(file)) {
+        repositories.filesRepository.rmSync(file);
+      }
     }
 
     const remaining = entries.filter((entry) => !removed.includes(entry));
@@ -240,19 +278,25 @@ const make = Effect.gen(function* () {
   }
 
   function scheduled(id: number, now = new Date()) {
-    if (providerOf(id) !== 'intervals-icu') return [];
+    if (providerOf(id) !== 'intervals-icu') {
+      return [];
+    }
     const day = localDay(now);
     const seen = new Set<string>();
 
     return entriesOf(id).flatMap((metadata) => {
       const identity = Schema.decodeUnknownOption(uuid)(metadata.workout_id);
 
-      if (Option.isNone(identity) || seen.has(identity.value)) return [];
+      if (Option.isNone(identity) || seen.has(identity.value)) {
+        return [];
+      }
 
       const planned =
         metadata.start_date_local?.slice(0, 10) ?? (metadata.start_date ? localDay(new Date(metadata.start_date)) : '');
 
-      if (planned !== day || metadata.provider !== 'intervals-icu') return [];
+      if (planned !== day || metadata.provider !== 'intervals-icu') {
+        return [];
+      }
       const file = fileOf(identity.value);
 
       if (
@@ -261,11 +305,14 @@ const make = Effect.gen(function* () {
         [file, resolve(file, '..'), resolve(file, '../..')].some((path) =>
           repositories.filesRepository.lstatSync(path).isSymbolicLink(),
         )
-      )
+      ) {
         return [];
+      }
       const details = workoutDetails(repositories.filesRepository.readFileSync(file, 'utf8'));
 
-      if (!details) return [];
+      if (!details) {
+        return [];
+      }
       seen.add(identity.value);
 
       const scheduleId = scheduleID(`zoffline:schedule:${id}:intervals-icu:${metadata.event_id}:${day}`);
@@ -333,16 +380,22 @@ const make = Effect.gen(function* () {
     signal.throwIfAborted();
     const provider = providerOf(id);
 
-    if (provider === 'trainingpeaks') return importBridge(id, signal);
+    if (provider === 'trainingpeaks') {
+      return importBridge(id, signal);
+    }
 
-    if (provider !== 'intervals-icu') return 'Configure a workout provider first.';
+    if (provider !== 'intervals-icu') {
+      return 'Configure a workout provider first.';
+    }
 
     let credentials: readonly [string, string] | null;
 
     try {
       credentials = repositories.connectionsRepository.read(id, 'intervals');
     } catch (error) {
-      if (!(error instanceof UnreadableCredentialsError)) throw error;
+      if (!(error instanceof UnreadableCredentialsError)) {
+        throw error;
+      }
       runtime.world.lifecycle.log.warn('connections.unreadable', 'Saved credentials cannot be decrypted', {
         playerId: id,
         provider: 'intervals',
@@ -352,10 +405,14 @@ const make = Effect.gen(function* () {
       return 'The saved Intervals.icu credentials cannot be read. Enter them again in Integrations.';
     }
 
-    if (!credentials) return 'Intervals.icu credentials are missing.';
+    if (!credentials) {
+      return 'Intervals.icu credentials are missing.';
+    }
     const [athlete, key] = credentials;
 
-    if (!/^\d+$/.test(athlete)) throw new Error('Invalid athlete ID');
+    if (!isIntervalsAthleteId(athlete)) {
+      throw new Error('Invalid athlete ID');
+    }
 
     const headers = {
       Authorization: `Basic ${Buffer.from(`API_KEY:${key}`).toString('base64')}`,
@@ -369,7 +426,9 @@ const make = Effect.gen(function* () {
       { headers, signal },
     );
 
-    if (!response.ok) throw new Error('Intervals.icu sync failed');
+    if (!response.ok) {
+      throw new Error('Intervals.icu sync failed');
+    }
 
     const events = Schema.decodeUnknownSync(
       Schema.Array(
@@ -399,10 +458,14 @@ const make = Effect.gen(function* () {
         signal,
       });
 
-      if (!response.ok) throw new Error('Intervals.icu download failed');
+      if (!response.ok) {
+        throw new Error('Intervals.icu download failed');
+      }
       const text = await response.text();
 
-      if (!workoutDetails(text)) throw new Error('Invalid cycling workout');
+      if (!workoutDetails(text)) {
+        throw new Error('Invalid cycling workout');
+      }
       downloads.push({ event, text });
     }
 
@@ -430,14 +493,18 @@ const make = Effect.gen(function* () {
 
       const root = ordered.find((node) => 'workout_file' in node);
 
-      if (!root) throw new Error('Missing workout root');
+      if (!root) {
+        throw new Error('Missing workout root');
+      }
       const children = Schema.decodeUnknownSync(Schema.Array(documentSchema))(root.workout_file);
       root.workout_file = [...children.filter((node) => !('uniqueId' in node)), { uniqueId: [{ '#text': identity }] }];
       const content = new XMLBuilder({ preserveOrder: true, ignoreAttributes: false }).build(ordered);
 
       const file = fileOf(identity);
 
-      if (!file) throw new Error('Invalid workout identity');
+      if (!file) {
+        throw new Error('Invalid workout identity');
+      }
       pendingFiles.set(file, Schema.decodeUnknownSync(Schema.String)(content));
 
       return {
@@ -470,15 +537,18 @@ const make = Effect.gen(function* () {
 
     const folder = settings.workouts.trainingpeaks.bridgeFolder;
 
-    if (!folder || !repositories.filesRepository.existsSync(folder)) return 'TrainingPeaks bridge folder is missing.';
-    const imports: { filename: string; content: Buffer }[] = [];
+    if (!folder || !repositories.filesRepository.existsSync(folder)) {
+      return 'TrainingPeaks bridge folder is missing.';
+    }
+    const imports: Array<{ filename: string; content: Buffer }> = [];
 
     for (const name of repositories.filesRepository.readdirSync(folder).sort()) {
       if (
         !name.toLowerCase().endsWith('.zwo') ||
         !repositories.filesRepository.lstatSync(resolve(folder, name)).isFile()
-      )
+      ) {
         continue;
+      }
       signal.throwIfAborted();
       const content = repositories.filesRepository.readFileSync(resolve(folder, name));
       parseXML(content.toString('utf8'));
@@ -491,14 +561,17 @@ const make = Effect.gen(function* () {
           .replaceAll(/^-|-$/g, '') || 'workout'
       }.zwo`;
 
-      if (imports.some((item) => item.filename === filename)) throw new Error(`Workout filenames collide: ${filename}`);
+      if (imports.some((item) => item.filename === filename)) {
+        throw new Error(`Workout filenames collide: ${filename}`);
+      }
       imports.push({ filename, content });
     }
 
     const pendingFiles = new Map<string, string | Uint8Array>();
 
-    for (const item of imports)
+    for (const item of imports) {
       pendingFiles.set(resolve(runtime.profiles.folder(id), 'customworkouts', item.filename), item.content);
+    }
     pendingFiles.set(resolve(runtime.profiles.folder(id), 'active_workout_provider.txt'), 'trainingpeaks');
     signal.throwIfAborted();
     const db = runtime.accounts.db;
@@ -510,8 +583,11 @@ const make = Effect.gen(function* () {
         const repository = repositories.storageRepository;
         const old = repository.findZfile(id, 'customworkouts', filename);
 
-        if (old) repository.updateZfileTimestamp(timestamp, old.id);
-        else repository.insertZfile(id, 'customworkouts', filename, timestamp);
+        if (old) {
+          repository.updateZfileTimestamp(timestamp, old.id);
+        } else {
+          repository.insertZfile(id, 'customworkouts', filename, timestamp);
+        }
       }
 
       publishFiles(pendingFiles, () => {
@@ -541,15 +617,19 @@ const make = Effect.gen(function* () {
       return Promise.resolve();
     }
 
-    if (!current || (android && current !== 'intervals-icu')) return Promise.resolve();
+    if (!current || (android && current !== 'intervals-icu')) {
+      return Promise.resolve();
+    }
     const key = `${id}:${current}`;
     const previous = requests.get(key);
 
-    if (previous) return previous;
+    if (previous) {
+      return previous;
+    }
 
     const request = syncNow(id, AbortSignal.timeout(5000))
       .then(() => {})
-      .catch((error) => {
+      .catch((error: unknown) => {
         runtime.world.lifecycle.log.warn(
           'workout.sync_failed',
           'Automatic workout sync failed; retaining cached workouts',
@@ -557,7 +637,9 @@ const make = Effect.gen(function* () {
         );
       })
       .finally(() => {
-        if (requests.get(key) === request) requests.delete(key);
+        if (requests.get(key) === request) {
+          requests.delete(key);
+        }
       });
 
     requests.set(key, request);
@@ -582,21 +664,20 @@ const make = Effect.gen(function* () {
     removeEvent: Effect.fn('WorkoutsService.removeEvent')(function* (id: number, eventId: string | number) {
       dropEvent(id, eventId);
     }),
-    /** Today's scheduled workouts, as the game lists them. */
-    list: Effect.fn('WorkoutsService.list')(function* (id: number, now = new Date()) {
+    list: Effect.fn('WorkoutsService.list')(function* (id: number, now: Date = new Date()) {
       return scheduled(id, now);
     }),
     file: Effect.fn('WorkoutsService.file')(function* (id: string) {
       return fileOf(id);
     }),
     /** Fetch today's workouts from the rider's provider and publish them. A failure is a defect. */
-    sync: Effect.fn('WorkoutsService.sync')(function* (id: number, signal = AbortSignal.timeout(30_000)) {
+    sync: Effect.fn('WorkoutsService.sync')(function* (id: number, signal: AbortSignal = AbortSignal.timeout(30_000)) {
       return yield* Effect.promise(() => syncNow(id, signal));
     }),
     /** Sync in the background of a request: failures are logged, and concurrent requests share one sync. */
     syncWorkoutsAutomatically: Effect.fn('WorkoutsService.syncWorkoutsAutomatically')(function* (
       id: number,
-      android = false,
+      android: boolean = false,
     ) {
       yield* Effect.promise(() => automatic(id, android));
     }),

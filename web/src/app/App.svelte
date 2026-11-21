@@ -10,45 +10,33 @@
   import Avatar from '../components/Avatar.svelte';
   import TextField from './TextField.svelte';
   import ServerLogs from './ServerLogs.svelte';
-
-  type ApiValue = string | number | boolean | null | undefined | ApiValue[] | { [key: string]: ApiValue };
-
-  type ApiPayload = { [key: string]: ApiValue };
-
-  type User = {
-    player_id: number;
-    username: string;
-    first_name: string;
-    last_name: string;
-    role: string;
-    enabled: number;
-    revision: number;
-    has_password: boolean;
-    connected: boolean;
-    avatar: number | null;
-    completion_deadline?: number | null;
-  };
-
-  type SetupUser = Pick<User, 'player_id' | 'username' | 'first_name' | 'last_name' | 'enabled' | 'has_password'>;
-
-  type ManagedEvent = { id: number; name: string; description: string; eventStart: string; updateDate: string };
-
-  type WorldSetting = {
-    id: string;
-    revision: number;
-    overrides: Record<string, ApiValue>;
-    fields: { name: string; kind: 'boolean' | 'number' | 'string'; value: string | number | boolean }[];
-  };
-
-  type UserSettings = {
-    revision: number;
-    overrides: Record<string, boolean | string>;
-    defaults: {
-      ghosts: { enabled: boolean };
-      uploads: { strava: { method: string } };
-      workouts: { trainingpeaks: { bridgeFolder: string } };
-    };
-  };
+  import Install from './Install.svelte';
+  import Companion from './Companion.svelte';
+  import CompanionManage from './CompanionManage.svelte';
+  import ServerCertificate from './ServerCertificate.svelte';
+  import { tlsStatus } from './tls';
+  import { decode, ignored, responseFields } from '../lib/api';
+  import type { ApiPayload } from '../lib/api';
+  import type { z } from 'zod';
+  import {
+    avatarResponse,
+    backupResponse,
+    eventsResponse,
+    outcomeResponse,
+    profileResponse,
+    savedWorldSettingResponse,
+    serverLogsResponse,
+    serverSettingsResponse,
+    setupKeyResponse,
+    setupResponse,
+    signedInResponse,
+    userSchema,
+    userSettingsSchema,
+    usersResponse,
+    zwiftUpdatesResponse,
+  } from './schemas';
+  import type { ManagedEvent, SetupUser, User, UserSettings, WorldSetting, ZwiftUpdates } from './schemas';
+  import type { TlsStatus } from './tls';
 
   type Pending = { title: string; detail: string; label: string; destructive: boolean; confirm: () => Promise<void> };
 
@@ -69,23 +57,22 @@
   let version = $state('');
   let zwiftVersion = $state('');
   let user = $state<User | null>(null);
-  let users = $state<User[]>([]);
+  let users = $state<Array<User>>([]);
   let complete = $state(true);
   let loading = $state(true);
   let busy = $state(false);
   let message = $state('');
   let failed = $state(false);
   let errorScope = $state('');
-  let fieldErrors = $state<Record<string, string[]>>({});
+  let fieldErrors = $state<Record<string, Array<string>>>({});
   let conflict = $state<User | null>(null);
   let pending = $state<Pending | null>(null);
   let operation = crypto.randomUUID();
 
-  // Setup and sign-in.
   let mode = $state<'new' | 'existing'>('new');
   let key = $state('');
   let keyAccepted = $state(false);
-  let setupUsers = $state<SetupUser[]>([]);
+  let setupUsers = $state<Array<SetupUser>>([]);
   let setupUserId = $state<number | null>(null);
   let username = $state('');
   let password = $state('');
@@ -98,7 +85,6 @@
   let profileUser = $state<User | null>(null);
   let profileAvatar = $state<number | null>(null);
 
-  // Profile.
   let birthday = $state('');
 
   // Undefined until loaded: the side menu shows the photo on every page.
@@ -116,7 +102,6 @@
   let stravaMethod = $state('paid');
   let bridgeFolder = $state('');
 
-  // Users.
   let search = $state('');
   let page = $state(0);
   let newFirst = $state('');
@@ -127,16 +112,17 @@
   let targetPassword = $state('');
   let targetConfirm = $state('');
 
-  // Server.
+  /** The Zwift certificate's source, for the administrator's warning on every page. */
+  let certificateMode = $state<TlsStatus['mode'] | null>(null);
   let backingUp = $state(false);
   let backupMessage = $state('');
   let backupOperation = crypto.randomUUID();
-  let serverConfig = $state<{ rows: [string, string][] } | null>(null);
-  let zwiftUpdates = $state<{ allowed: boolean; available: boolean } | null>(null);
-  let worldSettings = $state<WorldSetting[]>([]);
+  let serverConfig = $state<{ rows: Array<[string, string]> } | null>(null);
+  let zwiftUpdates = $state<ZwiftUpdates | null>(null);
+  let worldSettings = $state<Array<WorldSetting>>([]);
   let worldSetting = $state<WorldSetting | null>(null);
   let worldValues = $state<Record<string, string | number | boolean>>({});
-  let events = $state<ManagedEvent[]>([]);
+  let events = $state<Array<ManagedEvent>>([]);
   let event = $state<ManagedEvent | null>(null);
   let eventDescription = $state('');
   let eventStart = $state('');
@@ -145,6 +131,13 @@
   let botArgument = $state('');
 
   const manage = $derived(path === '/manage' || path.startsWith('/manage/'));
+  const installing = $derived(path === '/install' || path.startsWith('/install/'));
+  const companion = $derived(path === '/companion' || path.startsWith('/companion/'));
+
+  const back = $derived(
+    manage && path.startsWith('/manage/users/') ? { href: '/manage', label: 'All users' } : undefined,
+  );
+
   const administrator = $derived(user?.role === 'administrator');
   const selectedId = $derived(Number(/^\/manage\/users\/(\d+)$/.exec(path)?.[1] ?? 0));
   const selected = $derived(users.find((r) => r.player_id === selectedId) ?? null);
@@ -155,6 +148,30 @@
       `${r.player_id} ${r.username} ${r.first_name} ${r.last_name}`.toLowerCase().includes(search.toLowerCase()),
     ),
   );
+
+  // Asked once per administrator sign-in; the Server page reports later changes.
+  let certificateRequested = false;
+
+  $effect(() => {
+    if (!administrator) {
+      certificateRequested = false;
+      certificateMode = null;
+
+      return;
+    }
+
+    if (certificateRequested) {
+      return;
+    }
+    certificateRequested = true;
+    api(tlsStatus, '/api/tls')
+      .then((body) => {
+        certificateMode = body.mode;
+      })
+      .catch(() => {
+        certificateRequested = false;
+      });
+  });
 
   const name = (r: User) => `${r.first_name} ${r.last_name}`.trim();
   const label = (r: User) => name(r) || r.username;
@@ -168,40 +185,62 @@
         : 'First administrator'
       : path === '/manage/server'
         ? 'Server'
-        : path === '/manage/users/new'
-          ? 'Create user'
-          : selected
-            ? label(selected)
-            : manage
-              ? 'Users'
-              : path === '/activities' || path.startsWith('/activities/')
-                ? 'Activities'
-                : path === '/import/local'
-                  ? 'Import local files'
-                  : path === '/import'
-                    ? 'Import'
-                    : path === '/export'
-                      ? 'Export'
-                      : path === '/zwift'
-                        ? 'Zwift connection'
-                        : path === '/integrations'
-                          ? 'Integrations'
-                          : path === '/settings'
-                            ? 'Settings'
-                            : path === '/climbs'
-                              ? 'Climbs'
-                              : 'Profile',
+        : path === '/manage/companion'
+          ? 'Companion app'
+          : path === '/manage/users/new'
+            ? 'Create user'
+            : selected
+              ? label(selected)
+              : manage
+                ? 'Users'
+                : path === '/activities' || path.startsWith('/activities/')
+                  ? 'Activities'
+                  : path === '/import/local'
+                    ? 'Import local files'
+                    : path === '/import'
+                      ? 'Import'
+                      : path === '/export'
+                        ? 'Export'
+                        : path === '/zwift'
+                          ? 'Zwift connection'
+                          : path === '/integrations'
+                            ? 'Integrations'
+                            : path === '/settings'
+                              ? 'Settings'
+                              : path === '/climbs'
+                                ? 'Climbs'
+                                : path === '/install/windows'
+                                  ? 'Windows setup'
+                                  : path === '/install/macos'
+                                    ? 'macOS setup'
+                                    : path === '/install/linux'
+                                      ? 'Linux setup'
+                                      : installing
+                                        ? 'Install'
+                                        : path === '/companion/android'
+                                          ? 'Android setup'
+                                          : companion
+                                            ? 'Companion'
+                                            : 'Profile',
   );
 
   const initials = (r: User) => `${r.first_name.charAt(0)}${r.last_name.charAt(0)}`.toUpperCase();
   const time = (value: number) => new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const errors = (scope: string, field: string) => (errorScope === scope ? (fieldErrors[field] ?? []) : []);
 
-  async function api(url: string, method = 'GET', data?: ApiPayload | FormData | Blob) {
+  async function api<Schema extends z.ZodType>(
+    schema: Schema,
+    url: string,
+    method = 'GET',
+    data?: ApiPayload | FormData | Blob,
+  ): Promise<z.output<Schema>> {
     const headers = new Headers({ 'X-CSRF-Token': csrf });
 
-    if (data instanceof Blob) headers.set('Content-Type', data.type);
-    else if (!(data instanceof FormData)) headers.set('Content-Type', 'application/json');
+    if (data instanceof Blob) {
+      headers.set('Content-Type', data.type);
+    } else if (!(data instanceof FormData)) {
+      headers.set('Content-Type', 'application/json');
+    }
 
     const { response, body } = await requestJson(url, {
       method,
@@ -211,36 +250,47 @@
       }),
     });
 
-    if (body.csrf) csrf = body.csrf;
+    const fields = responseFields(body);
+
+    if (fields.csrf) {
+      csrf = fields.csrf;
+    }
 
     if (!response.ok) {
       // The server answered, so a retry is a new operation. A lost response keeps the ID for a safe retry.
-      if (method !== 'GET') operation = crypto.randomUUID();
-      fieldErrors = body.fieldErrors ?? {};
+      if (method !== 'GET') {
+        operation = crypto.randomUUID();
+      }
+      fieldErrors = fields.fieldErrors ?? {};
       const scope = selected && `/api/manage/users/${selected.player_id}`;
 
-      if (response.status === 409 && scope && (url === scope || url.startsWith(`${scope}/`)))
-        conflict = await api(scope);
+      if (response.status === 409 && scope && (url === scope || url.startsWith(`${scope}/`))) {
+        conflict = await api(userSchema, scope);
+      }
 
       if (response.status === 401 && user) {
         user = null;
         avatar = undefined;
         avatar = undefined;
         go('/sign-in');
-        await api('/api/setup');
+        await api(ignored, '/api/setup');
         throw new Error('Your session ended. Sign in again.');
       }
 
-      throw new Error(body.message || 'Request failed.');
+      throw new Error(fields.message || 'Request failed.');
     }
 
-    if (method !== 'GET') operation = crypto.randomUUID();
+    if (method !== 'GET') {
+      operation = crypto.randomUUID();
+    }
 
-    return body;
+    return decode(schema, body);
   }
 
   function go(next: string) {
-    if (next !== path) history.pushState({}, '', next);
+    if (next !== path) {
+      history.pushState({}, '', next);
+    }
     path = next;
   }
 
@@ -251,7 +301,9 @@
   }
 
   async function run(work: () => Promise<void>, scope = '') {
-    if (busy) return;
+    if (busy) {
+      return;
+    }
     busy = true;
     message = '';
     failed = false;
@@ -275,21 +327,31 @@
 
   /** Loads what the current route shows. Direct navigation to any route works. */
   async function enter() {
-    if (!user) return;
+    if (!user) {
+      return;
+    }
 
-    if (title === 'Profile' || avatar === undefined) await loadProfile();
+    if (title === 'Profile' || avatar === undefined) {
+      await loadProfile();
+    }
 
     if (!manage) {
       // Integrations reads the saved Strava method and TrainingPeaks folder from the same settings.
-      if (path === '/settings' || path === '/integrations') await loadSettings();
+      if (path === '/settings' || path === '/integrations') {
+        await loadSettings();
+      }
 
       return;
     }
 
-    if (!administrator) return;
+    if (!administrator) {
+      return;
+    }
     await loadUsers();
 
-    if (path === '/manage/server') await loadServer();
+    if (path === '/manage/server') {
+      await loadServer();
+    }
 
     if (selected) {
       select();
@@ -297,20 +359,20 @@
   }
 
   async function loadUsers() {
-    users = (await api('/api/manage/users')).users;
+    users = (await api(usersResponse, '/api/manage/users')).users;
   }
 
   async function loadServer() {
     zwiftUpdates = null;
-    const body = await api('/api/manage/settings');
+    const body = await api(serverSettingsResponse, '/api/manage/settings');
     worldSettings = body.worldSettings;
     serverConfig = { rows: body.configuration };
     zwiftUpdates = body.zwiftUpdates;
-    events = (await api('/api/manage/events')).events;
+    events = (await api(eventsResponse, '/api/manage/events')).events;
   }
 
   async function saveZwiftUpdates(allowed: boolean) {
-    zwiftUpdates = await api('/api/manage/server/zwift-updates', 'PATCH', { allowed });
+    zwiftUpdates = await api(zwiftUpdatesResponse, '/api/manage/server/zwift-updates', 'PATCH', { allowed });
     done(allowed ? 'Zwift updates are allowed.' : 'Zwift updates are on hold.');
   }
 
@@ -319,17 +381,21 @@
     backupMessage = 'Requesting backup…';
 
     try {
-      let result = await api('/api/manage/server/backups', 'POST', { operation: backupOperation });
+      let result = await api(backupResponse, '/api/manage/server/backups', 'POST', { operation: backupOperation });
 
       while (result.state === 'queued' || result.state === 'running') {
         backupMessage = result.state === 'queued' ? 'Backup queued…' : 'Creating backup…';
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        result = await api(`/api/manage/server/backups/${backupOperation}`);
+        await new Promise((resolve) => {
+          setTimeout(resolve, 1000);
+        });
+        result = await api(backupResponse, `/api/manage/server/backups/${backupOperation}`);
       }
 
       backupOperation = crypto.randomUUID();
       backupMessage =
-        result.state === 'done' ? `Backup saved in backups/${result.name}.` : 'Backup failed. Check the server log.';
+        result.state === 'done'
+          ? `Backup saved in storage/backups/${result.name}.`
+          : 'Backup failed. Check the server log.';
     } catch (error) {
       backupMessage = error instanceof Error ? error.message : 'Backup request failed.';
     } finally {
@@ -337,7 +403,6 @@
     }
   }
 
-  /** The values in effect: the user's own choice, or the server default. */
   function preferences(body: UserSettings) {
     return {
       ghosts: Boolean(body.overrides['ghosts.enabled'] ?? body.defaults.ghosts.enabled),
@@ -353,7 +418,10 @@
   }
 
   async function saveSettings() {
-    settings = await api('/api/me/settings', 'PATCH', settingsBody(settings!));
+    if (!settings) {
+      return;
+    }
+    settings = await api(userSettingsSchema, '/api/me/settings', 'PATCH', settingsBody(settings));
   }
 
   /** A single switch saves as soon as it changes, and flips back if the server refuses it. */
@@ -398,43 +466,51 @@
     const side = Math.min(bitmap.width, bitmap.height);
     const canvas = document.createElement('canvas');
     canvas.width = canvas.height = Math.min(side, 512);
-    canvas
-      .getContext('2d')!
-      .drawImage(
-        bitmap,
-        (bitmap.width - side) / 2,
-        (bitmap.height - side) / 2,
-        side,
-        side,
-        0,
-        0,
-        canvas.width,
-        canvas.height,
-      );
+    const context = canvas.getContext('2d');
+
+    if (!context) {
+      throw new Error('Could not process the image.');
+    }
+    context.drawImage(
+      bitmap,
+      (bitmap.width - side) / 2,
+      (bitmap.height - side) / 2,
+      side,
+      side,
+      0,
+      0,
+      canvas.width,
+      canvas.height,
+    );
     bitmap.close();
 
-    return new Promise<Blob>((done, fail) =>
-      canvas.toBlob((blob) => (blob ? done(blob) : fail(new Error('Could not read the image.'))), 'image/jpeg', 0.9),
-    );
+    return new Promise<Blob>((done, fail) => {
+      canvas.toBlob((blob) => (blob ? done(blob) : fail(new Error('Could not read the image.'))), 'image/jpeg', 0.9);
+    });
   }
 
   function uploadPhoto(file: File | undefined) {
-    if (!file) return;
+    if (!file) {
+      return;
+    }
     void run(async () => {
-      profileAvatar = (await api(`${profileBase}/avatar`, 'PUT', await squarePhoto(file))).avatar;
+      profileAvatar = (await api(avatarResponse, `${profileBase}/avatar`, 'PUT', await squarePhoto(file))).avatar;
 
-      if (!profileId) avatar = profileAvatar;
+      if (!profileId) {
+        avatar = profileAvatar;
+      }
       done('Restart Zwift for the changes to take effect.');
     });
   }
 
   async function loadProfile() {
-    applyProfile(await api(`${profileBase}/profile`));
+    applyProfile(await api(profileResponse, `${profileBase}/profile`));
   }
 
   async function loadSettings() {
-    settings = await api('/api/me/settings');
-    applySettings(settings!);
+    const loaded = await api(userSettingsSchema, '/api/me/settings');
+    settings = loaded;
+    applySettings(loaded);
   }
 
   function select() {
@@ -465,13 +541,15 @@
   /** Checks the setup key alone, so a wrong key costs one field instead of the whole form. */
   async function checkKey() {
     try {
-      const body = await api('/api/setup/key', 'POST', { key });
+      const body = await api(setupKeyResponse, '/api/setup/key', 'POST', { key });
       setupUsers = body.users;
       setupUserId = null;
       mode = setupUsers.length ? 'existing' : 'new';
       keyAccepted = true;
     } catch (error) {
-      if (!(error instanceof Error) || error.message !== 'Setup refused.') throw error;
+      if (!(error instanceof Error) || error.message !== 'Setup refused.') {
+        throw error;
+      }
       fieldErrors = { key: ['This key does not match. Copy it again from the server console.'] };
     }
   }
@@ -483,8 +561,8 @@
     }
 
     const body = complete
-      ? await api('/api/session', 'POST', { username, password })
-      : await api('/api/setup', 'POST', {
+      ? await api(signedInResponse, '/api/session', 'POST', { username, password })
+      : await api(signedInResponse, '/api/setup', 'POST', {
           mode,
           key,
           password,
@@ -511,8 +589,8 @@
   }
 
   async function signOut() {
-    await api('/api/session', 'DELETE', {});
-    await api('/api/setup');
+    await api(ignored, '/api/session', 'DELETE', {});
+    await api(ignored, '/api/setup');
     user = null;
     users = [];
     go('/sign-in');
@@ -521,7 +599,9 @@
   type UserAction = 'disable' | 'enable' | 'role' | 'revoke-sessions' | 'password';
 
   function ask(action: UserAction) {
-    if (!selected) return;
+    if (!selected) {
+      return;
+    }
     const who = name(selected);
     const progress = selected.connected ? ` ${who} is riding now and can lose unsaved ride progress.` : '';
 
@@ -570,14 +650,17 @@
   }
 
   async function mutate(action: UserAction) {
-    if (!selected) return;
+    if (!selected) {
+      return;
+    }
 
     if (action === 'password' && targetPassword !== targetConfirm) {
       fieldErrors = { confirm: ['Passwords do not match.'] };
       throw new Error('Check the form fields.');
     }
 
-    const result: User = await api(
+    const result = await api(
+      userSchema,
       `/api/manage/users/${selected.player_id}/${action}`,
       action === 'role' ? 'PUT' : 'POST',
       {
@@ -612,7 +695,7 @@
       throw new Error('Check the form fields.');
     }
 
-    const created: User = await api('/api/manage/users', 'POST', {
+    const created = await api(userSchema, '/api/manage/users', 'POST', {
       operation,
       user: { username: newLogin, password: newPassword, first_name: newFirst, last_name: newLast },
     });
@@ -649,11 +732,11 @@
       throw new Error('Check the form fields.');
     }
 
-    await api('/api/me/password', 'POST', {
+    await api(ignored, '/api/me/password', 'POST', {
       ...(!administrator && { current_password: currentPassword }),
       password,
     });
-    await api('/api/setup');
+    await api(ignored, '/api/setup');
     changing = false;
     user = null;
     avatar = undefined;
@@ -669,10 +752,9 @@
     regenerateButton?.focus();
   }
 
-  /** Without a rebuild the curves stay empty until the next ride. */
   async function regenerate() {
     regenerating = false;
-    await api('/api/me/power-curves', 'POST', { confirm: true, create: rebuild });
+    await api(ignored, '/api/me/power-curves', 'POST', { confirm: true, create: rebuild });
     done(
       rebuild
         ? 'Regenerating power curves. They fill in as each saved activity is processed.'
@@ -680,7 +762,6 @@
     );
   }
 
-  /** The dialog opens on its first field. */
   function focusFirst(node: HTMLElement) {
     node.querySelector('input')?.focus();
   }
@@ -700,27 +781,33 @@
       label,
       destructive,
       confirm: async () => {
-        const body: { ok: boolean; message: string | null } = await api(`/api/manage/server/${action}`, 'POST', {
+        const body = await api(outcomeResponse, `/api/manage/server/${action}`, 'POST', {
           operation,
         });
 
-        if (!body.ok) throw new Error(body.message ?? 'Operation failed.');
+        if (!body.ok) {
+          throw new Error(body.message ?? 'Operation failed.');
+        }
         done(body.message ?? finished);
       },
     };
   }
 
   async function sendBots() {
-    if (botUser === null) throw new Error('Choose a user who is riding now.');
+    if (botUser === null) {
+      throw new Error('Choose a user who is riding now.');
+    }
 
-    const body: { ok: boolean; message: string | null } = await api('/api/manage/server/bots', 'POST', {
+    const body = await api(outcomeResponse, '/api/manage/server/bots', 'POST', {
       operation,
       user: botUser,
       command: botCommand,
       ...(botCommand === 'peloton' && botArgument && { argument: botArgument }),
     });
 
-    if (!body.ok) throw new Error(body.message ?? 'Operation failed.');
+    if (!body.ok) {
+      throw new Error(body.message ?? 'Operation failed.');
+    }
     done(body.message ?? 'Sent to the bots.');
   }
 
@@ -732,10 +819,10 @@
 
     window.addEventListener('popstate', pop);
     void run(async () => {
-      const setup = await api('/api/setup');
+      const setup = await api(setupResponse, '/api/setup');
       complete = setup.complete;
-      version = setup.version ?? '';
-      zwiftVersion = setup.zwiftVersion ?? '';
+      version = setup.version;
+      zwiftVersion = setup.zwiftVersion;
 
       if (!complete) {
         go('/setup');
@@ -744,18 +831,26 @@
       }
 
       try {
-        user = (await api('/api/me')).user;
+        user = (await api(signedInResponse, '/api/me')).user;
       } catch (error) {
-        if (error instanceof ConnectionError) throw error;
+        if (error instanceof ConnectionError) {
+          throw error;
+        }
 
-        if (!['/sign-in', '/setup'].includes(path)) go('/sign-in');
+        if (!['/sign-in', '/setup'].includes(path)) {
+          go('/sign-in');
+        }
 
         return;
       }
 
-      if (['/sign-in', '/setup'].includes(path)) go('/');
+      if (['/sign-in', '/setup'].includes(path)) {
+        go('/');
+      }
 
-      if (manage && !administrator) go('/');
+      if (manage && !administrator) {
+        go('/');
+      }
       await enter();
     }).finally(() => {
       loading = false;
@@ -809,10 +904,13 @@
       {@render link('/export', 'Export', path === '/export')}
       {@render link('/integrations', 'Integrations', path === '/integrations')}
       {@render link('/settings', 'Settings', path === '/settings')}
+      {@render link('/install', 'Install', installing)}
+      {@render link('/companion', 'Companion', companion)}
       {#if administrator}
         <p class="group">Manage</p>
-        {@render link('/manage', 'Users', manage && path !== '/manage/server')}
+        {@render link('/manage', 'Users', manage && path !== '/manage/server' && path !== '/manage/companion')}
         {@render link('/manage/server', 'Server', path === '/manage/server')}
+        {@render link('/manage/companion', 'Companion', path === '/manage/companion')}
       {/if}
     </nav>
     <button class="sign-out" disabled={busy} onclick={() => run(signOut)}>Sign out</button>
@@ -824,9 +922,9 @@
     {title}
     heading={!user && title !== 'Profile' && title !== 'Activities'}
     page={manage ? 'manage' : 'account'}
-    back={manage && path.startsWith('/manage/users/') ? { href: '/manage', label: 'All users' } : undefined}
+    {back}
     onback={() => {
-      void navigate('/manage');
+      if (back) void navigate(back.href);
     }}
     {version}
     {zwiftVersion}
@@ -835,6 +933,15 @@
       void navigate('/');
     }}
   >
+    {#if administrator && certificateMode === 'legacy' && path !== '/manage/server'}
+      <aside class="unsafe-banner" aria-label="Unsafe Zwift certificate">
+        <p>
+          <strong>Unsafe Zwift certificate.</strong> This server still uses the shared certificate, whose private key is
+          public. Riders' Zwift traffic, passwords included, can be read on your network.
+        </p>
+        {@render link('/manage/server', 'Fix it on the Server page', false)}
+      </aside>
+    {/if}
     {#if message && !changing}<p class="notice" class:failed role={failed ? 'alert' : 'status'}>{message}</p>{/if}
 
     {#if loading}<p role="status">Loading…</p>
@@ -987,7 +1094,21 @@
       {/if}
     {:else if manage && administrator}
       <div>
-        {#if path === '/manage/server'}
+        {#if path === '/manage/companion'}
+          <CompanionManage {api} {navigate} csrf={() => csrf} />
+        {:else if path === '/manage/server'}
+          <ServerCertificate
+            {api}
+            {busy}
+            {done}
+            onstatus={(status) => {
+              certificateMode = status.mode;
+            }}
+            confirm={(confirmation) => {
+              pending = confirmation;
+            }}
+          />
+
           {#if zwiftUpdates}
             <section class="panel">
               <h2>Zwift client updates</h2>
@@ -1021,7 +1142,9 @@
 
           <section class="panel">
             <h2>Backups</h2>
-            <p class="muted">Backups are saved beside storage. The server keeps the 10 most recent nightly backups.</p>
+            <p class="muted">
+              Backups are saved in storage/backups. The server keeps the 10 most recent nightly backups.
+            </p>
             <button disabled={busy || backingUp} onclick={() => void createBackup()}>Create backup</button>
             {#if backupMessage}<p role="status">{backupMessage}</p>{/if}
           </section>
@@ -1081,7 +1204,7 @@
 
           <section class="panel">
             <h2>Server logs</h2>
-            <ServerLogs load={() => api('/api/manage/server/logs')} />
+            <ServerLogs load={() => api(serverLogsResponse, '/api/manage/server/logs')} />
           </section>
 
           <section class="panel">
@@ -1105,7 +1228,7 @@
                 onsubmit={(e) => {
                   e.preventDefault();
                   void run(async () => {
-                    const result = await api('/api/manage/settings', 'PATCH', {
+                    const result = await api(savedWorldSettingResponse, '/api/manage/settings', 'PATCH', {
                       id: worldSetting!.id,
                       revision: worldSetting!.revision,
                       operation,
@@ -1175,13 +1298,13 @@
                 onsubmit={(e) => {
                   e.preventDefault();
                   void run(async () => {
-                    await api(`/api/manage/events/${event!.id}`, 'PATCH', {
+                    await api(ignored, `/api/manage/events/${event!.id}`, 'PATCH', {
                       operation,
                       revision: event!.updateDate,
                       changes: { description: eventDescription, eventStart },
                     });
                     event = null;
-                    events = (await api('/api/manage/events')).events;
+                    events = (await api(eventsResponse, '/api/manage/events')).events;
                     done('Event saved.');
                   }, 'event');
                 }}
@@ -1209,12 +1332,12 @@
                         label: 'Delete event',
                         destructive: true,
                         confirm: async () => {
-                          await api(`/api/manage/events/${target.id}`, 'DELETE', {
+                          await api(ignored, `/api/manage/events/${target.id}`, 'DELETE', {
                             operation,
                             revision: target.updateDate,
                           });
                           event = null;
-                          events = (await api('/api/manage/events')).events;
+                          events = (await api(eventsResponse, '/api/manage/events')).events;
                           done('Event deleted.');
                         },
                       };
@@ -1498,13 +1621,17 @@
             request={api}
             {navigate}
             onuser={async () => {
-              user = (await api('/api/me')).user;
+              user = (await api(signedInResponse, '/api/me')).user;
             }}
           />{/key}
       {:else if path === '/activities' || path.startsWith('/activities/')}
         <Activities {path} {api} {go} />
       {:else if path === '/climbs'}
         <Climbs {api} />
+      {:else if installing}
+        <Install {api} {path} {navigate} />
+      {:else if companion}
+        <Companion {api} {path} {navigate} {administrator} />
       {:else if path === '/settings'}
         {#if settings}
           <section class="panel narrow ghosts" aria-labelledby="ghosts-title">
@@ -1547,7 +1674,7 @@
             e.preventDefault();
             void run(async () => {
               applyProfile(
-                await api(`${profileBase}/profile`, 'PATCH', {
+                await api(profileResponse, `${profileBase}/profile`, 'PATCH', {
                   revision: profileUser!.revision,
                   operation,
                   username,
@@ -1591,7 +1718,7 @@
                   disabled={busy}
                   onclick={() =>
                     void run(async () => {
-                      profileAvatar = (await api(`${profileBase}/avatar`, 'DELETE')).avatar;
+                      profileAvatar = (await api(avatarResponse, `${profileBase}/avatar`, 'DELETE')).avatar;
                       if (!profileId) avatar = profileAvatar;
                       done('Restart Zwift for the changes to take effect.');
                     })}>Remove</button
@@ -1775,7 +1902,6 @@
 {/if}
 
 <style>
-  /* The side menu: who is signed in, then one flat list of pages. */
   .me {
     display: flex;
     align-items: center;
@@ -1810,7 +1936,6 @@
     background: rgb(255 255 255 / 0.08);
     text-decoration: none;
   }
-  /* The current page carries Zwift orange along the edge of the menu. */
   .menu :global(a[aria-current]) {
     border-left-color: var(--orange);
     background: var(--glass-raised);
@@ -1824,6 +1949,36 @@
     margin-top: auto;
     border-top: 1px solid var(--line);
     color: var(--muted);
+  }
+
+  /* The administrator's reminder on every page until the shared certificate is gone. */
+  .unsafe-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1.25rem;
+    margin: 0 0 1rem;
+    padding: 0.7rem 1rem;
+    border-left: 4px solid #ff6b57;
+    border-radius: 0 10px 10px 0;
+    background: rgb(255 90 70 / 0.16);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+  }
+  .unsafe-banner p {
+    margin: 0;
+    color: var(--alarm);
+  }
+  .unsafe-banner strong {
+    color: var(--text);
+    font-weight: 800;
+  }
+  .unsafe-banner :global(a) {
+    flex: none;
+    font-weight: 800;
+    white-space: nowrap;
+    text-decoration-color: #ff6b57;
   }
 
   .panel {
@@ -2110,7 +2265,6 @@
     outline: 2px solid var(--text);
     outline-offset: 2px;
   }
-  /* The row opens the user's page: the chips stay together on the right, then the ID and a chevron. */
   a.user .identity {
     flex: 1 1 auto;
   }
@@ -2195,7 +2349,6 @@
   .columns h2 + p {
     margin-top: 0;
   }
-  /* Each access control says what it is now, with the action that changes it beside it. */
   .access li {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;

@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onMount, type Snippet } from 'svelte';
+  import { onMount } from 'svelte';
+  import type { Snippet } from 'svelte';
   import ConnectionBanner from './ConnectionBanner.svelte';
 
   let {
@@ -10,6 +11,7 @@
     version,
     zwiftVersion,
     menu,
+    aside,
     onhome,
     onback,
     children,
@@ -23,6 +25,8 @@
     zwiftVersion?: string | undefined;
     /** Contents of the side menu behind the bar's menu button. The game app has none. */
     menu?: Snippet | undefined;
+    /** Sits beside the logo in the bar, such as the launcher's link out to the web app. */
+    aside?: Snippet | undefined;
     onhome?: (() => void) | undefined;
     /** Follows the back link inside the page instead of loading it again. */
     onback?: (() => void) | undefined;
@@ -85,6 +89,7 @@
     <span class="logo" aria-hidden="true"></span>
     <span class="wordmark">zluggish</span>
   </a>
+  {@render aside?.()}
   {#if !menu && version}<button
       class="version"
       aria-label={`About Zluggish v${version}`}
@@ -105,7 +110,6 @@
     </div>
   </aside>
 {:else if menu}
-  <!-- A click on the backdrop lands on the dialog itself; a click on any link or button inside navigates or acts. -->
   <dialog
     id="menu"
     class="drawer"
@@ -217,7 +221,6 @@
     stroke-linecap: round;
   }
 
-  /* The menu slides in from the left over the dimmed page. */
   .drawer {
     position: fixed;
     inset: 0 auto 0 0;
@@ -314,7 +317,6 @@
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }
-  /* Quiet, there for support questions, not competing with the wordmark. */
   .version {
     padding: 0;
     border: 0;

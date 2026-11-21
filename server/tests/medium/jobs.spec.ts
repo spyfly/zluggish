@@ -15,7 +15,6 @@ import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { Effect, Layer, Schema } from 'effect';
 
-/** A job runner of its own for the fixture, with no handlers registered. */
 function jobRunner(f: Awaited<ReturnType<typeof mediumFixture>>) {
   return Effect.runSync(
     Effect.gen(function* () {
@@ -73,7 +72,6 @@ await test('a stopped process does not lose its job; a new claim runs it after t
   const first = jobs.claim('retention', 30_000);
   assert.ok(first);
   assert.equal(jobs.claim('retention', 30_000), null, 'a valid lease blocks another claim');
-  // The process stops: nothing finishes the claim. A restart claims again after expiry.
   now += 30_000;
   const second = jobs.claim('retention', 30_000);
   assert.ok(second);
@@ -114,7 +112,9 @@ await test('an old handler after lease expiry and a new claim cannot commit or p
   repository.enqueue('fit_export', { activityId: id });
   const stale = repository.claim('fit_export', 1);
   assert.ok(stale);
-  await new Promise((resolve) => setTimeout(resolve, 5));
+  await new Promise((resolve) => {
+    setTimeout(resolve, 5);
+  });
   assert.equal(repository.valid(stale), false);
   await f.effects.runPromise(JobsService.use((service) => service.run(stale)));
   assert.equal(existsSync(export_), false);
@@ -154,7 +154,9 @@ await test('a delivery lease expiry does not authorize a second send', async (t)
   );
 
   // The lease expires during the request: a replacement claim must not send again.
-  await new Promise((resolve) => setTimeout(resolve, 60));
+  await new Promise((resolve) => {
+    setTimeout(resolve, 60);
+  });
   const second = repository.claim('delivery', 30_000);
   assert.ok(second);
   await Effect.runPromise(jobs.run(second));
@@ -234,13 +236,17 @@ await test('a job that cannot succeed fails at once, and each type runs at most 
         Effect.promise(async () => {
           running++;
           peak = Math.max(peak, running);
-          await new Promise((resolve) => setTimeout(resolve, 10));
+          await new Promise((resolve) => {
+            setTimeout(resolve, 10);
+          });
           running--;
         }),
     }),
   );
 
-  for (let index = 0; index < 6; index++) repository.enqueue('chart', { index });
+  for (let index = 0; index < 6; index++) {
+    repository.enqueue('chart', { index });
+  }
   await Effect.runPromise(jobs.drain());
   assert.equal(peak, 2);
   assert.ok(repository.list('chart').every((job) => job.state === 'done'));

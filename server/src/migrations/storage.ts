@@ -85,7 +85,9 @@ function syncFile(path: string) {
 }
 
 function syncDirectory(path: string) {
-  if (process.platform === 'win32') return;
+  if (process.platform === 'win32') {
+    return;
+  }
   const fd = openSync(path, 'r');
 
   try {
@@ -104,7 +106,9 @@ function writeDurable(path: string, data: string | Uint8Array) {
 }
 
 function removeDatabase(path: string) {
-  for (const suffix of ['', '-wal', '-shm', '-journal']) rmSync(`${path}${suffix}`, { force: true });
+  for (const suffix of ['', '-wal', '-shm', '-journal']) {
+    rmSync(`${path}${suffix}`, { force: true });
+  }
 }
 
 export function readManifest(storage: string): Manifest | null {
@@ -121,7 +125,9 @@ function writeManifest(storage: string, manifest: Manifest) {
 changes. A WAL file is never deleted to pass this check.
 */
 function checkpointSource(path: string) {
-  if (!existsSync(path)) return;
+  if (!existsSync(path)) {
+    return;
+  }
   const db = new DatabaseSync(path);
 
   try {
@@ -129,16 +135,18 @@ function checkpointSource(path: string) {
       Schema.Struct({ busy: Schema.Finite, log: Schema.Finite, checkpointed: Schema.Finite }),
     )(db.prepare('PRAGMA wal_checkpoint(TRUNCATE)').get());
 
-    if (result.busy !== 0 || result.log !== result.checkpointed)
+    if (result.busy !== 0 || result.log !== result.checkpointed) {
       throw new ConfigError(`${basename(path)} could not be checkpointed; stop other processes and retry`);
+    }
   } finally {
     db.close();
   }
 
   const wal = `${path}-wal`;
 
-  if (existsSync(wal) && statSync(wal).size > 0)
+  if (existsSync(wal) && statSync(wal).size > 0) {
     throw new ConfigError(`${basename(path)} has unapplied WAL changes; open it with SQLite and checkpoint`);
+  }
 }
 
 function copyLegacyFile(source: string, target: string) {
@@ -148,7 +156,9 @@ function copyLegacyFile(source: string, target: string) {
 
 function copyLegacyTree(source: string, target: string, checksums: Record<string, string>, root: string) {
   for (const entry of readdirSync(source, { withFileTypes: true })) {
-    if (source === root && excludedStorageEntry(entry.name)) continue;
+    if (source === root && excludedStorageEntry(entry.name)) {
+      continue;
+    }
     const from = resolve(source, entry.name);
     const to = resolve(target, entry.name);
 
@@ -167,7 +177,9 @@ function copyLegacyTree(source: string, target: string, checksums: Record<string
         }
 
         syncFile(to);
-      } else copyLegacyFile(from, to);
+      } else {
+        copyLegacyFile(from, to);
+      }
 
       checksums[relative(root, from)] = crypto.sha256File(to);
     }
@@ -188,6 +200,8 @@ export function backupLegacyStorage(storage: string, prefix: string) {
 
   try {
     mkdirSync(snapshot);
+    // A null prototype keeps file names such as __proto__ ordinary keys; Object.create returns any.
+    // oxlint-disable-next-line typescript/no-unsafe-assignment
     const checksums: Record<string, string> = Object.create(null);
     copyLegacyTree(source, snapshot, checksums, source);
     writeDurable(resolve(snapshot, backupManifest), `${JSON.stringify({ version: 1, checksums }, null, 2)}\n`);
@@ -197,7 +211,9 @@ export function backupLegacyStorage(storage: string, prefix: string) {
     renameSync(archive, target);
     syncDirectory(directory);
 
-    if (created) syncDirectory(dirname(directory));
+    if (created) {
+      syncDirectory(dirname(directory));
+    }
 
     return target;
   } finally {
@@ -208,10 +224,14 @@ export function backupLegacyStorage(storage: string, prefix: string) {
 function credentialsKey(storage: string) {
   const file = resolve(storage, StorageFile.CredentialsKey);
 
-  if (!existsSync(file)) writeDurable(file, crypto.randomBytes(32));
+  if (!existsSync(file)) {
+    writeDurable(file, crypto.randomBytes(32));
+  }
   const key = readFileSync(file);
 
-  if (key.length !== 32) throw new ConfigError('Invalid credentials key; restore credentials-key.bin');
+  if (key.length !== 32) {
+    throw new ConfigError('Invalid credentials key; restore credentials-key.bin');
+  }
 
   return key;
 }
@@ -232,25 +252,36 @@ previous release did at startup, before their files are imported.
 */
 function rollbackLegacyImports(storage: string, db: DatabaseSync, report: Report) {
   for (const rider of readdirSync(storage)) {
-    if (!/^\d+$/.test(rider)) continue;
+    if (!/^\d+$/.test(rider)) {
+      continue;
+    }
     const folder = resolve(storage, rider);
 
     for (const entry of readdirSync(folder, { withFileTypes: true })) {
-      if (!entry.isDirectory() || !/^\.ts-import-[a-f0-9]{32}$/.test(entry.name)) continue;
+      if (!entry.isDirectory() || !/^\.ts-import-[a-f0-9]{32}$/.test(entry.name)) {
+        continue;
+      }
       const stage = resolve(folder, entry.name);
       const path = resolve(stage, 'manifest.json');
 
-      if (!existsSync(path)) continue;
+      if (!existsSync(path)) {
+        continue;
+      }
       const manifest = Schema.decodeUnknownSync(importManifest)(JSON.parse(readFileSync(path, 'utf8')));
 
-      if (manifest.state !== 'publishing') continue;
+      if (manifest.state !== 'publishing') {
+        continue;
+      }
 
       for (const name of manifest.files) {
         const old = resolve(stage, `old-${name}`);
         const current = resolve(folder, name);
 
-        if (existsSync(old)) copyFileSync(old, current);
-        else rmSync(current, { force: true });
+        if (existsSync(old)) {
+          copyFileSync(old, current);
+        } else {
+          rmSync(current, { force: true });
+        }
       }
 
       db.prepare('UPDATE user SET first_name=?, last_name=?, official_player_id=? WHERE player_id=?').run(
@@ -269,7 +300,9 @@ function importSettings(storage: string, db: DatabaseSync) {
   const path = resolve(storage, StorageFile.Settings);
   const counts = { rider_settings: 0, config_migration: 0, world_settings: 0 };
 
-  if (!existsSync(path)) return counts;
+  if (!existsSync(path)) {
+    return counts;
+  }
   const source = new DatabaseSync(path, { readOnly: true });
 
   try {
@@ -277,7 +310,9 @@ function importSettings(storage: string, db: DatabaseSync) {
       source.prepare('PRAGMA user_version').get(),
     );
 
-    if (version.user_version > 1) throw new ConfigError('Unsupported settings database version');
+    if (version.user_version > 1) {
+      throw new ConfigError('Unsupported settings database version');
+    }
 
     const tables = new Set(
       source
@@ -293,7 +328,9 @@ function importSettings(storage: string, db: DatabaseSync) {
     ] as const;
 
     for (const [table, select, insert] of statements) {
-      if (!tables.has(table)) continue;
+      if (!tables.has(table)) {
+        continue;
+      }
       const statement = db.prepare(insert);
 
       for (const row of source.prepare(select).all()) {
@@ -332,7 +369,9 @@ function importRiderFiles(storage: string, db: DatabaseSync, key: Uint8Array, re
   );
 
   for (const name of readdirSync(storage)) {
-    if (!/^\d+$/.test(name) || !statSync(resolve(storage, name)).isDirectory()) continue;
+    if (!/^\d+$/.test(name) || !statSync(resolve(storage, name)).isDirectory()) {
+      continue;
+    }
     const player = Number(name);
 
     if (!users.has(player)) {
@@ -346,22 +385,29 @@ function importRiderFiles(storage: string, db: DatabaseSync, key: Uint8Array, re
     for (const document of documentNames) {
       const path = resolve(folder, document);
 
-      if (!existsSync(path)) continue;
+      if (!existsSync(path)) {
+        continue;
+      }
       const data = readFileSync(path);
 
       // Required progression documents must decode; invalid files stop the migration.
-      if (document === 'profile.bin') fromBinary(PlayerProfileSchema, data);
-      else if (document === 'streaks.bin') fromBinary(StreaksSchema, data);
-      else if (credentialDocuments.has(document))
+      if (document === 'profile.bin') {
+        fromBinary(PlayerProfileSchema, data);
+      } else if (document === 'streaks.bin') {
+        fromBinary(StreaksSchema, data);
+      } else if (credentialDocuments.has(document)) {
         try {
           crypto.decryptCredentials(key, data);
         } catch (error) {
-          if (!(error instanceof UnreadableCredentialsError)) throw error;
+          if (!(error instanceof UnreadableCredentialsError)) {
+            throw error;
+          }
 
           // Another credentials key wrote them. The legacy file stays; the rider enters them again.
           report.invalidOptional.push(`${name}/${document}`);
           continue;
         }
+      }
 
       const secret = SecretDocuments.includes(document);
       insertDocument.run(player, document, secret ? crypto.encryptSecret(key, data) : data, secret ? 1 : 0);
@@ -370,18 +416,26 @@ function importRiderFiles(storage: string, db: DatabaseSync, key: Uint8Array, re
 
     const bookmarks = resolve(folder, 'bookmarks');
 
-    if (!existsSync(bookmarks)) continue;
+    if (!existsSync(bookmarks)) {
+      continue;
+    }
 
     for (const course of readdirSync(bookmarks)) {
-      if (!/^\d+$/.test(course) || !statSync(resolve(bookmarks, course)).isDirectory()) continue;
+      if (!/^\d+$/.test(course) || !statSync(resolve(bookmarks, course)).isDirectory()) {
+        continue;
+      }
 
       for (const sport of readdirSync(resolve(bookmarks, course))) {
         const directory = resolve(bookmarks, course, sport);
 
-        if (!/^\d+$/.test(sport) || !statSync(directory).isDirectory()) continue;
+        if (!/^\d+$/.test(sport) || !statSync(directory).isDirectory()) {
+          continue;
+        }
 
         for (const file of readdirSync(directory)) {
-          if (!file.endsWith('.bin')) continue;
+          if (!file.endsWith('.bin')) {
+            continue;
+          }
           const data = readFileSync(resolve(directory, file));
 
           try {
@@ -410,7 +464,9 @@ const completionRow = Schema.Struct({
 function exportFile(storage: string, player: number, activity: number) {
   const folder = resolve(storage, String(player), 'fit');
 
-  if (!existsSync(folder)) return null;
+  if (!existsSync(folder)) {
+    return null;
+  }
   const name = readdirSync(folder).find((file) => file.startsWith(`${activity} - `));
 
   return name ? resolve(folder, name) : null;
@@ -459,23 +515,32 @@ function canonicalizeFit(storage: string, db: DatabaseSync, report: Report, chec
     const column = activity.fit && activity.fit.length > 0 ? activity.fit : null;
     const journalFit = journal && journal.fit.length > 0 ? journal.fit : null;
 
-    if (column && journalFit && !Buffer.from(column).equals(Buffer.from(journalFit)))
+    if (column && journalFit && !Buffer.from(column).equals(Buffer.from(journalFit))) {
       throw new ConfigError(`Activity ${activity.id} has two different FIT payloads; restore it before migrating`);
+    }
     const file = activity.player_id === null ? null : exportFile(storage, activity.player_id, activity.id);
     const exported = file ? readFileSync(file) : null;
     const canonical = column ?? journalFit ?? exported;
 
-    if (exported && canonical && !exported.equals(Buffer.from(canonical)))
+    if (exported && canonical && !exported.equals(Buffer.from(canonical))) {
       report.exportMismatches.push(String(activity.id));
+    }
 
-    if (canonical && !column) setFit.run(canonical, activity.id);
+    if (canonical && !column) {
+      setFit.run(canonical, activity.id);
+    }
 
-    if (canonical) checksums.set(activity.id, crypto.sha256(canonical));
+    if (canonical) {
+      checksums.set(activity.id, crypto.sha256(canonical));
+    }
 
-    if (canonical && activity.player_id !== null && (!file || report.exportMismatches.includes(String(activity.id))))
+    if (canonical && activity.player_id !== null && (!file || report.exportMismatches.includes(String(activity.id)))) {
       enqueue(db, 'fit_export', { activityId: activity.id });
+    }
 
-    if (!journal || !journalFit) continue;
+    if (!journal || !journalFit) {
+      continue;
+    }
     clearField(journal, ActivitySchema.field.fit);
     setPayload.run(toBinary(ActivitySchema, journal), activity.id);
   }
@@ -522,17 +587,21 @@ function finishCompletions(db: DatabaseSync, report: Report) {
         snapshot,
       );
 
-      if (!applied && !derived)
+      if (!applied && !derived) {
         throw new ConfigError(
           `Activity ${completion.activity_id} has a streak journal that disagrees with rider ${completion.player_id} files`,
         );
+      }
 
-      if (!applied)
+      if (!applied) {
         db.prepare(
           "INSERT INTO rider_document (player_id, name, data) VALUES (?, 'streaks.bin', ?) ON CONFLICT DO UPDATE SET data=excluded.data",
         ).run(completion.player_id, snapshot);
+      }
 
-      if (!current) report.documents++;
+      if (!current) {
+        report.documents++;
+      }
     }
 
     new ProtobufRows(db).update('activity', BigInt(completion.activity_id), ActivitySchema, activity, ['fit']);
@@ -549,11 +618,12 @@ function mapDeliveries(db: DatabaseSync, report: Report) {
       .changes,
   );
 
-  for (const row of db.prepare("SELECT activity_id, provider FROM activity_upload WHERE state='pending'").all())
+  for (const row of db.prepare("SELECT activity_id, provider FROM activity_upload WHERE state='pending'").all()) {
     enqueue(db, 'delivery', {
       activityId: Schema.decodeUnknownSync(Schema.Finite)(row.activity_id),
       provider: Schema.decodeUnknownSync(Schema.String)(row.provider),
     });
+  }
 }
 
 function count(db: DatabaseSync, sql: string) {
@@ -563,10 +633,13 @@ function count(db: DatabaseSync, sql: string) {
 function validate(source: string, destination: DatabaseSync, report: Report, checksums: Map<number, string>) {
   const integrity = destination.prepare('PRAGMA integrity_check').get();
 
-  if (integrity?.integrity_check !== 'ok') throw new ConfigError('Migrated database failed its integrity check');
+  if (integrity?.integrity_check !== 'ok') {
+    throw new ConfigError('Migrated database failed its integrity check');
+  }
 
-  if (destination.prepare('PRAGMA foreign_key_check').all().length > 0)
+  if (destination.prepare('PRAGMA foreign_key_check').all().length > 0) {
     throw new ConfigError('Migrated database has broken references');
+  }
   const original = new DatabaseSync(source, { readOnly: true });
 
   try {
@@ -583,8 +656,9 @@ function validate(source: string, destination: DatabaseSync, report: Report, che
       const sql = `SELECT count(*) AS n FROM ${table}`;
       const originalCount = optional && !exists ? 0 : count(original, sql);
 
-      if (originalCount !== count(destination, sql))
+      if (originalCount !== count(destination, sql)) {
         throw new ConfigError(`Migrated ${table} rows differ from the source`);
+      }
     }
 
     const ids = (db: DatabaseSync) =>
@@ -593,41 +667,52 @@ function validate(source: string, destination: DatabaseSync, report: Report, che
         .all()
         .map((row) => JSON.stringify(row));
 
-    if (JSON.stringify(ids(original)) !== JSON.stringify(ids(destination)))
+    if (JSON.stringify(ids(original)) !== JSON.stringify(ids(destination))) {
       throw new ConfigError('Migrated identities differ from the source');
+    }
   } finally {
     original.close();
   }
 
-  if (count(destination, 'SELECT count(*) AS n FROM rider_document') !== report.documents)
+  if (count(destination, 'SELECT count(*) AS n FROM rider_document') !== report.documents) {
     throw new ConfigError('Migrated rider documents are incomplete');
+  }
 
-  for (const [table, rows] of Object.entries(report.settings))
-    if (count(destination, `SELECT count(*) AS n FROM ${table}`) !== rows)
+  for (const [table, rows] of Object.entries(report.settings)) {
+    if (count(destination, `SELECT count(*) AS n FROM ${table}`) !== rows) {
       throw new ConfigError(`Migrated ${table} rows differ from settings.db`);
+    }
+  }
 
-  // Every canonical FIT payload is in activity.fit with the bytes chosen from the sources.
   for (const row of destination.prepare('SELECT id, fit FROM activity WHERE fit IS NOT NULL').all()) {
     const id = Schema.decodeUnknownSync(Schema.Finite)(row.id);
 
-    if (checksums.get(id) !== crypto.sha256(Schema.decodeUnknownSync(Schema.instanceOf(Uint8Array))(row.fit)))
+    if (checksums.get(id) !== crypto.sha256(Schema.decodeUnknownSync(Schema.instanceOf(Uint8Array))(row.fit))) {
       throw new ConfigError(`Migrated FIT payload of activity ${id} differs from its source`);
+    }
     checksums.delete(id);
   }
 
-  if (checksums.size > 0) throw new ConfigError('A migrated FIT payload is missing');
+  if (checksums.size > 0) {
+    throw new ConfigError('A migrated FIT payload is missing');
+  }
 
-  // Completed activities keep exactly one FIT copy, outside their journal payloads.
-  for (const row of destination.prepare('SELECT payload FROM activity_completion').all())
-    if (fromBinary(ActivitySchema, Schema.decodeUnknownSync(Schema.instanceOf(Uint8Array))(row.payload)).fit.length > 0)
+  for (const row of destination.prepare('SELECT payload FROM activity_completion').all()) {
+    if (
+      fromBinary(ActivitySchema, Schema.decodeUnknownSync(Schema.instanceOf(Uint8Array))(row.payload)).fit.length > 0
+    ) {
       throw new ConfigError('A migrated completion still holds a FIT payload');
+    }
+  }
 }
 
 /** Resolve an interrupted migration from its manifest before the database opens. */
 export function resolvePendingMigration(storage: string) {
   const manifest = readManifest(storage);
 
-  if (!manifest || manifest.state === 'published') return;
+  if (!manifest || manifest.state === 'published') {
+    return;
+  }
   const database = resolve(storage, StorageFile.Database);
   const temporary = resolve(storage, StorageFile.Temporary);
 
@@ -688,7 +773,9 @@ export function migrateStorage(storage: string, reached: (step: MigrationStep) =
 
   const backup = backupLegacyStorage(storage, `storage-v${STORAGE_VERSION}`);
 
-  for (const source of [database, resolve(storage, StorageFile.Settings)]) checkpointSource(source);
+  for (const source of [database, resolve(storage, StorageFile.Settings)]) {
+    checkpointSource(source);
+  }
   reached('checkpointed');
 
   const sources = Object.fromEntries(
@@ -755,7 +842,9 @@ export function migrateStorage(storage: string, reached: (step: MigrationStep) =
     db.exec('PRAGMA journal_mode=DELETE');
     imported = true;
   } catch (error) {
-    if (db.isTransaction) db.exec('ROLLBACK');
+    if (db.isTransaction) {
+      db.exec('ROLLBACK');
+    }
     throw error;
   } finally {
     db.close();
@@ -770,8 +859,9 @@ export function migrateStorage(storage: string, reached: (step: MigrationStep) =
 
   reached('imported');
 
-  if (existsSync(`${temporary}-wal`) || existsSync(`${temporary}-journal`))
+  if (existsSync(`${temporary}-wal`) || existsSync(`${temporary}-journal`)) {
     throw new ConfigError('The migrated database still needs a journal file');
+  }
   syncFile(temporary);
   reached('flushed');
   writeManifest(storage, { ...manifest, state: 'publishing', destination: crypto.sha256File(temporary), report });

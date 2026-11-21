@@ -54,6 +54,23 @@ await test('web connections require web authentication and CSRF, isolate riders 
   }
 
   assert.equal(
+    await responseStatus(
+      request('/api/me/connections/intervals', 'PUT', { username: ' i12345 ', secret: 'private-password' }),
+    ),
+    200,
+  );
+  assert.deepEqual(
+    f.effects.runSync(ConnectionsService.use((service) => service.read(f.rider.player_id, 'intervals'))),
+    ['i12345', 'private-password'],
+  );
+  assert.equal(
+    await responseStatus(
+      request('/api/me/connections/intervals', 'PUT', { username: 'abc', secret: 'private-password' }),
+    ),
+    400,
+  );
+
+  assert.equal(
     await responseStatus(request('/api/me/connections/strava/cookie', 'PUT', { cookie: 'private-cookie' })),
     200,
   );
@@ -62,6 +79,7 @@ await test('web connections require web authentication and CSRF, isolate riders 
   assert.ok(!body.includes('private-password'));
   assert.ok(!body.includes('private-cookie'));
   assert.equal(JSON.parse(body).strava.cookie, true);
+  assert.equal(JSON.parse(body).intervals.username, 'i12345');
   assert.deepEqual(f.effects.runSync(ConnectionsService.use((service) => service.read(f.rider.player_id, 'garmin'))), [
     '12345',
     'private-password',
@@ -151,8 +169,9 @@ await test('web uploads, workout sync and Strava session tests stay with the sig
     ['/api/me/uploads/retry', 'POST', 403],
     ['/api/me/workouts/sync', 'POST', 403],
     ['/api/me/connections/strava/test', 'POST', 403],
-  ] as const)
+  ] as const) {
     assert.equal(await responseStatus(anonymous.request(`http://local:8080${path}`, { method })), expected, path);
+  }
 
   const status = t.mock.method(f.effects.runSync(UploadsService), 'status', (id: number) => {
     assert.equal(id, f.rider.player_id);
@@ -274,7 +293,6 @@ await test('web riders remove one stored credential and keep the rest', async (t
   assert.equal(await remove('intervals/cookie'), 400);
   assert.equal(await remove('strava/encryption_key'), 400);
 
-  // The other rider keeps every credential.
   assert.equal(f.effects.runSync(connections.has(f.other.player_id, 'strava')), true);
   assert.equal(f.effects.runSync(documents.has(f.other.player_id, 'strava4_session.txt')), true);
   assert.equal(f.effects.runSync(documents.has(f.other.player_id, 'garth/oauth2_token.json')), true);

@@ -179,8 +179,9 @@ await test('failed account creation rolls back rows and folders and leaves the s
   const before = f.accounts.list();
   const nextId = Math.max(...before.map((rider) => rider.player_id)) + 1;
 
-  for (const name of ['', ' '.repeat(3), 'x'.repeat(101)])
+  for (const name of ['', ' '.repeat(3), 'x'.repeat(101)]) {
     await assert.rejects(f.accounts.create(name, 'test-password'), /Enter a name/);
+  }
   await assert.rejects(f.accounts.create('Duplicate', 'test-password', f.rider.username));
   assert.deepEqual(f.accounts.list(), before);
   assert.equal(f.accounts.db.isTransaction, false);

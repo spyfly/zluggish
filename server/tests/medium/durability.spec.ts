@@ -56,7 +56,9 @@ await test('a request that saves waits for the flush before its response; a read
     return response;
   });
 
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  await new Promise((resolve) => {
+    setTimeout(resolve, 20);
+  });
   assert.equal(flushes.mock.callCount(), 1);
   assert.equal(answered, false, 'no acknowledgement before the flush');
   gate.resolve();
@@ -71,14 +73,15 @@ await test('a delivery flushes its sending state before the provider request', a
   // The fixture disposes the runtime first: the close runs on the service itself.
   t.after(() => Effect.runPromise(durability.close()));
   f.effects.runSync(DocumentsService.use((service) => service.put(f.rider.player_id, 'runalyze_token.txt', 'token')));
-  const order: string[] = [];
+  const order: Array<string> = [];
   const flush = DurabilityRepository.prototype.flush;
 
   t.mock.method(DurabilityRepository.prototype, 'flush', function (this: DurabilityRepository) {
-    if (f.accounts.db.isOpen)
+    if (f.accounts.db.isOpen) {
       order.push(
         `flush:${f.effects.runSync(UploadsService.use((service) => service.status(f.rider.player_id)))[0]?.state ?? 'none'}`,
       );
+    }
 
     return flush.call(this);
   });

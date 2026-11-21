@@ -1,5 +1,6 @@
 import { EventsService } from '#src/services/events.service';
-import { storedSchema, type MeetupInput } from '#src/dtos/meetup.dto';
+import { storedSchema } from '#src/dtos/meetup.dto';
+import type { MeetupInput } from '#src/dtos/meetup.dto';
 import {
   PlayerJoinedEventSchema,
   PrivateEventFeedListProtoSchema,

@@ -1,7 +1,7 @@
 import { BackupSnapshotWorker } from '#src/migrations/backup-snapshot-worker';
 import { readArchivedFile } from '#src/migrations/backup-archive';
 import { JobType } from '#src/enum';
-import { backupDirectory, nightlyBackupName } from '#src/migrations/backup-paths';
+import { backupDirectory } from '#src/migrations/backup-paths';
 import { BackupService } from '#src/services/backup.service';
 import { ManagementService } from '#src/services/management.service';
 import { ActivitiesService } from '#src/services/activities.service';
@@ -11,7 +11,7 @@ import { decodeOwned } from '#src/schema';
 import { Schema } from 'effect';
 import { openDatabase } from '#src/db/open';
 import { ActivitySchema } from '#src/protocol/generated/activity_pb';
-import { backupStorage, publishBackup, restoreStorage } from '#src/migrations/backup';
+import { backupStorage, backupStorageArchive, publishBackup, restoreStorage } from '#src/migrations/backup';
 import { StorageFile } from '#src/migrations/storage';
 import { AccountsService } from '#src/services/auth.service';
 import { JobsService } from '#src/services/jobs.service';
@@ -30,9 +30,11 @@ const fit = readFileSync(new URL('../fixtures/ride.fit', import.meta.url));
 
 /** A storage directory with one completed activity and one pending delivery, backed up. */
 async function backedUp(t: TestContext) {
-  const cleanup: (() => Promise<void>)[] = [];
+  const cleanup: Array<() => Promise<void>> = [];
   t.after(async () => {
-    for (const close of cleanup) await close();
+    for (const close of cleanup) {
+      await close();
+    }
   });
   const f = await mediumFixture(t);
   f.effects.runSync(DocumentsService.use((service) => service.put(f.rider.player_id, 'runalyze_token.txt', 'token')));
@@ -63,7 +65,7 @@ async function backedUp(t: TestContext) {
   return { f, backup, cleanup };
 }
 
-function reopen(cleanup: (() => Promise<void>)[], f: Awaited<ReturnType<typeof mediumFixture>>) {
+function reopen(cleanup: Array<() => Promise<void>>, f: Awaited<ReturnType<typeof mediumFixture>>) {
   const accounts = AccountsService.open(f.config.storageDir);
   const context = { ...f, accounts, settings: accounts.repositories.settingsRepository };
   const effects = makeAppRuntime(context);
@@ -96,7 +98,6 @@ await test('a restored backup sends no delivery that was sent after the backup',
   assert.equal(sends.mock.callCount(), 1, 'the upload pause stops the restored delivery');
   assert.equal(restored.accounts.repositories.systemFlagsRepository.get('uploads.paused')?.startsWith('restore'), true);
 
-  // The operator cancels the restored delivery before clearing the pause.
   assert.equal(restored.accounts.repositories.uploadsRepository.cancel(1, 'runalyze'), true);
   restored.accounts.repositories.systemFlagsRepository.clear('uploads.paused');
   await restored.effects.runPromise(restored.jobs.drain());
@@ -147,7 +148,7 @@ await test('a changed backup file stops the restore before it changes storage', 
   assert.throws(() => restoreStorage(f.config.storageDir, backup, null), /missing or changed/);
 });
 
-for (const step of ['marked', 'prepared', 'published', 'copied'] as const)
+for (const step of ['marked', 'prepared', 'published', 'copied'] as const) {
   await test(`a restore stopped after the ${step} step blocks startup until it runs again`, async (t) => {
     const { f, backup, cleanup } = await backedUp(t);
     const sends = t.mock.method(globalThis, 'fetch', () => Promise.resolve(new Response(null, { status: 200 })));
@@ -156,7 +157,9 @@ for (const step of ['marked', 'prepared', 'published', 'copied'] as const)
     assert.throws(
       () =>
         restoreStorage(f.config.storageDir, backup, null, (reached) => {
-          if (reached === step) throw new Error('stopped');
+          if (reached === step) {
+            throw new Error('stopped');
+          }
         }),
       /stopped/,
     );
@@ -169,6 +172,7 @@ for (const step of ['marked', 'prepared', 'published', 'copied'] as const)
     assert.equal(sends.mock.callCount(), 0);
     assert.equal(restored.effects.runSync(restored.uploads.status(f.rider.player_id))[0]?.state, 'pending');
   });
+}
 
 await test('only web administrators can create a restorable manual backup', async (t) => {
   const f = await mediumFixture(t);
@@ -219,6 +223,19 @@ await test('only web administrators can create a restorable manual backup', asyn
   }
 });
 
+await test('the offline archive command can write under storage/backups', async (t) => {
+  const f = await mediumFixture(t);
+  const storage = f.config.storageDir;
+  const archive = resolve(storage, 'backups', 'offline.tar.gz');
+  f.accounts.close();
+
+  await backupStorageArchive(storage, archive, null);
+  restoreStorage(storage, archive, null);
+
+  assert.ok(existsSync(archive));
+  await assert.rejects(backupStorageArchive(storage, resolve(storage, 'offline.tar.gz'), null), /backup destination/);
+});
+
 await test('nightly jobs run at 02:00 UTC, keep ten complete nights and leave manual and migration backups', async (t) => {
   const f = await mediumFixture(t);
   const storage = f.config.storageDir;
@@ -239,6 +256,7 @@ await test('nightly jobs run at 02:00 UTC, keep ten complete nights and leave ma
   f.effects.runSync(service.request(manual));
   const migration = resolve(directory, 'storage-v6-prior');
   mkdirSync(migration, { recursive: true });
+  writeFileSync(resolve(directory, 'nightly-2025-12-31.tar.gz'), 'old nightly backup');
 
   for (let date = 1; date <= 12; date++) {
     now = Date.UTC(2026, 0, date, 2);
@@ -249,12 +267,15 @@ await test('nightly jobs run at 02:00 UTC, keep ten complete nights and leave ma
 
   const nights = Array.from(
     { length: 10 },
-    (_, index) => `${nightlyBackupName(new Date(Date.UTC(2026, 0, index + 3)))}.tar.gz`,
+    (_, index) => `2026-01-${String(index + 3).padStart(2, '0')}T02-00-00Z-nightly.tar.gz`,
   );
 
-  assert.deepEqual(names, [`manual-${manual}.tar.gz`, ...nights, 'storage-v6-prior']);
+  assert.deepEqual(names, [...nights, `manual-${manual}.tar.gz`, 'storage-v6-prior']);
   assert.ok(nights.every((name) => readArchivedFile(resolve(directory, name), 'backup-manifest.json').length > 0));
-  assert.equal(existsSync(resolve(storage, 'backups')), false);
+  assert.equal(directory, resolve(storage, 'backups'));
+  assert.equal(existsSync(resolve(storage, '..', 'backups')), false);
+  const manifest = readArchivedFile(resolve(directory, nights.at(-1)!), 'backup-manifest.json');
+  assert.doesNotMatch(manifest, /"backups\//);
   assert.equal(repository.pending(JobType.StorageBackup), 1);
   assert.equal(repository.list(JobType.StorageBackup).at(-1)?.next_run_at, Date.UTC(2026, 0, 13, 2));
 });
@@ -286,7 +307,7 @@ await test('a failed snapshot can retry and an already published archive is reus
   await publishBackup(storage, null, name, signal, () => {});
   const archive = resolve(directory, name + '.tar.gz');
   const original = readFileSync(archive);
-  rmSync(storage, { recursive: true });
+  rmSync(resolve(storage, StorageFile.Database));
   await publishBackup(storage, null, name, signal, () => assert.fail('Unexpected publication'));
   assert.deepEqual(readFileSync(archive), original);
 });

@@ -1,13 +1,13 @@
 <script lang="ts" module>
   export type Chart = {
-    powerInWatts: number[];
-    cadencePerMin: number[];
-    heartRate: number[];
-    distanceInCm: number[];
-    speedInCmPerSec: number[];
-    timeInSec: number[];
-    altitudeInCm: number[];
-    latlng: [number, number][];
+    powerInWatts: Array<number>;
+    cadencePerMin: Array<number>;
+    heartRate: Array<number>;
+    distanceInCm: Array<number>;
+    speedInCmPerSec: Array<number>;
+    timeInSec: Array<number>;
+    altitudeInCm: Array<number>;
+    latlng: Array<[number, number]>;
   };
 </script>
 
@@ -18,7 +18,6 @@
   const height = 140;
   const count = $derived(chart.timeInSec.length);
 
-  // The profile runs along distance; an activity without distance samples runs along time.
   const along = $derived(chart.distanceInCm.some((d) => d > 0) ? chart.distanceInCm : chart.timeInSec);
   const end = $derived(Math.max(1, along.at(-1) ?? 1));
 
@@ -43,7 +42,9 @@
   const route = $derived.by(() => {
     const points = chart.latlng.map(([lat, lng], i) => ({ i, lat, lng })).filter((p) => p.lat !== 0 || p.lng !== 0);
 
-    if (points.length < 2) return null;
+    if (points.length < 2) {
+      return null;
+    }
     const scale = Math.cos((points.reduce((sum, p) => sum + p.lat, 0) / points.length) * (Math.PI / 180));
     const xy = points.map((p) => ({ i: p.i, x: p.lng * scale, y: -p.lat }));
     const minX = Math.min(...xy.map((p) => p.x));
@@ -66,7 +67,9 @@
   let active = $state<number | null>(null);
 
   const marker = $derived.by(() => {
-    if (active === null || !route) return null;
+    if (active === null || !route) {
+      return null;
+    }
     const index = active;
 
     return route.points.reduce((best, p) => (Math.abs(p.i - index) < Math.abs(best.i - index) ? p : best));
@@ -79,8 +82,11 @@
     while (lo < hi) {
       const mid = (lo + hi) >> 1;
 
-      if ((along[mid] ?? 0) < target) lo = mid + 1;
-      else hi = mid;
+      if ((along[mid] ?? 0) < target) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
     }
 
     return lo > 0 && target - (along[lo - 1] ?? 0) < (along[lo] ?? 0) - target ? lo - 1 : lo;
@@ -106,7 +112,9 @@
       End: count - 1,
     }[event.key];
 
-    if (next === undefined) return;
+    if (next === undefined) {
+      return;
+    }
     event.preventDefault();
     active = Math.min(Math.max(next, 0), count - 1);
   }
@@ -119,17 +127,25 @@
 
   /** What the rider saw at one moment. Series the activity did not record stay out. */
   const moment = $derived.by(() => {
-    if (active === null) return null;
+    if (active === null) {
+      return null;
+    }
     const i = active;
-    const rows: [string, string][] = [];
+    const rows: Array<[string, string]> = [];
 
-    if (chart.distanceInCm.some((d) => d > 0)) rows.push(['Distance', km(chart.distanceInCm[i] ?? 0)]);
+    if (chart.distanceInCm.some((d) => d > 0)) {
+      rows.push(['Distance', km(chart.distanceInCm[i] ?? 0)]);
+    }
     rows.push(['Time', clock(chart.timeInSec[i] ?? 0)]);
     rows.push(['Elevation', `${Math.round(metres[i] ?? 0)} m`]);
 
-    if (!running && chart.powerInWatts.some((v) => v > 0)) rows.push(['Power', `${chart.powerInWatts[i] ?? 0} W`]);
+    if (!running && chart.powerInWatts.some((v) => v > 0)) {
+      rows.push(['Power', `${chart.powerInWatts[i] ?? 0} W`]);
+    }
 
-    if (chart.heartRate.some((v) => v > 0)) rows.push(['Heart rate', `${chart.heartRate[i] ?? 0} bpm`]);
+    if (chart.heartRate.some((v) => v > 0)) {
+      rows.push(['Heart rate', `${chart.heartRate[i] ?? 0} bpm`]);
+    }
 
     return rows;
   });

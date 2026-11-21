@@ -17,7 +17,9 @@ export function goalRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
 
       const user = authenticated(c);
 
-      if (String(user.player_id) !== c.req.param('id')) throw new HTTPException(401);
+      if (String(user.player_id) !== c.req.param('id')) {
+        throw new HTTPException(401);
+      }
       const json = c.req.header('Accept')?.includes('application/json');
 
       if (c.req.method === 'POST') {
@@ -43,7 +45,9 @@ export function goalRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
 
       const user = authenticated(c);
 
-      if (String(user.player_id) !== c.req.param('id')) throw new HTTPException(401);
+      if (String(user.player_id) !== c.req.param('id')) {
+        throw new HTTPException(401);
+      }
       const id = BigInt(c.req.param('goalId'));
       yield* goalsService.requireOwned(user.player_id, id);
 

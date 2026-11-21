@@ -1,19 +1,12 @@
 import { ConfigError } from '#src/config/index';
-import { basename, dirname, resolve } from 'node:path';
+import { basename, resolve } from 'node:path';
 
 export const backupManifest = 'backup-manifest.json';
 
-export const legacyDatabases: readonly string[] = ['zluggish.db', 'zwift-offline.db', 'settings.db'];
+export const legacyDatabases: ReadonlyArray<string> = ['zluggish.db', 'zwift-offline.db', 'settings.db'];
 
 export function backupDirectory(storage: string) {
-  const source = resolve(storage);
-  const parent = dirname(source);
-  const directory = resolve(parent, 'backups');
-
-  if (source === parent || source === directory)
-    throw new ConfigError('Storage and backups must be separate directories');
-
-  return directory;
+  return resolve(storage, 'backups');
 }
 
 export function excludedStorageEntry(name: string) {
@@ -32,18 +25,36 @@ export function excludedStorageEntry(name: string) {
   );
 }
 
-export function nightlyBackupName(date: Date) {
-  return `nightly-${date.toISOString().slice(0, 10)}`;
+/** Files below the top level that backups leave out: the patched Companion app can be patched again, and it
+would add about 180 MB to every backup. Its signing key beside it is kept. Paths use forward slashes.
+*/
+export function excludedBackupPath(path: string) {
+  return path.replaceAll('\\', '/') === 'companion/zwift-companion.apk';
 }
 
-export function isNightlyBackup(name: string) {
-  return /^nightly-\d{4}-\d{2}-\d{2}$/.test(name);
+export function nightlyBackupName(date: Date) {
+  const timestamp = date.toISOString().slice(0, 19).replaceAll(':', '-');
+
+  return `${timestamp}Z-nightly`;
+}
+
+export function nightlyBackupTimestamp(name: string) {
+  const timestamp = /^(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z)-nightly$/.exec(name)?.[1];
+
+  if (timestamp) {
+    return timestamp;
+  }
+
+  const legacyDate = /^nightly-(\d{4}-\d{2}-\d{2})$/.exec(name)?.[1];
+
+  return legacyDate && `${legacyDate}T02-00-00Z`;
 }
 
 /** Backup names are also used as directory names. */
 export function backupPath(directory: string, name: string) {
-  if (name !== basename(name) || name === '' || name === '.' || name === '..')
+  if (name !== basename(name) || name === '' || name === '.' || name === '..') {
     throw new ConfigError('Invalid backup name');
+  }
 
   return resolve(directory, name);
 }

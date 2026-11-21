@@ -61,7 +61,9 @@ export function createCdn(runtime: Runtime) {
     const file = resolve(root, `.${decodeURIComponent(path)}`);
     const localPath = relative(root, file);
 
-    if (localPath.startsWith('..')) return c.notFound();
+    if (localPath.startsWith('..')) {
+      return c.notFound();
+    }
 
     const normalized = `/${localPath.replaceAll(sep, '/')}`;
     const updatePath = normalized.toLowerCase();
@@ -84,39 +86,49 @@ export function createCdn(runtime: Runtime) {
 
           return response;
         } catch (error) {
-          if (runtime.config.proxy.mode === 'enabled') throw error;
+          if (runtime.config.proxy.mode === 'enabled') {
+            throw error;
+          }
         }
       }
 
       // Serve local version metadata so installed clients can complete their update check.
       const versionFile = updateVersionFile.exec(normalized.slice(updateRoot.length));
 
-      if (!normalized.startsWith(updateRoot) || !versionFile) return c.notFound();
+      if (!normalized.startsWith(updateRoot) || !versionFile) {
+        return c.notFound();
+      }
       const [, platform, build] = versionFile;
       const bundled = resolve(root, `.${updateRoot}${platform}_ver_cur.xml`);
 
-      if (existsSync(file) && statSync(file).isFile())
+      if (existsSync(file) && statSync(file).isFile()) {
         return c.body(readFileSync(file), 200, { 'Content-Type': 'text/xml' });
+      }
 
       if (build && existsSync(bundled)) {
         const xml = readFileSync(bundled, 'utf8');
 
-        if (/\bversion="1\.0\.(\d+)"/.exec(xml)?.[1] === build) return c.text(xml, 200, { 'Content-Type': 'text/xml' });
+        if (/\bversion="1\.0\.(\d+)"/.exec(xml)?.[1] === build) {
+          return c.text(xml, 200, { 'Content-Type': 'text/xml' });
+        }
       }
 
       return c.notFound();
     }
 
-    if (existsSync(file) && statSync(file).isFile())
+    if (existsSync(file) && statSync(file).isFile()) {
       return c.body(readFileSync(file), 200, {
         'Content-Type': contentTypes.get(extname(file)) ?? 'application/octet-stream',
       });
+    }
 
     if (runtime.config.proxy.mode !== 'disabled' && path.startsWith('/gameassets/') && !path.endsWith('_ver_cur.xml')) {
       try {
         return await fetchCdn(path);
       } catch (error) {
-        if (runtime.config.proxy.mode === 'enabled') throw error;
+        if (runtime.config.proxy.mode === 'enabled') {
+          throw error;
+        }
       }
     }
 

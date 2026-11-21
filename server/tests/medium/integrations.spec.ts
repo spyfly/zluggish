@@ -1,6 +1,6 @@
 import { DocumentsService } from '#src/services/documents.service';
 import { responseStatus, inputValue } from '#tests/support/html';
-import { createGameApp } from '#src/http/app';
+import type { createGameApp } from '#src/http/app';
 import { DeliveryRefusedError } from '#src/errors';
 import { UploadsService } from '#src/services/uploads.service';
 import { ActivitySchema } from '#src/protocol/generated/activity_pb';
@@ -29,7 +29,9 @@ function browser(app: ReturnType<typeof createGameApp>) {
       const response = await app.request(path, { ...init, headers });
       const set = response.headers.getSetCookie().at(-1);
 
-      if (set) cookie = set.split(';', 1)[0] ?? '';
+      if (set) {
+        cookie = set.split(';', 1)[0] ?? '';
+      }
 
       return response;
     },
@@ -106,7 +108,7 @@ function activityWithFit() {
 }
 
 function stubFetch(t: TestContext) {
-  const calls: { url: string; method: string; headers: Headers }[] = [];
+  const calls: Array<{ url: string; method: string; headers: Headers }> = [];
 
   t.mock.method(globalThis, 'fetch', (input: URL | string, init?: RequestInit) => {
     calls.push({
@@ -127,61 +129,64 @@ function stubFetch(t: TestContext) {
   return calls;
 }
 
-await test('Intervals.icu upload pairs the planned workout and removes only that workout', async (t) => {
-  const f = runtimeFixture(t);
-  const user = await f.accounts.create('Interval Rider', 'test-password');
-  f.accounts.repositories.connectionsRepository.save(user.player_id, 'intervals', ['42', 'key']);
-  const folder = f.profiles.folder(user.player_id);
-  const cached = resolve(f.config.storageDir, 'tp-workouts/intervalsicu');
-  mkdirSync(cached, { recursive: true });
-  const first = '7c2b7f55-1f5e-4a3e-8a5e-0f1f4b7a1a11';
-  const second = '8d3c8f66-2a6f-4b4f-9b6f-1a2a5c8b2b22';
-  writeFileSync(resolve(cached, `${first}.zwo`), '<a/>');
-  writeFileSync(resolve(cached, `${second}.zwo`), '<a/>');
+for (const athlete of ['42', 'i42']) {
+  await test(`Intervals.icu upload for athlete ${athlete} pairs and removes only the planned workout`, async (t) => {
+    const f = runtimeFixture(t);
+    const user = await f.accounts.create('Interval Rider', 'test-password');
+    f.accounts.repositories.connectionsRepository.save(user.player_id, 'intervals', [athlete, 'key']);
+    const folder = f.profiles.folder(user.player_id);
+    const cached = resolve(f.config.storageDir, 'tp-workouts/intervalsicu');
+    mkdirSync(cached, { recursive: true });
+    const first = '7c2b7f55-1f5e-4a3e-8a5e-0f1f4b7a1a11';
+    const second = '8d3c8f66-2a6f-4b4f-9b6f-1a2a5c8b2b22';
+    writeFileSync(resolve(cached, `${first}.zwo`), '<a/>');
+    writeFileSync(resolve(cached, `${second}.zwo`), '<a/>');
 
-  writeFileSync(
-    resolve(folder, 'intervals_icu_workout.json'),
-    JSON.stringify({
-      provider: 'intervals-icu',
-      workouts: [
-        {
-          provider: 'intervals-icu',
-          event_id: 5,
-          workout_id: first,
-          name: 'Tempo',
-          start_date_local: '2026-05-01T07:00:00',
-          filename: `${first}.zwo`,
-        },
-        {
-          provider: 'intervals-icu',
-          event_id: 6,
-          workout_id: second,
-          name: 'Evening',
-          start_date_local: '2026-05-01T18:00:00',
-        },
-      ],
-    }),
-  );
+    writeFileSync(
+      resolve(folder, 'intervals_icu_workout.json'),
+      JSON.stringify({
+        provider: 'intervals-icu',
+        workouts: [
+          {
+            provider: 'intervals-icu',
+            event_id: 5,
+            workout_id: first,
+            name: 'Tempo',
+            start_date_local: '2026-05-01T07:00:00',
+            filename: `${first}.zwo`,
+          },
+          {
+            provider: 'intervals-icu',
+            event_id: 6,
+            workout_id: second,
+            name: 'Evening',
+            start_date_local: '2026-05-01T18:00:00',
+          },
+        ],
+      }),
+    );
 
-  const calls = stubFetch(t);
-  await f.effects.runPromise(UploadsService.use((service) => service.intervals(user.player_id, activityWithFit())));
+    const calls = stubFetch(t);
+    await f.effects.runPromise(UploadsService.use((service) => service.intervals(user.player_id, activityWithFit())));
 
-  const upload = calls.find((call) => call.url.includes('intervals.icu'));
-  assert.ok(upload);
-  assert.match(upload.url, /athlete\/42\/activities\?name=Tempo&paired_event_id=5$/);
-  assert.equal(upload.headers.get('Authorization'), `Basic ${Buffer.from('API_KEY:key').toString('base64')}`);
+    const upload = calls.find((call) => call.url.includes('intervals.icu'));
+    assert.ok(upload);
+    assert.equal(new URL(upload.url).pathname, `/api/v1/athlete/${athlete}/activities`);
+    assert.equal(new URL(upload.url).search, '?name=Tempo&paired_event_id=5');
+    assert.equal(upload.headers.get('Authorization'), `Basic ${Buffer.from('API_KEY:key').toString('base64')}`);
 
-  const remaining = Schema.decodeUnknownSync(
-    Schema.Struct({ workouts: Schema.Array(Schema.Struct({ event_id: Schema.Finite })) }),
-  )(JSON.parse(readFileSync(resolve(folder, 'intervals_icu_workout.json'), 'utf8')));
+    const remaining = Schema.decodeUnknownSync(
+      Schema.Struct({ workouts: Schema.Array(Schema.Struct({ event_id: Schema.Finite })) }),
+    )(JSON.parse(readFileSync(resolve(folder, 'intervals_icu_workout.json'), 'utf8')));
 
-  assert.deepEqual(
-    remaining.workouts.map((item) => item.event_id),
-    [6],
-  );
-  assert.equal(existsSync(resolve(cached, `${first}.zwo`)), false);
-  assert.equal(existsSync(resolve(cached, `${second}.zwo`)), true);
-});
+    assert.deepEqual(
+      remaining.workouts.map((item) => item.event_id),
+      [6],
+    );
+    assert.equal(existsSync(resolve(cached, `${first}.zwo`)), false);
+    assert.equal(existsSync(resolve(cached, `${second}.zwo`)), true);
+  });
+}
 
 await test('an expired Strava token is saved before an upload whose result is unknown', async (t) => {
   const f = runtimeFixture(t);
@@ -192,12 +197,14 @@ await test('an expired Strava token is saved before an upload whose result is un
   f.effects.runSync(
     DocumentsService.use((service) => service.put(user.player_id, 'runalyze_token.txt', 'runalyze-token\n')),
   );
-  const calls: string[] = [];
+  const calls: Array<string> = [];
 
   t.mock.method(globalThis, 'fetch', (input: URL | string) => {
     calls.push(String(input));
 
-    if (String(input).includes('/api/v3/uploads')) return Promise.reject(new Error('offline'));
+    if (String(input).includes('/api/v3/uploads')) {
+      return Promise.reject(new Error('offline'));
+    }
 
     return Promise.resolve(
       Response.json({
@@ -227,8 +234,9 @@ await test('game app has no server operations even for the first legacy owner', 
   const client = browser(f.app);
   await client.signIn(owner.player_id, owner.username);
 
-  for (const path of ['/restart', '/cancelrestart', '/reloadbots'])
+  for (const path of ['/restart', '/cancelrestart', '/reloadbots']) {
     assert.equal(await responseStatus(client.form(path, { confirm_action: 'on' })), 404);
+  }
 });
 
 await test('per-rider variants override the base set and unknown names stay explicit', async (t) => {
@@ -296,6 +304,50 @@ await test('launcher assets are served safely and game assets redirect to the CD
   assert.equal(redirect.headers.get('Location'), 'http://cdn.zwift.com/gameassets/Game.xml');
 });
 
+await test('mochi files stream in full and by byte range', async (t) => {
+  const f = runtimeFixture(t);
+  const folder = resolve(f.config.storageDir, 'mochi/watopian');
+  const data = Uint8Array.from({ length: 300_000 }, (_, index) => index % 251);
+
+  mkdirSync(folder, { recursive: true });
+  writeFileSync(resolve(folder, 'segment'), data);
+  writeFileSync(resolve(folder, 'empty'), '');
+
+  const full = await f.app.request('/mochi/watopian/segment');
+  assert.equal(full.status, 200);
+  assert.equal(full.headers.get('Accept-Ranges'), 'bytes');
+  assert.equal(full.headers.get('Content-Length'), '300000');
+  assert.deepEqual(new Uint8Array(await full.arrayBuffer()), data);
+
+  const part = await f.app.request('/mochi/watopian/segment', { headers: { Range: 'bytes=1000-1999' } });
+  assert.equal(part.status, 206);
+  assert.equal(part.headers.get('Content-Range'), 'bytes 1000-1999/300000');
+  assert.equal(part.headers.get('Content-Length'), '1000');
+  assert.deepEqual(new Uint8Array(await part.arrayBuffer()), data.slice(1000, 2000));
+
+  const open = await f.app.request('/mochi/watopian/segment', { headers: { Range: 'bytes=299990-' } });
+  assert.equal(open.status, 206);
+  assert.deepEqual(new Uint8Array(await open.arrayBuffer()), data.slice(299_990));
+
+  const suffix = await f.app.request('/mochi/watopian/segment', { headers: { Range: 'bytes=-10' } });
+  assert.equal(suffix.status, 206);
+  assert.equal(suffix.headers.get('Content-Range'), 'bytes 299990-299999/300000');
+
+  const beyond = await f.app.request('/mochi/watopian/segment', { headers: { Range: 'bytes=300000-' } });
+  assert.equal(beyond.status, 416);
+  assert.equal(beyond.headers.get('Content-Range'), 'bytes */300000');
+
+  const ignored = await f.app.request('/mochi/watopian/segment', { headers: { Range: 'bytes=0-1,5-6' } });
+  assert.equal(ignored.status, 200);
+  assert.equal(ignored.headers.get('Content-Length'), '300000');
+  await ignored.arrayBuffer();
+
+  const empty = await f.app.request('/mochi/watopian/empty');
+  assert.equal(empty.status, 200);
+  const emptyBody = await empty.arrayBuffer();
+  assert.equal(emptyBody.byteLength, 0);
+});
+
 await test('the mobile aggregate composes goals, activities, events and invitations', async (t) => {
   const f = runtimeFixture(t);
   const user = await f.accounts.create('Mobile Rider', 'test-password');
@@ -313,7 +365,7 @@ await test('the mobile aggregate composes goals, activities, events and invitati
 
   const body = Schema.decodeUnknownSync(
     Schema.Struct({
-      events: Schema.Array(Schema.Json).check(Schema.isMaxLength(1)),
+      events: Schema.Array(Schema.Struct({ sport: Schema.Literal('CYCLING') })).check(Schema.isMaxLength(1)),
       goals: Schema.Array(Schema.Json),
       activities: Schema.Array(Schema.Json),
       pendingPrivateEventFeed: Schema.Array(Schema.Json),

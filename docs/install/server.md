@@ -26,7 +26,7 @@ If you use legacy zwift-offline now, do the steps in [Migrate from zwift-offline
 
 The server makes the `storage` directory on the first start. This directory holds the configuration, the users and the activities.
 
-The Compose file mounts `backups` beside `storage` so backups persist when the container is replaced. If you use an older Compose file, add the backups mount from the current file.
+Backups are saved in `storage/backups/` on the host through the existing storage mount.
 
 The [ports reference](../reference/ports.md) tells what each port is for.
 
@@ -46,12 +46,12 @@ This setup uses the `storage` directory in the repository root.
 In order to set up a new server, you must authenticate yourself as the administrator by entering the setup key. The docker output for the first-time zluggish server is something like
 
 ```text
-============================================================
-Zluggish first-time setup
-Open: http://192.168.1.20:8080/setup
-Setup key: ABCD-EFGH-IJKL-MNOP
-This key works until setup is complete or the server stops.
-============================================================
+zluggish-1  | ============================================================
+zluggish-1  | Zluggish first-time setup
+zluggish-1  | Open: http://127.0.0.1:8080/setup
+zluggish-1  | Setup key: 0QZR-DVH3-9VES-E7PW-NS6C-CX2N-PWXQ-GA2R-MTR5-R122-REFP-PJF9-5XFG
+zluggish-1  | This key works until setup is complete or the server stops.
+zluggish-1  | ============================================================
 ```
 
 :::warning

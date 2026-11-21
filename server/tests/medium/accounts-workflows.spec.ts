@@ -36,8 +36,11 @@ function browser(app: ReturnType<typeof createGameApp>) {
         const name = pair.slice(0, pair.indexOf('='));
         const value = pair.slice(pair.indexOf('=') + 1);
 
-        if (value && !/max-age=0/i.test(set)) jar.set(name, value);
-        else jar.delete(name);
+        if (value && !/max-age=0/i.test(set)) {
+          jar.set(name, value);
+        } else {
+          jar.delete(name);
+        }
       }
 
       return response;
@@ -75,12 +78,13 @@ await test('empty game app directs the operator to web setup and cannot register
     '/auth/realms/zwift/tokens/registrations',
   ];
 
-  for (const path of registration)
+  for (const path of registration) {
     for (const method of ['GET', 'POST']) {
       const response = await client.request(path, { method });
       assert.equal(response.status, 403, `${method} ${path}`);
       assert.match(await response.text(), /Registration is not available/);
     }
+  }
 
   assert.equal(await responseStatus(client.request('/api/users', { method: 'POST' })), 403);
   const service = f.effects.runSync(ManagementService);
@@ -159,7 +163,6 @@ await test('choosing a rider asks for the password unless this computer remember
   assert.ok(client.jar.get(remembered));
   assert.ok(!client.jar.get(remembered)?.includes('first'));
 
-  // Back on the rider list, choosing the remembered rider signs in without the password.
   await client.picker();
   const again = await client.form('/login/', { player_id: String(rider.player_id) });
   assert.equal(again.status, 302);
@@ -182,7 +185,6 @@ await test('choosing a rider asks for the password unless this computer remember
 await test('choosing a rider without a password fails on the rider list', async (t) => {
   const f = runtimeFixture(t);
   const rider = await f.accounts.create('Legacy Rider', 'test-password');
-  // Account migration clears legacy password hashes.
   f.accounts.db.prepare('UPDATE user SET pass_hash=NULL WHERE player_id=?').run(rider.player_id);
   const warn = t.mock.method(f.world.lifecycle.log, 'warn', () => {});
   const client = browser(f.app);
@@ -213,7 +215,7 @@ await test('distinct riders launch and refresh independently; password change re
   for (const [client, user, password] of [
     [one, a, 'first'],
     [two, b, 'test-password'],
-  ] satisfies [ReturnType<typeof browser>, typeof a, string][]) {
+  ] satisfies Array<[ReturnType<typeof browser>, typeof a, string]>) {
     await client.picker();
 
     const response5 = await client.form('/login/', {
@@ -456,7 +458,9 @@ await test('anonymous API and asset traffic does not allocate sessions', async (
   for (const path of ['/health', '/api/profiles/me', '/style/site.css', '/missing']) {
     const response = await f.app.request(path);
 
-    if (path !== '/missing') assert.equal(response.headers.has('Set-Cookie'), false);
+    if (path !== '/missing') {
+      assert.equal(response.headers.has('Set-Cookie'), false);
+    }
   }
 
   assert.equal(f.sessions.browsers.size, 1);
@@ -471,13 +475,18 @@ await test('session capacity evicts anonymous sessions and preserves authenticat
   const anonymous = f.sessions.open();
 
   // Populate the limit without 10,000 HTTP requests or repeated expiry scans.
-  for (let index = f.sessions.browsers.size; index < 10_000; index++)
+  for (let index = f.sessions.browsers.size; index < 10_000; index++) {
     f.sessions.browsers.set(`anonymous-${index}`, { ...anonymous.session });
+  }
   anonymous.session.touched = 0;
   // Keep the deliberately oldest entry within the session lifetime.
   t.mock.timers.enable({ apis: ['Date'], now: 1000 });
 
-  for (const [key, session] of f.sessions.browsers) if (key !== anonymous.id) session.touched = 1000;
+  for (const [key, session] of f.sessions.browsers) {
+    if (key !== anonymous.id) {
+      session.touched = 1000;
+    }
+  }
 
   const response = await f.app.request('/login/');
   assert.equal(response.status, 200);
