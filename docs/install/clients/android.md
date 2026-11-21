@@ -5,7 +5,7 @@ description: Set up a non-rooted Android device to ride on your Zluggish server.
 
 # Android
 
-This procedure is for a device that is not rooted. For a rooted device, see [Android (rooted)](android-rooted.md).
+This procedure is for a device that is not rooted. For a rooted device, see [Android (rooted)](android-rooted.md). In the web app, **Set up Android** on the **Apps** page shows the same steps with the address of the server filled in.
 
 Two apps do the work. Virtual Hosts redirects Zwift to Zluggish. ZofflineObb patches Zwift so that it accepts the shared zwift-offline certificate.
 
