@@ -891,7 +891,11 @@
       {@render link('/', 'Profile', !manage && title === 'Profile')}
       {@render link('/activities', 'Activities', title === 'Activities')}
       {@render link('/climbs', 'Climbs', title === 'Climbs')}
-      {@render link('/import', 'Import / Export', path === '/import' || path === '/import/local' || path === '/zwift' || path === '/export')}
+      {@render link(
+        '/import',
+        'Import / Export',
+        path === '/import' || path === '/import/local' || path === '/zwift' || path === '/export',
+      )}
       {@render link('/integrations', 'Integrations', path === '/integrations')}
       {@render link('/settings', 'Settings', path === '/settings')}
       {@render link('/install', 'Install', installing)}
