@@ -125,7 +125,8 @@ await test(
       }),
       [player],
     );
-    assert.equal(Buffer.from((await replacement.next()).updates[0]!.payload).toString(), 'before oversized');
+    const beforeOversized = await replacement.next();
+    assert.equal(Buffer.from(beforeOversized.updates[0]!.payload).toString(), 'before oversized');
     const update = await replacement.next();
     assert.equal(update.updates.length, 1);
     assert.equal(Buffer.from(update.updates[0]!.payload).toString(), 'replacement only');
@@ -140,11 +141,13 @@ await test(
     phone.zcKey = Buffer.alloc(phone.zcKey.length + 65_530 - toBinary(ServerToClientSchema, phone).length);
     assert.equal(toBinary(ServerToClientSchema, phone).length, 65_530);
     f.world.phones.set(player, phone);
-    assert.equal((await replacement.next()).zcKey.length, phone.zcKey.length);
+    const boundaryPhone = await replacement.next();
+    assert.equal(boundaryPhone.zcKey.length, phone.zcKey.length);
     await replacement.next(); // Tick heartbeat after the phone.
     phone.zcKey = Buffer.alloc(phone.zcKey.length + 1);
     f.world.phones.set(player, phone);
-    assert.equal((await replacement.next()).zcKey.length, 0);
+    const afterOversizedPhone = await replacement.next();
+    assert.equal(afterOversizedPhone.zcKey.length, 0);
 
     // Exceptions raised on a timer tick must close only this stream.
     const relay = f.world.relays.get(player)!;
@@ -157,7 +160,8 @@ await test(
     await failed;
     relay.nextTcp = nextTcp;
     const recovered = await connect(9);
-    assert.equal((await recovered.next()).playerId, player);
+    const recoveredHeartbeat = await recovered.next();
+    assert.equal(recoveredHeartbeat.playerId, player);
   },
 );
 
@@ -174,12 +178,15 @@ await test('world attribute ingress bounds raw and rewritten updates while prese
       body: toBinary(WorldAttributeSchema, create(WorldAttributeSchema, { payload })),
     });
 
-  assert.equal((await post(Buffer.alloc(65_536))).status, 413);
+  const oversized = await post(Buffer.alloc(65_536));
+  assert.equal(oversized.status, 413);
   assert.equal(f.world.updates.has(player), false);
   // Fits the raw limit, but the server's timestamp/expiry fields push it over.
-  assert.equal((await post(Buffer.alloc(60 * 1024 - 4))).status, 413);
+  const rewrittenOversized = await post(Buffer.alloc(60 * 1024 - 4));
+  assert.equal(rewrittenOversized.status, 413);
   assert.equal(f.world.updates.has(player), false);
-  assert.equal((await post(Buffer.from('ordinary update'))).status, 201);
+  const ordinary = await post(Buffer.from('ordinary update'));
+  assert.equal(ordinary.status, 201);
   assert.equal(Buffer.from(f.world.updates.get(player)![0]!.payload).toString(), 'ordinary update');
 });
 
