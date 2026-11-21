@@ -36,7 +36,8 @@ You don't need to ask before you fix a typo, a clear bug, or a broken link. Just
 
 - **Do one thing per pull request.** A pull request that fixes a bug and refactors the code around it is two pull requests. Small pull requests get reviewed and merged faster.
 - **Use a [Conventional Commits](https://www.conventionalcommits.org/) title.** CI checks it. The allowed types are `feat`, `fix`, `docs`, `test`, `ci`, `refactor`, `perf`, `chore` and `revert`, for example `fix: keep ghost order after a regroup`. We squash pull requests when we merge them, so the title becomes the commit message on `main`.
-- **Explain the change.** Say what the pull request changes, why, and how you tested it. If it changes the game or the web app, say which client you tested with (Windows, macOS or Android) and add a screenshot when it helps.
+- **Explain the change.** Say what the pull request changes, why, and how you tested it. If it changes the game or the web app, say which client you tested with.
+- **Include screenshots for UI changes.** Attach screenshots showing the updated interface in the pull request description.
 - **Add or update tests** when you change behaviour. If something is hard to test, say so in the description.
 - **Commit generated files.** If you change `proto/`, run `pnpm codegen` and commit the result. CI fails if the generated files are out of date.
 - **Update the README** if you add a setting or change how a feature works.
@@ -75,7 +76,8 @@ You may use AI tools to help you write code. You are still the author, and you a
 - **Test it yourself.** Run `mise run check`. For changes that affect the game, ride with them on a real client.
 - **Keep it focused.** AI tools tend to rewrite more than the task needs. Remove unrelated changes before you submit.
 - **Say so.** Mention in the pull request description that you used an AI tool, and for what.
-- **Write to us in your own words.** Issues, pull request descriptions and review comments should come from you, not from a model. Using a translation tool is fine.
+- **Write or edit the pull request title and description yourself.** If an agent prepares the branch, have it give you the GitHub compare link so you can write or edit both fields in the pull request form before submitting.
+- **Write issues and review comments in your own words.** Using a translation tool is fine.
 
 We close pull requests that look generated without care, especially large ones that nobody has discussed with us first.
 
