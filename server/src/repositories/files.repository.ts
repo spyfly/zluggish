@@ -158,6 +158,8 @@ export class AssetFiles {
     metrics.time(Metric.DurableWrite, () => publish(path, text, replace));
   }
 
+  syncDirectory = syncDirectory;
+
   renameSync = renameSync;
 
   syncDirectoryAsync(path: string) {
