@@ -1,5 +1,5 @@
 import { AssetFiles } from '#src/repositories/files.repository';
-import { randomUUID } from 'node:crypto';
+import { CryptoRepository } from '#src/repositories/crypto.repository';
 import { dirname, relative, resolve } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 import { Schema } from 'effect';
@@ -60,17 +60,20 @@ export class WorkoutPublication {
 
   publish(contents: ReadonlyMap<string, string | Uint8Array>, updateListing?: () => void) {
     this.recover();
-    const token = randomUUID();
-    const files = [...contents.keys()].map((path) => {
-      const name = relative(this.storage, path);
-      if (name.startsWith('..') || name === '') {
-        throw new Error('Invalid workout publication path');
-      }
-      return {
-        path: name,
-        previous: this.files.existsSync(path) ? this.files.readFileSync(path).toString('base64') : null,
-      };
-    });
+    const token = new CryptoRepository().randomUUID();
+    const files = contents
+      .keys()
+      .toArray()
+      .map((path) => {
+        const name = relative(this.storage, path);
+        if (name.startsWith('..') || name === '') {
+          throw new Error('Invalid workout publication path');
+        }
+        return {
+          path: name,
+          previous: this.files.existsSync(path) ? this.files.readFileSync(path).toString('base64') : null,
+        };
+      });
     this.files.writeDurable(this.journal, JSON.stringify({ token, files }), true);
     this.db.exec('BEGIN IMMEDIATE');
     try {

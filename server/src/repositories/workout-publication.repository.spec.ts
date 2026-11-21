@@ -23,8 +23,8 @@ for (const boundary of [1, 2, 3, 4, 5, 6, 7]) {
         '--input-type=module',
         '-e',
         `
-      import { WorkoutPublication } from ${JSON.stringify(new URL('./workout-publication.repository.ts', import.meta.url).href)};
-      import { AssetFiles } from ${JSON.stringify(new URL('./files.repository.ts', import.meta.url).href)};
+      import { WorkoutPublication } from ${JSON.stringify(new URL('workout-publication.repository.ts', import.meta.url).href)};
+      import { AssetFiles } from ${JSON.stringify(new URL('files.repository.ts', import.meta.url).href)};
       import { DatabaseSync } from 'node:sqlite';
       import { resolve } from 'node:path';
       const root = ${JSON.stringify(root)};
@@ -127,10 +127,11 @@ for (const failure of ['file', 'listing', 'commit']) {
     let injected = false;
     t.mock.method(files, 'writeDurable', (...args: Parameters<AssetFiles['writeDurable']>) => {
       write(...args);
-      if (failure === 'file' && args[0] === path && !injected) {
-        injected = true;
-        throw new Error('injected file failure after rename');
+      if (failure !== 'file' || args[0] !== path || injected) {
+        return;
       }
+      injected = true;
+      throw new Error('injected file failure after rename');
     });
     const exec = db.exec.bind(db);
     t.mock.method(db, 'exec', (sql: string) => {
