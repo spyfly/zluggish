@@ -65,7 +65,6 @@
   }
 </script>
 
-<svelte:head><title>{title}</title></svelte:head>
 <div class="bar" class:has-menu={!!menu}>
   {#if menu && !desktop}<button
       class="round"
