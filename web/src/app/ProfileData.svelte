@@ -128,7 +128,7 @@
         void navigate('/profile-data/local');
       }}
     >
-      <span class="option-title">Local files</span>
+      <span class="option-title">Import from local files</span>
       <span class="option-description">Upload user data from files on your computer.</span>
     </a>
     <a
@@ -138,7 +138,7 @@
         void navigate('/zwift');
       }}
     >
-      <span class="option-title">Zwift connection</span>
+      <span class="option-title">Import from Zwift</span>
       <span class="option-description">Connect to Zwift and download your user data.</span>
     </a>
   </nav>

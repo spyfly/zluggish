@@ -17,7 +17,7 @@ Finish all active rides before you import.
 
 1. Sign in to the [web app](../usage/web-app.md) as the destination user.
 2. On your **Profile** page, select **Import / Export**.
-3. Select **Local files** to upload files, or **Zwift connection** to download them from your official account.
+3. Select **Import from local files** to upload files, or **Import from Zwift** to download them from your official account.
 4. For a file import, select the files. The form accepts `profile.bin`, `achievements.bin`, `economy_config.txt`, `user_storage.bin` and `streaks.bin`.
 5. On the confirmation step, make sure that the source name, the source ID and the destination user are correct.
 6. If the form shows a warning about a duplicate or unknown source, confirm it.
