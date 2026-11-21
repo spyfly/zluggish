@@ -98,7 +98,7 @@
   }
 
   onMount(() => {
-    if (path === '/import' || path === '/export') {
+    if (path === '/profile-data') {
       void run(async () => {
         filenames = (await request(z.object({ filenames: z.array(z.string()) }), '/api/me/export')).filenames;
       });
@@ -118,14 +118,14 @@
   });
 </script>
 
-{#if path === '/import'}
+{#if path === '/profile-data'}
   <p>Choose how to import your profile data.</p>
   <nav class="import-options" aria-label="Import source">
     <a
-      href="/import/local"
+      href="/profile-data/local"
       onclick={(e) => {
         e.preventDefault();
-        void navigate('/import/local');
+        void navigate('/profile-data/local');
       }}
     >
       <span class="option-title">Local files</span>
@@ -142,19 +142,19 @@
       <span class="option-description">Connect to Zwift and download your user data.</span>
     </a>
   </nav>
-{:else if path === '/import/local' || path === '/zwift'}
+{:else if path === '/profile-data/local' || path === '/zwift'}
   <nav aria-label="Profile data">
     <a
-      href="/import"
+      href="/profile-data"
       onclick={(e) => {
         e.preventDefault();
-        void navigate('/import');
-      }}>← Import options</a
+        void navigate('/profile-data');
+      }}>← Import / Export</a
     >
   </nav>
 {/if}
 {#if message}<p class="notice" class:failed role={failed ? 'alert' : 'status'}>{message}</p>{/if}
-{#if path === '/import' || path === '/export'}
+{#if path === '/profile-data'}
   <section class="panel">
     <h2>Export your user data</h2>
     <p>Download individual files to back up your data or transfer it to another Zluggish server using Import.</p>
@@ -173,7 +173,7 @@
     {/each}
   </section>
 {/if}
-{#if path !== '/import' && path !== '/export' && review}
+{#if path !== '/profile-data' && review}
   <form
     class="panel"
     onsubmit={(e) => {
@@ -206,7 +206,7 @@
         })}>Cancel</button
     >
   </form>
-{:else if path === '/import/local'}
+{:else if path === '/profile-data/local'}
   <form
     class="panel"
     enctype="multipart/form-data"
