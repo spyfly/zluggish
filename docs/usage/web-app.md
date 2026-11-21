@@ -21,7 +21,7 @@ All users have these pages in the menu:
 
 | Page         | Use                                                                                                   |
 | ------------ | ----------------------------------------------------------------------------------------------------- |
-| Profile | Edit your profile and avatar, change your password, or use **Import / Export** to transfer your data. |
+| Profile      | Edit your profile and avatar, change your password, or use **Import / Export** to transfer your data. |
 | Activities   | Show saved activities by month, with route, elevation and stats. Download FIT files and images.       |
 | Integrations | Connect Strava, Garmin, Intervals.icu and TrainingPeaks. Follow the status of activity uploads.       |
 | Settings     | Turn ghosts on or off. Calculate the power curves again.                                              |

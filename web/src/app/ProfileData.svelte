@@ -168,8 +168,8 @@
         {#if exportDetails.get(filename)}<p>{exportDetails.get(filename)?.description}</p>{/if}
         <a href={`/api/me/export/${encodeURIComponent(filename)}`} download={filename}>Download {filename}</a>
       </div>
-    {:else if !busy && !failed}
-      <p>No files available to export.</p>
+    {:else}
+      {#if !busy && !failed}<p>No files available to export.</p>{/if}
     {/each}
   </section>
 {/if}
