@@ -98,11 +98,7 @@
   }
 
   onMount(() => {
-    if (path === '/import') {
-      return;
-    }
-
-    if (path === '/export') {
+    if (path === '/import' || path === '/export') {
       void run(async () => {
         filenames = (await request(z.object({ filenames: z.array(z.string()) }), '/api/me/export')).filenames;
       });
@@ -122,25 +118,7 @@
   });
 </script>
 
-{#if path === '/export'}
-  <section class="panel">
-    <h2>Export your user data</h2>
-    <p>Download individual files to back up your data or transfer it to another Zluggish server using Import.</p>
-    <p class="export-help">
-      For all available profile data, download every file. The .bin files are binary data; economy_config.txt contains
-      JSON.
-    </p>
-    {#each filenames as filename (filename)}
-      <div class="export-file">
-        <h3>{exportDetails.get(filename)?.title ?? filename}</h3>
-        {#if exportDetails.get(filename)}<p>{exportDetails.get(filename)?.description}</p>{/if}
-        <a href={`/api/me/export/${encodeURIComponent(filename)}`} download={filename}>Download {filename}</a>
-      </div>
-    {:else}
-      <p>No files available to export.</p>
-    {/each}
-  </section>
-{:else if path === '/import'}
+{#if path === '/import'}
   <p>Choose how to import your profile data.</p>
   <nav class="import-options" aria-label="Import source">
     <a
@@ -176,6 +154,25 @@
   </nav>
 {/if}
 {#if message}<p class="notice" class:failed role={failed ? 'alert' : 'status'}>{message}</p>{/if}
+{#if path === '/import' || path === '/export'}
+  <section class="panel">
+    <h2>Export your user data</h2>
+    <p>Download individual files to back up your data or transfer it to another Zluggish server using Import.</p>
+    <p class="export-help">
+      For all available profile data, download every file. The .bin files are binary data; economy_config.txt contains
+      JSON.
+    </p>
+    {#each filenames as filename (filename)}
+      <div class="export-file">
+        <h3>{exportDetails.get(filename)?.title ?? filename}</h3>
+        {#if exportDetails.get(filename)}<p>{exportDetails.get(filename)?.description}</p>{/if}
+        <a href={`/api/me/export/${encodeURIComponent(filename)}`} download={filename}>Download {filename}</a>
+      </div>
+    {:else if !busy && !failed}
+      <p>No files available to export.</p>
+    {/each}
+  </section>
+{/if}
 {#if path !== '/import' && path !== '/export' && review}
   <form
     class="panel"

@@ -196,7 +196,7 @@
                   : path === '/import/local'
                     ? 'Import local files'
                     : path === '/import'
-                      ? 'Import'
+                      ? 'Import / Export'
                       : path === '/export'
                         ? 'Export'
                         : path === '/zwift'
