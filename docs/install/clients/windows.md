@@ -11,7 +11,7 @@ This procedure makes Windows and Zwift trust the [server certificate](../certifi
 
 1. Install Zwift, if it is not installed.
 2. Sign in to the Zluggish web app and select **Apps** in the menu.
-3. Under **Zwift**, select **Windows**. The page marks the system of the computer you are on.
+3. On a Windows computer, select **Set up Windows**. On another device, select **Other systems** under **Zwift**, then **Windows**.
 4. Check the IP address of the server, then select **Download setup script**. The address is `server.advertisedIp` from the server configuration.
 
    ![Windows setup in three steps: download the setup script, run it and start Zwift, with a Choose another system link at the top](../../../media/screenshots/webapp-install.png)

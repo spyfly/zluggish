@@ -90,6 +90,10 @@
     },
   ]);
 
+  /** The system this browser runs on, when Zwift can be set up there: it gets the button, the rest fold away. */
+  const featured = $derived(systems.find((row) => row.tag && !row.unavailable) ?? null);
+  let others = $state(false);
+
   function go(event: MouseEvent, to: string) {
     event.preventDefault();
     void navigate(to);
@@ -177,7 +181,25 @@
             could read your Zwift traffic, your password included.
           </p>
         {/if}
-        {@render rows(systems)}
+        {#if featured}
+          <a class="setup" href={featured.to} onclick={(event) => go(event, featured.to)}>Set up {featured.name}</a>
+          <p class="featured-detail">{featured.detail}</p>
+          <button
+            type="button"
+            class="others"
+            aria-expanded={others}
+            aria-controls="apps-other-systems"
+            onclick={() => (others = !others)}
+          >
+            Other systems
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+          </button>
+          <div id="apps-other-systems" hidden={!others}>
+            {@render rows(systems.filter((row) => row !== featured))}
+          </div>
+        {:else}
+          {@render rows(systems)}
+        {/if}
       {/if}
     </section>
 
@@ -276,6 +298,82 @@
   .lead {
     margin: 0 0 1.25rem;
   }
+  /* The detected system is one confident action; the full list waits behind a quiet toggle. */
+  a.setup {
+    align-self: flex-start;
+    padding: 0.75rem 1.6rem;
+    border-radius: 10px;
+    background: var(--orange);
+    box-shadow: 0 3px 0 var(--orange-deep);
+    color: var(--text);
+    font-weight: 800;
+    font-size: 0.9375rem;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    text-decoration: none;
+  }
+  a.setup:hover {
+    background: #f06a1e;
+  }
+  a.setup:active {
+    transform: translateY(2px);
+    box-shadow: 0 1px 0 var(--orange-deep);
+  }
+  a.setup:focus-visible {
+    outline: 2px solid var(--text);
+    outline-offset: 3px;
+  }
+  .featured-detail {
+    margin: 0.75rem 0 0;
+    color: var(--muted);
+    font-size: 0.875rem;
+  }
+  button.others {
+    display: inline-flex;
+    align-self: flex-start;
+    align-items: center;
+    gap: 0.3rem;
+    margin: 1rem 0 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+    color: var(--muted);
+    font: inherit;
+    font-size: 0.875rem;
+    text-transform: none;
+    letter-spacing: 0;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+  button.others:hover {
+    background: none;
+    color: var(--text);
+  }
+  button.others svg {
+    width: 1rem;
+    height: 1rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition: transform 0.15s ease;
+  }
+  button.others[aria-expanded='true'] svg {
+    transform: rotate(180deg);
+  }
+  #apps-other-systems {
+    margin-top: 0.75rem;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    button.others svg {
+      transition: none;
+    }
+  }
+
   .hint {
     margin: 1rem 0 0;
     color: var(--muted);
