@@ -17,7 +17,7 @@
     administrator: boolean;
   } = $props();
 
-  type Row = { to: string; name: string; detail: string; here: boolean; unavailable?: boolean };
+  type Row = { to: string; name: string; detail: string; tag?: string; unavailable?: boolean };
 
   const here = detect();
   const onComputer = isComputer(here);
@@ -29,10 +29,45 @@
   let companionFailure = $state('');
   let loaded = $state(false);
 
-  const computers = $derived<Array<Row>>([
-    { to: '/install/windows', name: 'Windows', detail: 'Zwift installed from zwift.com', here: here === 'windows' },
-    { to: '/install/macos', name: 'macOS', detail: 'Zwift installed from zwift.com', here: here === 'macos' },
-    { to: '/install/linux', name: 'Linux', detail: 'Zwift in Wine, Lutris, Bottles or Steam', here: here === 'linux' },
+  const mark = (device: string, tag: string) => (here === device ? tag : undefined);
+
+  /** Without root, Zwift on Android can only be patched to accept the shared certificate. */
+  const legacy = $derived(tls?.mode === 'legacy');
+
+  const systems = $derived<Array<Row>>([
+    {
+      to: '/install/windows',
+      name: 'Windows',
+      detail: 'Zwift installed from zwift.com',
+      tag: mark('windows', 'This computer'),
+    },
+    {
+      to: '/install/macos',
+      name: 'macOS',
+      detail: 'Zwift installed from zwift.com',
+      tag: mark('macos', 'This computer'),
+    },
+    {
+      to: '/install/linux',
+      name: 'Linux',
+      detail: 'Zwift in Wine, Lutris, Bottles or Steam',
+      tag: mark('linux', 'This computer'),
+    },
+    {
+      to: '/install/android',
+      name: 'Android',
+      detail: legacy ? 'Zwift from Google Play, patched on the device' : "Not with this server's certificate",
+      tag: mark('android', 'This device'),
+      unavailable: !legacy,
+    },
+    { to: '/install/android-rooted', name: 'Android, rooted', detail: 'Certificate and hosts file added by hand' },
+    {
+      to: '/install/ios',
+      name: 'iPhone and iPad',
+      detail: 'Not supported',
+      tag: mark('ios', 'This device'),
+      unavailable: true,
+    },
   ]);
 
   const phones = $derived<Array<Row>>([
@@ -44,9 +79,15 @@
         : companion.app.current
           ? `Companion ${companion.app.versionName} for this server`
           : `Companion ${companion.app.versionName}, made for an old certificate`,
-      here: here === 'android',
+      tag: mark('android', 'This phone'),
     },
-    { to: '/companion/ios', name: 'iPhone and iPad', detail: 'Not supported', here: here === 'ios', unavailable: true },
+    {
+      to: '/companion/ios',
+      name: 'iPhone and iPad',
+      detail: 'Not supported',
+      tag: mark('ios', 'This phone'),
+      unavailable: true,
+    },
   ]);
 
   function go(event: MouseEvent, to: string) {
@@ -78,20 +119,20 @@
   });
 </script>
 
-{#snippet rows(list: Array<Row>, tag: string)}
+{#snippet rows(list: Array<Row>)}
   <ul class="rows">
     {#each list as row (row.to)}
       <li>
         <a
           class="row"
-          class:here={row.here}
+          class:here={!!row.tag}
           class:unavailable={row.unavailable}
           href={row.to}
           onclick={(event) => go(event, row.to)}
         >
           <span class="line">
             <span class="name">{row.name}</span>
-            {#if row.here}<span class="tag">{tag}</span>{/if}
+            {#if row.tag}<span class="tag">{row.tag}</span>{/if}
           </span>
           <span class="detail">{row.detail}</span>
           <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
@@ -104,7 +145,7 @@
 {#if !loaded}
   <p role="status">Loading…</p>
 {:else}
-  <div class="apps" class:phone-first={onPhone}>
+  <div class="apps">
     <section class="product zwift" aria-labelledby="apps-zwift">
       <header>
         <svg class="device" class:lit={onComputer} viewBox="0 0 48 40" aria-hidden="true">
@@ -114,7 +155,7 @@
         </svg>
         <div>
           <h2 id="apps-zwift">Zwift</h2>
-          <p class="where">On the computer you ride with</p>
+          <p class="where">On the device you ride with</p>
         </div>
       </header>
 
@@ -127,7 +168,8 @@
         </p>
       {:else if tls}
         <p class="lead">
-          A setup script makes the computer trust this server and sends Zwift here instead of to Zwift's own servers.
+          Zwift only talks to a server it trusts. The setup makes your device trust this server and sends Zwift here
+          instead of to Zwift's own servers.
         </p>
         {#if tls.mode === 'legacy'}
           <p class="risk">
@@ -135,15 +177,7 @@
             could read your Zwift traffic, your password included.
           </p>
         {/if}
-        {@render rows(computers, 'This computer')}
-        <p class="hint">
-          {#if here === 'ios'}
-            Zwift on iPhone and iPad cannot use this server. Set up a computer instead.
-          {:else}
-            On a rooted Android device? Download the <a href="/api/tls/certificate" download>certificate</a> and follow the
-            Android guide in the documentation.
-          {/if}
-        </p>
+        {@render rows(systems)}
       {/if}
     </section>
 
@@ -166,7 +200,7 @@
         <p class="lead">
           Companion only talks to a server it trusts. This server gives you a copy of the app that does.
         </p>
-        {@render rows(phones, 'This phone')}
+        {@render rows(phones)}
         {#if companion && !companion.app}
           <p class="hint">
             {#if administrator}
@@ -192,11 +226,6 @@
     gap: 1rem;
     max-width: 64rem;
   }
-  /* On a phone, the phone's own app comes first. */
-  .phone-first .companion {
-    order: -1;
-  }
-
   .product {
     display: flex;
     flex-direction: column;

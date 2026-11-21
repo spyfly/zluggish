@@ -13,6 +13,7 @@
   import Apps from './Apps.svelte';
   import { detect, isComputer, isPhone } from './device';
   import Install from './Install.svelte';
+  import InstallPhone from './InstallPhone.svelte';
   import Companion from './Companion.svelte';
   import CompanionManage from './CompanionManage.svelte';
   import ServerCertificate from './ServerCertificate.svelte';
@@ -133,11 +134,15 @@
   const manage = $derived(path === '/manage' || path.startsWith('/manage/'));
   const installing = $derived(path === '/install' || path.startsWith('/install/'));
   const companion = $derived(path === '/companion' || path.startsWith('/companion/'));
+  const installingPhone = $derived(/^\/install\/(android|android-rooted|ios)$/.test(path));
   const here = detect();
   /** Install and Companion open a setup only for a system they know; every other path under them is the choice. */
   const apps = $derived(
     path === '/apps' ||
-      (installing && !/^\/install\/(windows|macos|linux)$/.test(path) && !(path === '/install' && isComputer(here))) ||
+      (installing &&
+        !installingPhone &&
+        !/^\/install\/(windows|macos|linux)$/.test(path) &&
+        !(path === '/install' && isComputer(here))) ||
       (companion && !/^\/companion\/(android|ios)$/.test(path) && !(path === '/companion' && isPhone(here))),
   );
 
@@ -224,13 +229,19 @@
                                       ? 'macOS setup'
                                       : path === '/install/linux'
                                         ? 'Linux setup'
-                                        : installing
-                                          ? 'Install'
-                                          : path === '/companion/android'
-                                            ? 'Android setup'
-                                            : companion
-                                              ? 'Companion'
-                                              : 'Profile',
+                                        : path === '/install/android'
+                                          ? 'Android setup'
+                                          : path === '/install/android-rooted'
+                                            ? 'Rooted Android setup'
+                                            : path === '/install/ios'
+                                              ? 'iPhone and iPad'
+                                              : installing
+                                                ? 'Install'
+                                                : path === '/companion/android'
+                                                  ? 'Android setup'
+                                                  : companion
+                                                    ? 'Companion'
+                                                    : 'Profile',
   );
 
   const initials = (r: User) => `${r.first_name.charAt(0)}${r.last_name.charAt(0)}`.toUpperCase();
@@ -1602,6 +1613,8 @@
         <Climbs {api} />
       {:else if apps}
         <Apps {api} {navigate} {administrator} />
+      {:else if installingPhone}
+        <InstallPhone {api} {path} {navigate} />
       {:else if installing}
         <Install {api} {path} {navigate} />
       {:else if companion}
