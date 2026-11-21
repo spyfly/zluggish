@@ -199,7 +199,7 @@ await test('import review requires source confirmation and cancel bypasses valid
   );
 
   for (const cancel of [true, false]) {
-    await page.goto(`${f.webOrigin}/import/local`);
+    await page.goto(`${f.webOrigin}/profile-data/local`);
     await page
       .locator('[name="profile.bin"]')
       .setInputFiles({ name: 'profile.bin', mimeType: 'application/octet-stream', buffer });
