@@ -6,6 +6,10 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { test } from 'node:test';
 
+function hasSync(value: unknown): value is { sync: () => Promise<void> } {
+  return typeof value === 'object' && value !== null && 'sync' in value && typeof value.sync === 'function';
+}
+
 await test('queued flushes recover after a WAL sync failure and still cover later commits', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'durability-'));
   const path = join(directory, 'test.db');
@@ -18,7 +22,8 @@ await test('queued flushes recover after a WAL sync failure and still cover late
   const barrier = new DurabilityRepository(db, path);
   barrier.start();
   const handle = await open(`${path}-wal`, 'r+');
-  const prototype = Object.getPrototypeOf(handle) as typeof handle;
+  const prototype = Reflect.getPrototypeOf(handle);
+  assert.ok(hasSync(prototype));
   await handle.close();
   const gates = Array.from({ length: 3 }, () => Promise.withResolvers<void>());
   const started = Array.from({ length: 3 }, () => Promise.withResolvers<void>());
