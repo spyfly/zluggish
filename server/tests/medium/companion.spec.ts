@@ -70,11 +70,11 @@ async function json(request: Response | Promise<Response>) {
   return body;
 }
 
-async function settled(admin: ReturnType<typeof mediumWeb>) {
+async function settled(admin: ReturnType<typeof mediumWeb>, kind: 'patch' | 'rekey') {
   for (let attempt = 0; attempt < 200; attempt++) {
     const status = companionAdminStatus(await json(admin.request('/api/manage/companion')));
 
-    if (status.activity?.state !== 'running') {
+    if (status.activity?.kind === kind && status.activity.state !== 'running') {
       return status;
     }
     await sleep(25);
@@ -112,7 +112,7 @@ await test('the administrator patches the Companion app and every rider download
 
   const started = await admin.request('/api/manage/companion/app', 'PUT', patched);
   assert.equal(started.status, 202);
-  const done = await settled(admin);
+  const done = await settled(admin, 'patch');
   assert.ok(done.activity);
   assert.equal(done.activity.state, 'done', done.activity.message ?? 'The Companion job did not complete');
   assert.deepEqual(done.activity.steps, ['inspect', 'sign', 'publish']);
@@ -132,12 +132,11 @@ await test('the administrator patches the Companion app and every rider download
 
   // A rotation updates the published app on its own, with no Java and no new upload.
   const second = await f.effects.runPromise(tls.rotate(crypto.randomUUID()));
-  await sleep(25);
-  const after = await settled(admin);
+  const after = await settled(admin, 'rekey');
   assert.ok(after.activity);
-  assert.ok(after.app);
-  assert.equal(after.activity.kind, 'rekey');
-  assert.equal(after.app.current, true);
+  assert.equal(after.activity.state, 'done', after.activity.message ?? 'The Companion rekey did not complete');
+  const updated = companionStatus(await json(web.request('/api/companion')));
+  assert.equal(updated.app?.current, true);
   const again = await web.request('/api/companion/app');
   const rekeyed = Buffer.from(await again.arrayBuffer());
   assert.equal(
