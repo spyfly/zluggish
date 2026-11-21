@@ -10,7 +10,10 @@
   import Avatar from '../components/Avatar.svelte';
   import TextField from './TextField.svelte';
   import ServerLogs from './ServerLogs.svelte';
+  import Apps from './Apps.svelte';
+  import { detect, isComputer, isPhone } from './device';
   import Install from './Install.svelte';
+  import InstallPhone from './InstallPhone.svelte';
   import Companion from './Companion.svelte';
   import CompanionManage from './CompanionManage.svelte';
   import ServerCertificate from './ServerCertificate.svelte';
@@ -131,6 +134,17 @@
   const manage = $derived(path === '/manage' || path.startsWith('/manage/'));
   const installing = $derived(path === '/install' || path.startsWith('/install/'));
   const companion = $derived(path === '/companion' || path.startsWith('/companion/'));
+  const installingPhone = $derived(/^\/install\/(android|android-rooted|ios)$/.test(path));
+  const here = detect();
+  /** Install and Companion open a setup only for a system they know; every other path under them is the choice. */
+  const apps = $derived(
+    path === '/apps' ||
+      (installing &&
+        !installingPhone &&
+        !/^\/install\/(windows|macos|linux)$/.test(path) &&
+        !(path === '/install' && isComputer(here))) ||
+      (companion && !/^\/companion\/(android|ios)$/.test(path) && !(path === '/companion' && isPhone(here))),
+  );
 
   const back = $derived(
     manage && path.startsWith('/manage/users/') ? { href: '/manage', label: 'All users' } : undefined,
@@ -193,33 +207,39 @@
                 ? 'Users'
                 : path === '/activities' || path.startsWith('/activities/')
                   ? 'Activities'
-                  : path === '/import/local'
+                  : path === '/profile-data/local'
                     ? 'Import local files'
-                    : path === '/import'
-                      ? 'Import'
-                      : path === '/export'
-                        ? 'Export'
-                        : path === '/zwift'
-                          ? 'Zwift connection'
-                          : path === '/integrations'
-                            ? 'Integrations'
-                            : path === '/settings'
-                              ? 'Settings'
-                              : path === '/climbs'
-                                ? 'Climbs'
+                    : path === '/profile-data'
+                      ? 'Import / Export'
+                      : path === '/zwift'
+                        ? 'Zwift connection'
+                        : path === '/integrations'
+                          ? 'Integrations'
+                          : path === '/settings'
+                            ? 'Settings'
+                            : path === '/climbs'
+                              ? 'Climbs'
+                              : apps
+                                ? 'Apps'
                                 : path === '/install/windows'
                                   ? 'Windows setup'
                                   : path === '/install/macos'
                                     ? 'macOS setup'
                                     : path === '/install/linux'
                                       ? 'Linux setup'
-                                      : installing
-                                        ? 'Install'
-                                        : path === '/companion/android'
-                                          ? 'Android setup'
-                                          : companion
-                                            ? 'Companion'
-                                            : 'Profile',
+                                      : path === '/install/android'
+                                        ? 'Android setup'
+                                        : path === '/install/android-rooted'
+                                          ? 'Rooted Android setup'
+                                          : path === '/install/ios'
+                                            ? 'iPhone and iPad'
+                                            : installing
+                                              ? 'Install'
+                                              : path === '/companion/android'
+                                                ? 'Android setup'
+                                                : companion
+                                                  ? 'Companion'
+                                                  : 'Profile',
   );
 
   const initials = (r: User) => `${r.first_name.charAt(0)}${r.last_name.charAt(0)}`.toUpperCase();
@@ -911,12 +931,9 @@
       {@render link('/', 'Profile', !manage && title === 'Profile')}
       {@render link('/activities', 'Activities', title === 'Activities')}
       {@render link('/climbs', 'Climbs', title === 'Climbs')}
-      {@render link('/import', 'Import', path === '/import' || path === '/import/local' || path === '/zwift')}
-      {@render link('/export', 'Export', path === '/export')}
       {@render link('/integrations', 'Integrations', path === '/integrations')}
       {@render link('/settings', 'Settings', path === '/settings')}
-      {@render link('/install', 'Install', installing)}
-      {@render link('/companion', 'Companion', companion)}
+      {@render link('/apps', 'Apps', apps || installing || companion)}
       {#if administrator}
         <p class="group">Manage</p>
         {@render link('/manage', 'Users', manage && path !== '/manage/server' && path !== '/manage/companion')}
@@ -1597,7 +1614,7 @@
         {/if}
       </div>
     {:else}
-      {#if path === '/import' || path === '/import/local' || path === '/zwift' || path === '/export'}
+      {#if path === '/profile-data' || path === '/profile-data/local' || path === '/zwift'}
         {#key path}<ProfileData
             {path}
             request={api}
@@ -1610,6 +1627,10 @@
         <Activities {path} {api} {go} />
       {:else if path === '/climbs'}
         <Climbs {api} />
+      {:else if apps}
+        <Apps {api} {navigate} {administrator} />
+      {:else if installingPhone}
+        <InstallPhone {api} {path} {navigate} />
       {:else if installing}
         <Install {api} {path} {navigate} />
       {:else if companion}
@@ -1763,6 +1784,11 @@
               >{/if}
           </div>
         </form>
+        {#if !profileId}
+          <div class="actions">
+            <button type="button" onclick={() => navigate('/profile-data')}>Import / Export</button>
+          </div>
+        {/if}
       {/if}
     {/if}
   </Layout>
