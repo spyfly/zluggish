@@ -63,7 +63,6 @@ export class WorkoutPublication {
     const token = new CryptoRepository().randomUUID();
     const files = contents
       .keys()
-      .toArray()
       .map((path) => {
         const name = relative(this.storage, path);
         if (name.startsWith('..') || name === '') {
@@ -73,7 +72,8 @@ export class WorkoutPublication {
           path: name,
           previous: this.files.existsSync(path) ? this.files.readFileSync(path).toString('base64') : null,
         };
-      });
+      })
+      .toArray();
     this.files.writeDurable(this.journal, JSON.stringify({ token, files }), true);
     this.db.exec('BEGIN IMMEDIATE');
     try {

@@ -13,7 +13,11 @@ import { test } from 'node:test';
 for (const boundary of [1, 2, 3, 4, 5, 6, 7]) {
   await test(`publication recovers process exit at boundary ${boundary}`, (t) => {
     const root = mkdtempSync(resolve(tmpdir(), 'workout-crash-'));
-    t.after(() => rmSync(root, { recursive: true, force: true }));
+    let db: DatabaseSync | undefined;
+    t.after(() => {
+      db?.close();
+      rmSync(root, { recursive: true, force: true });
+    });
     const child = spawnSync(
       process.execPath,
       [
@@ -54,8 +58,7 @@ for (const boundary of [1, 2, 3, 4, 5, 6, 7]) {
       { encoding: 'utf8' },
     );
     assert.equal(child.status, 73, child.stderr);
-    const db = new DatabaseSync(resolve(root, 'db'));
-    t.after(() => db.close());
+    db = new DatabaseSync(resolve(root, 'db'));
     configureConnection(db);
     new WorkoutPublication(db, root);
     const committed = boundary >= 6;
