@@ -928,6 +928,8 @@
   {/if}
 {/snippet}
 
+<svelte:head><title>Zluggish - {title}</title></svelte:head>
+
 <div class="app">
   <Layout
     {title}
