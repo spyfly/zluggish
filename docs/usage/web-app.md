@@ -21,9 +21,8 @@ All users have these pages in the menu:
 
 | Page         | Use                                                                                                   |
 | ------------ | ----------------------------------------------------------------------------------------------------- |
-| Profile      | Show and edit your profile and avatar. Change your password.                                          |
+| Profile | Edit your profile and avatar, change your password, or use **Import / Export** to transfer your data. |
 | Activities   | Show saved activities by month, with route, elevation and stats. Download FIT files and images.       |
-| Import / Export | Import profile data from local files or Zwift, and download your user data. |
 | Integrations | Connect Strava, Garmin, Intervals.icu and TrainingPeaks. Follow the status of activity uploads.       |
 | Settings     | Turn ghosts on or off. Calculate the power curves again.                                              |
 | Install      | Download the setup script that makes a Windows, macOS or Linux computer trust this server.            |

@@ -889,11 +889,6 @@
       {@render link('/', 'Profile', !manage && title === 'Profile')}
       {@render link('/activities', 'Activities', title === 'Activities')}
       {@render link('/climbs', 'Climbs', title === 'Climbs')}
-      {@render link(
-        '/profile-data',
-        'Import / Export',
-        path === '/profile-data' || path === '/profile-data/local' || path === '/zwift',
-      )}
       {@render link('/integrations', 'Integrations', path === '/integrations')}
       {@render link('/settings', 'Settings', path === '/settings')}
       {@render link('/install', 'Install', installing)}
@@ -1742,6 +1737,11 @@
               >{/if}
           </div>
         </form>
+        {#if !profileId}
+          <div class="actions">
+            <button type="button" onclick={() => navigate('/profile-data')}>Import / Export</button>
+          </div>
+        {/if}
       {/if}
     {/if}
   </Layout>
