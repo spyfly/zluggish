@@ -66,6 +66,8 @@
   });
 </script>
 
+<svelte:head><title>{current.title}</title></svelte:head>
+
 <Layout
   title={current.title}
   page={current.kind}
