@@ -266,7 +266,9 @@
         </div>
       </dl>
     {:else}
-      <p class="lead">No app yet. Riders see the download under <strong>Apps → Companion</strong> once you upload one.</p>
+      <p class="lead">
+        No app yet. Riders see the download under <strong>Apps → Companion</strong> once you upload one.
+      </p>
     {/if}
 
     <label
