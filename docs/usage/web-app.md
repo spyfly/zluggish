@@ -19,16 +19,15 @@ To make the first administrator, do the [first-time setup](../install/server.md#
 
 All users have these pages in the menu:
 
-| Page         | Use                                                                                                   |
-| ------------ | ----------------------------------------------------------------------------------------------------- |
-| Profile      | Show and edit your profile and avatar. Change your password.                                          |
-| Activities   | Show saved activities by month, with route, elevation and stats. Download FIT files and images.       |
-| Import       | Import profile data from local files or from your official Zwift account.                             |
-| Export       | Download your user data.                                                                              |
-| Integrations | Connect Strava, Garmin, Intervals.icu and TrainingPeaks. Follow the status of activity uploads.       |
-| Settings     | Turn ghosts on or off. Calculate the power curves again.                                              |
-| Install      | Download the setup script that makes a Windows, macOS or Linux computer trust this server.            |
-| Companion    | Download the [Zwift Companion app](../install/companion-app.md) for Android, patched for this server. |
+| Page         | Use                                                                                                                                                       |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Profile      | Show and edit your profile and avatar. Change your password.                                                                                              |
+| Activities   | Show saved activities by month, with route, elevation and stats. Download FIT files and images.                                                           |
+| Import       | Import profile data from local files or from your official Zwift account.                                                                                 |
+| Export       | Download your user data.                                                                                                                                  |
+| Integrations | Connect Strava, Garmin, Intervals.icu and TrainingPeaks. Follow the status of activity uploads.                                                           |
+| Settings     | Turn ghosts on or off. Calculate the power curves again.                                                                                                  |
+| Apps         | Set up Zwift on a Windows, macOS or Linux computer or an Android device, and download the [Zwift Companion app](../install/companion-app.md) for Android. |
 
 ![The Profile page with avatar, name, email and birthday](../../media/screenshots/webapp-profile.png)
 
