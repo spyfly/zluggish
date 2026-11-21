@@ -316,7 +316,7 @@ await test('the game API and CDN both serve the launcher loading page and its as
     assert.doesNotMatch(loadingHtml, /bootstrap|\/style\/site\.css/);
 
     for (const extension of ['css', 'js']) {
-      const asset = new RegExp(`"(/static/launcher-ui/[^"]+\\.${extension})"`).exec(loadingHtml)?.[1];
+      const asset = new RegExp(String.raw`"(/static/launcher-ui/[^"]+\.${extension})"`).exec(loadingHtml)?.[1];
       assert.ok(asset, `Missing launcher ${extension} in ${origin}`);
       const response = await app.request(origin + asset, undefined, env);
       assert.equal(response.status, 200, origin + asset);
