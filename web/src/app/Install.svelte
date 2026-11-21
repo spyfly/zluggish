@@ -12,17 +12,20 @@
   }: {
     api: Api;
     /** `/install` sets up this browser's own system, or offers the choice; `/install/choose` always offers it;
-    `/install/windows`, `/install/macos` and `/install/linux` set up that system. */
+    `/install/<system>` shows instructions for that system. */
     path: string;
     navigate: (path: string) => Promise<void>;
   } = $props();
 
-  type Platform = 'windows' | 'macos' | 'linux';
+  type Platform = 'windows' | 'macos' | 'linux' | 'android' | 'android-rooted' | 'ios';
 
   const systems: Array<{ id: Platform; name: string; detail: string }> = [
     { id: 'windows', name: 'Windows', detail: 'Zwift installed from zwift.com' },
     { id: 'macos', name: 'macOS', detail: 'Zwift installed from zwift.com' },
     { id: 'linux', name: 'Linux', detail: 'Zwift in Wine, Lutris, Bottles or Steam' },
+    { id: 'android', name: 'Android', detail: 'Requires the shared Zwift certificate' },
+    { id: 'android-rooted', name: 'Android (Rooted)', detail: 'Install this server’s certificate' },
+    { id: 'ios', name: 'iPhone/iPad', detail: 'Not supported' },
   ];
 
   /** The system this browser runs on. iPadOS reports itself as a Mac with a touch screen. */
@@ -136,50 +139,100 @@
   </section>
 {/if}
 
-{#if status && !platform && here === 'ios'}
+{#snippet chooseAnother()}
+  <a
+    href="/install/choose"
+    onclick={(event) => {
+      event.preventDefault();
+      void navigate('/install/choose');
+    }}>Choose another system</a
+  >
+{/snippet}
+
+{#if platform?.id === 'ios'}
   <section class="panel unsafe" aria-labelledby="install-ios">
+    <p class="switch">{@render chooseAnother()}</p>
     <h2 id="install-ios">iPhone and iPad are not supported</h2>
     <p>
-      Zwift on iPhone and iPad cannot be set up to use Zluggish. To ride on this server, set up a Windows, macOS or
-      Linux computer instead.
+      Zwift uses its own certificate bundle to decide which servers to trust. Installing a certificate in iOS or iPadOS
+      settings does not change that bundle. Replacing the bundle would require modifying the app, and Apple’s code
+      signing prevents the modified App Store app from running.
     </p>
+    <p>To ride on this server, set up Zwift on Windows, macOS, Linux or a compatible Android device.</p>
   </section>
-{/if}
-
-{#if status && installable && status.certificate}
+{:else if status && installable && status.certificate}
   {#if !platform}
     <section class="panel" aria-labelledby="install-title">
-      <h2 id="install-title">Set up a computer for Zwift</h2>
+      <h2 id="install-title">Set up a device for Zwift</h2>
       <p class="lead">
-        Zwift only talks to a server it trusts. A setup script makes the computer trust this server and sends Zwift here
-        instead of to Zwift's own servers. Which system is Zwift on?
+        Zwift only talks to a server it trusts. Setup tells Zwift to trust and connect to this server. Which device runs
+        Zwift?
       </p>
       <div class="systems">
         {#each systems as system (system.id)}
           <button type="button" class="system" onclick={() => navigate(`/install/${system.id}`)}>
             <span class="name">{system.name}</span>
             <span class="detail">{system.detail}</span>
-            {#if system.id === here}<span class="here">This computer</span>{/if}
+            {#if system.id === here}<span class="here">This device</span>{/if}
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
           </button>
         {/each}
       </div>
-      <p class="hint">
-        On a rooted Android device? Download the <a href="/api/tls/certificate" download>certificate</a> and follow the Android
-        guide in the documentation.
-      </p>
+    </section>
+  {:else if platform.id === 'android'}
+    <section class="panel" aria-labelledby="install-android">
+      <p class="switch">{@render chooseAnother()}</p>
+      <h2 id="install-android">Set up Android</h2>
+      {#if legacy}
+        <p class="risk">
+          The shared Zwift certificate uses a private key published on the internet. Others on your network could read
+          your Zwift traffic, including your password.
+        </p>
+        <ol>
+          <li>Install Zwift from Google Play and leave it closed.</li>
+          <li>
+            Follow the Android guide to redirect Zwift using Virtual Hosts or DNS and patch the game data with
+            ZofflineObb.
+          </li>
+          <li>
+            Start Zwift and sign in with your Zluggish username and password. Repeat the patch after each Zwift update.
+          </li>
+        </ol>
+      {:else}
+        <p>
+          ZofflineObb supports only the shared Zwift certificate. This server uses its own certificate, so you’ll need a
+          rooted Android device or a supported computer to ride here.
+        </p>
+      {/if}
+      <p><a href="https://docs.zluggish.com/install/clients/android/">Android setup guide</a></p>
+    </section>
+  {:else if platform.id === 'android-rooted'}
+    <section class="panel" aria-labelledby="install-android-rooted">
+      <p class="switch">{@render chooseAnother()}</p>
+      <h2 id="install-android-rooted">Set up Android (rooted)</h2>
+      {#if legacy}
+        <p class="risk">
+          The shared Zwift certificate uses a private key published on the internet. Others on your network could read
+          your Zwift traffic, including your password.
+        </p>
+      {/if}
+      <ol>
+        <li>Install Zwift, open it once to download its game files, then close it.</li>
+        <li>
+          Download the <a href="/api/tls/certificate" download>server certificate (.crt)</a> and append it to
+          <code>/data/data/com.zwift.zwiftgame/dataES/cacert.pem</code> using root access. Keep the file’s owner and permissions.
+        </li>
+        <li>
+          Follow the rooted Android guide to point the Zwift hostnames at this server using the hosts file or DNS.
+        </li>
+        <li>Start Zwift and sign in with your Zluggish username and password.</li>
+      </ol>
+      <p><a href="https://docs.zluggish.com/install/clients/android-rooted/">Rooted Android setup guide</a></p>
     </section>
   {:else}
     <section class="panel" aria-label={`${platform.name} setup steps`}>
       <p class="switch">
-        Setting up {platform.name}.
-        <a
-          href="/install/choose"
-          onclick={(event) => {
-            event.preventDefault();
-            void navigate('/install/choose');
-          }}>Choose another system</a
-        >
+        Setting up {platform.name}. {@render chooseAnother()}
       </p>
       <ol class="walk">
         <li>
