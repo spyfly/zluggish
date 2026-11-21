@@ -7,47 +7,24 @@ description: Set up a non-rooted Android device to ride on your Zluggish server.
 
 This procedure is for a device that is not rooted. For a rooted device, see [Android (rooted)](android-rooted.md). In the web app, **Set up Android** on the **Apps** page shows the same steps with the address of the server filled in.
 
-Two apps do the work. Virtual Hosts redirects Zwift to Zluggish. ZofflineObb patches Zwift so that it accepts the shared zwift-offline certificate.
+Zwift from Google Play stores its certificate bundle in an expansion file. Patch your copy of that file with your Zluggish server’s certificate, then use Virtual Hosts or DNS to send Zwift to the server.
 
-:::warning
+## Patch the expansion file
 
-ZofflineObb works only with a server that still uses the shared certificate, whose private key is public. A server with its [own certificate](../certificate.md) does not work with it.
+1. Install or update Zwift from Google Play and leave it closed.
+2. Enable USB debugging and connect your Android device to a computer with ADB.
+3. Sign in to the Zluggish web app on your computer and open **Apps → Zwift → Android**. Follow the ADB instructions there to copy the `main.*.com.zwift.zwiftgame.obb` file from the device, upload it, and download the patched file.
+4. If you already started Zwift, clear its app storage in Android settings. Save the patched file in a separate folder so it keeps its original name, then follow the ADB instructions to copy it back to your device.
+5. Repeat the patch after each Play Store update.
 
-:::
+## Send Zwift to Zluggish
 
-## Install the apps
+1. Install `app-Github-release.apk` from the [Virtual Hosts releases](https://github.com/x-falcon/Virtual-Hosts/releases/latest).
+2. Copy the provided host entries from **Apps → Zwift → Android** into a file named `hosts.txt` on the device.
+3. In the Android settings, turn off **Private DNS**.
+4. Open Virtual Hosts and select `hosts.txt`.
 
-1. Download and install `ZofflineObb.apk` from the [ZofflineObbAndroid releases](https://github.com/fatsbrown/ZofflineObbAndroid/releases/latest).
-2. Download and install `app-Github-release.apk` from the [Virtual Hosts releases](https://github.com/x-falcon/Virtual-Hosts/releases/latest).
-3. Make a file with the name `hosts.txt` on the device. Use a text editor app. Replace `<server-ip>` with the IP address of the Zluggish server:
-
-   ```text
-   <server-ip> us-or-rly101.zwift.com
-   <server-ip> secure.zwift.com
-   <server-ip> cdn.zwift.com
-   ```
-
-4. In the Android settings, turn off **Private DNS**.
-5. Open Virtual Hosts and select `hosts.txt`.
-
-Instead of Virtual Hosts, you can use the Zluggish DNS server:
-
-1. Set `dns.enabled` to `true` in `zluggish.config.ts`. See [Configuration](../../reference/configuration.md).
-2. On the phone, set **DNS 1** of the Wi-Fi connection to the IP address of the Zluggish server.
-
-If your router can change DNS records, you can also set the records on the router.
-
-## Patch Zwift
-
-Do these steps after each installation or update of Zwift.
-
-1. Install or update Zwift from Google Play. Do not start it yet.
-2. If you started Zwift, go to **Android Settings → Applications → Zwift** and clear the data. You can also uninstall Zwift and install it again.
-3. Open ZofflineObb and run it. Allow access to all files and installation from unknown sources.
-4. Wait until the patch is complete. This takes 5 to 10 minutes.
-5. Start Zwift. Zwift checks the download and starts.
-
-If ZofflineObb does not work on your device, you can patch the OBB file on Windows. See [zwift-offline issue #505](https://github.com/zoffline/zwift-offline/issues/505).
+To use Zluggish DNS, set `dns.enabled` to `true` in `zluggish.config.ts` and set the Wi-Fi connection’s primary DNS server to the IP address of the Zluggish server. See [Configuration](../../reference/configuration.md). You can also set the host records on a router that supports local DNS overrides.
 
 ## Ride
 

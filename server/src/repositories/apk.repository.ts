@@ -133,6 +133,10 @@ async function centralDirectory(handle: FileHandle) {
     throw new Error('Zip64 archives are not supported');
   }
 
+  // Every central header fits in 46 bytes plus its name, extra fields and comment.
+  if (offset + length > size - tailLength + at || length > 64 * 1024 * 1024) {
+    throw new Error('The zip directory is invalid or too large');
+  }
   const directory = await readAt(handle, offset, length);
   const entries: Array<ZipEntry> = [];
   let position = 0;
@@ -178,7 +182,7 @@ async function dataOffset(handle: FileHandle, entry: ZipEntry) {
   return entry.localOffset + 30 + header.readUInt16LE(26) + header.readUInt16LE(28);
 }
 
-async function readEntry(handle: FileHandle, entry: ZipEntry) {
+async function readEntry(handle: FileHandle, entry: ZipEntry, maxOutputLength?: number) {
   const raw = await readAt(handle, await dataOffset(handle, entry), entry.compressedSize);
 
   if (entry.method === 0) {
@@ -186,7 +190,7 @@ async function readEntry(handle: FileHandle, entry: ZipEntry) {
   }
 
   if (entry.method === 8) {
-    return inflateRawSync(raw);
+    return inflateRawSync(raw, { maxOutputLength });
   }
 
   throw new Error(`The zip entry ${entry.name} uses an unsupported compression method`);
@@ -397,6 +401,39 @@ export class ApkRepository {
     }
   }
 
+  /** Zwift checks the Play Store expansion file's size before unpacking its assets. */
+  async patchZwiftObb(input: string, output: string, pem: string) {
+    const name = 'dataES/cacert.pem';
+    const source = await open(input, 'r');
+
+    try {
+      const entries = await centralDirectory(source);
+      const bundles = entries.filter((entry) => entry.name === name);
+      const [bundle] = bundles;
+      const limit = 1024 * 1024;
+
+      if (!bundle || bundles.length !== 1 || bundle.size > limit || bundle.compressedSize > limit) {
+        throw new Error('The expansion file needs one Zwift certificate bundle.');
+      }
+
+      const original = await readEntry(source, bundle, limit);
+      const certificates = original
+        .toString('ascii')
+        .match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g);
+
+      if (!certificates?.length) {
+        throw new Error('The expansion file has an invalid Zwift certificate bundle.');
+      }
+
+      // Keep the existing trust roots, omitting the descriptive text between PEM blocks to save space.
+      const updated = Buffer.from([...new Set([...certificates, pem.trim()])].join('\n') + '\n', 'ascii');
+      const { size } = await source.stat();
+      await this.rewriteArchive(input, output, { replace: new Map([[name, updated]]) }, null, size);
+    } finally {
+      await source.close();
+    }
+  }
+
   /**
   Write a copy of the APK with entries dropped or replaced, then sign it with APK Signature Scheme v2.
 
@@ -406,7 +443,17 @@ export class ApkRepository {
   or above, where v2 alone is enough.
   */
   async rewrite(input: string, output: string, signer: ApkSigner, options: RewriteOptions = {}) {
-    const source = await open(input, 'r');
+    await this.rewriteArchive(input, output, options, signer);
+  }
+
+  private async rewriteArchive(
+    input: string,
+    output: string,
+    options: RewriteOptions,
+    signer: ApkSigner | null,
+    archiveSize?: number,
+  ) {
+    await using source = await open(input, 'r');
     const target = await open(output, 'wx+', 0o600);
 
     try {
@@ -416,13 +463,20 @@ export class ApkRepository {
       let position = 0;
 
       const write = async (data: Uint8Array) => {
+        if (archiveSize !== undefined && position + data.length > archiveSize) {
+          throw new Error('The patched expansion file does not fit the original download size.');
+        }
         await target.write(data, 0, data.length, position);
         position += data.length;
       };
 
       const add = async (entry: Omit<ZipEntry, 'localOffset'>, data: AsyncIterable<Uint8Array> | Uint8Array) => {
         const alignment =
-          entry.method === 0 ? (entry.name.startsWith('lib/') && entry.name.endsWith('.so') ? pageAlignment : 4) : 0;
+          signer && entry.method === 0
+            ? entry.name.startsWith('lib/') && entry.name.endsWith('.so')
+              ? pageAlignment
+              : 4
+            : 0;
 
         const headerEnd = position + 30 + entry.nameBytes.length;
         let extra = Buffer.alloc(0);
@@ -487,12 +541,12 @@ export class ApkRepository {
       };
 
       for (const entry of entries) {
-        if (replace.has(entry.name) || options.drop?.(entry.name) || isJarSignature(entry.name)) {
+        if (replace.has(entry.name) || options.drop?.(entry.name) || (signer && isJarSignature(entry.name))) {
           continue;
         }
 
         const mustStore =
-          entry.name === 'resources.arsc' || (entry.name.startsWith('lib/') && entry.name.endsWith('.so'));
+          signer && (entry.name === 'resources.arsc' || (entry.name.startsWith('lib/') && entry.name.endsWith('.so')));
 
         if (entry.method !== 0 && mustStore) {
           const data = await readEntry(source, entry);
@@ -501,6 +555,10 @@ export class ApkRepository {
         }
 
         const start = await dataOffset(source, entry);
+
+        if (archiveSize !== undefined && start + entry.compressedSize > archiveSize) {
+          throw new Error('The expansion file contains a truncated entry.');
+        }
 
         await add(
           entry,
@@ -535,7 +593,6 @@ export class ApkRepository {
       }
 
       const directory = Buffer.concat(central);
-      const entriesEnd = position;
 
       const eocd = (offset: number) =>
         Buffer.concat([
@@ -549,17 +606,28 @@ export class ApkRepository {
           u16(0),
         ]);
 
-      // The digest covers the EOCD as if the directory started where the signing block will.
-      const digest = await this.digest(target, entriesEnd, [directory, eocd(entriesEnd)]);
-      const block = this.signingBlock(digest, signer);
+      if (archiveSize !== undefined) {
+        // Place any padding before the directory so ZIP readers still find the end record at EOF.
+        const directoryStart = archiveSize - directory.length - eocd(0).length;
 
-      await write(block);
+        if (directoryStart < position) {
+          throw new Error('The patched expansion file does not fit the original download size.');
+        }
+        position = directoryStart;
+      }
+
+      if (signer) {
+        // The digest covers the EOCD as if the directory started where the signing block will.
+        const digest = await this.digest(target, position, [directory, eocd(position)]);
+        await write(this.signingBlock(digest, signer));
+      }
+
+      const directoryStart = position;
       await write(directory);
-      await write(eocd(entriesEnd + block.length));
+      await write(eocd(directoryStart));
       await target.sync();
     } finally {
       await target.close();
-      await source.close();
     }
   }
 

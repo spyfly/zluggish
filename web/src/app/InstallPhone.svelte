@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import Fingerprint from '../components/Fingerprint.svelte';
   import type { Api } from '../lib/api';
   import { tlsStatus } from './tls';
@@ -9,11 +9,13 @@
     api,
     path,
     navigate,
+    csrf,
   }: {
     api: Api;
     /** `/install/android`, `/install/android-rooted` or `/install/ios`. */
     path: string;
     navigate: (path: string) => Promise<void>;
+    csrf: () => string;
   } = $props();
 
   const platform = $derived(
@@ -35,14 +37,102 @@
       : `zluggish-zwift-${(status?.certificate?.thumbprint ?? '').slice(0, 8).toLowerCase()}.crt`,
   );
 
+  const obbFolder = '/sdcard/Android/obb/com.zwift.zwiftgame';
+  let upload = $state<{ name: string; progress: number | null } | null>(null);
+  let uploadError = $state('');
+  let download = $state<{ name: string; url: string } | null>(null);
+  let request: XMLHttpRequest | null = null;
+
+  function clearDownload() {
+    if (download) {
+      URL.revokeObjectURL(download.url);
+      download = null;
+    }
+  }
+
+  function patch(file: File) {
+    uploadError = '';
+
+    if (!/^main\.\d+\.com\.zwift\.zwiftgame\.obb$/.test(file.name)) {
+      uploadError = 'Choose the main Zwift .obb file copied from your Android device.';
+      return;
+    }
+
+    if (file.size > 2 * 1024 ** 3) {
+      uploadError = 'The expansion file is larger than 2 GiB.';
+      return;
+    }
+
+    clearDownload();
+    const xhr = new XMLHttpRequest();
+    request = xhr;
+    upload = { name: file.name, progress: 0 };
+    xhr.open('PUT', '/api/install/android/obb');
+    xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+    xhr.setRequestHeader('X-CSRF-Token', csrf());
+    xhr.responseType = 'blob';
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        upload = { name: file.name, progress: event.loaded / event.total };
+      }
+    };
+    xhr.upload.onload = () => {
+      upload = { name: file.name, progress: null };
+    };
+    xhr.onload = async () => {
+      const response: unknown = xhr.response;
+
+      if (xhr.status === 200 && response instanceof Blob) {
+        download = { name: file.name, url: URL.createObjectURL(response) };
+      } else {
+        const fallback =
+          xhr.status === 413 ? 'The expansion file is larger than 2 GiB.' : `Patching failed (${xhr.status}).`;
+        try {
+          const result: unknown = response instanceof Blob ? JSON.parse(await response.text()) : null;
+          uploadError =
+            result && typeof result === 'object' && 'message' in result && typeof result.message === 'string'
+              ? result.message
+              : fallback;
+        } catch {
+          uploadError = fallback;
+        }
+      }
+      upload = null;
+      request = null;
+    };
+    xhr.onerror = () => {
+      uploadError = 'The transfer stopped. Check the connection to the server and try again.';
+      upload = null;
+      request = null;
+    };
+    xhr.onabort = () => {
+      upload = null;
+      request = null;
+    };
+    xhr.send(file);
+  }
+
+  onDestroy(() => {
+    request?.abort();
+    clearDownload();
+  });
+
   const data = '/data/data/com.zwift.zwiftgame/dataES';
 
   const blocks = $derived({
-    hosts: [`${address} us-or-rly101.zwift.com`, `${address} secure.zwift.com`, `${address} cdn.zwift.com`].join('\n'),
+    hosts: [
+      `${address} us-or-rly101.zwift.com`,
+      `${address} secure.zwift.com`,
+      `${address} cdn.zwift.com`,
+      `${address} launcher.zwift.com`,
+    ].join('\n'),
     certificate: [
       `adb push ${file} ${data}/zluggish.crt`,
       `adb shell "cat ${data}/zluggish.crt >> ${data}/cacert.pem"`,
     ].join('\n'),
+    listObb: `adb shell ls ${obbFolder}`,
+    pullObb: `adb pull ${obbFolder}/main.VERSION.com.zwift.zwiftgame.obb`,
+    pushObb: `adb push "${download?.name ?? 'main.VERSION.com.zwift.zwiftgame.obb'}" ${obbFolder}/`,
     etcHosts: `${address} us-or-rly101.zwift.com secure.zwift.com cdn.zwift.com`,
   });
 
@@ -119,61 +209,81 @@
     <h2 id="install-plain">Nothing to install</h2>
     <p>This server talks to Zwift without a certificate. Ask the server administrator how to connect.</p>
   </section>
-{:else if platform === 'android' && !legacy}
-  <section class="panel" aria-labelledby="install-android-blocked">
-    {@render switcher()}
-    <h2 id="install-android-blocked">Zwift on Android needs root for this server</h2>
-    <p class="lead">
-      Without root, the only way to change Zwift on Android is ZofflineObb. It patches Zwift to trust the shared Zwift
-      certificate, and this server uses its own certificate instead, which keeps your traffic private.
-    </p>
-    <p>
-      On a rooted device, <a href="/install/android-rooted" onclick={(event) => go(event, '/install/android-rooted')}
-        >set up Android, rooted</a
-      >. Otherwise ride from a Windows, macOS or Linux computer.
-    </p>
-  </section>
 {:else if platform === 'android'}
   <section class="panel" aria-label="Android setup steps">
     {@render switcher()}
-    <p class="risk">
-      This only works because the server still uses the shared Zwift certificate, whose private key is public. Others on
-      your network could read your Zwift traffic, your password included.
-    </p>
+    {#if legacy}
+      <p class="risk">
+        This server uses the shared Zwift certificate, whose private key is public. Others on your network could read
+        your Zwift traffic, your password included.
+      </p>
+    {/if}
     <ol class="walk">
       <li>
-        <h2>Install the apps</h2>
+        <h2>Copy the Zwift expansion file</h2>
         <p>
-          Install <strong>ZofflineObb.apk</strong> from
-          <a
-            href="https://github.com/fatsbrown/ZofflineObbAndroid/releases/latest"
-            target="_blank"
-            rel="noopener noreferrer">ZofflineObbAndroid</a
-          >
-          and <strong>app-Github-release.apk</strong> from
-          <a href="https://github.com/x-falcon/Virtual-Hosts/releases/latest" target="_blank" rel="noopener noreferrer"
-            >Virtual Hosts</a
-          >.
+          Install or update Zwift from Google Play and leave it closed. Enable USB debugging, connect your Android
+          device to a computer with ADB, and look up the expansion filename.
+        </p>
+        {@render code('listObb')}
+        <p>
+          Replace <code class="inline">VERSION</code> with the number in the filename, then copy the file to your computer.
+        </p>
+        {@render code('pullObb')}
+      </li>
+      <li>
+        <h2>Patch the expansion file</h2>
+        <p>Upload the <strong>.obb</strong> file to add this server’s certificate to Zwift.</p>
+        <label for="zwift-obb">Zwift expansion file</label>
+        <input
+          id="zwift-obb"
+          type="file"
+          accept=".obb"
+          disabled={upload !== null}
+          onchange={(event) => {
+            const file = event.currentTarget.files?.[0];
+            if (file) patch(file);
+            event.currentTarget.value = '';
+          }}
+        />
+        {#if upload}
+          <p role="status">
+            {upload.progress === null
+              ? 'Patching and receiving the expansion file…'
+              : `Uploading ${upload.name} (${Math.round(upload.progress * 100)}%)…`}
+          </p>
+          <button type="button" onclick={() => request?.abort()}>Cancel</button>
+        {/if}
+        {#if uploadError}<p class="notice failed" role="alert">{uploadError}</p>{/if}
+        {#if download}
+          <a class="download" href={download.url} download={download.name}>Download patched expansion file</a>
+        {/if}
+      </li>
+      <li>
+        <h2>Copy the patched file back</h2>
+        <p>
+          Save the patched download in a separate folder so it keeps the original filename. Run this command from that
+          folder to replace the file on your device.
+        </p>
+        {@render code('pushObb')}
+        <p class="hint">
+          If you previously started Zwift, clear its app storage before copying the patched file back. Repeat this setup
+          after a Google Play update.
         </p>
       </li>
       <li>
         <h2>Send Zwift to this server</h2>
-        <p>Save these lines as <strong>hosts.txt</strong> on the device, then select the file in Virtual Hosts:</p>
+        <p>
+          Install <a
+            href="https://github.com/x-falcon/Virtual-Hosts/releases/latest"
+            target="_blank"
+            rel="noopener noreferrer">Virtual Hosts</a
+          >. Save these lines as <strong>hosts.txt</strong> on the device and select the file in Virtual Hosts.
+        </p>
         {@render code('hosts')}
         <p class="hint">
           Turn off <strong>Private DNS</strong> in the Android settings. If the server runs its own DNS, set it as the Wi-Fi
-          network's DNS instead.
-        </p>
-      </li>
-      <li>
-        <h2>Patch Zwift</h2>
-        <p>
-          Install or update Zwift from Google Play, but do not start it. Open ZofflineObb and run it. Allow access to
-          all files and installs from unknown sources, then wait until the patch is complete.
-        </p>
-        <p class="hint">
-          It takes 5 to 10 minutes. If Zwift was started before, clear its data first under Settings → Apps → Zwift.
-          Patch again after every Zwift update.
+          network’s DNS instead.
         </p>
       </li>
       <li>
@@ -181,6 +291,10 @@
         <p>Turn on Virtual Hosts, start Zwift and sign in with your account on this server.</p>
       </li>
     </ol>
+    <p class="hint">
+      Have a rooted device?
+      <a href="/install/android-rooted" onclick={(event) => go(event, '/install/android-rooted')}>Use rooted setup</a>.
+    </p>
   </section>
 {:else if status.certificate}
   <section class="panel" aria-label="Rooted Android setup steps">
@@ -326,6 +440,12 @@
   }
   .walk p {
     margin: 0 0 0.4rem;
+  }
+
+  input[type='file'] {
+    display: block;
+    max-width: 100%;
+    margin: 0.35rem 0;
   }
 
   a.download {

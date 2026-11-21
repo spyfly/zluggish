@@ -9,6 +9,7 @@ import { ActivitiesService } from '#src/services/activities.service';
 import { DurabilityService } from '#src/services/durability.service';
 import { FilesService } from '#src/services/files.service';
 import { effectRoutes } from '#src/http/effect';
+import { zwiftAndroidPatcher, zwiftObbLimit } from '#src/http/zwift-android';
 import { fileResponse } from '#src/http/file-response';
 import { RecordsService } from '#src/services/records.service';
 import { webConnectionRoutes } from '#src/http/web-connections';
@@ -76,8 +77,15 @@ export function createWebApp(runtime: HttpRuntime) {
   /** The Companion app upload: raw APK bytes, streamed to disk. */
   const companionUpload = (c: Context<WebEnv>) => c.req.method === 'PUT' && c.req.path === '/api/manage/companion/app';
 
+  const androidUpload = (c: Context<WebEnv>) => c.req.method === 'PUT' && c.req.path === '/api/install/android/obb';
+  const patchAndroid = zwiftAndroidPatcher();
+
   app.use('*', async (c: Context<WebEnv, string>, next: Next) => {
     const upload = c.req.method === 'POST' && c.req.path === '/api/me/import';
+
+    if (androidUpload(c)) {
+      return bodyLimit({ maxSize: zwiftObbLimit })(c, next);
+    }
 
     if (companionUpload(c)) {
       return bodyLimit({ maxSize: companionUploadLimit })(c, next);
@@ -128,7 +136,7 @@ export function createWebApp(runtime: HttpRuntime) {
       if (
         !(c.req.method === 'POST' && c.req.path === '/api/me/import'
           ? c.req.header('Content-Type')?.startsWith('multipart/form-data;')
-          : companionUpload(c)
+          : companionUpload(c) || androidUpload(c)
             ? c.req.header('Content-Type') === 'application/octet-stream'
             : c.req.method === 'PUT' &&
                 (c.req.path === '/api/me/avatar' || /^\/api\/manage\/users\/\d+\/avatar$/.test(c.req.path))
@@ -415,6 +423,24 @@ export function createWebApp(runtime: HttpRuntime) {
       return c.body(new Uint8Array(body), 200, {
         'Content-Type': der ? 'application/pkix-cert' : 'application/x-pem-file',
         'Content-Disposition': `attachment; filename="${setupFileName(certificate, der ? 'cer' : 'crt')}"`,
+      });
+    }),
+  );
+
+  appRoutes.put('/api/install/android/obb', (c) =>
+    Effect.gen(function* () {
+      const { pem } = yield* installable(c, 'android.obb');
+      const body = c.req.raw.body;
+
+      if (!body) {
+        throw new ApplicationError({ status: 400, message: 'Choose a Zwift expansion file to upload.' });
+      }
+
+      const patched = yield* Effect.promise(() => patchAndroid(body, pem, c.req.raw.signal));
+
+      return c.body(patched.body, 200, {
+        'Content-Type': 'application/octet-stream',
+        'Content-Length': String(patched.bytes),
       });
     }),
   );

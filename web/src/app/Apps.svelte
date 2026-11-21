@@ -31,9 +31,6 @@
 
   const mark = (device: string, tag: string) => (here === device ? tag : undefined);
 
-  /** Without root, Zwift on Android can only be patched to accept the shared certificate. */
-  const legacy = $derived(tls?.mode === 'legacy');
-
   const systems = $derived<Array<Row>>([
     {
       to: '/install/windows',
@@ -56,9 +53,9 @@
     {
       to: '/install/android',
       name: 'Android',
-      detail: legacy ? 'Zwift from Google Play, patched on the device' : "Not with this server's certificate",
+      detail: 'Zwift from Google Play, with a patched expansion file',
       tag: mark('android', 'This device'),
-      unavailable: !legacy,
+      unavailable: tls?.mode === 'disabled',
     },
     { to: '/install/android-rooted', name: 'Android, rooted', detail: 'Certificate and hosts file added by hand' },
     {

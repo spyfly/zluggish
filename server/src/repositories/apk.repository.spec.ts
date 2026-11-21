@@ -244,3 +244,34 @@ await test('gives an app without a network security config a new one', async () 
   assert.match(declared, /id="0x7f090000" type="raw" name="zluggish_server_cert"/);
   assert.match(declared, /id="0x7f0a0000" type="xml" name="zluggish_network_security_config"/);
 });
+
+await test('patches a Zwift expansion file at its original size while preserving assets and trust roots', async () => {
+  using space = workspace();
+  const input = resolve(space.folder, 'main.obb');
+  const output = resolve(space.folder, 'patched.obb');
+  const bundle = 'dataES/cacert.pem';
+  const asset = 'dataES/game.dat';
+  const original = zip([
+    [bundle, Buffer.from(signerMaterial.cert + '# certificate description\n'.repeat(128)), false],
+    [asset, library, true],
+  ]);
+  writeFileSync(input, original);
+
+  await repository.patchZwiftObb(input, output, server.cert);
+
+  const patched = readFileSync(output);
+  assert.equal(patched.length, original.length);
+  assert.deepEqual(contents(patched, asset), library);
+  assert.equal(contents(patched, bundle).toString(), signerMaterial.cert.trim() + '\n' + server.cert.trim() + '\n');
+});
+
+await test('rejects an archive without the Zwift game certificate bundle', async () => {
+  using space = workspace();
+  const input = resolve(space.folder, 'fake.obb');
+  writeFileSync(input, patched);
+
+  await assert.rejects(
+    repository.patchZwiftObb(input, resolve(space.folder, 'patched.obb'), server.cert),
+    /needs one Zwift certificate bundle/,
+  );
+});
