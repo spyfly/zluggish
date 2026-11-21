@@ -968,6 +968,7 @@ export function createWebApp(runtime: HttpRuntime) {
     '/activities',
     '/activities/*',
     '/climbs',
+    '/apps',
     '/install',
     '/install/*',
     '/companion',
