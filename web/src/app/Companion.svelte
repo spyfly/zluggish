@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import type { CompanionStatus } from './companion';
   import { companionStatus, megabytes } from './companion';
+  import { detect } from './device';
 
   let {
     api,
@@ -11,8 +12,8 @@
     administrator,
   }: {
     api: <Schema extends z.ZodType>(schema: Schema, url: string) => Promise<z.output<Schema>>;
-    /** `/companion` offers the choice, or opens this phone's own system; `/companion/choose` always offers it;
-    `/companion/android` and `/companion/ios` open that system. */
+    /** `/companion` opens this phone's own system; `/companion/android` and `/companion/ios` open that system. Any
+    other path is the Apps page's to show. */
     path: string;
     navigate: (path: string) => Promise<void>;
     administrator: boolean;
@@ -20,21 +21,16 @@
 
   type Platform = 'android' | 'ios';
 
-  /** iPadOS reports itself as a Mac with a touch screen. */
-  function detect(): Platform | null {
-    const agent = navigator.userAgent;
-
-    if (/iPhone|iPad|iPod/.test(agent) || (/Macintosh/.test(agent) && navigator.maxTouchPoints > 1)) {
-      return 'ios';
-    }
-
-    return /Android/.test(agent) ? 'android' : null;
-  }
-
   const here = detect();
 
   const platform = $derived<Platform | null>(
-    path === '/companion/android' ? 'android' : path === '/companion/ios' ? 'ios' : path === '/companion' ? here : null,
+    path === '/companion/android'
+      ? 'android'
+      : path === '/companion/ios'
+        ? 'ios'
+        : path === '/companion' && (here === 'android' || here === 'ios')
+          ? here
+          : null,
   );
 
   let status = $state<CompanionStatus | null>(null);
@@ -72,19 +68,10 @@
   });
 </script>
 
-{#snippet card(id: Platform, name: string, detail: string, unavailable = false)}
-  <button type="button" class="system" class:unavailable onclick={() => navigate(`/companion/${id}`)}>
-    <span class="name">{name}</span>
-    <span class="detail">{detail}</span>
-    {#if id === here}<span class="here">This phone</span>{/if}
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg>
-  </button>
-{/snippet}
-
 {#snippet switcher(name: string)}
   <p class="switch">
     {name}.
-    <a href="/companion/choose" onclick={(event) => go(event, '/companion/choose')}>Choose another phone</a>
+    <a href="/apps" onclick={(event) => go(event, '/apps')}>Choose another phone</a>
   </p>
 {/snippet}
 
@@ -192,22 +179,6 @@
       </li>
     </ol>
   </section>
-{:else}
-  <section class="panel" aria-labelledby="companion-title">
-    <h2 id="companion-title">Zwift Companion on your phone</h2>
-    <p class="lead">
-      Companion only talks to a server it trusts. This server gives you a copy of the app that trusts it. Which phone is
-      it for?
-    </p>
-    <div class="systems">
-      {@render card(
-        'android',
-        'Android',
-        status.app ? `Companion ${status.app.versionName} for this server` : 'Not added to this server yet',
-      )}
-      {@render card('ios', 'iPhone and iPad', 'Not supported', true)}
-    </div>
-  </section>
 {/if}
 
 <style>
@@ -246,73 +217,6 @@
   }
   .empty {
     color: var(--muted);
-  }
-
-  .systems {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
-    gap: 0.75rem;
-    margin: 1.25rem 0 0;
-  }
-  button.system {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    align-content: start;
-    gap: 0.2rem 1rem;
-    margin: 0;
-    padding: 1.1rem 1.25rem;
-    border: 2px solid var(--line);
-    border-radius: 12px;
-    background: var(--well);
-    text-align: left;
-    text-transform: none;
-    letter-spacing: 0;
-  }
-  button.system:hover {
-    border-color: var(--orange);
-    background: var(--glass-raised);
-  }
-  .system .name {
-    font-size: 1.375rem;
-    font-weight: 800;
-  }
-  .system .detail {
-    grid-column: 1 / -1;
-    color: var(--muted);
-    font-weight: 600;
-  }
-  .system .here {
-    grid-column: 1;
-    justify-self: start;
-    margin-top: 0.5rem;
-    padding: 0.1rem 0.55rem;
-    border: 1px solid var(--orange);
-    border-radius: 999px;
-    font-size: 0.75rem;
-  }
-  .system svg {
-    grid-column: 2;
-    grid-row: 1;
-    align-self: center;
-    width: 1.5rem;
-    height: 1.5rem;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2.5;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
-  /* Not supported, but still a door: it opens the reason. Dashed and quiet, never orange on hover. */
-  button.system.unavailable {
-    border-style: dashed;
-    background: none;
-  }
-  button.system.unavailable .name {
-    color: var(--muted);
-  }
-  button.system.unavailable:hover {
-    border-color: var(--muted);
-    background: var(--well);
   }
 
   .switch {
