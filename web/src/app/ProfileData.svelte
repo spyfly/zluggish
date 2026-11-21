@@ -98,11 +98,7 @@
   }
 
   onMount(() => {
-    if (path === '/import') {
-      return;
-    }
-
-    if (path === '/export') {
+    if (path === '/profile-data') {
       void run(async () => {
         filenames = (await request(z.object({ filenames: z.array(z.string()) }), '/api/me/export')).filenames;
       });
@@ -122,7 +118,43 @@
   });
 </script>
 
-{#if path === '/export'}
+{#if path === '/profile-data'}
+  <p>Choose how to import your profile data.</p>
+  <nav class="import-options" aria-label="Import source">
+    <a
+      href="/profile-data/local"
+      onclick={(e) => {
+        e.preventDefault();
+        void navigate('/profile-data/local');
+      }}
+    >
+      <span class="option-title">Import from local files</span>
+      <span class="option-description">Upload user data from files on your computer.</span>
+    </a>
+    <a
+      href="/zwift"
+      onclick={(e) => {
+        e.preventDefault();
+        void navigate('/zwift');
+      }}
+    >
+      <span class="option-title">Import from Zwift</span>
+      <span class="option-description">Connect to Zwift and download your user data.</span>
+    </a>
+  </nav>
+{:else if path === '/profile-data/local' || path === '/zwift'}
+  <nav aria-label="Profile data">
+    <a
+      href="/profile-data"
+      onclick={(e) => {
+        e.preventDefault();
+        void navigate('/profile-data');
+      }}>← Import / Export</a
+    >
+  </nav>
+{/if}
+{#if message}<p class="notice" class:failed role={failed ? 'alert' : 'status'}>{message}</p>{/if}
+{#if path === '/profile-data'}
   <section class="panel">
     <h2>Export your user data</h2>
     <p>Download individual files to back up your data or transfer it to another Zluggish server using Import.</p>
@@ -137,46 +169,11 @@
         <a href={`/api/me/export/${encodeURIComponent(filename)}`} download={filename}>Download {filename}</a>
       </div>
     {:else}
-      <p>No files available to export.</p>
+      {#if !busy && !failed}<p>No files available to export.</p>{/if}
     {/each}
   </section>
-{:else if path === '/import'}
-  <p>Choose how to import your profile data.</p>
-  <nav class="import-options" aria-label="Import source">
-    <a
-      href="/import/local"
-      onclick={(e) => {
-        e.preventDefault();
-        void navigate('/import/local');
-      }}
-    >
-      <span class="option-title">Local files</span>
-      <span class="option-description">Upload user data from files on your computer.</span>
-    </a>
-    <a
-      href="/zwift"
-      onclick={(e) => {
-        e.preventDefault();
-        void navigate('/zwift');
-      }}
-    >
-      <span class="option-title">Zwift connection</span>
-      <span class="option-description">Connect to Zwift and download your user data.</span>
-    </a>
-  </nav>
-{:else if path === '/import/local' || path === '/zwift'}
-  <nav aria-label="Profile data">
-    <a
-      href="/import"
-      onclick={(e) => {
-        e.preventDefault();
-        void navigate('/import');
-      }}>← Import options</a
-    >
-  </nav>
 {/if}
-{#if message}<p class="notice" class:failed role={failed ? 'alert' : 'status'}>{message}</p>{/if}
-{#if path !== '/import' && path !== '/export' && review}
+{#if path !== '/profile-data' && review}
   <form
     class="panel"
     onsubmit={(e) => {
@@ -209,7 +206,7 @@
         })}>Cancel</button
     >
   </form>
-{:else if path === '/import/local'}
+{:else if path === '/profile-data/local'}
   <form
     class="panel"
     enctype="multipart/form-data"

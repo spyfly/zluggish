@@ -207,41 +207,39 @@
                 ? 'Users'
                 : path === '/activities' || path.startsWith('/activities/')
                   ? 'Activities'
-                  : path === '/import/local'
+                  : path === '/profile-data/local'
                     ? 'Import local files'
-                    : path === '/import'
-                      ? 'Import'
-                      : path === '/export'
-                        ? 'Export'
-                        : path === '/zwift'
-                          ? 'Zwift connection'
-                          : path === '/integrations'
-                            ? 'Integrations'
-                            : path === '/settings'
-                              ? 'Settings'
-                              : path === '/climbs'
-                                ? 'Climbs'
-                                : apps
-                                  ? 'Apps'
-                                  : path === '/install/windows'
-                                    ? 'Windows setup'
-                                    : path === '/install/macos'
-                                      ? 'macOS setup'
-                                      : path === '/install/linux'
-                                        ? 'Linux setup'
-                                        : path === '/install/android'
-                                          ? 'Android setup'
-                                          : path === '/install/android-rooted'
-                                            ? 'Rooted Android setup'
-                                            : path === '/install/ios'
-                                              ? 'iPhone and iPad'
-                                              : installing
-                                                ? 'Install'
-                                                : path === '/companion/android'
-                                                  ? 'Android setup'
-                                                  : companion
-                                                    ? 'Companion'
-                                                    : 'Profile',
+                    : path === '/profile-data'
+                      ? 'Import / Export'
+                      : path === '/zwift'
+                        ? 'Zwift connection'
+                        : path === '/integrations'
+                          ? 'Integrations'
+                          : path === '/settings'
+                            ? 'Settings'
+                            : path === '/climbs'
+                              ? 'Climbs'
+                              : apps
+                                ? 'Apps'
+                                : path === '/install/windows'
+                                  ? 'Windows setup'
+                                  : path === '/install/macos'
+                                    ? 'macOS setup'
+                                    : path === '/install/linux'
+                                      ? 'Linux setup'
+                                      : path === '/install/android'
+                                        ? 'Android setup'
+                                        : path === '/install/android-rooted'
+                                          ? 'Rooted Android setup'
+                                          : path === '/install/ios'
+                                            ? 'iPhone and iPad'
+                                            : installing
+                                              ? 'Install'
+                                              : path === '/companion/android'
+                                                ? 'Android setup'
+                                                : companion
+                                                  ? 'Companion'
+                                                  : 'Profile',
   );
 
   const initials = (r: User) => `${r.first_name.charAt(0)}${r.last_name.charAt(0)}`.toUpperCase();
@@ -913,8 +911,6 @@
       {@render link('/', 'Profile', !manage && title === 'Profile')}
       {@render link('/activities', 'Activities', title === 'Activities')}
       {@render link('/climbs', 'Climbs', title === 'Climbs')}
-      {@render link('/import', 'Import', path === '/import' || path === '/import/local' || path === '/zwift')}
-      {@render link('/export', 'Export', path === '/export')}
       {@render link('/integrations', 'Integrations', path === '/integrations')}
       {@render link('/settings', 'Settings', path === '/settings')}
       {@render link('/apps', 'Apps', apps || installing || companion)}
@@ -1598,7 +1594,7 @@
         {/if}
       </div>
     {:else}
-      {#if path === '/import' || path === '/import/local' || path === '/zwift' || path === '/export'}
+      {#if path === '/profile-data' || path === '/profile-data/local' || path === '/zwift'}
         {#key path}<ProfileData
             {path}
             request={api}
@@ -1768,6 +1764,11 @@
               >{/if}
           </div>
         </form>
+        {#if !profileId}
+          <div class="actions">
+            <button type="button" onclick={() => navigate('/profile-data')}>Import / Export</button>
+          </div>
+        {/if}
       {/if}
     {/if}
   </Layout>
