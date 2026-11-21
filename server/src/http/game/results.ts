@@ -5,7 +5,7 @@ import type { Context } from 'hono';
 // Explicit browser routes only. Protocol APIs and the native handoff are excluded.
 const routes = [/^\/login\/$/, /^\/riders\/(?:add|switch)\/$/, /^\/user\/[^/]+\/$/, /^\/ui\/status\/session$/];
 
-export function browserJson(c: Context<RuntimeEnv>) {
+export function browserJson(c: Context) {
   return c.req.header('Accept')?.includes('application/json') && routes.some((route) => route.test(c.req.path));
 }
 
