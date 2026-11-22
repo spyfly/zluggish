@@ -444,7 +444,7 @@ export function createWebApp(runtime: HttpRuntime) {
       const { pem } = yield* installable(c);
       const android = yield* ZwiftAndroidService;
 
-      return c.json(yield* Effect.promise(() => android.list(pem)));
+      return c.json({ files: yield* Effect.promise(() => android.list(pem)) });
     }),
   );
 
@@ -534,7 +534,7 @@ export function createWebApp(runtime: HttpRuntime) {
       const android = yield* ZwiftAndroidService;
       yield* Effect.promise(() => android.cancel(c.get('sessionId'), c.req.param('id')));
 
-      return c.body(null, 204);
+      return c.json({ cancelled: true });
     }),
   );
 

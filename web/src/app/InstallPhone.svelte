@@ -44,7 +44,9 @@
   const obbFolder = '/sdcard/Android/obb/com.zwift.zwiftgame';
   let upload = $state<{ name: string; progress: number | null } | null>(null);
   let uploadError = $state('');
-  const publishedFiles = z.array(z.string().regex(/^main\.\d{1,12}\.com\.zwift\.zwiftgame\.obb$/));
+  const publishedFiles = z.object({
+    files: z.array(z.string().regex(/^main\.\d{1,12}\.com\.zwift\.zwiftgame\.obb$/)),
+  });
   let downloads = $state<Array<string> | null>(null);
   let downloadError = $state('');
   let selected = $state('');
@@ -62,7 +64,11 @@
     downloadError = '';
 
     try {
-      downloads = await api(publishedFiles, '/api/install/android/obb');
+      const { files } = await api(publishedFiles, '/api/install/android/obb');
+      downloads = files;
+      if (!files.includes(selected)) {
+        selected = files.length === 1 ? (files[0] ?? '') : '';
+      }
     } catch (error) {
       downloadError = error instanceof Error ? error.message : 'The available Zwift versions could not be loaded.';
     }

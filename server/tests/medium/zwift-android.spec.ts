@@ -96,7 +96,7 @@ await test('an administrator publishes expansion files for riders on matching Zw
   assert.equal(state, 'done');
 
   const available = await web.request(endpoint);
-  assert.deepEqual(await available.json(), [filename, secondFilename]);
+  assert.deepEqual(await available.json(), { files: [filename, secondFilename] });
 
   const response = await web.request(`${endpoint}/${filename}`);
   assert.equal(response.status, 200);
@@ -116,14 +116,15 @@ await test('an administrator publishes expansion files for riders on matching Zw
   const pendingStatus = await pending.json();
   const pendingUrl = `${sessions}/${pendingStatus.id}`;
   const cancelled = await admin.request(pendingUrl, 'DELETE', {});
-  assert.equal(cancelled.status, 204);
+  assert.equal(cancelled.status, 200);
+  assert.deepEqual(await cancelled.json(), { cancelled: true });
   const expired = await admin.request(pendingUrl);
   assert.equal(expired.status, 404);
 
   const tls = fixture.effects.runSync(TlsService);
   await fixture.effects.runPromise(tls.rotate(crypto.randomUUID()));
   const afterRotation = await web.request(endpoint);
-  assert.deepEqual(await afterRotation.json(), []);
+  assert.deepEqual(await afterRotation.json(), { files: [] });
   const stale = await web.request(`${endpoint}/${filename}`);
   assert.equal(stale.status, 404);
 });
