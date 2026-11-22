@@ -401,6 +401,56 @@ export class ApkRepository {
     }
   }
 
+  /** Extract one Zwift expansion from an APKM without extracting its APKs or trusting archive paths. */
+  async extractZwiftObb(path: string, output: string, limit: number, signal: AbortSignal) {
+    await using handle = await open(path, 'r');
+    const entries = await centralDirectory(handle);
+    const expansions = entries.filter((entry) =>
+      /(?:^|\/)main\.\d{1,12}\.com\.zwift\.zwiftgame\.obb$/.test(entry.name),
+    );
+    const [expansion] = expansions;
+
+    if (expansions.length !== 1 || !expansion) {
+      throw new Error('Choose an APKM bundle with one main Zwift OBB. On APKMirror, select BUNDLE 1 OBB.');
+    }
+
+    const start = await dataOffset(handle, expansion);
+    const { size } = await handle.stat();
+
+    if (
+      expansion.size === 0 ||
+      expansion.size > limit ||
+      expansion.compressedSize === 0 ||
+      start + expansion.compressedSize > size ||
+      (expansion.method !== 0 && expansion.method !== 8) ||
+      (expansion.flags & 1) !== 0
+    ) {
+      throw new Error('The APKM contains an invalid or unsupported Zwift expansion file.');
+    }
+
+    let extracted = 0;
+    const count = new Transform({
+      transform(chunk: Buffer, _encoding, next) {
+        extracted += chunk.length;
+        next(extracted > expansion.size ? new Error('The APKM expansion exceeds its declared size.') : null, chunk);
+      },
+    });
+    const source = createReadStream(path, { start, end: start + expansion.compressedSize - 1 });
+    const target = createWriteStream(output, { flags: 'wx', mode: 0o600 });
+
+    if (expansion.method === 8) {
+      await pipeline(source, createInflateRaw(), count, target, { signal });
+    } else {
+      await pipeline(source, count, target, { signal });
+    }
+
+    if (extracted !== expansion.size) {
+      throw new Error('The APKM expansion file is incomplete.');
+    }
+
+    return expansion.name.slice(expansion.name.lastIndexOf('/') + 1);
+  }
+
   /** Zwift checks the Play Store expansion file's size before unpacking its assets. */
   async patchZwiftObb(input: string, output: string, pem: string) {
     const name = 'dataES/cacert.pem';

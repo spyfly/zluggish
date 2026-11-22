@@ -11,7 +11,7 @@ Zwift from Google Play stores its certificate bundle in an expansion file. Patch
 
 ## Publish the expansion file
 
-An administrator opens **Apps → Zwift → Android** and expands **Publish a Zwift expansion file**. Follow the ADB instructions to copy `main.*.com.zwift.zwiftgame.obb` from a clean Google Play install and upload it. The server patches and publishes the file for riders with that version. Publish a fresh copy when the server certificate changes.
+An administrator opens **Apps → Zwift → Android** and expands **Publish a Zwift expansion file**. Upload the matching APKMirror `.apkm` labeled **BUNDLE 1 OBB**, or follow the ADB instructions to copy and upload `main.*.com.zwift.zwiftgame.obb` from a clean Google Play install. The server patches and publishes the file for riders with that version. Publish a fresh copy when the server certificate changes.
 
 ## Set up the device
 

@@ -43,7 +43,14 @@ await test('an administrator publishes expansion files for riders on matching Zw
   assert.equal(certificate.status, 200);
   const published = await admin.request(upload, 'PUT', original);
   assert.equal(published.status, 204);
-  const second = await admin.request(`${endpoint}?name=${secondFilename}`, 'PUT', original);
+  const apkmUpload = `${endpoint}?name=zwift.apkm`;
+  const noObb = await admin.request(apkmUpload, 'PUT', zip([['base.apk', Buffer.from('apk'), false]]));
+  assert.equal(noObb.status, 400);
+  const apkm = zip([
+    ['base.apk', Buffer.from('apk'), false],
+    [`Android/obb/com.zwift.zwiftgame/${secondFilename}`, original, true],
+  ]);
+  const second = await admin.request(apkmUpload, 'PUT', apkm);
   assert.equal(second.status, 204);
 
   const available = await web.request(endpoint);
@@ -55,6 +62,12 @@ await test('an administrator publishes expansion files for riders on matching Zw
   assert.equal(response.headers.get('Content-Disposition'), `attachment; filename="${filename}"`);
   const patched = Buffer.from(await response.arrayBuffer());
   assert.equal(contents(patched, bundle).toString(), originalPem + (await certificate.text()));
+
+  const fromBundle = await web.request(`${endpoint}/${secondFilename}`);
+  assert.equal(fromBundle.status, 200);
+  const bundledObb = Buffer.from(await fromBundle.arrayBuffer());
+  assert.equal(bundledObb.length, original.length);
+  assert.deepEqual(contents(bundledObb, bundle), contents(patched, bundle));
 
   const tls = fixture.effects.runSync(TlsService);
   await fixture.effects.runPromise(tls.rotate(crypto.randomUUID()));

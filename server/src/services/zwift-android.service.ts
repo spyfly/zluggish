@@ -41,7 +41,14 @@ const make = Effect.gen(function* () {
       return (await apk.size(path)) === null ? null : path;
     },
     async publish(body: ReadableStream<Uint8Array>, pem: string, name: string, signal: AbortSignal) {
-      const target = pathFor(pem, name);
+      const apkm = /\.apkm$/i.test(name);
+
+      if (!apkm && !obbName.test(name)) {
+        throw new ApplicationError({
+          status: 400,
+          message: 'Choose a Zwift .obb file or an .apkm bundle with an OBB.',
+        });
+      }
 
       if (busy) {
         throw new ApplicationError({
@@ -57,11 +64,13 @@ const make = Effect.gen(function* () {
         workspace = await apk.workspace();
         const input = resolve(workspace, 'original.obb');
         const output = resolve(workspace, 'patched.obb');
-        await apk.receive(body, input, zwiftObbLimit);
+        const upload = resolve(workspace, 'upload');
+        await apk.receive(body, upload, zwiftObbLimit);
+        const filename = apkm ? await apk.extractZwiftObb(upload, input, zwiftObbLimit, signal) : name;
         signal.throwIfAborted();
-        await apk.patchZwiftObb(input, output, pem);
+        await apk.patchZwiftObb(apkm ? input : upload, output, pem);
         signal.throwIfAborted();
-        await apk.publish(output, target);
+        await apk.publish(output, pathFor(pem, filename));
       } catch (error) {
         throw new ApplicationError({
           status: 400,

@@ -62,13 +62,13 @@
   function patch(file: File) {
     uploadError = '';
 
-    if (!/^main\.\d{1,12}\.com\.zwift\.zwiftgame\.obb$/.test(file.name)) {
-      uploadError = 'Choose the main Zwift .obb file copied from your Android device.';
+    if (!/\.apkm$/i.test(file.name) && !/^main\.\d{1,12}\.com\.zwift\.zwiftgame\.obb$/.test(file.name)) {
+      uploadError = 'Choose a Zwift .obb file or an .apkm bundle with an OBB.';
       return;
     }
 
     if (file.size > 2 * 1024 ** 3) {
-      uploadError = 'The expansion file is larger than 2 GiB.';
+      uploadError = 'The upload is larger than 2 GiB.';
       return;
     }
 
@@ -92,8 +92,7 @@
         await refreshDownloads();
       } else {
         const response: unknown = xhr.response;
-        const fallback =
-          xhr.status === 413 ? 'The expansion file is larger than 2 GiB.' : `Patching failed (${xhr.status}).`;
+        const fallback = xhr.status === 413 ? 'The upload is larger than 2 GiB.' : `Patching failed (${xhr.status}).`;
         uploadError =
           response && typeof response === 'object' && 'message' in response && typeof response.message === 'string'
             ? response.message
@@ -228,15 +227,18 @@
     {#if administrator}
       <details class="admin-upload">
         <summary>Publish a Zwift expansion file</summary>
-        <p>Copy the original expansion file from a clean Google Play install using ADB.</p>
+        <p>
+          Upload an APKMirror bundle labeled <strong>BUNDLE 1 OBB</strong>, or copy the original .obb from a clean
+          Google Play install with ADB.
+        </p>
         {@render code('listObb')}
         <p>Replace <code class="inline">VERSION</code> with the number in the filename.</p>
         {@render code('pullObb')}
-        <label for="zwift-obb">Zwift expansion file</label>
+        <label for="zwift-obb">Zwift .obb or .apkm file</label>
         <input
           id="zwift-obb"
           type="file"
-          accept=".obb"
+          accept=".obb,.apkm"
           disabled={upload !== null}
           onchange={(event) => {
             const file = event.currentTarget.files?.[0];
