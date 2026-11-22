@@ -38,6 +38,7 @@ function fail(error: unknown) {
 
 const make = Effect.gen(function* () {
   const { config, world } = yield* RuntimeContext;
+  const log = world.lifecycle.log;
   const apk = new ApkRepository();
   const files = new AssetFiles();
   const crypto = new CryptoRepository();
@@ -70,7 +71,7 @@ const make = Effect.gen(function* () {
   }
 
   function reportCleanupFailure(error: unknown) {
-    world.lifecycle.log.warn('android.upload_cleanup_failed', 'Could not remove staged Android upload', {
+    log.warn('android.upload_cleanup_failed', 'Could not remove staged Android upload', {
       error: fail(error),
     });
   }
@@ -109,15 +110,39 @@ const make = Effect.gen(function* () {
     const input = resolve(workspace, 'original.obb');
     const output = resolve(workspace, 'patched.obb');
     const source = resolve(workspace, 'upload');
-    const filename = apkm ? await apk.extractZwiftObb(source, input, zwiftObbLimit, signal) : name;
+    const startedAt = performance.now();
+    let filename = name;
 
     if (apkm) {
+      log.info('android.extracting', 'Extracting the Zwift expansion from the APKM', {
+        upload: name,
+        step: 1,
+        steps: 3,
+      });
+      filename = await apk.extractZwiftObb(source, input, zwiftObbLimit, signal);
       await files.removeAsync(source);
     }
     signal.throwIfAborted();
-    await apk.patchZwiftObb(apkm ? input : source, output, pem);
+
+    const expansion = apkm ? input : source;
+    const bytes = await apk.size(expansion);
+    log.info('android.patching', 'Patching the Zwift expansion certificate', {
+      filename,
+      bytes,
+      step: apkm ? 2 : 1,
+      steps: apkm ? 3 : 2,
+    });
+    await apk.patchZwiftObb(expansion, output, pem);
     signal.throwIfAborted();
+
+    const steps = apkm ? 3 : 2;
+    log.info('android.publishing', 'Publishing the patched Zwift expansion', { filename, step: steps, steps });
     await apk.publish(output, pathFor(pem, filename));
+    log.info('android.published', 'Published the patched Zwift expansion', {
+      filename,
+      bytes,
+      durationMs: Math.round(performance.now() - startedAt),
+    });
   }
 
   async function finish(session: Upload, pem: string) {
@@ -126,6 +151,10 @@ const make = Effect.gen(function* () {
       session.state = 'done';
     } catch (error) {
       session.message = fail(error);
+      log.warn('android.patch_failed', 'Could not patch the Zwift expansion', {
+        upload: session.name,
+        error: session.message,
+      });
       session.state = 'failed';
     } finally {
       await apk.removeTree(session.workspace).catch(reportCleanupFailure);
@@ -169,6 +198,7 @@ const make = Effect.gen(function* () {
           state: 'uploading',
         };
         expire(upload);
+        log.info('android.upload_started', 'Receiving a Zwift Android upload', { upload: name, bytes: size });
 
         return status(upload);
       } finally {
@@ -206,6 +236,16 @@ const make = Effect.gen(function* () {
         }
         await apk.appendUpload(resolve(session.workspace, 'upload'), file, offset);
         session.offset += bytes;
+        const percent = Math.floor((session.offset / session.size) * 100);
+
+        if (Math.floor(percent / 10) > Math.floor((offset / session.size) * 10)) {
+          log.info('android.upload_progress', 'Receiving a Zwift Android upload', {
+            upload: session.name,
+            receivedBytes: session.offset,
+            totalBytes: session.size,
+            percent,
+          });
+        }
       } catch (error) {
         throw new ApplicationError({ status: 400, message: fail(error) });
       } finally {
@@ -238,9 +278,14 @@ const make = Effect.gen(function* () {
       let directory: string | undefined;
       try {
         directory = await workspace();
-        await apk.receive(body, resolve(directory, 'upload'), limit);
+        const bytes = await apk.receive(body, resolve(directory, 'upload'), limit);
+        log.info('android.upload_received', 'Received the Zwift Android upload', { upload: name, bytes });
         await patch(directory, pem, name, signal);
       } catch (error) {
+        log.warn('android.patch_failed', 'Could not process the Zwift Android upload', {
+          upload: name,
+          error: fail(error),
+        });
         throw new ApplicationError({ status: 400, message: fail(error) });
       } finally {
         try {
