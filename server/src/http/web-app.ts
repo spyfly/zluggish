@@ -383,7 +383,7 @@ export function createWebApp(runtime: HttpRuntime) {
   /** The certificate that the server presents, without its key. While a server still uses the shared certificate,
   riders can install that one too, with a warning, so that new computers connect until the administrator rotates it.
   */
-  const installable = Effect.fn('web.tls.installable')(function* (c: Context<WebEnv>, download: string) {
+  const installable = Effect.fn('web.tls.installable')(function* (c: Context<WebEnv>, download?: string) {
     const tls = yield* TlsService;
     const user = yield* sessions.require(c.get('sessionId'));
     const status = yield* tls.status();
@@ -401,7 +401,7 @@ export function createWebApp(runtime: HttpRuntime) {
     }
     const pem = certificate + '\n';
 
-    if (status.mode === 'legacy') {
+    if (status.mode === 'legacy' && download) {
       runtime.world.lifecycle.log.warn(
         'tls.legacy_setup_download',
         'A rider downloaded setup for the shared Zwift certificate, whose private key is public. Generate a server certificate under Manage → Server.',
@@ -426,22 +426,51 @@ export function createWebApp(runtime: HttpRuntime) {
     }),
   );
 
-  appRoutes.put('/api/install/android/obb', (c) =>
+  appRoutes.get('/api/install/android/obb', (c) =>
+    Effect.gen(function* () {
+      const { pem } = yield* installable(c);
+      const android = yield* ZwiftAndroidService;
+
+      return c.json(yield* Effect.promise(() => android.list(pem)));
+    }),
+  );
+
+  appRoutes.get('/api/install/android/obb/:name', (c) =>
     Effect.gen(function* () {
       const { pem } = yield* installable(c, 'android.obb');
+      const name = c.req.param('name');
+      const android = yield* ZwiftAndroidService;
+      const path = yield* Effect.promise(() => android.download(pem, name));
+
+      if (!path) {
+        throw new ApplicationError({
+          status: 404,
+          message: 'This Zwift version is not available for the current server certificate.',
+        });
+      }
+
+      return yield* fileResponse(c, path, {
+        'Content-Type': 'application/octet-stream',
+        'Content-Disposition': `attachment; filename="${name}"`,
+      });
+    }),
+  );
+
+  appRoutes.put('/api/install/android/obb', (c) =>
+    Effect.gen(function* () {
+      yield* sessions.require(c.get('sessionId'), true);
+      const { pem } = yield* installable(c);
       const body = c.req.raw.body;
+      const name = c.req.query('name') ?? '';
 
       if (!body) {
         throw new ApplicationError({ status: 400, message: 'Choose a Zwift expansion file to upload.' });
       }
 
       const android = yield* ZwiftAndroidService;
-      const patched = yield* Effect.promise(() => android.patch(body, pem, c.req.raw.signal));
+      yield* Effect.promise(() => android.publish(body, pem, name, c.req.raw.signal));
 
-      return c.body(patched.body, 200, {
-        'Content-Type': 'application/octet-stream',
-        'Content-Length': String(patched.bytes),
-      });
+      return c.body(null, 204);
     }),
   );
 

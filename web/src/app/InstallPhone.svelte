@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
+  import { z } from 'zod';
   import Fingerprint from '../components/Fingerprint.svelte';
   import type { Api } from '../lib/api';
   import { tlsStatus } from './tls';
@@ -10,12 +11,14 @@
     path,
     navigate,
     csrf,
+    administrator,
   }: {
     api: Api;
     /** `/install/android`, `/install/android-rooted` or `/install/ios`. */
     path: string;
     navigate: (path: string) => Promise<void>;
     csrf: () => string;
+    administrator: boolean;
   } = $props();
 
   const platform = $derived(
@@ -40,20 +43,26 @@
   const obbFolder = '/sdcard/Android/obb/com.zwift.zwiftgame';
   let upload = $state<{ name: string; progress: number | null } | null>(null);
   let uploadError = $state('');
-  let download = $state<{ name: string; url: string } | null>(null);
+  const publishedFiles = z.array(z.string().regex(/^main\.\d{1,12}\.com\.zwift\.zwiftgame\.obb$/));
+  let downloads = $state<Array<string> | null>(null);
+  let downloadError = $state('');
+  let selected = $state('');
   let request: XMLHttpRequest | null = null;
 
-  function clearDownload() {
-    if (download) {
-      URL.revokeObjectURL(download.url);
-      download = null;
+  async function refreshDownloads() {
+    downloadError = '';
+
+    try {
+      downloads = await api(publishedFiles, '/api/install/android/obb');
+    } catch (error) {
+      downloadError = error instanceof Error ? error.message : 'The available Zwift versions could not be loaded.';
     }
   }
 
   function patch(file: File) {
     uploadError = '';
 
-    if (!/^main\.\d+\.com\.zwift\.zwiftgame\.obb$/.test(file.name)) {
+    if (!/^main\.\d{1,12}\.com\.zwift\.zwiftgame\.obb$/.test(file.name)) {
       uploadError = 'Choose the main Zwift .obb file copied from your Android device.';
       return;
     }
@@ -63,14 +72,13 @@
       return;
     }
 
-    clearDownload();
     const xhr = new XMLHttpRequest();
     request = xhr;
     upload = { name: file.name, progress: 0 };
-    xhr.open('PUT', '/api/install/android/obb');
+    xhr.open('PUT', `/api/install/android/obb?name=${encodeURIComponent(file.name)}`);
     xhr.setRequestHeader('Content-Type', 'application/octet-stream');
     xhr.setRequestHeader('X-CSRF-Token', csrf());
-    xhr.responseType = 'blob';
+    xhr.responseType = 'json';
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) {
         upload = { name: file.name, progress: event.loaded / event.total };
@@ -80,22 +88,16 @@
       upload = { name: file.name, progress: null };
     };
     xhr.onload = async () => {
-      const response: unknown = xhr.response;
-
-      if (xhr.status === 200 && response instanceof Blob) {
-        download = { name: file.name, url: URL.createObjectURL(response) };
+      if (xhr.status === 204) {
+        await refreshDownloads();
       } else {
+        const response: unknown = xhr.response;
         const fallback =
           xhr.status === 413 ? 'The expansion file is larger than 2 GiB.' : `Patching failed (${xhr.status}).`;
-        try {
-          const result: unknown = response instanceof Blob ? JSON.parse(await response.text()) : null;
-          uploadError =
-            result && typeof result === 'object' && 'message' in result && typeof result.message === 'string'
-              ? result.message
-              : fallback;
-        } catch {
-          uploadError = fallback;
-        }
+        uploadError =
+          response && typeof response === 'object' && 'message' in response && typeof response.message === 'string'
+            ? response.message
+            : fallback;
       }
       upload = null;
       request = null;
@@ -114,7 +116,6 @@
 
   onDestroy(() => {
     request?.abort();
-    clearDownload();
   });
 
   const data = '/data/data/com.zwift.zwiftgame/dataES';
@@ -132,7 +133,7 @@
     ].join('\n'),
     listObb: `adb shell ls ${obbFolder}`,
     pullObb: `adb pull ${obbFolder}/main.VERSION.com.zwift.zwiftgame.obb`,
-    pushObb: `adb push "${download?.name ?? 'main.VERSION.com.zwift.zwiftgame.obb'}" ${obbFolder}/`,
+    pushObb: `adb push "${selected || 'main.VERSION.com.zwift.zwiftgame.obb'}" ${obbFolder}/`,
     etcHosts: `${address} us-or-rly101.zwift.com secure.zwift.com cdn.zwift.com`,
   });
 
@@ -150,6 +151,12 @@
     event.preventDefault();
     void navigate(to);
   }
+
+  $effect(() => {
+    if (platform === 'android' && status && status.mode !== 'disabled') {
+      void refreshDownloads();
+    }
+  });
 
   onMount(async () => {
     try {
@@ -218,22 +225,13 @@
         your Zwift traffic, your password included.
       </p>
     {/if}
-    <ol class="walk">
-      <li>
-        <h2>Copy the Zwift expansion file</h2>
-        <p>
-          Install or update Zwift from Google Play and leave it closed. Enable USB debugging, connect your Android
-          device to a computer with ADB, and look up the expansion filename.
-        </p>
+    {#if administrator}
+      <details class="admin-upload">
+        <summary>Publish a Zwift expansion file</summary>
+        <p>Copy the original expansion file from a clean Google Play install using ADB.</p>
         {@render code('listObb')}
-        <p>
-          Replace <code class="inline">VERSION</code> with the number in the filename, then copy the file to your computer.
-        </p>
+        <p>Replace <code class="inline">VERSION</code> with the number in the filename.</p>
         {@render code('pullObb')}
-      </li>
-      <li>
-        <h2>Patch the expansion file</h2>
-        <p>Upload the <strong>.obb</strong> file to add this server’s certificate to Zwift.</p>
         <label for="zwift-obb">Zwift expansion file</label>
         <input
           id="zwift-obb"
@@ -249,21 +247,54 @@
         {#if upload}
           <p role="status">
             {upload.progress === null
-              ? 'Patching and receiving the expansion file…'
+              ? 'Patching and publishing the expansion file…'
               : `Uploading ${upload.name} (${Math.round(upload.progress * 100)}%)…`}
           </p>
-          <button type="button" onclick={() => request?.abort()}>Cancel</button>
+          {#if upload.progress !== null}
+            <button type="button" onclick={() => request?.abort()}>Cancel upload</button>
+          {/if}
         {/if}
         {#if uploadError}<p class="notice failed" role="alert">{uploadError}</p>{/if}
-        {#if download}
-          <a class="download" href={download.url} download={download.name}>Download patched expansion file</a>
+      </details>
+    {/if}
+    <ol class="walk">
+      <li>
+        <h2>Find your Zwift version</h2>
+        <p>
+          Install Zwift from Google Play and leave it closed. Enable USB debugging, connect your Android device to a
+          computer with ADB, and look up the expansion filename.
+        </p>
+        {@render code('listObb')}
+      </li>
+      <li>
+        <h2>Download the patched expansion file</h2>
+        {#if downloadError}
+          <p class="notice failed" role="alert">{downloadError}</p>
+        {:else if downloads === null}
+          <p role="status">Looking up available versions…</p>
+        {:else if downloads.length}
+          <label for="zwift-version">Match your expansion filename</label>
+          <select id="zwift-version" bind:value={selected}>
+            <option value="">Choose a version</option>
+            {#each downloads as name (name)}
+              <option value={name}>{name}</option>
+            {/each}
+          </select>
+          {#if selected && downloads.includes(selected)}
+            <a class="download" href={`/api/install/android/obb/${selected}`} download={selected}
+              >Download patched expansion file</a
+            >
+          {/if}
+          <p class="hint">If your version is missing, ask the server administrator to publish it.</p>
+        {:else}
+          <p>The server administrator needs to publish a patched file for your version of Zwift.</p>
         {/if}
       </li>
       <li>
         <h2>Copy the patched file back</h2>
         <p>
-          Save the patched download in a separate folder so it keeps the original filename. Run this command from that
-          folder to replace the file on your device.
+          Keep the original filename. Run this command from your download folder to replace the expansion file on your
+          device.
         </p>
         {@render code('pushObb')}
         <p class="hint">

@@ -1,65 +1,87 @@
 import { ApplicationError } from '#src/errors';
 import { ApkRepository } from '#src/repositories/apk.repository';
+import { RuntimeContext } from '#src/context';
+import { CryptoRepository } from '#src/repositories/crypto.repository';
+import { AssetFiles } from '#src/repositories/files.repository';
+import { Context, Effect, Layer } from 'effect';
 import { resolve } from 'node:path';
-import { Context, Layer } from 'effect';
 
 export const zwiftObbLimit = 2 * 1024 ** 3;
+const obbName = /^main\.\d{1,12}\.com\.zwift\.zwiftgame\.obb$/;
 
-function ignoreCleanupError() {}
+const make = Effect.gen(function* () {
+  const { config } = yield* RuntimeContext;
+  const apk = new ApkRepository();
+  const files = new AssetFiles();
+  const crypto = new CryptoRepository();
+  let busy = false;
 
-class ZwiftAndroidPatcher {
-  private readonly apk = new ApkRepository();
-
-  private busy = false;
-
-  async patch(body: ReadableStream<Uint8Array>, pem: string, signal: AbortSignal) {
-    if (this.busy) {
-      throw new ApplicationError({
-        status: 409,
-        message: 'Another Android expansion file is being processed. Try again shortly.',
-      });
+  // Only offer files built for the active certificate.
+  const folder = (pem: string) => resolve(config.storageDir, 'zwift-android', crypto.sha256(pem));
+  const pathFor = (pem: string, name: string) => {
+    if (!obbName.test(name)) {
+      throw new ApplicationError({ status: 400, message: 'Choose the original main Zwift expansion filename.' });
     }
 
-    this.busy = true;
-    let workspace: string | undefined;
-    const cleanup = async () => {
-      try {
-        if (workspace) {
-          await this.apk.removeTree(workspace);
-        }
-      } finally {
-        this.busy = false;
+    return resolve(folder(pem), name);
+  };
+
+  return {
+    async list(pem: string) {
+      const entries = await files.entriesAsync(folder(pem));
+
+      return entries
+        .filter((entry) => entry.isFile() && obbName.test(entry.name))
+        .map((entry) => entry.name)
+        .sort();
+    },
+    async download(pem: string, name: string) {
+      const path = pathFor(pem, name);
+
+      return (await apk.size(path)) === null ? null : path;
+    },
+    async publish(body: ReadableStream<Uint8Array>, pem: string, name: string, signal: AbortSignal) {
+      const target = pathFor(pem, name);
+
+      if (busy) {
+        throw new ApplicationError({
+          status: 409,
+          message: 'Another Android expansion file is being processed. Try again shortly.',
+        });
       }
-    };
 
-    try {
-      workspace = await this.apk.workspace();
-      const input = resolve(workspace, 'original.obb');
-      const output = resolve(workspace, 'patched.obb');
-      const bytes = await this.apk.receive(body, input, zwiftObbLimit);
-      signal.throwIfAborted();
-      await this.apk.patchZwiftObb(input, output, pem);
-      signal.throwIfAborted();
+      busy = true;
+      let workspace: string | undefined;
 
-      const stream = this.apk.readStream(output, signal, () => void cleanup().catch(ignoreCleanupError));
+      try {
+        workspace = await apk.workspace();
+        const input = resolve(workspace, 'original.obb');
+        const output = resolve(workspace, 'patched.obb');
+        await apk.receive(body, input, zwiftObbLimit);
+        signal.throwIfAborted();
+        await apk.patchZwiftObb(input, output, pem);
+        signal.throwIfAborted();
+        await apk.publish(output, target);
+      } catch (error) {
+        throw new ApplicationError({
+          status: 400,
+          message: error instanceof Error ? error.message : 'The expansion file could not be patched.',
+        });
+      } finally {
+        try {
+          if (workspace) {
+            await apk.removeTree(workspace);
+          }
+        } finally {
+          busy = false;
+        }
+      }
+    },
+  };
+});
 
-      return { body: stream, bytes };
-    } catch (error) {
-      await cleanup();
-      throw new ApplicationError({
-        status: 400,
-        message: error instanceof Error ? error.message : 'The expansion file could not be patched.',
-      });
-    }
-  }
-}
-
-function makeZwiftAndroidPatcher() {
-  return new ZwiftAndroidPatcher();
-}
-
-export class ZwiftAndroidService extends Context.Service<ZwiftAndroidService, ZwiftAndroidPatcher>()(
+export class ZwiftAndroidService extends Context.Service<ZwiftAndroidService, Effect.Success<typeof make>>()(
   'zluggish/ZwiftAndroidService',
 ) {
-  static readonly layer = Layer.sync(ZwiftAndroidService, makeZwiftAndroidPatcher);
+  static readonly layer = Layer.effect(ZwiftAndroidService, make);
 }

@@ -401,17 +401,6 @@ export class ApkRepository {
     }
   }
 
-  readStream(path: string, signal: AbortSignal, onClose: () => void) {
-    const file = createReadStream(path, { signal });
-    file.once('close', onClose);
-
-    // SAFETY: Node and DOM declare different overloads for the same WHATWG byte stream.
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion
-    return Readable.toWeb(file, {
-      strategy: { size: (chunk: Buffer) => chunk.length },
-    }) as ReadableStream<Uint8Array>;
-  }
-
   /** Zwift checks the Play Store expansion file's size before unpacking its assets. */
   async patchZwiftObb(input: string, output: string, pem: string) {
     const name = 'dataES/cacert.pem';

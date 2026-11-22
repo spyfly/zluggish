@@ -9,13 +9,17 @@ This procedure is for a device that is not rooted. For a rooted device, see [And
 
 Zwift from Google Play stores its certificate bundle in an expansion file. Patch your copy of that file with your Zluggish server’s certificate, then use Virtual Hosts or DNS to send Zwift to the server.
 
-## Patch the expansion file
+## Publish the expansion file
 
-1. Install or update Zwift from Google Play and leave it closed.
+An administrator opens **Apps → Zwift → Android** and expands **Publish a Zwift expansion file**. Follow the ADB instructions to copy `main.*.com.zwift.zwiftgame.obb` from a clean Google Play install and upload it. The server patches and publishes the file for riders with that version. Publish a fresh copy when the server certificate changes.
+
+## Set up the device
+
+1. Install Zwift from Google Play and leave it closed.
 2. Enable USB debugging and connect your Android device to a computer with ADB.
-3. Sign in to the Zluggish web app on your computer and open **Apps → Zwift → Android**. Follow the ADB instructions there to copy the `main.*.com.zwift.zwiftgame.obb` file from the device, upload it, and download the patched file.
-4. If you already started Zwift, clear its app storage in Android settings. Save the patched file in a separate folder so it keeps its original name, then follow the ADB instructions to copy it back to your device.
-5. Repeat the patch after each Play Store update.
+3. Sign in to the Zluggish web app on your computer and open **Apps → Zwift → Android**. Use the ADB command there to check the expansion filename, then download the matching patched file.
+4. If you already started Zwift, clear its app storage in Android settings. Keep the downloaded filename and follow the ADB instructions to copy it back to your device.
+5. Repeat the device setup after a Google Play update.
 
 ## Send Zwift to Zluggish
 

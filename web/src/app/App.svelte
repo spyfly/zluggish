@@ -1610,7 +1610,7 @@
       {:else if apps}
         <Apps {api} {navigate} {administrator} />
       {:else if installingPhone}
-        <InstallPhone {api} {path} {navigate} csrf={() => csrf} />
+        <InstallPhone {api} {path} {navigate} {administrator} csrf={() => csrf} />
       {:else if installing}
         <Install {api} {path} {navigate} />
       {:else if companion}
