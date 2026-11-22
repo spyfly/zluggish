@@ -109,7 +109,95 @@ async function readAt(handle: FileHandle, position: number, length: number) {
   return buffer;
 }
 
-async function centralDirectory(handle: FileHandle) {
+function zip64Number(bytes: Buffer, offset: number) {
+  const number = Number(bytes.readBigUInt64LE(offset));
+
+  if (!Number.isSafeInteger(number)) {
+    throw new Error('The ZIP64 archive has an invalid size or offset');
+  }
+
+  return number;
+}
+
+async function zip64Directory(handle: FileHandle, end: number) {
+  const locator = await readAt(handle, end - 20, 20);
+
+  if (locator.readUInt32LE(0) !== 0x07_06_4b_50 || locator.readUInt32LE(4) !== 0 || locator.readUInt32LE(16) !== 1) {
+    throw new Error('The ZIP64 locator is invalid or spans multiple disks');
+  }
+
+  const position = zip64Number(locator, 8);
+  const record = await readAt(handle, position, 56);
+
+  if (
+    record.readUInt32LE(0) !== 0x06_06_4b_50 ||
+    record.readUInt32LE(16) !== 0 ||
+    record.readUInt32LE(20) !== 0 ||
+    position + 12 + zip64Number(record, 4) !== end - 20
+  ) {
+    throw new Error('The ZIP64 end record is invalid');
+  }
+
+  return {
+    count: zip64Number(record, 32),
+    length: zip64Number(record, 40),
+    offset: zip64Number(record, 48),
+    end: position,
+  };
+}
+
+function zipEntrySizes(
+  directory: Buffer,
+  position: number,
+  extraStart: number,
+  extraLength: number,
+  allowZip64: boolean,
+) {
+  const fields = [24, 20, 42].map((offset) => directory.readUInt32LE(position + offset));
+
+  if (fields.includes(0xff_ff_ff_ff)) {
+    if (!allowZip64) {
+      throw new Error('Zip64 archives are not supported');
+    }
+
+    let field = extraStart;
+    const end = extraStart + extraLength;
+
+    while (field + 4 <= end) {
+      const id = directory.readUInt16LE(field);
+      const size = directory.readUInt16LE(field + 2);
+      const start = field + 4;
+      field = start + size;
+
+      if (field > end) {
+        break;
+      }
+
+      if (id === 1) {
+        let next = start;
+
+        return fields.map((value) => {
+          if (value !== 0xff_ff_ff_ff) {
+            return value;
+          }
+          if (next + 8 > field) {
+            throw new Error('The ZIP64 entry is incomplete');
+          }
+          const actual = zip64Number(directory, next);
+          next += 8;
+
+          return actual;
+        });
+      }
+    }
+
+    throw new Error('The ZIP64 entry is missing its extended sizes');
+  }
+
+  return fields;
+}
+
+async function centralDirectory(handle: FileHandle, allowZip64 = false) {
   const { size } = await handle.stat();
   const tailLength = Math.min(size, 65_557);
   const tail = await readAt(handle, size - tailLength, tailLength);
@@ -125,16 +213,20 @@ async function centralDirectory(handle: FileHandle) {
   if (at === -1) {
     throw new Error('The file is not a zip archive');
   }
-  const count = tail.readUInt16LE(at + 10);
-  const length = tail.readUInt32LE(at + 12);
-  const offset = tail.readUInt32LE(at + 16);
+  let end = size - tailLength + at;
+  let count = tail.readUInt16LE(at + 10);
+  let length = tail.readUInt32LE(at + 12);
+  let offset = tail.readUInt32LE(at + 16);
 
   if (count === 0xff_ff || length === 0xff_ff_ff_ff || offset === 0xff_ff_ff_ff) {
-    throw new Error('Zip64 archives are not supported');
+    if (!allowZip64 || end < 20) {
+      throw new Error('Zip64 archives are not supported');
+    }
+
+    ({ count, length, offset, end } = await zip64Directory(handle, end));
   }
 
-  // Every central header fits in 46 bytes plus its name, extra fields and comment.
-  if (offset + length > size - tailLength + at || length > 64 * 1024 * 1024) {
+  if (offset > end || length > end - offset || length > 64 * 1024 * 1024 || count > length / 46) {
     throw new Error('The zip directory is invalid or too large');
   }
   const directory = await readAt(handle, offset, length);
@@ -142,13 +234,27 @@ async function centralDirectory(handle: FileHandle) {
   let position = 0;
 
   for (let index = 0; index < count; index++) {
-    if (directory.readUInt32LE(position) !== centralSignature) {
+    if (position + 46 > directory.length || directory.readUInt32LE(position) !== centralSignature) {
       throw new Error('The zip directory is damaged');
     }
     const nameLength = directory.readUInt16LE(position + 28);
     const extraLength = directory.readUInt16LE(position + 30);
     const commentLength = directory.readUInt16LE(position + 32);
-    const nameBytes = Buffer.from(directory.subarray(position + 46, position + 46 + nameLength));
+    const extraStart = position + 46 + nameLength;
+    const next = extraStart + extraLength + commentLength;
+
+    if (next > directory.length) {
+      throw new Error('The zip directory is damaged');
+    }
+
+    const nameBytes = Buffer.from(directory.subarray(position + 46, extraStart));
+    const [size = 0, compressedSize = 0, localOffset = 0] = zipEntrySizes(
+      directory,
+      position,
+      extraStart,
+      extraLength,
+      allowZip64,
+    );
 
     entries.push({
       name: nameBytes.toString('utf8'),
@@ -160,13 +266,13 @@ async function centralDirectory(handle: FileHandle) {
       time: directory.readUInt16LE(position + 12),
       date: directory.readUInt16LE(position + 14),
       crc: directory.readUInt32LE(position + 16),
-      compressedSize: directory.readUInt32LE(position + 20),
-      size: directory.readUInt32LE(position + 24),
+      compressedSize,
+      size,
       internalAttributes: directory.readUInt16LE(position + 36),
       externalAttributes: directory.readUInt32LE(position + 38),
-      localOffset: directory.readUInt32LE(position + 42),
+      localOffset,
     });
-    position += 46 + nameLength + extraLength + commentLength;
+    position = next;
   }
 
   return entries;
@@ -404,7 +510,7 @@ export class ApkRepository {
   /** Extract one Zwift expansion from an APKM without extracting its APKs or trusting archive paths. */
   async extractZwiftObb(path: string, output: string, limit: number, signal: AbortSignal) {
     await using handle = await open(path, 'r');
-    const entries = await centralDirectory(handle);
+    const entries = await centralDirectory(handle, true);
     const expansions = entries.filter((entry) =>
       /(?:^|\/)main\.\d{1,12}\.com\.zwift\.zwiftgame\.obb$/.test(entry.name),
     );
@@ -842,7 +948,13 @@ export class ApkRepository {
     return null;
   }
 
-  async workspace() {
+  async workspace(storage?: string) {
+    if (storage) {
+      await mkdir(storage, { recursive: true });
+
+      return mkdtemp(join(storage, 'upload-'));
+    }
+
     return mkdtemp(join(tmpdir(), 'zluggish-companion-'));
   }
 

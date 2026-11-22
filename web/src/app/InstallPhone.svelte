@@ -67,8 +67,9 @@
       return;
     }
 
-    if (file.size > 2 * 1024 ** 3) {
-      uploadError = 'The upload is larger than 2 GiB.';
+    const isBundle = /\.apkm$/i.test(file.name);
+    if (file.size > (isBundle ? 10_000_000_000 : 2 * 1024 ** 3)) {
+      uploadError = isBundle ? 'The upload is larger than 10 GB.' : 'The standalone .obb is larger than 2 GiB.';
       return;
     }
 
@@ -92,7 +93,8 @@
         await refreshDownloads();
       } else {
         const response: unknown = xhr.response;
-        const fallback = xhr.status === 413 ? 'The upload is larger than 2 GiB.' : `Patching failed (${xhr.status}).`;
+        const fallback =
+          xhr.status === 413 ? 'The server or proxy rejected the upload size.' : `Patching failed (${xhr.status}).`;
         uploadError =
           response && typeof response === 'object' && 'message' in response && typeof response.message === 'string'
             ? response.message

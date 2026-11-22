@@ -4,6 +4,7 @@ import { CryptoRepository } from '#src/repositories/crypto.repository';
 import assert from 'node:assert/strict';
 import { createHash, createPublicKey, verify } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { open } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
@@ -275,3 +276,53 @@ await test('rejects an archive without the Zwift game certificate bundle', async
     /needs one Zwift certificate bundle/,
   );
 });
+
+await test(
+  'extracts an APKM expansion whose ZIP64 local and central offsets exceed 4 GiB',
+  {
+    skip: process.platform === 'win32' ? 'The fixture relies on sparse writes.' : false,
+  },
+  async () => {
+    using space = workspace();
+    const input = resolve(space.folder, 'large.apkm');
+    const output = resolve(space.folder, 'out.obb');
+    const name = 'main.123.com.zwift.zwiftgame.obb';
+    const source = Buffer.from('sample expansion');
+    const archive = zip([[name, source, true]]);
+    const eocd = archive.subarray(-22);
+    const directoryOffset = eocd.readUInt32LE(16);
+    const central = archive.subarray(directoryOffset, -22);
+    const localOffset = 5 * 1024 ** 3;
+    const centralOffset = localOffset + directoryOffset;
+    const extra = Buffer.alloc(12);
+    extra.writeUInt16LE(1, 0);
+    extra.writeUInt16LE(8, 2);
+    extra.writeBigUInt64LE(BigInt(localOffset), 4);
+    central.writeUInt16LE(extra.length, 30);
+    central.writeUInt32LE(0xff_ff_ff_ff, 42);
+    eocd.writeUInt32LE(0xff_ff_ff_ff, 16);
+
+    const record = Buffer.alloc(56);
+    record.writeUInt32LE(0x06_06_4b_50, 0);
+    record.writeBigUInt64LE(44n, 4);
+    record.writeBigUInt64LE(1n, 24);
+    record.writeBigUInt64LE(1n, 32);
+    record.writeBigUInt64LE(BigInt(central.length + extra.length), 40);
+    record.writeBigUInt64LE(BigInt(centralOffset), 48);
+    const locator = Buffer.alloc(20);
+    locator.writeUInt32LE(0x07_06_4b_50, 0);
+    locator.writeBigUInt64LE(BigInt(centralOffset + central.length + extra.length), 8);
+    locator.writeUInt32LE(1, 16);
+
+    await using handle = await open(input, 'wx');
+    await handle.write(
+      Buffer.concat([archive.subarray(0, directoryOffset), central, extra, record, locator, eocd]),
+      0,
+      archive.length + extra.length + record.length + locator.length,
+      localOffset,
+    );
+
+    assert.equal(await repository.extractZwiftObb(input, output, 1024, new AbortController().signal), name);
+    assert.deepEqual(readFileSync(output), source);
+  },
+);

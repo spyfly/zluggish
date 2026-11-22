@@ -13,6 +13,8 @@ Zwift from Google Play stores its certificate bundle in an expansion file. Patch
 
 An administrator opens **Apps → Zwift → Android** and expands **Publish a Zwift expansion file**. Upload the matching APKMirror `.apkm` labeled **BUNDLE 1 OBB**, or follow the ADB instructions to copy and upload `main.*.com.zwift.zwiftgame.obb` from a clean Google Play install. The server patches and publishes the file for riders with that version. Publish a fresh copy when the server certificate changes.
 
+APKM uploads support up to 10 GB. The server stages the upload on its storage volume and removes it after extracting the OBB. If you use a reverse proxy, its request size limit also needs to allow the upload.
+
 ## Set up the device
 
 1. Install Zwift from Google Play and leave it closed.

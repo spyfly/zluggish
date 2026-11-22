@@ -9,7 +9,7 @@ import { ActivitiesService } from '#src/services/activities.service';
 import { DurabilityService } from '#src/services/durability.service';
 import { FilesService } from '#src/services/files.service';
 import { effectRoutes } from '#src/http/effect';
-import { ZwiftAndroidService, zwiftObbLimit } from '#src/services/zwift-android.service';
+import { ZwiftAndroidService, zwiftAndroidUploadLimit } from '#src/services/zwift-android.service';
 import { fileResponse } from '#src/http/file-response';
 import { RecordsService } from '#src/services/records.service';
 import { webConnectionRoutes } from '#src/http/web-connections';
@@ -83,7 +83,12 @@ export function createWebApp(runtime: HttpRuntime) {
     const upload = c.req.method === 'POST' && c.req.path === '/api/me/import';
 
     if (androidUpload(c)) {
-      return bodyLimit({ maxSize: zwiftObbLimit })(c, next);
+      if (Number(c.req.header('Content-Length')) > zwiftAndroidUploadLimit) {
+        return c.json({ message: 'The upload is larger than 10 GB.' }, 413);
+      }
+
+      // The patcher counts bytes while writing to disk, including requests without Content-Length.
+      return next();
     }
 
     if (companionUpload(c)) {

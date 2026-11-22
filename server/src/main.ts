@@ -135,7 +135,12 @@ const serve = Effect.fn('server.start')(function* () {
   const web = webConfig.enabled
     ? yield* listening(
         () =>
-          startHttp(createWebApp(owner.runtime), { host: webConfig.host ?? config.network.host, port: webConfig.port }),
+          startHttp(createWebApp(owner.runtime), {
+            host: webConfig.host ?? config.network.host,
+            port: webConfig.port,
+            // Allow large Android bundles on slower connections.
+            requestTimeout: 2 * 60 * 60 * 1000,
+          }),
         closeHttp,
       )
     : null;

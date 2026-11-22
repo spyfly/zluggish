@@ -6,7 +6,8 @@ import { AssetFiles } from '#src/repositories/files.repository';
 import { Context, Effect, Layer } from 'effect';
 import { resolve } from 'node:path';
 
-export const zwiftObbLimit = 2 * 1024 ** 3;
+export const zwiftAndroidUploadLimit = 10_000_000_000;
+const zwiftObbLimit = 2 * 1024 ** 3;
 const obbName = /^main\.\d{1,12}\.com\.zwift\.zwiftgame\.obb$/;
 
 const make = Effect.gen(function* () {
@@ -61,13 +62,18 @@ const make = Effect.gen(function* () {
       let workspace: string | undefined;
 
       try {
-        workspace = await apk.workspace();
+        workspace = await apk.workspace(resolve(config.storageDir, 'zwift-android', 'staging'));
         const input = resolve(workspace, 'original.obb');
         const output = resolve(workspace, 'patched.obb');
         const upload = resolve(workspace, 'upload');
-        await apk.receive(body, upload, zwiftObbLimit);
+        await apk.receive(body, upload, apkm ? zwiftAndroidUploadLimit : zwiftObbLimit);
         const filename = apkm ? await apk.extractZwiftObb(upload, input, zwiftObbLimit, signal) : name;
+
+        if (apkm) {
+          await files.removeAsync(upload);
+        }
         signal.throwIfAborted();
+
         await apk.patchZwiftObb(apkm ? input : upload, output, pem);
         signal.throwIfAborted();
         await apk.publish(output, pathFor(pem, filename));
