@@ -141,7 +141,7 @@ await test('a delivery lease expiry does not authorize a second send', async (t)
   const jobs = jobRunner(f);
   f.effects.runSync(UploadsService.use((uploads) => uploads.registerJobs(jobs)));
 
-  const first = repository.claim('delivery', 50);
+  const first = repository.claim('delivery', 30_000);
   assert.ok(first);
   const sending = Effect.runPromise(jobs.run(first));
 
@@ -154,9 +154,7 @@ await test('a delivery lease expiry does not authorize a second send', async (t)
   );
 
   // The lease expires during the request: a replacement claim must not send again.
-  await new Promise((resolve) => {
-    setTimeout(resolve, 60);
-  });
+  f.accounts.db.prepare('UPDATE job SET lease_expires_at = 0 WHERE id = ?').run(first.id);
   const second = repository.claim('delivery', 30_000);
   assert.ok(second);
   await Effect.runPromise(jobs.run(second));

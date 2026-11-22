@@ -5,8 +5,11 @@ import { Context, Layer } from 'effect';
 
 export const zwiftObbLimit = 2 * 1024 ** 3;
 
+function ignoreCleanupError() {}
+
 class ZwiftAndroidPatcher {
   private readonly apk = new ApkRepository();
+
   private busy = false;
 
   async patch(body: ReadableStream<Uint8Array>, pem: string, signal: AbortSignal) {
@@ -38,7 +41,7 @@ class ZwiftAndroidPatcher {
       await this.apk.patchZwiftObb(input, output, pem);
       signal.throwIfAborted();
 
-      const stream = this.apk.readStream(output, signal, () => void cleanup().catch(() => {}));
+      const stream = this.apk.readStream(output, signal, () => void cleanup().catch(ignoreCleanupError));
 
       return { body: stream, bytes };
     } catch (error) {
