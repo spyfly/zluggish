@@ -469,7 +469,7 @@ export function accountRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
     }
 
     return c.redirect(
-      `http://zwift/?code=zwift_refresh_token${sessions.token(runtime.effects.runSync(AccountsService).identityOf(user), runtime.tokens.refresh)}`,
+      `http://zwift/?code=zwift_refresh_token${sessions.token(runtime.effects.runSync(AccountsService).identityOf(user), runtime.tokens.refresh, 'refresh')}`,
     );
   });
 
@@ -528,7 +528,7 @@ export function accountRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
         throw new HTTPException(401);
       }
 
-      user = sessions.bearer(form.code ? token.slice(19) : token);
+      user = sessions.bearer(form.code ? token.slice(19) : token, 'refresh');
 
       if (!user) {
         throw new HTTPException(401);
