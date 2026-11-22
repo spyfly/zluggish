@@ -2,6 +2,7 @@
   import { onDestroy, onMount } from 'svelte';
   import { z } from 'zod';
   import Fingerprint from '../components/Fingerprint.svelte';
+  import { ignored } from '../lib/api';
   import type { Api } from '../lib/api';
   import { tlsStatus } from './tls';
   import type { TlsStatus } from './tls';
@@ -47,7 +48,15 @@
   let downloads = $state<Array<string> | null>(null);
   let downloadError = $state('');
   let selected = $state('');
-  let request: XMLHttpRequest | null = null;
+  const uploadEndpoint = '/api/manage/android-upload';
+  const chunkSize = 16 * 1024 ** 2;
+  const uploadStatus = z.object({
+    id: z.uuid(),
+    offset: z.int().nonnegative(),
+    state: z.enum(['uploading', 'patching', 'done', 'failed']),
+    message: z.string().optional(),
+  });
+  let transfer: AbortController | undefined;
 
   async function refreshDownloads() {
     downloadError = '';
@@ -59,65 +68,107 @@
     }
   }
 
-  function patch(file: File) {
-    uploadError = '';
+  function sendChunk(url: string, file: File, offset: number, signal: AbortSignal) {
+    return new Promise<z.infer<typeof uploadStatus>>((resolve, reject) => {
+      signal.throwIfAborted();
+      const xhr = new XMLHttpRequest();
+      const abort = () => xhr.abort();
+      signal.addEventListener('abort', abort, { once: true });
+      xhr.open('PUT', `${url}?offset=${offset}`);
+      xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+      xhr.setRequestHeader('X-CSRF-Token', csrf());
+      xhr.responseType = 'json';
+      xhr.upload.onprogress = (event) => {
+        upload = { name: file.name, progress: (offset + event.loaded) / file.size };
+      };
+      xhr.onloadend = () => signal.removeEventListener('abort', abort);
+      xhr.onload = () => {
+        const result = uploadStatus.safeParse(xhr.response);
+        if (xhr.status === 200 && result.success) {
+          resolve(result.data);
+        } else if (xhr.status === 409 || xhr.status >= 500) {
+          reject(new TypeError('The transfer was interrupted.'));
+        } else {
+          const response = z.object({ message: z.string() }).safeParse(xhr.response);
+          reject(new Error(response.data?.message ?? `The chunk upload failed (${xhr.status}).`));
+        }
+      };
+      xhr.onerror = () => reject(new TypeError('The transfer was interrupted.'));
+      xhr.onabort = () => reject(signal.reason);
+      xhr.send(file.slice(offset, offset + chunkSize));
+    });
+  }
 
-    if (!/\.apkm$/i.test(file.name) && !/^main\.\d{1,12}\.com\.zwift\.zwiftgame\.obb$/.test(file.name)) {
+  const pause = (ms: number) =>
+    new Promise<void>((resolve) => {
+      setTimeout(resolve, ms);
+    });
+
+  async function patch(file: File) {
+    uploadError = '';
+    const isBundle = /\.apkm$/i.test(file.name);
+    if (!isBundle && !/^main\.\d{1,12}\.com\.zwift\.zwiftgame\.obb$/.test(file.name)) {
       uploadError = 'Choose a Zwift .obb file or an .apkm bundle with an OBB.';
       return;
     }
-
-    const isBundle = /\.apkm$/i.test(file.name);
     if (file.size > (isBundle ? 10_000_000_000 : 2 * 1024 ** 3)) {
       uploadError = isBundle ? 'The upload is larger than 10 GB.' : 'The standalone .obb is larger than 2 GiB.';
       return;
     }
 
-    const xhr = new XMLHttpRequest();
-    request = xhr;
+    transfer = new AbortController();
+    const { signal } = transfer;
     upload = { name: file.name, progress: 0 };
-    xhr.open('PUT', `/api/install/android/obb?name=${encodeURIComponent(file.name)}`);
-    xhr.setRequestHeader('Content-Type', 'application/octet-stream');
-    xhr.setRequestHeader('X-CSRF-Token', csrf());
-    xhr.responseType = 'json';
-    xhr.upload.onprogress = (event) => {
-      if (event.lengthComputable) {
-        upload = { name: file.name, progress: event.loaded / event.total };
+    let url: string | undefined;
+    let receiving = true;
+
+    try {
+      let progress = await api(uploadStatus, uploadEndpoint, 'POST', { name: file.name, size: file.size });
+      url = `${uploadEndpoint}/${progress.id}`;
+      let retries = 0;
+
+      while (progress.offset < file.size) {
+        try {
+          progress = await sendChunk(url, file, progress.offset, signal);
+          retries = 0;
+        } catch (error) {
+          if (!(error instanceof TypeError) || signal.aborted || retries === 3) {
+            throw error;
+          }
+          await pause(500 * 2 ** retries++);
+        }
       }
-    };
-    xhr.upload.onload = () => {
+
+      receiving = false;
       upload = { name: file.name, progress: null };
-    };
-    xhr.onload = async () => {
-      if (xhr.status === 204) {
-        await refreshDownloads();
-      } else {
-        const response: unknown = xhr.response;
-        const fallback =
-          xhr.status === 413 ? 'The server or proxy rejected the upload size.' : `Patching failed (${xhr.status}).`;
-        uploadError =
-          response && typeof response === 'object' && 'message' in response && typeof response.message === 'string'
-            ? response.message
-            : fallback;
+      while (progress.state === 'uploading' || progress.state === 'patching') {
+        await pause(1000);
+        signal.throwIfAborted();
+        progress = await api(uploadStatus, url);
+      }
+      if (progress.state === 'failed') {
+        throw new Error(progress.message ?? 'The expansion file could not be patched.');
+      }
+      await refreshDownloads();
+    } catch (error) {
+      if (!signal.aborted) {
+        uploadError = error instanceof Error ? error.message : 'The expansion upload failed.';
+      }
+    } finally {
+      const cancelUrl = url;
+      if (cancelUrl && receiving) {
+        // An in-flight chunk may still be releasing its server-side lock.
+        await api(ignored, cancelUrl, 'DELETE', {}).catch(async () => {
+          await pause(1000);
+          await api(ignored, cancelUrl, 'DELETE', {}).catch(() => undefined);
+        });
       }
       upload = null;
-      request = null;
-    };
-    xhr.onerror = () => {
-      uploadError = 'The transfer stopped. Check the connection to the server and try again.';
-      upload = null;
-      request = null;
-    };
-    xhr.onabort = () => {
-      upload = null;
-      request = null;
-    };
-    xhr.send(file);
+      transfer = undefined;
+    }
   }
 
-  onDestroy(() => {
-    request?.abort();
-  });
+  onDestroy(() => transfer?.abort());
 
   const data = '/data/data/com.zwift.zwiftgame/dataES';
 
@@ -244,7 +295,7 @@
           disabled={upload !== null}
           onchange={(event) => {
             const file = event.currentTarget.files?.[0];
-            if (file) patch(file);
+            if (file) void patch(file);
             event.currentTarget.value = '';
           }}
         />
@@ -255,7 +306,7 @@
               : `Uploading ${upload.name} (${Math.round(upload.progress * 100)}%)…`}
           </p>
           {#if upload.progress !== null}
-            <button type="button" onclick={() => request?.abort()}>Cancel upload</button>
+            <button type="button" onclick={() => transfer?.abort()}>Cancel upload</button>
           {/if}
         {/if}
         {#if uploadError}<p class="notice failed" role="alert">{uploadError}</p>{/if}

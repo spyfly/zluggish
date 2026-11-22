@@ -9,7 +9,11 @@ import { ActivitiesService } from '#src/services/activities.service';
 import { DurabilityService } from '#src/services/durability.service';
 import { FilesService } from '#src/services/files.service';
 import { effectRoutes } from '#src/http/effect';
-import { ZwiftAndroidService, zwiftAndroidUploadLimit } from '#src/services/zwift-android.service';
+import {
+  ZwiftAndroidService,
+  zwiftAndroidChunkSize,
+  zwiftAndroidUploadLimit,
+} from '#src/services/zwift-android.service';
 import { fileResponse } from '#src/http/file-response';
 import { RecordsService } from '#src/services/records.service';
 import { webConnectionRoutes } from '#src/http/web-connections';
@@ -79,12 +83,16 @@ export function createWebApp(runtime: HttpRuntime) {
 
   const androidUpload = (c: Context<WebEnv>) => c.req.method === 'PUT' && c.req.path === '/api/install/android/obb';
 
+  const androidChunk = (c: Context<WebEnv>) =>
+    c.req.method === 'PUT' && /^\/api\/manage\/android-upload\/[^/]+$/.test(c.req.path);
+
   app.use('*', async (c: Context<WebEnv, string>, next: Next) => {
     const upload = c.req.method === 'POST' && c.req.path === '/api/me/import';
 
-    if (androidUpload(c)) {
-      if (Number(c.req.header('Content-Length')) > zwiftAndroidUploadLimit) {
-        return c.json({ message: 'The upload is larger than 10 GB.' }, 413);
+    if (androidUpload(c) || androidChunk(c)) {
+      const limit = androidChunk(c) ? zwiftAndroidChunkSize : zwiftAndroidUploadLimit;
+      if (Number(c.req.header('Content-Length')) > limit) {
+        return c.json({ message: 'The request exceeds the Android upload limit.' }, 413);
       }
 
       // The patcher counts bytes while writing to disk, including requests without Content-Length.
@@ -140,7 +148,7 @@ export function createWebApp(runtime: HttpRuntime) {
       if (
         !(c.req.method === 'POST' && c.req.path === '/api/me/import'
           ? c.req.header('Content-Type')?.startsWith('multipart/form-data;')
-          : companionUpload(c) || androidUpload(c)
+          : companionUpload(c) || androidUpload(c) || androidChunk(c)
             ? c.req.header('Content-Type') === 'application/octet-stream'
             : c.req.method === 'PUT' &&
                 (c.req.path === '/api/me/avatar' || /^\/api\/manage\/users\/\d+\/avatar$/.test(c.req.path))
@@ -474,6 +482,57 @@ export function createWebApp(runtime: HttpRuntime) {
 
       const android = yield* ZwiftAndroidService;
       yield* Effect.promise(() => android.publish(body, pem, name, c.req.raw.signal));
+
+      return c.body(null, 204);
+    }),
+  );
+
+  appRoutes.post('/api/manage/android-upload', (c) =>
+    Effect.gen(function* () {
+      yield* sessions.require(c.get('sessionId'), true);
+      yield* installable(c);
+      const android = yield* ZwiftAndroidService;
+      const input = Schema.decodeUnknownSync(Schema.Struct({ name: Schema.String, size: Schema.Number }))(
+        yield* Effect.promise(() => c.req.json()),
+      );
+
+      return c.json(yield* Effect.promise(() => android.begin(c.get('sessionId'), input.name, input.size)), 201);
+    }),
+  );
+
+  appRoutes.get('/api/manage/android-upload/:id', (c) =>
+    Effect.gen(function* () {
+      yield* sessions.require(c.get('sessionId'), true);
+      const android = yield* ZwiftAndroidService;
+
+      return c.json(android.status(c.get('sessionId'), c.req.param('id')));
+    }),
+  );
+
+  appRoutes.put('/api/manage/android-upload/:id', (c) =>
+    Effect.gen(function* () {
+      yield* sessions.require(c.get('sessionId'), true);
+      const { pem } = yield* installable(c);
+      const android = yield* ZwiftAndroidService;
+      const body = c.req.raw.body;
+      const offset = c.req.query('offset');
+
+      if (!body || offset === undefined) {
+        throw new ApplicationError({ status: 400, message: 'The upload chunk is missing its body or offset.' });
+      }
+
+      const result = yield* Effect.promise(() =>
+        android.chunk(c.get('sessionId'), c.req.param('id'), Number(offset), body, pem),
+      );
+      return c.json(result);
+    }),
+  );
+
+  appRoutes.delete('/api/manage/android-upload/:id', (c) =>
+    Effect.gen(function* () {
+      yield* sessions.require(c.get('sessionId'), true);
+      const android = yield* ZwiftAndroidService;
+      yield* Effect.promise(() => android.cancel(c.get('sessionId'), c.req.param('id')));
 
       return c.body(null, 204);
     }),

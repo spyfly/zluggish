@@ -1,7 +1,19 @@
 import { CryptoRepository } from '#src/repositories/crypto.repository';
 import { createReadStream, createWriteStream } from 'node:fs';
 import type { FileHandle } from 'node:fs/promises';
-import { copyFile, mkdir, mkdtemp, open, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import {
+  copyFile,
+  mkdir,
+  mkdtemp,
+  open,
+  readdir,
+  readFile,
+  rename,
+  rm,
+  stat,
+  truncate,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { Readable, Transform } from 'node:stream';
@@ -982,6 +994,20 @@ export class ApkRepository {
     }
 
     return received;
+  }
+
+  async appendUpload(path: string, chunk: string, offset: number) {
+    const size = await this.size(path);
+    if ((size ?? 0) !== offset) {
+      throw new Error('The staged upload does not match its confirmed size.');
+    }
+
+    try {
+      await pipeline(createReadStream(chunk), createWriteStream(path, { flags: 'a', mode: 0o600 }));
+    } catch (error) {
+      await truncate(path, offset);
+      throw error;
+    }
   }
 
   /** Move a finished file into place, replacing what is there; copies when the folders are on different disks. */
