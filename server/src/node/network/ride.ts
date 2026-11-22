@@ -8,6 +8,7 @@ import {
   PlayerStateSchema,
   ServerToClientSchema,
 } from '#src/protocol/generated/udp-node-msgs_pb';
+import type { Relay } from '#src/world/state';
 import { expired, worldTime } from '#src/world/state';
 import { create, fromBinary, toBinary } from '@bufbuild/protobuf';
 import { createSocket } from 'node:dgram';
@@ -46,6 +47,7 @@ export function startRideListeners(runtime: Runtime) {
         return;
       }
 
+      runtime.effects.runSync(RideCompletionService.use((service) => service.protectRelay(Number(id), relay, true)));
       const iv: InitializationVector = {
         device: 1,
         channel: 1,
@@ -61,8 +63,8 @@ export function startRideListeners(runtime: Runtime) {
         return;
       }
 
+      relay.acceptUdp(decoded.iv.connection, decoded.fields.connection, decoded.iv.sequence);
       clients.set(endpoint, id);
-      relay.acceptUdp(decoded.iv.connection, decoded.fields.connection, decoded.fields.sequence);
       world.lifecycle.connected(id);
 
       runtime.effects.runSync(RideCompletionService.use((service) => service.touch(Number(id))));
@@ -107,12 +109,13 @@ export function startRideListeners(runtime: Runtime) {
     socket.setTimeout(30_000, () => socket.destroy());
     const framing = new FrameDecoder();
     let playerId: bigint | null = null;
+    let ownerRelay: Relay | null = null;
     let timer: NodeJS.Timeout | null = null;
 
     const send = (payload: Uint8Array) => {
       const relay = playerId === null ? null : world.relays.get(playerId);
 
-      if (!relay || socket.destroyed || playerId === null || active.get(playerId) !== socket) {
+      if (!relay || relay !== ownerRelay || socket.destroyed || playerId === null || active.get(playerId) !== socket) {
         return;
       }
 
@@ -122,21 +125,32 @@ export function startRideListeners(runtime: Runtime) {
         return;
       }
 
-      const packet = encodePacket(
-        payload,
-        relay.key,
-        {
-          device: 1,
-          channel: 4,
-          connection: relay.tcpConnection,
-          sequence: relay.nextTcp(),
-        },
-        {},
-      );
+      // Channel 4 has a one-byte header and a four-byte authentication tag.
+      // Drop unrepresentable messages without consuming a sequence number.
+      if (payload.length > 0xff_ff - 5) {
+        world.lifecycle.diagnostic('network.tcp_oversized', 'Dropped oversized relay message');
 
-      const length = Buffer.alloc(2);
-      length.writeUInt16BE(packet.length);
-      socket.write(Buffer.concat([length, packet]));
+        return;
+      }
+      try {
+        const packet = encodePacket(
+          payload,
+          relay.key,
+          {
+            device: 1,
+            channel: 4,
+            connection: relay.tcpConnection,
+            sequence: relay.nextTcp(),
+          },
+          {},
+        );
+
+        const length = Buffer.alloc(2);
+        length.writeUInt16BE(packet.length);
+        socket.write(Buffer.concat([length, packet]));
+      } catch {
+        socket.destroy();
+      }
     };
 
     socket.on('data', (chunk) => {
@@ -169,6 +183,7 @@ export function startRideListeners(runtime: Runtime) {
             const current = world.relays.get(playerId);
 
             if (current && rider.enabled) {
+              runtime.effects.runSync(RideCompletionService.use((service) => service.protectRelay(id, current, true)));
               runtime.effects.runSync(
                 RideCompletionService.use((service) => service.persistRelay(id, current.key, rider.auth_version)),
               );
@@ -184,17 +199,21 @@ export function startRideListeners(runtime: Runtime) {
                   DocumentsService.use((documents) => documents.text(id, 'relay-auth-version')),
                 ) === String(rider.auth_version)
               ) {
-                world.login(playerId, key);
+                const restored = world.login(playerId, key);
+                runtime.effects.runSync(RideCompletionService.use((service) => service.protectRelay(id, restored)));
               }
             }
           }
 
           const relay = playerId === null ? null : world.relays.get(playerId);
 
-          if (!relay) {
+          if (!relay || (!first && relay !== ownerRelay)) {
             throw new Error('Missing relay key');
           }
 
+          runtime.effects.runSync(
+            RideCompletionService.use((service) => service.protectRelay(Number(playerId), relay, true)),
+          );
           const decoded = decodePacket(packet, relay.key, {
             device: 1,
             channel: 3,
@@ -215,11 +234,12 @@ export function startRideListeners(runtime: Runtime) {
           ) {
             throw new Error('Relay revoked');
           }
-          runtime.effects.runSync(RideCompletionService.use((service) => service.touch(Number(playerId))));
-          world.lifecycle.connected(playerId);
-          const hello = first || decoded.fields.connection !== undefined;
+
+          const hello = first || decoded.iv.connection !== relay.tcpConnection;
 
           if (hello) {
+            relay.acceptTcp(decoded.iv.connection, true, decoded.iv.sequence);
+            ownerRelay = relay;
             const previous = active.get(playerId);
 
             world.lifecycle.log.verbose('network.tcp_connected', 'Validated relay connection', {
@@ -231,7 +251,6 @@ export function startRideListeners(runtime: Runtime) {
               previous.destroy();
             }
             active.set(playerId, socket);
-            relay.acceptTcp(decoded.iv.connection, true);
 
             const ip =
               socket.remoteAddress === '127.0.0.1' || socket.remoteAddress === '::1'
@@ -266,44 +285,59 @@ export function startRideListeners(runtime: Runtime) {
 
             if (!timer) {
               timer = setInterval(() => {
-                if (playerId === null || active.get(playerId) !== socket) {
-                  return;
-                }
-                const updates = world.updates.get(playerId) ?? [];
-                const phone = world.phones.get(playerId);
+                try {
+                  if (playerId === null || active.get(playerId) !== socket) {
+                    return;
+                  }
+                  const updates = world.updates.get(playerId) ?? [];
+                  const phone = world.phones.get(playerId);
 
-                if (phone) {
-                  send(toBinary(ServerToClientSchema, phone));
-                  world.phones.delete(playerId);
-                }
-
-                world.updates.delete(playerId);
-
-                let response = create(ServerToClientSchema, {
-                  serverRealm: 1n,
-                  playerId,
-                  worldTime: worldTime(),
-                });
-
-                for (const update of updates) {
-                  response.updates.push(update);
-
-                  if (!(toBinary(ServerToClientSchema, response).length >= 1300)) {
-                    continue;
+                  if (phone) {
+                    send(toBinary(ServerToClientSchema, phone));
+                    world.phones.delete(playerId);
                   }
 
-                  send(toBinary(ServerToClientSchema, response));
-                  response = create(ServerToClientSchema, {
+                  world.updates.delete(playerId);
+
+                  let response = create(ServerToClientSchema, {
+                    serverRealm: 1n,
                     playerId,
                     worldTime: worldTime(),
                   });
-                }
 
-                send(toBinary(ServerToClientSchema, response));
+                  for (const update of updates) {
+                    response.updates.push(update);
+
+                    if (toBinary(ServerToClientSchema, response).length > 0xff_ff - 5) {
+                      response.updates.pop();
+                      send(toBinary(ServerToClientSchema, response));
+                      response = create(ServerToClientSchema, {
+                        playerId,
+                        worldTime: worldTime(),
+                        updates: [update],
+                      });
+                    }
+
+                    if (!(toBinary(ServerToClientSchema, response).length >= 1300)) {
+                      continue;
+                    }
+
+                    send(toBinary(ServerToClientSchema, response));
+                    response = create(ServerToClientSchema, {
+                      playerId,
+                      worldTime: worldTime(),
+                    });
+                  }
+
+                  send(toBinary(ServerToClientSchema, response));
+                } catch {
+                  world.lifecycle.diagnostic('network.tcp_send_failed', 'Closed failed relay stream');
+                  socket.destroy();
+                }
               }, 1000);
             }
           } else {
-            relay.acceptTcp(decoded.iv.connection, false);
+            relay.acceptTcp(decoded.iv.connection, false, decoded.iv.sequence);
 
             if (incoming.subsSegments.length > 0) {
               send(
@@ -319,6 +353,8 @@ export function startRideListeners(runtime: Runtime) {
               );
             }
           }
+          runtime.effects.runSync(RideCompletionService.use((service) => service.touch(Number(playerId))));
+          world.lifecycle.connected(playerId);
         }
       } catch {
         world.lifecycle.diagnostic('network.tcp_rejected', 'Closed invalid relay stream');

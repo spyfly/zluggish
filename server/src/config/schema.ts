@@ -1,4 +1,4 @@
-import { FeatureMode, LogFormat, LogLevelInput, RiderPosition, StravaMethod } from '#src/enum';
+import { FeatureMode, LogLevelInput, RiderPosition, StravaMethod } from '#src/enum';
 import { FiniteAbove, FiniteFrom, IntBetween, NonBlank, satisfies, Text, withDefault } from '#src/schema';
 import { Schema, SchemaGetter } from 'effect';
 import { BlockList, isIP } from 'node:net';
@@ -189,7 +189,6 @@ export const configSchema = Schema.Struct({
   }),
   logging: section({
     level: logLevel,
-    format: Schema.Enum(LogFormat).pipe(withDefault('pretty')),
     rideProgressIntervalSeconds: seconds.pipe(withDefault(60)),
     metricsIntervalSeconds: seconds.pipe(withDefault(60)),
   }),

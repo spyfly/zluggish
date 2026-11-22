@@ -24,7 +24,7 @@ type Serialized = string | number | boolean | null | undefined | Array<Serialize
 
 type Fields = Record<string, LogValue>;
 
-type Options = Partial<Pick<ResolvedConfig['logging'], 'level' | 'format'>> & {
+type Options = Partial<Pick<ResolvedConfig['logging'], 'level'>> & {
   sink?: (line: string, level: Level) => void;
   clock?: () => Date;
 };
@@ -164,14 +164,6 @@ export class LoggingRepository {
         message: safe(message),
         fields: data,
       };
-
-      if (this.options.format === 'json') {
-        const line = JSON.stringify(entry);
-        this.remember(line);
-        this.sink(line, level);
-
-        return;
-      }
 
       const prefix = `${entry.timestamp} ${level} ${entry.event} ${entry.message}`;
       // Use redacted fields for the web view. Console traces inspect the original errors.
