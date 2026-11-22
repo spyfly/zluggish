@@ -26,6 +26,7 @@ import { ImportsService } from '#src/services/profile-import.service';
 import { DurabilityService } from '#src/services/durability.service';
 import { BackupService } from '#src/services/backup.service';
 import { CompanionService } from '#src/services/companion.service';
+import { ZwiftAndroidService } from '#src/services/zwift-android.service';
 import { TlsService } from '#src/services/tls.service';
 import { RetentionService } from '#src/services/retention.service';
 import { UploadsService } from '#src/services/uploads.service';
@@ -71,6 +72,7 @@ const featuresLayer = Layer.mergeAll(
   RetentionService.layer,
   BackupService.layer,
   CompanionService.layer,
+  ZwiftAndroidService.layer,
   ConnectionsService.layer,
   IntegrationsService.layer,
   EventsService.layer,
@@ -109,6 +111,7 @@ export type AppServices =
   | RetentionService
   | BackupService
   | CompanionService
+  | ZwiftAndroidService
   | TlsService
   | StreakService
   | FitService

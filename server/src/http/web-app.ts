@@ -9,7 +9,7 @@ import { ActivitiesService } from '#src/services/activities.service';
 import { DurabilityService } from '#src/services/durability.service';
 import { FilesService } from '#src/services/files.service';
 import { effectRoutes } from '#src/http/effect';
-import { zwiftAndroidPatcher, zwiftObbLimit } from '#src/http/zwift-android';
+import { ZwiftAndroidService, zwiftObbLimit } from '#src/services/zwift-android.service';
 import { fileResponse } from '#src/http/file-response';
 import { RecordsService } from '#src/services/records.service';
 import { webConnectionRoutes } from '#src/http/web-connections';
@@ -78,7 +78,6 @@ export function createWebApp(runtime: HttpRuntime) {
   const companionUpload = (c: Context<WebEnv>) => c.req.method === 'PUT' && c.req.path === '/api/manage/companion/app';
 
   const androidUpload = (c: Context<WebEnv>) => c.req.method === 'PUT' && c.req.path === '/api/install/android/obb';
-  const patchAndroid = zwiftAndroidPatcher();
 
   app.use('*', async (c: Context<WebEnv, string>, next: Next) => {
     const upload = c.req.method === 'POST' && c.req.path === '/api/me/import';
@@ -436,7 +435,8 @@ export function createWebApp(runtime: HttpRuntime) {
         throw new ApplicationError({ status: 400, message: 'Choose a Zwift expansion file to upload.' });
       }
 
-      const patched = yield* Effect.promise(() => patchAndroid(body, pem, c.req.raw.signal));
+      const android = yield* ZwiftAndroidService;
+      const patched = yield* Effect.promise(() => android.patch(body, pem, c.req.raw.signal));
 
       return c.body(patched.body, 200, {
         'Content-Type': 'application/octet-stream',
