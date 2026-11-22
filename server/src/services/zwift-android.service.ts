@@ -54,8 +54,12 @@ class ZwiftAndroidPatcher {
   }
 }
 
+function makeZwiftAndroidPatcher() {
+  return new ZwiftAndroidPatcher();
+}
+
 export class ZwiftAndroidService extends Context.Service<ZwiftAndroidService, ZwiftAndroidPatcher>()(
   'zluggish/ZwiftAndroidService',
 ) {
-  static readonly layer = Layer.sync(ZwiftAndroidService, () => new ZwiftAndroidPatcher());
+  static readonly layer = Layer.sync(ZwiftAndroidService, makeZwiftAndroidPatcher);
 }
