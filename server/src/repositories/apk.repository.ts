@@ -113,7 +113,7 @@ function zip64Number(bytes: Buffer, offset: number) {
   const number = Number(bytes.readBigUInt64LE(offset));
 
   if (!Number.isSafeInteger(number)) {
-    throw new Error('The ZIP64 archive has an invalid size or offset');
+    throw new TypeError('The ZIP64 archive has an invalid size or offset');
   }
 
   return number;
