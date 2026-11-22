@@ -93,13 +93,6 @@ export const ImportState = {
 
 export type ImportState = (typeof ImportState)[keyof typeof ImportState];
 
-export const LogFormat = {
-  Pretty: 'pretty',
-  Json: 'json',
-} as const;
-
-export type LogFormat = (typeof LogFormat)[keyof typeof LogFormat];
-
 export const LogLevel = {
   Verbose: 'VERBOSE',
   Info: 'INFO',
