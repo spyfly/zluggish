@@ -42,7 +42,7 @@ Zluggish is a rewrite of [zwift-offline](https://github.com/zoffline/zwift-offli
 - **A typed config file** (`zluggish.config.ts`) and an admin CLI for accounts, settings and storage.
 - **Docker Compose deployment**: one file, one command, no Python runtime.
 - **Matrix chat bridge** (experimental), next to the existing Discord bridge.
-- **Structured logging** that tracks logins, rides and uploads without logging credentials or personal data.
+- **Logging** that tracks logins, rides and uploads without logging credentials or personal data.
 
 <table>
   <tr>

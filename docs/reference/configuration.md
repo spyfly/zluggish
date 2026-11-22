@@ -54,7 +54,7 @@ For the effect of `enabled` and `publicUrl`, see [Web app](../usage/web-app.md).
 
 ## Logging
 
-Set the log level and format under `logging`. See [Logging](../troubleshooting/logging.md).
+Set the log level under `logging`. See [Logging](../troubleshooting/logging.md).
 
 ## Other settings
 

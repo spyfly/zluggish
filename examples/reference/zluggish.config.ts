@@ -136,8 +136,6 @@ export default defineConfig({
   logging: {
     // VERBOSE, INFO, WARN, ERROR, CRITICAL or NOTSET. DEBUG and WARNING are accepted as aliases.
     level: 'INFO',
-    // 'pretty' for people, 'json' for one structured record per line.
-    format: 'pretty',
     // Seconds between ride progress lines. 0 turns them off; otherwise at least 10.
     rideProgressIntervalSeconds: 60,
     // Seconds between server metrics lines. 0 turns them off; otherwise at least 10.
