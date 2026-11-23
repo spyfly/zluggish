@@ -18,6 +18,7 @@ import {
 import { AccountsService } from '#src/services/auth.service';
 import { Relay, World, worldTime } from '#src/world/state';
 import { runtimeFixture } from '#tests/support/runtime';
+import { activityFolderOf } from '#tests/medium/support';
 import { create, fromBinary, toBinary } from '@bufbuild/protobuf';
 import { BinaryWriter } from '@bufbuild/protobuf/wire';
 import assert from 'node:assert/strict';
@@ -604,10 +605,7 @@ await test('activity create, save and restart preserve ownership, FIT bytes and 
     false,
   );
   await f.effects.runPromise(JobsService.use((service) => service.drain()));
-  assert.deepEqual(
-    readFileSync(resolve(f.profiles.folder(user.player_id), 'fit', `${id} - synthetic.fit`)),
-    Buffer.from(activity.fit),
-  );
+  assert.deepEqual(readFileSync(resolve(activityFolderOf(f, id), 'activity.fit')), Buffer.from(activity.fit));
 
   const streaks = fromBinary(
     StreaksSchema,

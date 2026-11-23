@@ -5,7 +5,7 @@ import { validateConfig } from '#src/config/index';
 import { ActivitySchema } from '#src/protocol/generated/activity_pb';
 import { AssetFiles } from '#src/repositories/files.repository';
 import { RetentionService } from '#src/services/retention.service';
-import { binary, mediumFixture } from '#tests/medium/support';
+import { activityFolderOf, binary, mediumFixture } from '#tests/medium/support';
 import { create } from '@bufbuild/protobuf';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
@@ -53,12 +53,14 @@ async function storage(t: TestContext) {
 
   const root = f.config.storageDir;
   const folder = f.profiles.folder(f.rider.player_id);
+  const activity = activityFolderOf(f, id);
   const db = f.accounts.db;
   const old = Date.now() - 400 * day;
 
-  write(resolve(root, 'activities', '999'));
-  write(resolve(folder, 'fit', '999 - gone.fit'));
-  write(resolve(folder, 'images', '999.jpg'));
+  write(resolve(folder, 'activities', '2026-01-01T000000Z_999', 'activity.fit'));
+  write(resolve(activity, 'images', '999.jpg'));
+  // Files the folder migration could not match are kept for the operator.
+  write(resolve(folder, 'activities', 'orphaned', '3 - 2026-08-15-09-10-45.fit'), 'data', 400 * day);
 
   const reserved = Number(
     db
@@ -68,7 +70,7 @@ async function storage(t: TestContext) {
       .run(f.rider.player_id, id, Date.now() - 2 * 3_600_000).lastInsertRowid,
   );
 
-  write(resolve(folder, 'medias', `${reserved}.mp4`));
+  write(resolve(activity, 'videos', `${reserved}.mp4`));
 
   const fresh = Number(
     db
@@ -78,7 +80,7 @@ async function storage(t: TestContext) {
       .run(f.rider.player_id, id, Date.now()).lastInsertRowid,
   );
 
-  write(resolve(folder, 'medias', `${fresh}.mp4`));
+  write(resolve(activity, 'videos', `${fresh}.mp4`));
   write(resolve(folder, 'profile.bin.abc.tmp'), 'data', 2 * day);
   write(resolve(folder, 'recent.tmp'));
   // Unfinished ride recovery data is never a cleanup candidate, however old.
@@ -114,6 +116,7 @@ async function storage(t: TestContext) {
     f,
     id,
     folder,
+    activity,
     root,
     reserved,
     fresh,
@@ -122,18 +125,17 @@ async function storage(t: TestContext) {
 }
 
 await test('a cleanup preview lists the candidates and removes nothing', async (t) => {
-  const { f, folder, root, reserved, service } = await storage(t);
+  const { f, folder, activity, root, reserved, service } = await storage(t);
   const plan = await Effect.runPromise(service.plan());
   const reasons = new Map(plan.files.map((file) => [file.path, file.reason]));
 
-  assert.equal(reasons.get(resolve(root, 'activities', '999')), 'orphaned chart');
-  assert.equal(reasons.get(resolve(folder, 'fit', '999 - gone.fit')), 'orphaned FIT export');
-  assert.equal(reasons.get(resolve(folder, 'images', '999.jpg')), 'orphaned media');
-  assert.equal(reasons.get(resolve(folder, 'medias', `${reserved}.mp4`)), 'abandoned upload');
+  assert.equal(reasons.get(resolve(folder, 'activities', '2026-01-01T000000Z_999')), 'orphaned activity folder');
+  assert.equal(reasons.get(resolve(activity, 'images', '999.jpg')), 'orphaned media');
+  assert.equal(reasons.get(resolve(activity, 'videos', `${reserved}.mp4`)), 'abandoned upload');
   assert.equal(reasons.get(resolve(folder, 'profile.bin.abc.tmp')), 'temporary file');
   assert.equal(reasons.get(resolve(folder, 'ghosts', '6', '1', 'a.bin')), 'old ghost recording');
   assert.equal(reasons.get(resolve(root, 'backups', 'storage-v6-2026-01-01')), 'old migration backup');
-  assert.equal(plan.files.length, 7);
+  assert.equal(plan.files.length, 6);
   assert.ok(plan.jobs >= 4);
   assert.equal(plan.deliveries, 1);
   assert.deepEqual(plan.media, [{ table: 'activity_media', id: reserved }]);
@@ -145,9 +147,9 @@ await test('a cleanup preview lists the candidates and removes nothing', async (
 });
 
 await test('a cleanup keeps unfinished work, owned artifacts and the canonical FIT payload', async (t) => {
-  const { f, id, folder, fresh, service } = await storage(t);
+  const { f, id, folder, activity, fresh, service } = await storage(t);
   const removed = await Effect.runPromise(service.apply(await Effect.runPromise(service.plan())));
-  assert.equal(removed.files, 7);
+  assert.equal(removed.files, 6);
   const db = f.accounts.db;
 
   assert.deepEqual(
@@ -168,8 +170,10 @@ await test('a cleanup keeps unfinished work, owned artifacts and the canonical F
     ),
     fit,
   );
-  assert.ok(existsSync(resolve(folder, 'fit', `${id} - ride.fit`)));
-  assert.ok(existsSync(resolve(folder, 'medias', `${fresh}.mp4`)), 'a recent reservation stays');
+  assert.ok(existsSync(resolve(activity, 'activity.fit')));
+  assert.ok(existsSync(resolve(activity, 'chart.json')));
+  assert.ok(existsSync(resolve(folder, 'activities', 'orphaned', '3 - 2026-08-15-09-10-45.fit')));
+  assert.ok(existsSync(resolve(activity, 'videos', `${fresh}.mp4`)), 'a recent reservation stays');
   assert.ok(existsSync(resolve(folder, 'recent.tmp')));
   assert.ok(existsSync(resolve(folder, 'ride-recovery.bin')));
   assert.ok(existsSync(resolve(folder, 'ghosts', '6', '1', 'b.bin')));
@@ -245,14 +249,11 @@ await test('a media row is ready only after its file is durable', async (t) => {
   );
 
   assert.equal(f.accounts.db.prepare('SELECT state FROM activity_image WHERE id=?').get(image)?.state, 'ready');
-  assert.equal(
-    new AssetFiles().existsSync(resolve(f.profiles.folder(f.rider.player_id), 'images', `${image}.jpg`)),
-    true,
-  );
+  assert.equal(new AssetFiles().existsSync(resolve(activityFolderOf(f, id), 'images', `${image}.jpg`)), true);
 });
 
 await test('an upload published while retention scans keeps its row and file', async (t) => {
-  const { f, id, folder, service } = await storage(t);
+  const { f, id, activity, service } = await storage(t);
   const entered = Promise.withResolvers<void>();
   const resume = Promise.withResolvers<void>();
   const original = AssetFiles.prototype.entriesAsync;
@@ -272,7 +273,7 @@ await test('an upload published while retention scans keeps its row and file', a
   );
   resume.resolve();
   const plan = await planning;
-  const path = resolve(folder, 'images', `${image}.jpg`);
+  const path = resolve(activity, 'images', `${image}.jpg`);
   assert.ok(
     plan.files.some((file) => file.path === path),
     'the scan used its earlier ownership snapshot',
@@ -283,11 +284,11 @@ await test('an upload published while retention scans keeps its row and file', a
 });
 
 await test('a reservation completed after preview survives cleanup for images and videos', async (t) => {
-  const { f, id, folder, reserved, service } = await storage(t);
+  const { f, id, activity, reserved, service } = await storage(t);
   const repository = f.accounts.repositories.activitiesRepository;
   const image = Number(repository.insertActivityImage(f.rider.player_id, id).lastInsertRowid);
   f.accounts.db.prepare('UPDATE activity_image SET created_at=? WHERE id=?').run(Date.now() - day, image);
-  const path = resolve(folder, 'images', `${image}.jpg`);
+  const path = resolve(activity, 'images', `${image}.jpg`);
   write(path);
   const plan = await Effect.runPromise(service.plan());
   assert.ok(plan.media.some((row) => row.table === 'activity_image' && row.id === image));
@@ -295,14 +296,14 @@ await test('a reservation completed after preview survives cleanup for images an
   assert.ok(repository.mediaState('activity_media', reserved, 'ready'));
   await Effect.runPromise(service.apply(plan));
   assert.ok(existsSync(path));
-  assert.ok(existsSync(resolve(folder, 'medias', `${reserved}.mp4`)));
+  assert.ok(existsSync(resolve(activity, 'videos', `${reserved}.mp4`)));
   assert.equal(f.accounts.db.prepare('SELECT state FROM activity_image WHERE id=?').get(image)?.state, 'ready');
   assert.equal(repository.findActivityMedia(reserved)?.state, 'ready');
 });
 
 await test('cleanup preserves a file replaced after preview', async (t) => {
-  const { folder, service } = await storage(t);
-  const path = resolve(folder, 'images', '999.jpg');
+  const { activity, service } = await storage(t);
+  const path = resolve(activity, 'images', '999.jpg');
   const plan = await Effect.runPromise(service.plan());
   new AssetFiles().writeDurable(path, 'replacement', true);
   await Effect.runPromise(service.apply(plan));
@@ -310,7 +311,7 @@ await test('cleanup preserves a file replaced after preview', async (t) => {
 });
 
 await test('an in-flight upload cannot complete a reservation removed by cleanup', async (t) => {
-  const { f, id, folder, service } = await storage(t);
+  const { f, id, activity, service } = await storage(t);
   const entered = Promise.withResolvers<void>();
   const resume = Promise.withResolvers<void>();
   const original = AssetFiles.prototype.writeDurableAsync;
@@ -336,7 +337,7 @@ await test('an in-flight upload cannot complete a reservation removed by cleanup
   await Effect.runPromise(service.apply(plan));
   resume.resolve();
   await rejected;
-  assert.ok(path.startsWith(resolve(folder, 'images')));
+  assert.ok(path.startsWith(resolve(activity, 'images')));
   assert.equal(existsSync(path), false);
   assert.equal(f.accounts.db.prepare('SELECT count(*) AS n FROM activity_image').get()?.n, 0);
 });

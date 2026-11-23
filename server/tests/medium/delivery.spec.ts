@@ -7,7 +7,7 @@ import { PlayerProfileSchema } from '#src/protocol/generated/profile_pb';
 import { DeliveryRefusedError } from '#src/errors';
 import { ZwiftRepository } from '#src/repositories/zwift.repository';
 import { UploadsService } from '#src/services/uploads.service';
-import { binary, mediumFixture } from '#tests/medium/support';
+import { activityFolderOf, binary, mediumFixture } from '#tests/medium/support';
 import { create, toBinary } from '@bufbuild/protobuf';
 import { Garmin, GarminAuthError, GarminConnectionError, GarminHttpError } from 'garminconnect-js';
 import assert from 'node:assert/strict';
@@ -207,11 +207,11 @@ await test('deleting every FIT export breaks neither details, charts nor deliver
     return new Response(null, { status: 200 });
   });
   const id = await completed(f);
-  const folder = resolve(f.profiles.folder(f.rider.player_id), 'fit');
+  const folder = activityFolderOf(f, id);
   await f.effects.runPromise(JobsService.use((service) => service.drain()));
-  assert.deepEqual(readdirSync(folder), [`${id} - ride.fit`]);
-  rmSync(folder, { recursive: true });
-  rmSync(resolve(f.config.storageDir, 'activities'), { recursive: true });
+  assert.deepEqual(readdirSync(folder).toSorted(), ['activity.fit', 'chart.json']);
+  rmSync(resolve(folder, 'activity.fit'));
+  rmSync(resolve(folder, 'chart.json'));
 
   f.accounts.db.exec("UPDATE activity_upload SET state='failed'");
   await f.effects.runPromise(UploadsService.use((service) => service.retry(f.rider.player_id)));
@@ -233,7 +233,7 @@ await test('deleting every FIT export breaks neither details, charts nor deliver
 
   f.accounts.repositories.jobsRepository.enqueue('fit_export', { activityId: id });
   await f.effects.runPromise(JobsService.use((service) => service.drain()));
-  assert.deepEqual(readFileSync(resolve(folder, `${id} - ride.fit`)), fit);
+  assert.deepEqual(readFileSync(resolve(folder, 'activity.fit')), fit);
 });
 
 type Outcome = 'sent' | 'failed' | 'ambiguous';

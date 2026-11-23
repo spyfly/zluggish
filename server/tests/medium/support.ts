@@ -8,6 +8,7 @@ import { runtimeFixture } from '#tests/support/runtime';
 import { createWebApp } from '#src/http/web-app';
 import type { User } from '#src/repositories/accounts.repository';
 import type { JsonValue } from '#src/dtos/management.dto';
+import { activityFolder } from '#src/activity-storage';
 
 export async function mediumFixture(t: TestContext, publicUrl: string | null = null, webEnabled = true) {
   const network = t.mock.method(globalThis, 'fetch', () => {
@@ -127,4 +128,15 @@ export function mediumWeb(f: ReturnType<typeof runtimeFixture>, rider: User) {
   };
 
   return { app, request };
+}
+
+/** The folder of an activity in the new layout; assigns its name like the server does. */
+export function activityFolderOf(
+  f: Pick<ReturnType<typeof runtimeFixture>, 'accounts' | 'profiles'>,
+  activity: number | bigint,
+) {
+  const stored = f.accounts.repositories.activitiesRepository.storageDirectory(activity);
+  assert.ok(stored, `activity ${activity} exists`);
+
+  return activityFolder(f.profiles.folder(stored.player), stored.directory);
 }

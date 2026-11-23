@@ -18,6 +18,7 @@ import {
   STORAGE_VERSION,
   StorageFile,
 } from '#src/migrations/storage';
+import { migrateActivityFolders } from '#src/migrations/activity-folders';
 import { existsSync, mkdirSync, readdirSync, renameSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -25,13 +26,15 @@ import { DatabaseSync } from 'node:sqlite';
 const isVersionRow = Schema.is(Schema.Struct({ version: Schema.Finite }));
 
 /** Ordinary schema migrations after the storage merge. Each runs in one transaction at
-startup. A migration that changes existing data needs a backup first (storage backup).
+startup. A migration that changes existing data sets `backup`: an existing store is
+backed up before it runs.
 */
-const migrations: Array<{ version: number; up: (db: DatabaseSync) => void }> = [
+const migrations: Array<{ version: number; up: (db: DatabaseSync, storage: string) => void; backup?: true }> = [
   { version: 7, up: (db) => db.exec(indexesSQL) },
   { version: 8, up: (db) => db.exec(administratorSchemaSQL) },
   { version: 9, up: (db) => db.exec(dropManagementAuditSQL) },
   { version: 10, up: (db) => db.exec(webSessionSQL) },
+  { version: 11, up: migrateActivityFolders, backup: true },
 ];
 
 export const SCHEMA_VERSION = STORAGE_VERSION + migrations.length;
@@ -173,8 +176,12 @@ export function openDatabase(storage: string): DatabaseSync {
       if (migration.version <= version(db)) {
         continue;
       }
+
+      if (migration.backup && !fresh) {
+        backupLegacyStorage(storage, `storage-v${migration.version}`);
+      }
       db.exec('BEGIN IMMEDIATE');
-      migration.up(db);
+      migration.up(db, storage);
       db.prepare('UPDATE version SET version=?').run(migration.version);
       db.exec('COMMIT');
     }
