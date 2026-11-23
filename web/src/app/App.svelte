@@ -945,7 +945,7 @@
           manage && !['/manage/server', '/manage/companion', '/manage/zwift-android'].includes(path),
         )}
         <div class="subgroup" role="group" aria-labelledby="menu-android-apps">
-          <p class="group sub" id="menu-android-apps">Android apps</p>
+          <p class="group" id="menu-android-apps">Android apps</p>
           {@render link('/manage/companion', 'Companion', path === '/manage/companion')}
           {@render link('/manage/zwift-android', 'Zwift', path === '/manage/zwift-android')}
         </div>
@@ -1966,16 +1966,9 @@
     color: var(--muted);
     font-size: 0.8125rem;
   }
-  /* The apps this server patches, set in from the other pages so that Server reads as their sibling again. */
+  /* A gap after the patched apps, so that Server reads as its own page rather than one of them. */
   .subgroup {
-    margin: 0.35rem 0;
-  }
-  .group.sub {
-    margin: 0.5rem 0 0.15rem 3rem;
-  }
-  .subgroup :global(a) {
-    padding-left: 2.75rem;
-    font-size: 0.875rem;
+    margin-bottom: 1rem;
   }
   button.sign-out {
     margin-top: auto;
