@@ -13,12 +13,12 @@ Zwift from Google Play keeps the servers it trusts in its expansion file. The ad
 
 An administrator does this once per Zwift version.
 
-1. Download the Zwift `.apkm` bundle that includes the expansion file, about 4 GB. On APKMirror it is the download marked **BUNDLE 1 OBB**.
-2. In the [web app](../../usage/web-app.md), open **Manage → Zwift Android** and drop the file on the upload area.
+1. Open [Zwift on APKMirror](https://www.apkmirror.com/apk/zwift-inc/zwift/), select the newest version and download the variant marked **BUNDLE 1 OBB**: an `.apkm` file of about 4 GB.
+2. In the [web app](../../usage/web-app.md), open **Manage → Android apps → Zwift** and drop the file on the upload area.
 3. Keep the page open until the upload finishes. It shows the progress, speed and time left.
 4. The server then builds the app in the background. The page shows each step; you can leave it.
 
-The first build downloads Java and APKEditor, about 60 MB, which the Companion app patcher shares. Uploads up to 10 GB are accepted, sent in 16 MiB pieces so that they pass proxies such as Cloudflare Tunnel.
+Building takes about 10 GB of free space on the storage disk; the page warns when there is less. The first build downloads Java and APKEditor, about 60 MB, which the Companion app patcher shares. Uploads up to 10 GB are accepted, sent in 16 MiB pieces so that they pass proxies such as Cloudflare Tunnel.
 
 The server keeps the last upload. When you rotate the server certificate, it builds the app again on its own; **Build again** does the same by hand. The upload and the built app are left out of backups.
 

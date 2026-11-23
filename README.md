@@ -71,7 +71,7 @@ Then follow the documentation:
 1. [Requirements](https://docs.zluggish.com/install/requirements/)
 2. [Install the server](https://docs.zluggish.com/install/server/) and do the [first-time setup](https://docs.zluggish.com/install/server/#first-time-setup)
 3. Set up the client on [Windows](https://docs.zluggish.com/install/clients/windows/), [macOS](https://docs.zluggish.com/install/clients/macos/) or [Android](https://docs.zluggish.com/install/clients/android/)
-   On Android, the administrator uploads Zwift once under **Manage → Zwift Android**, and riders download it from **Apps**.
+   On Android, the administrator uploads Zwift once under **Manage → Android apps → Zwift**, and riders download it from **Apps**.
 
 Coming from zwift-offline? Read [Migrate from zwift-offline](https://docs.zluggish.com/maintenance/migrating/) first, and back up your storage folder.
 

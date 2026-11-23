@@ -15,6 +15,11 @@ export const zwiftAndroidUploadLimit = 10_000_000_000;
 /** Small enough to pass proxies such as Cloudflare Tunnel, which cap a request at 100 MB. */
 export const zwiftAndroidChunkSize = 16 * 1024 ** 2;
 const zwiftObbLimit = 2 * 1024 ** 3;
+/**
+The free space a build should start with. The saved upload, the patched expansion, the signed app and the app it
+replaces hold up to about four copies of the 2 GB expansion at once, besides the upload itself.
+*/
+export const zwiftAndroidRecommendedSpace = 10_000_000_000;
 const originalId = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
 
 export type ZwiftAndroidStep =
@@ -71,6 +76,8 @@ export interface ZwiftAndroidAdminStatus extends ZwiftAndroidStatus {
   readonly original: { readonly name: string; readonly bytes: number; readonly uploadedAt: string } | null;
   readonly tools: { readonly ready: boolean; readonly downloadBytes: number; readonly supported: boolean };
   readonly tlsMode: 'managed' | 'legacy' | 'custom' | 'disabled';
+  /** Free space on the storage disk, or null when the system does not report it. */
+  readonly disk: { readonly free: number | null; readonly recommended: number };
   readonly uploadLimit: number;
   readonly chunkSize: number;
 }
@@ -242,7 +249,12 @@ const make = Effect.gen(function* () {
   }
 
   async function adminStatus(): Promise<ZwiftAndroidAdminStatus> {
-    const [base, saved, tools] = await Promise.all([status(), original(), toolchain.state()]);
+    const [base, saved, tools, free] = await Promise.all([
+      status(),
+      original(),
+      toolchain.state(),
+      files.freeBytesAsync(config.storageDir),
+    ]);
 
     return {
       ...base,
@@ -250,6 +262,7 @@ const make = Effect.gen(function* () {
       original: saved && { name: saved.name, bytes: saved.bytes, uploadedAt: new Date(saved.uploadedAt).toISOString() },
       tools: { ready: !!tools.java && tools.editor, downloadBytes: tools.downloadBytes, supported: tools.supported },
       tlsMode: tls.mode(),
+      disk: { free, recommended: zwiftAndroidRecommendedSpace },
       uploadLimit: zwiftAndroidUploadLimit,
       chunkSize: zwiftAndroidChunkSize,
     };
@@ -512,6 +525,14 @@ const make = Effect.gen(function* () {
         throw new ApplicationError({ status: 400, message: 'The file is larger than 10 GB.' });
       }
       serverCertificate();
+      // The upload alone must fit; the page warns about the room the build needs on top of it.
+      const free = await files.freeBytesAsync(config.storageDir);
+      if (free !== null && free < size) {
+        throw new ApplicationError({
+          status: 409,
+          message: `The server has ${Math.floor(free / 1e8) / 10} GB free, too little for this ${Math.ceil(size / 1e8) / 10} GB upload.`,
+        });
+      }
       if (activity?.state === 'running' || writing) {
         throw new ApplicationError({ status: 409, message: 'Wait for the current Zwift upload or build to finish.' });
       }

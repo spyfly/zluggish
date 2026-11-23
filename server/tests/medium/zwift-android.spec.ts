@@ -113,6 +113,8 @@ await test('an administrator uploads a Zwift APKM in chunks and follows the buil
   assert.equal(activity.step, 'inspect');
   assert.deepEqual(activity.steps.slice(0, 3), ['extract', 'certificate', 'inspect']);
   assert.equal(status.app, null);
+  assert.equal(status.disk.recommended, 10_000_000_000);
+  assert.ok(status.disk.free === null || status.disk.free > 0);
   assert.equal(status.original.name, 'zwift.apkm');
   assert.equal(status.original.bytes, apkm.length);
 

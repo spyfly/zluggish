@@ -944,9 +944,12 @@
           'Users',
           manage && !['/manage/server', '/manage/companion', '/manage/zwift-android'].includes(path),
         )}
+        <div class="subgroup" role="group" aria-labelledby="menu-android-apps">
+          <p class="group sub" id="menu-android-apps">Android apps</p>
+          {@render link('/manage/companion', 'Companion', path === '/manage/companion')}
+          {@render link('/manage/zwift-android', 'Zwift', path === '/manage/zwift-android')}
+        </div>
         {@render link('/manage/server', 'Server', path === '/manage/server')}
-        {@render link('/manage/companion', 'Companion', path === '/manage/companion')}
-        {@render link('/manage/zwift-android', 'Zwift Android', path === '/manage/zwift-android')}
       {/if}
     </nav>
     <button class="sign-out" disabled={busy} onclick={() => run(signOut)}>Sign out</button>
@@ -1962,6 +1965,17 @@
     margin: 1.25rem 0 0.3rem 1.75rem;
     color: var(--muted);
     font-size: 0.8125rem;
+  }
+  /* The apps this server patches, set in from the other pages so that Server reads as their sibling again. */
+  .subgroup {
+    margin: 0.35rem 0;
+  }
+  .group.sub {
+    margin: 0.5rem 0 0.15rem 3rem;
+  }
+  .subgroup :global(a) {
+    padding-left: 2.75rem;
+    font-size: 0.875rem;
   }
   button.sign-out {
     margin-top: auto;

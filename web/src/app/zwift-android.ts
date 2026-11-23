@@ -40,6 +40,7 @@ export const zwiftAndroidAdminStatus = zwiftAndroidStatus.extend({
   original: z.object({ name: z.string(), bytes: z.number(), uploadedAt: z.string() }).nullable(),
   tools: z.object({ ready: z.boolean(), downloadBytes: z.number(), supported: z.boolean() }),
   tlsMode: z.enum(['managed', 'legacy', 'custom', 'disabled']),
+  disk: z.object({ free: z.number().nullable(), recommended: z.number() }),
   uploadLimit: z.number(),
   chunkSize: z.number(),
 });

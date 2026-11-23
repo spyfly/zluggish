@@ -73,6 +73,9 @@
   };
 
   const certificateReady = $derived(!!admin && admin.tlsMode !== 'disabled');
+  const apkMirror = 'https://www.apkmirror.com/apk/zwift-inc/zwift/';
+  /** Short of the room a build needs. The upload still starts; the server refuses only one that cannot fit at all. */
+  const lowSpace = $derived(!!admin && admin.disk.free !== null && admin.disk.free < admin.disk.recommended);
 
   /** The steps a build will take, before the server says: the tool downloads only when the tools are missing. */
   const predicted = $derived<Array<ZwiftAndroidStep>>([
@@ -381,7 +384,7 @@
   <section class="panel" aria-labelledby="zwift-android-app">
     <h2 id="zwift-android-app">Zwift for Android</h2>
     <p class="lead">
-      Upload Zwift from the Play Store once. The server adds its certificate and publishes
+      Upload Zwift once and the server adds its certificate, then publishes
       <strong>Zwift for Zluggish</strong>, a copy that installs next to the original. Riders download it under
       <a href="/apps" onclick={(event) => go(event, '/apps')}>Apps</a>.
     </p>
@@ -531,6 +534,20 @@
     {/if}
 
     {#if !busy}
+      <ol class="fetch">
+        <li>
+          Open <a href={apkMirror} target="_blank" rel="noopener noreferrer">Zwift on APKMirror</a> and select the newest
+          version.
+        </li>
+        <li>Download the variant marked <strong>BUNDLE 1 OBB</strong>: an .apkm file of about 4 GB.</li>
+        <li>Drop it below.</li>
+      </ol>
+      {#if lowSpace && admin.disk.free !== null}
+        <p class="stale" role="status">
+          The server has {megabytes(admin.disk.free)} free. Building Zwift takes about
+          {megabytes(admin.disk.recommended)}, so free up space on the server before you upload.
+        </p>
+      {/if}
       <label
         class="drop"
         class:dragging
@@ -559,13 +576,11 @@
         <span class="title">{admin.app ? 'Upload a newer Zwift' : 'Upload Zwift'}</span>
         <span class="detail">Drop the .apkm file here or choose it, up to {megabytes(admin.uploadLimit)}.</span>
       </label>
-      <p class="hint">
-        Use the APKM bundle that includes the expansion file, about 4 GB. On APKMirror it is the download marked
-        <strong>BUNDLE 1 OBB</strong>.
-        {#if !admin.tools.ready && admin.tools.supported}
+      {#if !admin.tools.ready && admin.tools.supported}
+        <p class="hint">
           The first build also downloads Java and APKEditor, about {megabytes(admin.tools.downloadBytes)}.
-        {/if}
-      </p>
+        </p>
+      {/if}
       {#if !admin.tools.ready && !admin.tools.supported}
         <p class="stale">
           No Java runtime is published for this server’s system. Install Java 11 or later on the server before you
@@ -860,6 +875,22 @@
   }
   .job .hint {
     margin-top: 0.5rem;
+  }
+
+  .fetch {
+    margin: 0 0 1rem;
+    padding-left: 1.4rem;
+  }
+  .fetch li {
+    margin: 0 0 0.3rem;
+    padding-left: 0.2rem;
+  }
+  .fetch li::marker {
+    color: var(--orange);
+    font-weight: 800;
+  }
+  .fetch a {
+    color: inherit;
   }
 
   .drop {
