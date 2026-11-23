@@ -72,6 +72,11 @@
       tag: mark('ios', t('Apps.this_device')),
       unavailable: true,
     },
+    {
+      to: '/install/manual',
+      name: t('Apps.manual_setup'),
+      detail: t('Apps.certificate_and_hosts_file_for_any_system'),
+    },
   ]);
 
   const phones = $derived<Array<Row>>([

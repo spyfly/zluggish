@@ -143,7 +143,7 @@
     path === '/apps' ||
       (installing &&
         !installingPhone &&
-        !/^\/install\/(windows|macos|linux)$/.test(path) &&
+        !/^\/install\/(windows|macos|linux|manual)$/.test(path) &&
         !(path === '/install' && isComputer(here))) ||
       (companion && !/^\/companion\/(android|ios)$/.test(path) && !(path === '/companion' && isPhone(here))),
   );
@@ -151,6 +151,22 @@
   const back = $derived(
     manage && path.startsWith('/manage/users/') ? { href: '/manage', label: t('App.all_users') } : undefined,
   );
+
+  /** Setup pages name the app and system in a visible heading, under a link back to Apps. */
+  const setups = new Map([
+    ['/install/windows', t('App.set_up_zwift_for_windows')],
+    ['/install/macos', t('App.set_up_zwift_for_macos')],
+    ['/install/linux', t('App.set_up_zwift_for_linux')],
+    ['/install/manual', t('App.set_up_zwift_manually')],
+    ['/install/android', t('App.set_up_zwift_for_android')],
+    ['/install/android-rooted', t('App.set_up_zwift_for_rooted_android')],
+    ['/install/ios', t('App.zwift_on_iphone_and_ipad')],
+    ['/companion/android', t('App.set_up_companion_for_android')],
+    ['/companion/ios', t('App.companion_on_iphone_and_ipad')],
+  ]);
+  // Bare `/install` and `/companion` set up this browser's own system.
+  const setup = $derived(apps ? undefined : setups.get(path === '/install' || path === '/companion' ? `${path}/${here}` : path));
+  const crumb = $derived(setup ? { href: '/apps', label: t('App.apps') } : undefined);
 
   const administrator = $derived(user?.role === 'administrator');
   const selectedId = $derived(Number(/^\/manage\/users\/(\d+)$/.exec(path)?.[1] ?? 0));
@@ -225,25 +241,7 @@
                                 ? t('App.climbs')
                                 : apps
                                   ? t('App.apps')
-                                  : path === '/install/windows'
-                                    ? t('App.windows_setup')
-                                    : path === '/install/macos'
-                                      ? t('App.macos_setup')
-                                      : path === '/install/linux'
-                                        ? t('App.linux_setup')
-                                        : path === '/install/android'
-                                          ? t('App.android_setup')
-                                          : path === '/install/android-rooted'
-                                            ? t('App.rooted_android_setup')
-                                            : path === '/install/ios'
-                                              ? t('App.iphone_and_ipad')
-                                              : installing
-                                                ? t('App.install')
-                                                : path === '/companion/android'
-                                                  ? t('App.android_setup')
-                                                  : companion
-                                                    ? t('App.companion')
-                                                    : t('App.profile'),
+                                  : (setup ?? t('App.profile')),
   );
 
   const initials = (r: User) => `${r.first_name.charAt(0)}${r.last_name.charAt(0)}`.toUpperCase();
@@ -965,8 +963,10 @@
     heading={!user && title !== 'Profile' && title !== 'Activities'}
     page={manage ? 'manage' : 'account'}
     {back}
+    {crumb}
     onback={() => {
-      if (back) void navigate(back.href);
+      const to = back ?? crumb;
+      if (to) void navigate(to.href);
     }}
     {version}
     {zwiftVersion}
@@ -1639,7 +1639,14 @@
       {:else if installingPhone}
         <InstallPhone {api} {path} {navigate} {administrator} />
       {:else if installing}
-        <Install {api} {path} {navigate} />
+        <Install
+          {api}
+          {path}
+          {navigate}
+          confirm={(confirmation) => {
+            pending = confirmation;
+          }}
+        />
       {:else if companion}
         <Companion {api} {path} {navigate} {administrator} />
       {:else if path === '/settings'}

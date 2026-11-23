@@ -231,21 +231,34 @@ try {
 }
 
 // Exercise the local self-signed game listener without changing global TLS verification.
-function gameFetch(url, init = {}) {
+async function gameFetch(url, init = {}) {
+  // A Request encodes the body (such as URLSearchParams) and its Content-Type the way fetch does.
+  const outgoing = new Request(url, init);
+  const body = outgoing.body ? Buffer.from(await outgoing.arrayBuffer()) : undefined;
+
   return new Promise((resolve, reject) => {
-    const request = httpsRequest(url, { ...init, rejectUnauthorized: false }, (response) => {
-      const chunks = [];
-      response.on('data', (chunk) => chunks.push(chunk));
-      response.on('end', () =>
-        resolve(
-          new Response(Buffer.concat(chunks), {
-            status: response.statusCode,
-            headers: response.headers,
-          }),
-        ),
-      );
-    });
+    const request = httpsRequest(
+      url,
+      {
+        method: outgoing.method,
+        headers: Object.fromEntries(outgoing.headers),
+        signal: init.signal,
+        rejectUnauthorized: false,
+      },
+      (response) => {
+        const chunks = [];
+        response.on('data', (chunk) => chunks.push(chunk));
+        response.on('end', () => {
+          // Node joins nothing, so each Set-Cookie stays separate for getSetCookie().
+          const headers = new Headers();
+          for (const [name, value] of Object.entries(response.headers))
+            for (const item of [value].flat()) headers.append(name, item);
+          const empty = [101, 204, 205, 304].includes(response.statusCode);
+          resolve(new Response(empty ? null : Buffer.concat(chunks), { status: response.statusCode, headers }));
+        });
+      },
+    );
     request.on('error', reject);
-    request.end(init.body);
+    request.end(body);
   });
 }

@@ -27,12 +27,6 @@
     path === '/install/android-rooted' ? 'rooted' : path === '/install/ios' ? 'ios' : 'android',
   );
 
-  const names = {
-    android: t('InstallPhone.android'),
-    rooted: t('InstallPhone.android_rooted'),
-    ios: t('InstallPhone.iphone_and_ipad'),
-  } as const;
-
   let status = $state<TlsStatus | null>(null);
   let failure = $state('');
 
@@ -111,13 +105,6 @@
   </div>
 {/snippet}
 
-{#snippet switcher()}
-  <p class="switch">
-    {names[platform]} ·
-    <a href="/apps" onclick={(event) => go(event, '/apps')}>{t('InstallPhone.other_systems')}</a>
-  </p>
-{/snippet}
-
 {#snippet manageLink()}
   <a href="/manage/zwift-android" onclick={(event) => go(event, '/manage/zwift-android')}
     >{t('InstallPhone.manage_zwift_for_android')}</a
@@ -128,7 +115,6 @@
 
 {#if platform === 'ios'}
   <section class="panel" aria-labelledby="install-ios">
-    {@render switcher()}
     <h2 id="install-ios">{t('InstallPhone.not_supported_on_iphone_and_ipad')}</h2>
     <p class="lead">{t('InstallPhone.ios_does_not_allow_a_patched_zwift_ride_from')}</p>
   </section>
@@ -136,12 +122,10 @@
   {#if !failure}<p role="status">{t('InstallPhone.loading')}</p>{/if}
 {:else if status.mode === 'legacy'}
   <section class="panel">
-    {@render switcher()}
     <p>{t('InstallPhone.ask_the_server_administrator_to_replace_the_shared_certificate')}</p>
   </section>
 {:else if platform === 'android'}
   <section class="panel" aria-label={t('InstallPhone.android_setup_steps')}>
-    {@render switcher()}
     {#if zwift?.app && !zwift.app.current}
       <p class="risk" role="status">
         {t('InstallPhone.this_app_was_built_for_an_old_certificate_and')}
@@ -174,9 +158,9 @@
           </p>
         {:else if !zwift.app}
           <p class="empty">
-            {t('InstallPhone.not_added_yet')}
-            {#if administrator}{t('InstallPhone.upload_it_under')} {@render manageLink()}.{:else}{t(
-                'InstallPhone.ask_the_server_administrator_to_add_it',
+            {t('InstallPhone.this_server_does_not_have_zwift_for_android_yet')}
+            {#if administrator}{t('InstallPhone.set_it_up_under')} {@render manageLink()}.{:else}{t(
+                'InstallPhone.the_server_administrator_needs_to_set_it_up_first',
               )}{/if}
           </p>
         {/if}
@@ -218,7 +202,6 @@
   </section>
 {:else if status.certificate}
   <section class="panel" aria-label={t('InstallPhone.rooted_android_setup_steps')}>
-    {@render switcher()}
     <ol class="walk">
       <li>
         <h2>{t('InstallPhone.start_zwift_once')}</h2>
@@ -297,19 +280,6 @@
     border-radius: 0 8px 8px 0;
     background: rgb(255 90 70 / 0.12);
     color: var(--alarm);
-  }
-
-  .switch {
-    margin: -0.25rem 0 1.25rem;
-    color: var(--muted);
-    font-size: 0.875rem;
-  }
-  .switch a {
-    color: var(--muted);
-    text-decoration-thickness: 1px;
-  }
-  .switch a:hover {
-    color: var(--text);
   }
 
   .walk {

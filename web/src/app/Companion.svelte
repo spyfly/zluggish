@@ -69,13 +69,6 @@
   });
 </script>
 
-{#snippet switcher(name: string)}
-  <p class="switch">
-    {name} ·
-    <a href="/apps" onclick={(event) => go(event, '/apps')}>{t('Companion.other_systems')}</a>
-  </p>
-{/snippet}
-
 {#snippet manageLink()}
   <a href="/manage/companion" onclick={(event) => go(event, '/manage/companion')}>{t('Companion.manage_companion')}</a>
 {/snippet}
@@ -86,14 +79,11 @@
   {#if !failure}<p role="status">{t('Companion.loading')}</p>{/if}
 {:else if platform === 'ios'}
   <section class="panel" aria-labelledby="companion-ios">
-    {@render switcher('iPhone and iPad')}
     <h2 id="companion-ios">{t('Companion.not_supported_on_iphone_and_ipad')}</h2>
     <p class="lead">{t('Companion.ios_does_not_allow_a_patched_companion_use_an')}</p>
   </section>
 {:else if platform === 'android'}
   <section class="panel" aria-label={t('Companion.android_setup_steps')}>
-    {@render switcher('Android')}
-
     {#if status.app && !status.app.current}
       <p class="stale" role="status">
         {t('Companion.this_app_was_made_for_an_old_certificate_and')}
@@ -105,14 +95,12 @@
 
     <ol class="walk">
       <li>
-        <h2>{t('Companion.remove_the_play_store_version')}</h2>
-        <p>{t('Companion.uninstall_zwift_companion_if_it_came_from_the_play')}</p>
-        <p class="hint">{t('Companion.skip_this_when_updating_an_app_downloaded_here')}</p>
-      </li>
-      <li>
-        <h2>{t('Companion.download_the_app')}</h2>
+        <h2>{t('Companion.download_companion_for_zluggish')}</h2>
         {#if status.app}
-          <p>{t('Companion.download_it_on_the_phone')}</p>
+          <p>
+            {t('Companion.installs_next_to_zwift_companion_from_google_play')}
+            {t('Companion.download_it_on_the_phone')}
+          </p>
           <a class="download" class:muted-action={!status.app.current} href="/api/companion/app" download
             >{t('Companion.download_companion', { value1: status.app.versionName })}</a
           >
@@ -121,9 +109,9 @@
           </p>
         {:else}
           <p class="empty">
-            {t('Companion.not_added_yet')}
-            {#if administrator}{t('Companion.upload_it_under')} {@render manageLink()}.{:else}{t(
-                'Companion.ask_the_server_administrator_to_add_it',
+            {t('Companion.this_server_does_not_have_the_companion_app_yet')}
+            {#if administrator}{t('Companion.set_it_up_under')} {@render manageLink()}.{:else}{t(
+                'Companion.the_server_administrator_needs_to_set_it_up_first',
               )}{/if}
           </p>
         {/if}
@@ -162,7 +150,7 @@
       </li>
       <li>
         <h2>{t('Companion.sign_in')}</h2>
-        <p>{t('Companion.open_companion_and_sign_in_with_your_zluggish_account')}</p>
+        <p>{t('Companion.open_companion_with_the_zluggish_icon_and_sign')}</p>
       </li>
     </ol>
   </section>
@@ -204,19 +192,6 @@
   }
   .empty {
     color: var(--muted);
-  }
-
-  .switch {
-    margin: -0.25rem 0 1.25rem;
-    color: var(--muted);
-    font-size: 0.875rem;
-  }
-  .switch a {
-    color: var(--muted);
-    text-decoration-thickness: 1px;
-  }
-  .switch a:hover {
-    color: var(--text);
   }
 
   .walk {

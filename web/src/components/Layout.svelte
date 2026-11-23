@@ -9,6 +9,7 @@
     heading = true,
     page,
     back,
+    crumb,
     version,
     zwiftVersion,
     menu,
@@ -22,6 +23,8 @@
     heading?: boolean;
     page: string;
     back?: { href: string; label: string } | undefined;
+    /** A small link above the heading to the page this one sits under, such as Apps above a setup. */
+    crumb?: { href: string; label: string } | undefined;
     version: string;
     zwiftVersion?: string | undefined;
     /** Contents of the side menu behind the bar's menu button. The game app has none. */
@@ -29,7 +32,7 @@
     /** Sits beside the logo in the bar, such as the launcher's link out to the web app. */
     aside?: Snippet | undefined;
     onhome?: (() => void) | undefined;
-    /** Follows the back link inside the page instead of loading it again. */
+    /** Follows the back link or crumb inside the page instead of loading it again. */
     onback?: (() => void) | undefined;
     children: Snippet;
   } = $props();
@@ -161,7 +164,17 @@
   </div>
 </dialog>
 <main data-page={page} class:has-menu={!!menu}>
-  {#if heading || back}<header>
+  {#if heading || back || crumb}<header class:crumbed={!!crumb}>
+      {#if crumb}<a
+          class="crumb"
+          href={crumb.href}
+          onclick={(event) => {
+            if (onback && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+              event.preventDefault();
+              onback();
+            }
+          }}>{crumb.label}</a
+        >{/if}
       {#if back}<a
           class="back"
           href={back.href}
@@ -383,6 +396,40 @@
   }
   header h1 {
     margin: 0;
+  }
+  header.crumbed {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+  }
+  /* The way up stays quiet beside the heading: the back button's chevron, small, turning orange like it does. */
+  .crumb {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    margin-left: -0.3rem;
+    padding: 0.35rem 0.5rem 0.35rem 0.1rem;
+    border-radius: 6px;
+    color: var(--muted);
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .crumb::before {
+    content: '';
+    width: 1rem;
+    height: 1rem;
+    background: currentColor;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M14.5 5.5 8 12l6.5 6.5' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+      center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M14.5 5.5 8 12l6.5 6.5' fill='none' stroke='black' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+      center / contain no-repeat;
+  }
+  .crumb:hover {
+    color: var(--text);
+  }
+  .crumb:hover::before {
+    background: var(--orange);
   }
   /* A round outlined button like Zwift's header controls, holding a left chevron. */
   .bar .version {
