@@ -1,11 +1,38 @@
 import { defineConfig } from 'vite';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { z } from 'zod';
 
-const messages = z.record(z.string(), z.string());
 const catalogSchema = z.record(z.string(), z.string());
+
+function sourceFiles(directory: URL): string[] {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = new URL(entry.name, directory);
+
+    if (entry.isDirectory()) {
+      return sourceFiles(new URL(`${entry.name}/`, directory));
+    }
+
+    return /\.(ts|svelte)$/.test(entry.name) && !/\.(spec|d)\.ts$/.test(entry.name) ? [fileURLToPath(path)] : [];
+  });
+}
+
+function usedMessages(directories: string[]): Set<string> {
+  const used = new Set<string>();
+
+  for (const directory of directories) {
+    for (const file of sourceFiles(new URL(`${directory}/`, import.meta.url))) {
+      const source = readFileSync(file, 'utf8');
+
+      for (const match of source.matchAll(/\bt\(\s*['"]([^'"]+)['"]/g)) {
+        used.add(match[1]);
+      }
+    }
+  }
+
+  return used;
+}
 
 export default defineConfig(({ mode, isSsrBuild }) => {
   const game = mode === 'game';
@@ -29,7 +56,12 @@ export default defineConfig(({ mode, isSsrBuild }) => {
           const file = fileURLToPath(new URL('../i18n/en.json', import.meta.url));
           this.addWatchFile(file);
           const catalog = catalogSchema.parse(JSON.parse(readFileSync(file, 'utf8')));
-          return `export default ${JSON.stringify(catalog)};`;
+          const directories = game
+            ? ['src/game', 'src/components', 'src/lib']
+            : ['src/app', 'src/components', 'src/lib'];
+          const used = usedMessages(directories);
+          const scoped = Object.fromEntries(Object.entries(catalog).filter(([key]) => used.has(key)));
+          return `export default ${JSON.stringify(scoped)};`;
         },
       },
       svelte(),
