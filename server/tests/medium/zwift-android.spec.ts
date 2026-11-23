@@ -2,7 +2,7 @@ import { ManagementService } from '#src/services/management.service';
 import { zwiftAndroidChunkSize } from '#src/services/zwift-android.service';
 import { TlsService } from '#src/services/tls.service';
 import { mediumWeb } from '#tests/medium/support';
-import { contents, zip } from '#tests/support/apk';
+import { binaryManifest, contents, zip } from '#tests/support/apk';
 import { runtimeFixture } from '#tests/support/runtime';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -48,9 +48,15 @@ await test('an administrator publishes expansion files for riders on matching Zw
   const apkmUpload = `${endpoint}?name=zwift.apkm`;
   const noObb = await admin.request(apkmUpload, 'PUT', zip([['base.apk', Buffer.from('apk'), false]]));
   assert.equal(noObb.status, 400);
+  const zwift = 'com.zwift.zwiftgame';
+  const base = zip([['AndroidManifest.xml', binaryManifest(zwift, '1.24.0', 124, 28), false]]);
+  const split = zip([['AndroidManifest.xml', binaryManifest(zwift, '1.24.0', 124, 28, 'config.arm64_v8a'), false]]);
+  const obbPath = `Android/obb/${zwift}/${secondFilename}`;
   const apkm = zip([
-    ['base.apk', Buffer.alloc(zwiftAndroidChunkSize), false],
-    [`Android/obb/com.zwift.zwiftgame/${secondFilename}`, original, true],
+    ['base.apk', base, false],
+    ['split_config.arm64_v8a.apk', split, true],
+    ['padding', Buffer.alloc(zwiftAndroidChunkSize), false],
+    [obbPath, original, true],
   ]);
   const sessions = '/api/manage/android-upload';
   const metadata = { name: 'zwift.apkm', size: apkm.length };
@@ -96,7 +102,8 @@ await test('an administrator publishes expansion files for riders on matching Zw
   assert.equal(state, 'done');
 
   const available = await web.request(endpoint);
-  assert.deepEqual(await available.json(), { files: [filename, secondFilename] });
+  const xapkName = 'zwift-124-zluggish.xapk';
+  assert.deepEqual(await available.json(), { files: [filename, secondFilename], bundles: [xapkName] });
 
   const response = await web.request(`${endpoint}/${filename}`);
   assert.equal(response.status, 200);
@@ -111,6 +118,24 @@ await test('an administrator publishes expansion files for riders on matching Zw
   assert.equal(bundledObb.length, original.length);
   assert.deepEqual(contents(bundledObb, bundle), contents(patched, bundle));
 
+  const download = await web.request(`${endpoint}/${xapkName}`);
+  assert.equal(download.status, 200);
+  assert.equal(download.headers.get('Content-Disposition'), `attachment; filename="${xapkName}"`);
+  const xapk = Buffer.from(await download.arrayBuffer());
+  assert.deepEqual(contents(xapk, `${zwift}.apk`), base);
+  assert.deepEqual(contents(xapk, 'split_config.arm64_v8a.apk'), split);
+  assert.deepEqual(contents(xapk, obbPath), bundledObb);
+  const manifest = JSON.parse(contents(xapk, 'manifest.json').toString('utf8'));
+  assert.equal(manifest.package_name, zwift);
+  assert.equal(manifest.version_code, '124');
+  assert.deepEqual(manifest.split_apks, [
+    { id: 'base', file: `${zwift}.apk` },
+    { id: 'config.arm64_v8a', file: 'split_config.arm64_v8a.apk' },
+  ]);
+  assert.deepEqual(manifest.expansions, [
+    { file: obbPath, install_location: 'EXTERNAL_STORAGE', install_path: obbPath },
+  ]);
+
   const pending = await admin.request(sessions, 'POST', metadata);
   assert.equal(pending.status, 201);
   const pendingStatus = await pending.json();
@@ -124,7 +149,9 @@ await test('an administrator publishes expansion files for riders on matching Zw
   const tls = fixture.effects.runSync(TlsService);
   await fixture.effects.runPromise(tls.rotate(crypto.randomUUID()));
   const afterRotation = await web.request(endpoint);
-  assert.deepEqual(await afterRotation.json(), { files: [] });
+  assert.deepEqual(await afterRotation.json(), { files: [], bundles: [] });
   const stale = await web.request(`${endpoint}/${filename}`);
   assert.equal(stale.status, 404);
+  const staleBundle = await web.request(`${endpoint}/${xapkName}`);
+  assert.equal(staleBundle.status, 404);
 });

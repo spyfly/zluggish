@@ -9,6 +9,7 @@ import { resolve } from 'node:path';
 export const zwiftAndroidUploadLimit = 10_000_000_000;
 export const zwiftAndroidChunkSize = 16 * 1024 ** 2;
 const zwiftObbLimit = 2 * 1024 ** 3;
+const xapkName = /^zwift-\d{1,12}-zluggish\.xapk$/;
 const obbName = /^main\.\d{1,12}\.com\.zwift\.zwiftgame\.obb$/;
 
 interface Upload {
@@ -98,8 +99,8 @@ const make = Effect.gen(function* () {
   // Only offer files built for the active certificate.
   const folder = (pem: string) => resolve(config.storageDir, 'zwift-android', crypto.sha256(pem));
   const pathFor = (pem: string, name: string) => {
-    if (!obbName.test(name)) {
-      throw new ApplicationError({ status: 400, message: 'Choose the original main Zwift expansion filename.' });
+    if (!obbName.test(name) && !xapkName.test(name)) {
+      throw new ApplicationError({ status: 400, message: 'The Zwift download filename is invalid.' });
     }
 
     return resolve(folder(pem), name);
@@ -112,15 +113,15 @@ const make = Effect.gen(function* () {
     const source = resolve(workspace, 'upload');
     const startedAt = performance.now();
     let filename = name;
+    const steps = apkm ? 4 : 2;
 
     if (apkm) {
       log.info('android.extracting', 'Extracting the Zwift expansion from the APKM', {
         upload: name,
         step: 1,
-        steps: 3,
+        steps,
       });
       filename = await apk.extractZwiftObb(source, input, zwiftObbLimit, signal);
-      await files.removeAsync(source);
     }
     signal.throwIfAborted();
 
@@ -130,16 +131,34 @@ const make = Effect.gen(function* () {
       filename,
       bytes,
       step: apkm ? 2 : 1,
-      steps: apkm ? 3 : 2,
+      steps,
     });
     await apk.patchZwiftObb(expansion, output, pem);
     signal.throwIfAborted();
 
-    const steps = apkm ? 3 : 2;
-    log.info('android.publishing', 'Publishing the patched Zwift expansion', { filename, step: steps, steps });
+    let bundle: string | undefined;
+    const bundlePath = resolve(workspace, 'patched.xapk');
+
+    if (apkm) {
+      await files.removeAsync(input);
+      log.info('android.bundling', 'Building the Zwift Android install bundle', { filename, step: 3, steps });
+      bundle = await apk.bundleZwift(source, output, filename, bundlePath, signal);
+      await files.removeAsync(source);
+    }
+    signal.throwIfAborted();
+    log.info('android.publishing', 'Publishing the patched Zwift Android downloads', {
+      filename,
+      bundle,
+      step: steps,
+      steps,
+    });
     await apk.publish(output, pathFor(pem, filename));
+    if (bundle) {
+      await apk.publish(bundlePath, pathFor(pem, bundle));
+    }
     log.info('android.published', 'Published the patched Zwift expansion', {
       filename,
+      bundle,
       bytes,
       durationMs: Math.round(performance.now() - startedAt),
     });
@@ -167,10 +186,15 @@ const make = Effect.gen(function* () {
     async list(pem: string) {
       const entries = await files.entriesAsync(folder(pem));
 
-      return entries
-        .filter((entry) => entry.isFile() && obbName.test(entry.name))
+      const names = entries
+        .filter((entry) => entry.isFile())
         .map((entry) => entry.name)
         .sort();
+
+      return {
+        files: names.filter((name) => obbName.test(name)),
+        bundles: names.filter((name) => xapkName.test(name)),
+      };
     },
     async download(pem: string, name: string) {
       const path = pathFor(pem, name);

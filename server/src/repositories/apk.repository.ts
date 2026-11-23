@@ -110,6 +110,26 @@ const prefixed = (...parts: Array<Uint8Array>) => {
 export const isJarSignature = (name: string) =>
   name === 'META-INF/MANIFEST.MF' || /^META-INF\/[^/]+\.(?:SF|RSA|DSA|EC)$/i.test(name);
 
+function newZipEntry(name: string, method: number, size: number, compressedSize: number, crc: number) {
+  const now = new Date();
+
+  return {
+    name,
+    nameBytes: Buffer.from(name),
+    versionMadeBy: 20,
+    versionNeeded: 20,
+    flags: 0x08_00,
+    method,
+    time: (now.getHours() << 11) | (now.getMinutes() << 5) | Math.floor(now.getSeconds() / 2),
+    date: ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate(),
+    crc,
+    compressedSize,
+    size,
+    internalAttributes: 0,
+    externalAttributes: 0,
+  };
+}
+
 async function readAt(handle: FileHandle, position: number, length: number) {
   const buffer = Buffer.alloc(length);
   const { bytesRead } = await handle.read(buffer, 0, length, position);
@@ -467,6 +487,12 @@ export class ApkRepository {
   }
 
   async manifest(path: string): Promise<ApkManifest> {
+    const { packageName, versionName, versionCode, minSdk } = await this.manifestWithSplit(path);
+
+    return { packageName, versionName, versionCode, minSdk };
+  }
+
+  private async manifestWithSplit(path: string) {
     const handle = await open(path, 'r');
 
     try {
@@ -476,7 +502,11 @@ export class ApkRepository {
       if (!entry) {
         throw new Error('The APK has no manifest');
       }
-      const elements = readBinaryXml(await readEntry(handle, entry));
+      const manifestLimit = 4 * 1024 ** 2;
+      if (entry.size > manifestLimit || entry.compressedSize > manifestLimit) {
+        throw new Error('The APK manifest is too large');
+      }
+      const elements = readBinaryXml(await readEntry(handle, entry, manifestLimit));
       const root = elements.find((element) => element.name === 'manifest');
       const sdk = elements.find((element) => element.name === 'uses-sdk');
       const versionCode = root?.attributes.get(attributeIds.versionCode) ?? root?.attributes.get('versionCode');
@@ -485,6 +515,7 @@ export class ApkRepository {
 
       return {
         packageName: String(root?.attributes.get('package') ?? ''),
+        split: String(root?.attributes.get('split') ?? ''),
         versionName: String(versionName ?? ''),
         versionCode: Number(versionCode ?? 0),
         minSdk: Number(minSdk) || 1,
@@ -532,41 +563,136 @@ export class ApkRepository {
       throw new Error('Choose an APKM bundle with one main Zwift OBB. On APKMirror, select BUNDLE 1 OBB.');
     }
 
-    const start = await dataOffset(handle, expansion);
+    await this.extractBundleEntry(path, handle, expansion, output, limit, signal);
+
+    return expansion.name.slice(expansion.name.lastIndexOf('/') + 1);
+  }
+
+  private async extractBundleEntry(
+    path: string,
+    handle: FileHandle,
+    entry: ZipEntry,
+    output: string,
+    limit: number,
+    signal: AbortSignal,
+  ) {
+    const start = await dataOffset(handle, entry);
     const { size } = await handle.stat();
 
     if (
-      expansion.size === 0 ||
-      expansion.size > limit ||
-      expansion.compressedSize === 0 ||
-      start + expansion.compressedSize > size ||
-      (expansion.method !== 0 && expansion.method !== 8) ||
-      (expansion.flags & 1) !== 0
+      entry.size === 0 ||
+      entry.size > limit ||
+      entry.compressedSize === 0 ||
+      start + entry.compressedSize > size ||
+      (entry.method !== 0 && entry.method !== 8) ||
+      (entry.flags & 1) !== 0
     ) {
-      throw new Error('The APKM contains an invalid or unsupported Zwift expansion file.');
+      throw new Error(`The APKM entry ${entry.name} is invalid or unsupported.`);
     }
 
     let extracted = 0;
+    let crc = 0;
     const count = new Transform({
       transform(chunk: Buffer, _encoding, next) {
         extracted += chunk.length;
-        next(extracted > expansion.size ? new Error('The APKM expansion exceeds its declared size.') : null, chunk);
+        crc = crc32(chunk, crc);
+        next(extracted > entry.size ? new Error('The APKM entry exceeds its declared size.') : null, chunk);
       },
     });
-    const source = createReadStream(path, { start, end: start + expansion.compressedSize - 1 });
+    const source = createReadStream(path, { start, end: start + entry.compressedSize - 1 });
     const target = createWriteStream(output, { flags: 'wx', mode: 0o600 });
 
-    if (expansion.method === 8) {
+    if (entry.method === 8) {
       await pipeline(source, createInflateRaw(), count, target, { signal });
     } else {
       await pipeline(source, count, target, { signal });
     }
 
-    if (extracted !== expansion.size) {
-      throw new Error('The APKM expansion file is incomplete.');
+    if (extracted !== entry.size || crc !== entry.crc) {
+      throw new Error(`The APKM entry ${entry.name} is incomplete or corrupt.`);
+    }
+  }
+
+  /** Build an installable XAPK without modifying the original, signed APK bytes. */
+  async bundleZwift(input: string, obb: string, obbName: string, output: string, signal: AbortSignal) {
+    const zwiftPackage = 'com.zwift.zwiftgame';
+    await using handle = await open(input, 'r');
+    const entries = await centralDirectory(handle, true);
+    const apks = entries.filter((entry) => /^[\w.-]+\.apk$/.test(entry.name));
+    const parts: Array<{ entry: ZipEntry; manifest: Awaited<ReturnType<ApkRepository['manifestWithSplit']>> }> = [];
+    const scratch = resolve(dirname(output), 'inspect.apk');
+
+    if (apks.length === 0 || apks.length > 100) {
+      throw new Error('The APKM must contain a base Zwift APK and any split APKs.');
+    }
+    for (const entry of apks) {
+      await this.extractBundleEntry(input, handle, entry, scratch, 512 * 1024 ** 2, signal);
+      const manifest = await this.manifestWithSplit(scratch);
+      await rm(scratch);
+
+      if (manifest.packageName !== zwiftPackage) {
+        throw new Error(`The APKM contains an APK for ${manifest.packageName || 'an unknown app'}.`);
+      }
+
+      parts.push({ entry, manifest });
     }
 
-    return expansion.name.slice(expansion.name.lastIndexOf('/') + 1);
+    const bases = parts.filter(({ manifest }) => !manifest.split);
+    const [base] = bases;
+    if (
+      bases.length !== 1 ||
+      !base?.manifest.versionName ||
+      obbName !== `main.${base.manifest.versionCode}.${zwiftPackage}.obb`
+    ) {
+      throw new Error('The APKM needs one base APK with a version that matches the Zwift expansion filename.');
+    }
+    const { versionCode, versionName, minSdk } = base.manifest;
+    const files = [
+      { entry: base.entry, id: 'base', file: `${zwiftPackage}.apk` },
+      ...parts
+        .values()
+        .filter(({ manifest }) => manifest.split)
+        .map(({ entry, manifest }) => ({ entry, id: manifest.split, file: entry.name })),
+    ];
+    if (
+      new Set(files.map(({ id }) => id)).size !== files.length ||
+      new Set(files.map(({ file }) => file)).size !== files.length ||
+      parts.some(({ manifest }) => manifest.versionCode !== versionCode)
+    ) {
+      throw new Error('The APKM contains duplicate APKs or mixes Zwift versions.');
+    }
+
+    const expansionPath = `Android/obb/${zwiftPackage}/${obbName}`;
+    const { size } = await stat(obb);
+    const manifest = {
+      xapk_version: 2,
+      name: 'Zwift',
+      package_name: zwiftPackage,
+      version_code: String(versionCode),
+      version_name: versionName,
+      min_sdk_version: String(minSdk),
+      total_size: size + apks.reduce((total, entry) => total + entry.size, 0),
+      split_apks: files.map(({ id, file }) => ({ id, file })),
+      expansions: [{ file: expansionPath, install_location: 'EXTERNAL_STORAGE', install_path: expansionPath }],
+    };
+    let checksum = 0;
+    const expansionData: AsyncIterable<Uint8Array> = createReadStream(obb, { highWaterMark: chunkSize, signal });
+    for await (const chunk of expansionData) {
+      checksum = crc32(chunk, checksum);
+    }
+
+    await this.writeArchive(output, null, undefined, async (add) => {
+      const metadata = Buffer.from(JSON.stringify(manifest));
+      await add(newZipEntry('manifest.json', 0, metadata.length, metadata.length, crc32(metadata)), metadata);
+      for (const { entry, file } of files) {
+        const start = await dataOffset(handle, entry);
+        const data = createReadStream(input, { start, end: start + entry.compressedSize - 1, signal });
+        await add(newZipEntry(file, entry.method, entry.size, entry.compressedSize, entry.crc), data);
+      }
+      await add(newZipEntry(expansionPath, 0, size, size, checksum), createReadStream(obb, { signal }));
+    });
+
+    return `zwift-${versionCode}-zluggish.xapk`;
   }
 
   /** Zwift checks the Play Store expansion file's size before unpacking its assets. */
@@ -622,11 +748,56 @@ export class ApkRepository {
     archiveSize?: number,
   ) {
     await using source = await open(input, 'r');
+    const entries = await centralDirectory(source);
+    const replace = options.replace ?? new Map<string, Uint8Array>();
+
+    await this.writeArchive(output, signer, archiveSize, async (add) => {
+      for (const entry of entries) {
+        if (replace.has(entry.name) || options.drop?.(entry.name) || (signer && isJarSignature(entry.name))) {
+          continue;
+        }
+
+        const mustStore =
+          signer && (entry.name === 'resources.arsc' || (entry.name.startsWith('lib/') && entry.name.endsWith('.so')));
+
+        if (entry.method !== 0 && mustStore) {
+          const data = await readEntry(source, entry);
+          await add({ ...entry, method: 0, compressedSize: data.length }, data);
+          continue;
+        }
+
+        const start = await dataOffset(source, entry);
+
+        if (archiveSize !== undefined && start + entry.compressedSize > archiveSize) {
+          throw new Error('The expansion file contains a truncated entry.');
+        }
+
+        await add(
+          entry,
+          entry.compressedSize === 0
+            ? new Uint8Array()
+            : createReadStream(input, { start, end: start + entry.compressedSize - 1, highWaterMark: chunkSize }),
+        );
+      }
+
+      for (const [name, data] of replace) {
+        const compressed = deflateRawSync(data, { level: 9 });
+        await add(newZipEntry(name, 8, data.length, compressed.length, crc32(data)), compressed);
+      }
+    });
+  }
+
+  private async writeArchive(
+    output: string,
+    signer: ApkSigner | null,
+    archiveSize: number | undefined,
+    populate: (
+      add: (entry: Omit<ZipEntry, 'localOffset'>, data: AsyncIterable<Uint8Array> | Uint8Array) => Promise<void>,
+    ) => Promise<void>,
+  ) {
     const target = await open(output, 'wx+', 0o600);
 
     try {
-      const entries = await centralDirectory(source);
-      const replace = options.replace ?? new Map<string, Uint8Array>();
       const central: Array<Buffer> = [];
       let position = 0;
 
@@ -634,7 +805,13 @@ export class ApkRepository {
         if (archiveSize !== undefined && position + data.length > archiveSize) {
           throw new Error('The patched expansion file does not fit the original download size.');
         }
-        await target.write(data, 0, data.length, position);
+        if (position + data.length >= 0xff_ff_ff_ff) {
+          throw new Error('The generated ZIP archive exceeds 4 GiB.');
+        }
+        const { bytesWritten } = await target.write(data, 0, data.length, position);
+        if (bytesWritten !== data.length) {
+          throw new Error('Could not write the complete ZIP archive.');
+        }
         position += data.length;
       };
 
@@ -708,57 +885,7 @@ export class ApkRepository {
         );
       };
 
-      for (const entry of entries) {
-        if (replace.has(entry.name) || options.drop?.(entry.name) || (signer && isJarSignature(entry.name))) {
-          continue;
-        }
-
-        const mustStore =
-          signer && (entry.name === 'resources.arsc' || (entry.name.startsWith('lib/') && entry.name.endsWith('.so')));
-
-        if (entry.method !== 0 && mustStore) {
-          const data = await readEntry(source, entry);
-          await add({ ...entry, method: 0, compressedSize: data.length }, data);
-          continue;
-        }
-
-        const start = await dataOffset(source, entry);
-
-        if (archiveSize !== undefined && start + entry.compressedSize > archiveSize) {
-          throw new Error('The expansion file contains a truncated entry.');
-        }
-
-        await add(
-          entry,
-          entry.compressedSize === 0
-            ? new Uint8Array()
-            : createReadStream(input, { start, end: start + entry.compressedSize - 1, highWaterMark: chunkSize }),
-        );
-      }
-
-      for (const [name, data] of replace) {
-        const compressed = deflateRawSync(data, { level: 9 });
-        const now = new Date();
-
-        await add(
-          {
-            name,
-            nameBytes: Buffer.from(name, 'utf8'),
-            versionMadeBy: 20,
-            versionNeeded: 20,
-            flags: 0x08_00,
-            method: 8,
-            time: (now.getHours() << 11) | (now.getMinutes() << 5) | Math.floor(now.getSeconds() / 2),
-            date: ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate(),
-            crc: crc32(data),
-            compressedSize: compressed.length,
-            size: data.length,
-            internalAttributes: 0,
-            externalAttributes: 0,
-          },
-          compressed,
-        );
-      }
+      await populate(add);
 
       const directory = Buffer.concat(central);
 

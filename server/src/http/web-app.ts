@@ -444,7 +444,7 @@ export function createWebApp(runtime: HttpRuntime) {
       const { pem } = yield* installable(c);
       const android = yield* ZwiftAndroidService;
 
-      return c.json({ files: yield* Effect.promise(() => android.list(pem)) });
+      return c.json(yield* Effect.promise(() => android.list(pem)));
     }),
   );
 

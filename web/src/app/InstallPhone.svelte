@@ -45,11 +45,13 @@
   let upload = $state<{ name: string; progress: number | null } | null>(null);
   let uploadError = $state('');
   const publishedFiles = z.object({
+    bundles: z.array(z.string().regex(/^zwift-\d{1,12}-zluggish\.xapk$/)),
     files: z.array(z.string().regex(/^main\.\d{1,12}\.com\.zwift\.zwiftgame\.obb$/)),
   });
-  let downloads = $state<Array<string> | null>(null);
+  let downloads = $state<z.infer<typeof publishedFiles> | null>(null);
   let downloadError = $state('');
   let selected = $state('');
+  let selectedBundle = $state('');
   const uploadEndpoint = '/api/manage/android-upload';
   const chunkSize = 16 * 1024 ** 2;
   const uploadStatus = z.object({
@@ -64,10 +66,13 @@
     downloadError = '';
 
     try {
-      const { files } = await api(publishedFiles, '/api/install/android/obb');
-      downloads = files;
-      if (!files.includes(selected)) {
-        selected = files.length === 1 ? (files[0] ?? '') : '';
+      const available = await api(publishedFiles, '/api/install/android/obb');
+      downloads = available;
+      if (!available.files.includes(selected)) {
+        selected = available.files.length === 1 ? (available.files[0] ?? '') : '';
+      }
+      if (!available.bundles.includes(selectedBundle)) {
+        selectedBundle = available.bundles.length === 1 ? (available.bundles[0] ?? '') : '';
       }
     } catch (error) {
       downloadError = error instanceof Error ? error.message : 'The available Zwift versions could not be loaded.';
@@ -285,14 +290,17 @@
     {/if}
     {#if administrator}
       <details class="admin-upload">
-        <summary>Publish a Zwift expansion file</summary>
+        <summary>Publish Zwift for Android</summary>
         <p>
-          Upload an APKMirror bundle labeled <strong>BUNDLE 1 OBB</strong>, or copy the original .obb from a clean
-          Google Play install with ADB.
+          Upload an APKMirror bundle labeled <strong>BUNDLE 1 OBB</strong> to publish a phone-installable download.
         </p>
-        {@render code('listObb')}
-        <p>Replace <code class="inline">VERSION</code> with the number in the filename.</p>
-        {@render code('pullObb')}
+        <details>
+          <summary>Upload a standalone OBB for ADB setup</summary>
+          <p>Copy the original expansion from a clean Google Play install.</p>
+          {@render code('listObb')}
+          <p>Replace <code class="inline">VERSION</code> with the number in the filename.</p>
+          {@render code('pullObb')}
+        </details>
         <label for="zwift-obb">Zwift .obb or .apkm file</label>
         <input
           id="zwift-obb"
@@ -308,7 +316,7 @@
         {#if upload}
           <p role="status">
             {upload.progress === null
-              ? 'Patching and publishing the expansion file…'
+              ? 'Patching and preparing your download…'
               : `Uploading ${upload.name} (${Math.round(upload.progress * 100)}%)…`}
           </p>
           {#if upload.progress !== null}
@@ -320,48 +328,72 @@
     {/if}
     <ol class="walk">
       <li>
-        <h2>Find your Zwift version</h2>
-        <p>
-          Install Zwift from Google Play and leave it closed. Enable USB debugging, connect your Android device to a
-          computer with ADB, and look up the expansion filename.
-        </p>
-        {@render code('listObb')}
-      </li>
-      <li>
-        <h2>Download the patched expansion file</h2>
+        <h2>Install Zwift on your phone</h2>
         {#if downloadError}
           <p class="notice failed" role="alert">{downloadError}</p>
         {:else if downloads === null}
           <p role="status">Looking up available versions…</p>
-        {:else if downloads.length}
-          <label for="zwift-version">Match your expansion filename</label>
-          <select id="zwift-version" bind:value={selected}>
-            <option value="">Choose a version</option>
-            {#each downloads as name (name)}
-              <option value={name}>{name}</option>
-            {/each}
-          </select>
-          {#if selected && downloads.includes(selected)}
-            <a class="download" href={`/api/install/android/obb/${selected}`} download={selected}
-              >Download patched expansion file</a
+        {:else if downloads.bundles.length}
+          <p>
+            Download the bundle on your Android device. Open it in
+            <a
+              href="https://play.google.com/store/apps/details?id=com.apkmirror.helper.prod"
+              target="_blank"
+              rel="noopener noreferrer">APKMirror Installer</a
+            >
+            and follow the install prompts. Finish the server setup below before opening Zwift.
+          </p>
+          {#if downloads.bundles.length > 1}
+            <label for="zwift-bundle">Zwift build</label>
+            <select id="zwift-bundle" bind:value={selectedBundle}>
+              <option value="">Choose a build</option>
+              {#each downloads.bundles as bundle (bundle)}
+                <option value={bundle}>{bundle.split('-')[1]}</option>
+              {/each}
+            </select>
+          {/if}
+          {#if selectedBundle}
+            <a class="download" href={`/api/install/android/obb/${selectedBundle}`} download={selectedBundle}
+              >Download Zwift install bundle</a
             >
           {/if}
-          <p class="hint">If your version is missing, ask the server administrator to publish it.</p>
         {:else}
-          <p>The server administrator needs to publish a patched file for your version of Zwift.</p>
+          <p>
+            No phone-installable bundle is available yet.
+            {administrator
+              ? 'Upload the original APKM to publish one.'
+              : 'Ask your server administrator to publish one.'}
+          </p>
         {/if}
-      </li>
-      <li>
-        <h2>Copy the patched file back</h2>
-        <p>
-          Keep the original filename. Run this command from your download folder to replace the expansion file on your
-          device.
-        </p>
-        {@render code('pushObb')}
-        <p class="hint">
-          If you previously started Zwift, clear its app storage before copying the patched file back. Repeat this setup
-          after a Google Play update.
-        </p>
+
+        {#if downloads?.files.length}
+          <details class="obb-fallback">
+            <summary>Install the expansion manually with ADB</summary>
+            <p>
+              Install Zwift from Google Play and leave it closed. Enable USB debugging, connect the Android device to a
+              computer with ADB, and look up the expansion filename.
+            </p>
+            {@render code('listObb')}
+            <label for="zwift-version">Match your expansion filename</label>
+            <select id="zwift-version" bind:value={selected}>
+              <option value="">Choose a version</option>
+              {#each downloads.files as name (name)}
+                <option value={name}>{name}</option>
+              {/each}
+            </select>
+            {#if selected}
+              <a class="download" href={`/api/install/android/obb/${selected}`} download={selected}
+                >Download patched expansion file</a
+              >
+              <p>Keep the original filename and run this command from your download folder.</p>
+              {@render code('pushObb')}
+            {/if}
+            <p class="hint">
+              If you previously started Zwift, clear its app storage before copying the patched file back. Repeat this
+              setup after a Google Play update.
+            </p>
+          </details>
+        {/if}
       </li>
       <li>
         <h2>Send Zwift to this server</h2>
@@ -436,6 +468,10 @@
 {/if}
 
 <style>
+  .obb-fallback {
+    margin-top: 0.75rem;
+  }
+
   .panel {
     background: var(--glass);
     border-radius: 12px;

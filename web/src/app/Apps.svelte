@@ -53,7 +53,7 @@
     {
       to: '/install/android',
       name: 'Android',
-      detail: 'Zwift from Google Play, with a patched expansion file',
+      detail: 'Install bundle or patched expansion file',
       tag: mark('android', 'This device'),
       unavailable: tls?.mode === 'disabled',
     },

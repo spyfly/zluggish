@@ -9,19 +9,22 @@ This procedure is for a device that is not rooted. For a rooted device, see [And
 
 Zwift from Google Play stores its certificate bundle in an expansion file. Patch your copy of that file with your Zluggish server’s certificate, then use Virtual Hosts or DNS to send Zwift to the server.
 
-## Publish the expansion file
+## Publish Zwift for Android
 
-An administrator opens **Apps → Zwift → Android** and expands **Publish a Zwift expansion file**. Upload the matching APKMirror `.apkm` labeled **BUNDLE 1 OBB**, or follow the ADB instructions to copy and upload `main.*.com.zwift.zwiftgame.obb` from a clean Google Play install. The server patches and publishes the file for riders with that version. Publish a fresh copy when the server certificate changes.
+An administrator opens **Apps → Zwift → Android → Publish Zwift for Android** and uploads an APKMirror `.apkm` labeled **BUNDLE 1 OBB**. The server patches the expansion file and publishes an `.xapk` containing the original APKs and patched expansion. Upload the original APKM again if you published it before install bundles were available or if the server certificate changes.
 
-APKM uploads support up to 10 GB. The server stages the upload on its storage volume and removes it after extracting the OBB. The web uploader sends 16 MiB chunks so it can work through Cloudflare Tunnel. Keep the admin page open during the transfer so it can retry interrupted chunks. Patching continues on the server after all chunks arrive.
+APKM uploads support up to 10 GB. The web uploader sends 16 MiB chunks so it can work through Cloudflare Tunnel. Keep the admin page open during the transfer so it can retry interrupted chunks. Patching and packaging continue in the background after all chunks arrive.
 
-## Set up the device
+## Install on the phone
 
-1. Install Zwift from Google Play and leave it closed.
-2. Enable USB debugging and connect your Android device to a computer with ADB.
-3. Sign in to the Zluggish web app on your computer and open **Apps → Zwift → Android**. Use the ADB command there to check the expansion filename, then download the matching patched file.
-4. If you already started Zwift, clear its app storage in Android settings. Keep the downloaded filename and follow the ADB instructions to copy it back to your device.
-5. Repeat the device setup after a Google Play update.
+1. On the Android device, install [APKMirror Installer](https://play.google.com/store/apps/details?id=com.apkmirror.helper.prod).
+2. Sign in to Zluggish and open **Apps → Zwift → Android**. Download the Zwift install bundle.
+3. Open the downloaded `.xapk` in APKMirror Installer and follow the Android installation prompts.
+4. Finish the server setup below before opening Zwift.
+
+## Install manually with ADB
+
+Administrators can also upload a standalone `main.*.com.zwift.zwiftgame.obb` from a clean Google Play installation. Open **Install the expansion manually with ADB** to download the matching patched OBB and follow the copy instructions. Clear Zwift’s app storage before copying the file if Zwift has already unpacked the original expansion.
 
 ## Send Zwift to Zluggish
 
