@@ -1,4 +1,5 @@
 import { ManagementService } from '#src/services/management.service';
+import { TlsService } from '#src/services/tls.service';
 import { zwiftAndroidChunkSize } from '#src/services/zwift-android.service';
 import { mediumWeb } from '#tests/medium/support';
 import { binaryManifest, zip } from '#tests/support/apk';
@@ -19,6 +20,7 @@ interface Activity {
 
 await test('an administrator uploads a Zwift APKM in chunks and follows the build', async (t) => {
   const fixture = runtimeFixture(t);
+  await fixture.effects.runPromise(fixture.effects.runSync(TlsService).start());
   const management = fixture.effects.runSync(ManagementService);
   const owner = await fixture.effects.runPromise(
     management.setup({

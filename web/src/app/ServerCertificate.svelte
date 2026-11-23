@@ -69,39 +69,27 @@
   });
 
   function rotate() {
-    const legacy = status?.mode === 'legacy';
     const operation = crypto.randomUUID();
 
     confirm({
-      title: legacy ? 'Switch to a server certificate?' : 'Rotate the server certificate?',
-      detail: `The server makes a new key and certificate and uses them at once. Every computer stops connecting until its rider runs the setup again from Install.${legacy ? ' Android devices patched with ZofflineObb trust only the shared certificate and stop connecting.' : ''}`,
-      label: legacy ? 'Generate certificate' : 'Rotate certificate',
+      title: 'Rotate the server certificate?',
+      detail:
+        'The server makes a new key and certificate and uses them at once. Every computer stops connecting until its rider runs the setup again from Install.',
+      label: 'Rotate certificate',
       destructive: true,
       confirm: async () => {
         status = await api(tlsStatus, '/api/manage/server/certificate', 'POST', { operation });
         onstatus?.(status);
-        done(
-          legacy
-            ? 'Generated a server certificate. Ask every rider to run the setup from Install.'
-            : 'Rotated the certificate. Ask every rider to run the setup from Install again.',
-        );
+        done('Rotated the certificate. Ask every rider to run the setup from Install again.');
       },
     });
   }
 </script>
 
-<section class="panel" class:unsafe={status?.mode === 'legacy'} aria-labelledby="certificate-title">
+<section class="panel" aria-labelledby="certificate-title">
   <h2 id="certificate-title">Zwift certificate</h2>
   {#if failure}<p class="failed" role="alert">{failure}</p>{/if}
   {#if status}
-    {#if status.mode === 'legacy'}
-      <p class="warning" role="alert">
-        The private key of the shared Zwift certificate is public. Anyone on your network can read and change what Zwift
-        sends, passwords included. Generate a certificate for this server, then ask every rider to run the setup from
-        Install.
-      </p>
-    {/if}
-
     <dl class="facts">
       <div>
         <dt>Source</dt>
@@ -133,16 +121,14 @@
       <Fingerprint label="SHA-256 fingerprint" value={status.certificate.fingerprint256} />
     {/if}
 
-    {#if status.mode === 'managed' || status.mode === 'legacy'}
+    {#if status.canRotate}
       <p class="muted">
-        {status.mode === 'managed'
-          ? `New certificates are valid for ${status.lifetimeYears} ${status.lifetimeYears === 1 ? 'year' : 'years'}. Rotate the certificate if its key may have leaked, or before it expires.`
-          : 'Until you switch, riders can still download setup for the shared certificate from Install, behind a warning. The server log records each download. The new certificate replaces the shared one for every client at once.'}
+        New certificates are valid for {status.lifetimeYears}
+        {status.lifetimeYears === 1 ? 'year' : 'years'}. Rotate the certificate if its key may have leaked, or before it
+        expires.
       </p>
-      <button class={status.mode === 'legacy' ? 'primary' : 'danger'} disabled={busy} onclick={rotate}
-        >{status.mode === 'legacy' ? 'Generate certificate' : 'Rotate certificate'}</button
-      >
-    {:else if status.mode === 'custom'}
+      <button class="danger" disabled={busy} onclick={rotate}>Rotate certificate</button>
+    {:else if status.mode !== 'disabled'}
       <p class="muted">
         To change it, replace the files that tls.certFile and tls.keyFile name, then restart the server.
       </p>
@@ -160,13 +146,6 @@
     margin: 0 0 1rem;
     -webkit-backdrop-filter: blur(8px);
     backdrop-filter: blur(8px);
-  }
-  .unsafe {
-    border-left: 4px solid #ff6b57;
-  }
-  .warning {
-    margin-top: 0;
-    color: var(--alarm);
   }
   .muted {
     color: var(--muted);

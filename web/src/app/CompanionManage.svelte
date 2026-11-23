@@ -7,7 +7,6 @@
 
   let {
     api,
-    navigate,
     csrf,
   }: {
     api: <Schema extends z.ZodType>(
@@ -16,7 +15,6 @@
       method?: string,
       data?: Record<string, never>,
     ) => Promise<z.output<Schema>>;
-    navigate: (path: string) => Promise<void>;
     /** The current CSRF token, for the upload that bypasses the JSON helper to report progress. */
     csrf: () => string;
   } = $props();
@@ -308,14 +306,7 @@
     {#if !certificateReady}
       <p class="stale">
         {#if admin.tlsMode === 'legacy'}
-          This server still uses the shared Zwift certificate. Generate a server certificate on the
-          <a
-            href="/manage/server"
-            onclick={(event) => {
-              event.preventDefault();
-              void navigate('/manage/server');
-            }}>Server</a
-          > page first: the app is patched to trust it.
+          Replace the server certificate before building the Companion app.
         {:else}
           The Zwift API serves plain HTTP on this server, so there is no certificate for the app to trust.
         {/if}
@@ -507,9 +498,6 @@
     border-radius: 0 8px 8px 0;
     background: rgb(255 90 70 / 0.12);
     color: var(--alarm);
-  }
-  .stale a {
-    color: inherit;
   }
 
   .facts {

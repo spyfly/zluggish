@@ -162,11 +162,11 @@
     ),
   );
 
-  // Asked once per administrator sign-in; the Server page reports later changes.
+  // Asked once per sign-in; the Server page reports later changes.
   let certificateRequested = false;
 
   $effect(() => {
-    if (!administrator) {
+    if (!user) {
       certificateRequested = false;
       certificateMode = null;
 
@@ -974,13 +974,15 @@
       void navigate('/');
     }}
   >
-    {#if administrator && certificateMode === 'legacy' && path !== '/manage/server'}
+    {#if certificateMode === 'legacy'}
       <aside class="unsafe-banner" aria-label="Unsafe Zwift certificate">
         <p>
           <strong>Unsafe Zwift certificate.</strong> This server still uses the shared certificate, whose private key is
           public. Riders' Zwift traffic, passwords included, can be read on your network.
         </p>
-        {@render link('/manage/server', 'Fix it on the Server page', false)}
+        {#if administrator && path !== '/manage/server'}
+          {@render link('/manage/server', 'Fix it on the Server page', false)}
+        {/if}
       </aside>
     {/if}
     {#if message && !changing}<p class="notice" class:failed role={failed ? 'alert' : 'status'}>{message}</p>{/if}
@@ -1136,7 +1138,7 @@
     {:else if manage && administrator}
       <div>
         {#if path === '/manage/companion'}
-          <CompanionManage {api} {navigate} csrf={() => csrf} />
+          <CompanionManage {api} csrf={() => csrf} />
         {:else if path === '/manage/zwift-android'}
           <ZwiftAndroidManage {api} {navigate} csrf={() => csrf} />
         {:else if path === '/manage/server'}
@@ -1976,7 +1978,6 @@
     color: var(--muted);
   }
 
-  /* The administrator's reminder on every page until the shared certificate is gone. */
   .unsafe-banner {
     display: flex;
     flex-wrap: wrap;

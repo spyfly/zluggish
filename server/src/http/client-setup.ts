@@ -1,14 +1,10 @@
+import { legacyCertificateThumbprint } from '#src/services/tls.service';
 import type { CertificateStatus } from '#src/services/tls.service';
 
 export const zwiftHostNames = ['us-or-rly101.zwift.com', 'secure.zwift.com', 'cdn.zwift.com', 'launcher.zwift.com'];
 
-/** The shared zwift.com certificate in assets/ssl: its SHA-1 thumbprint and the first line of its body.
-Setup removes it from the clients, since its private key is public.
-*/
-export const legacyCertificate = {
-  thumbprint: '9FF8BF63AAB8B21B6A45BAEC612A6DB6531CDE88',
-  body: 'MIIEQTCCAymgAwIBAgIUVPfyk0BzcKB2eYhXZ+W9WZRY5HEwDQYJKoZIhvcNAQEL',
-};
+// The first line identifies the old shared certificate in Zwift's PEM bundle.
+const legacyCertificateBody = 'MIIEQTCCAymgAwIBAgIUVPfyk0BzcKB2eYhXZ+W9WZRY5HEwDQYJKoZIhvcNAQEL';
 
 export interface SetupScript {
   readonly pem: string;
@@ -22,16 +18,6 @@ export interface SetupScript {
 /** The trust store file name of the shared certificate on Linux. */
 const legacyName = 'zluggish-zwift-shared';
 
-/** The shared certificate, offered while a server still uses it. Its private key is public. */
-export const isLegacy = (certificate: CertificateStatus) => certificate.thumbprint === legacyCertificate.thumbprint;
-
-/** Printed by every script for the shared certificate, before and after it runs. */
-const legacyWarning = [
-  'WARNING: This server still uses the shared Zwift certificate. Its private key is public,',
-  'so others on your network could read and change your Zwift traffic, your password included.',
-  'Ask the server administrator to generate a server certificate, then run the new setup from Install.',
-];
-
 /** The OU that names this server in the subject, which setup uses to find what it installed before. */
 export function serverUnit(certificate: CertificateStatus) {
   return /OU=(Zluggish server [\da-f]+)/.exec(certificate.subject)?.[1] ?? null;
@@ -39,10 +25,6 @@ export function serverUnit(certificate: CertificateStatus) {
 
 /** File names start with the first 8 thumbprint digits, so files from different certificates differ. */
 export function setupFileName(certificate: CertificateStatus, extension: string) {
-  if (isLegacy(certificate)) {
-    return `${legacyName}.${extension}`;
-  }
-
   return `zluggish-zwift-${certificate.thumbprint.slice(0, 8).toLowerCase()}.${extension}`;
 }
 
@@ -54,7 +36,6 @@ function header(script: SetupScript) {
     `Certificate: ${certificate.subject}`,
     `SHA-256:     ${certificate.fingerprint256}`,
     `Valid until: ${certificate.notAfter.slice(0, 10)}`,
-    ...(isLegacy(certificate) ? ['', ...legacyWarning] : []),
   ].map((line) => `# ${line}`.trimEnd());
 }
 
@@ -63,10 +44,6 @@ const pemLines = (pem: string) => pem.trim().split(/\r?\n/);
 /** A batch file that runs the PowerShell below it as administrator. Windows needs CRLF line ends. */
 export function windowsSetupScript(script: SetupScript) {
   const unit = serverUnit(script.certificate) ?? '';
-
-  const warn = isLegacy(script.certificate)
-    ? ["  Write-Host ''", ...legacyWarning.map((line) => `  Write-Host '${line}' -ForegroundColor Yellow`)]
-    : [];
 
   return [
     '<# : Zluggish client setup for Windows',
@@ -88,18 +65,9 @@ export function windowsSetupScript(script: SetupScript) {
     ...header(script),
     '#',
     '# Double-click this file to run it. As administrator, it:',
-    ...(isLegacy(script.certificate)
-      ? [
-          '#   1. Trusts the shared zwift.com certificate in Windows (Local Computer, Trusted Root Certification',
-          '#      Authorities). It never installs its private key.',
-          String.raw`#   2. Adds the certificate to Zwift's own list, data\cacert.pem in the Zwift folder, and removes any private`,
-          '#      key that an older setup added there.',
-        ]
-      : [
-          "#   1. Trusts this server's certificate in Windows (Local Computer, Trusted Root Certification Authorities).",
-          '#      It removes the certificates this server installed before and the old shared zwift.com certificate.',
-          String.raw`#   2. Adds the certificate to Zwift's own list, data\cacert.pem in the Zwift folder, and removes the old one.`,
-        ]),
+    "#   1. Trusts this server's certificate in Windows (Local Computer, Trusted Root Certification Authorities).",
+    '#      It removes the certificates this server installed before and the old shared zwift.com certificate.',
+    String.raw`#   2. Adds the certificate to Zwift's own list, data\cacert.pem in the Zwift folder, and removes the old one.`,
     ...(script.address ? [`#   3. Points the Zwift host names at ${script.address} in the hosts file.`] : []),
     '#   Last, it stops the Zwift launcher so that it reads the change when you start it again.',
     '',
@@ -107,8 +75,8 @@ export function windowsSetupScript(script: SetupScript) {
     `$Thumbprint = '${script.certificate.thumbprint}'`,
     `$ServerUnit = '${unit}'`,
     `$ServerAddress = '${script.address}'`,
-    `$LegacyThumbprint = '${legacyCertificate.thumbprint}'`,
-    `$LegacyBody = '${legacyCertificate.body}'`,
+    `$LegacyThumbprint = '${legacyCertificateThumbprint}'`,
+    `$LegacyBody = '${legacyCertificateBody}'`,
     `$ZwiftHosts = ${zwiftHostNames.map((name) => `'${name}'`).join(', ')}`,
     "$CertificatePem = (@'",
     ...pemLines(script.pem),
@@ -134,7 +102,6 @@ export function windowsSetupScript(script: SetupScript) {
     '',
     'try {',
     "  Write-Host 'Zluggish client setup'",
-    ...warn,
     "  Write-Host ''",
     '',
     "  Write-Host 'Windows certificate store'",
@@ -188,7 +155,6 @@ export function windowsSetupScript(script: SetupScript) {
     '  Get-Process ZwiftLauncher -ErrorAction SilentlyContinue | Stop-Process -Force',
     "  Write-Host ''",
     "  Write-Host 'Done. Start Zwift and sign in.' -ForegroundColor Green",
-    ...warn,
     '} catch {',
     "  Write-Host ''",
     '  Write-Host "Setup failed: $($_.Exception.Message)" -ForegroundColor Red',
@@ -205,11 +171,11 @@ function shellPrelude(script: SetupScript, name: string) {
     `THUMBPRINT='${script.certificate.thumbprint}'`,
     `NAME='${name}'`,
     `LEGACY_NAME='${legacyName}'`,
-    `LEGACY_THUMBPRINT='${legacyCertificate.thumbprint}'`,
+    `LEGACY_THUMBPRINT='${legacyCertificateThumbprint}'`,
     `SERVER_UNIT='${serverUnit(script.certificate) ?? ''}'`,
     `SERVER_ADDRESS='${script.address}'`,
     `ZWIFT_HOSTS='${zwiftHostNames.join(' ')}'`,
-    `LEGACY_BODY='${legacyCertificate.body}'`,
+    `LEGACY_BODY='${legacyCertificateBody}'`,
     '',
     'if [ "$(id -u)" -ne 0 ]; then',
     "  echo 'Zluggish client setup needs administrator rights. sudo asks for your password.'",
@@ -301,20 +267,10 @@ function shellHosts(script: SetupScript, after: Array<string>) {
   ];
 }
 
-function shellWarning(script: SetupScript) {
-  return isLegacy(script.certificate) ? ['echo', ...legacyWarning.map((line) => `echo '${line}'`)] : [];
-}
-
 /** A POSIX shell script for Zwift in Wine, Lutris, Bottles or Steam on Linux. */
 export function linuxSetupScript(script: SetupScript) {
   const unit = serverUnit(script.certificate);
-  const legacy = isLegacy(script.certificate);
-
-  const name = legacy
-    ? legacyName
-    : `zluggish-zwift-${unit ? unit.slice('Zluggish server '.length) : script.certificate.thumbprint.slice(0, 12).toLowerCase()}`;
-
-  const warn = shellWarning(script);
+  const name = `zluggish-zwift-${unit ? unit.slice('Zluggish server '.length) : script.certificate.thumbprint.slice(0, 12).toLowerCase()}`;
 
   return [
     '#!/bin/sh',
@@ -323,25 +279,20 @@ export function linuxSetupScript(script: SetupScript) {
     '#',
     '# Run it with:  sh <this file> [Zwift folder]',
     '# It asks for your password through sudo. Then it:',
-    legacy
-      ? '#   1. Adds the shared zwift.com certificate to the system trust store, without its private key.'
-      : "#   1. Adds this server's certificate to the system trust store.",
+    "#   1. Adds this server's certificate to the system trust store.",
     '#   2. Adds it to data/cacert.pem of each Zwift it finds in a Wine, Lutris, Bottles or Steam prefix,',
-    legacy
-      ? '#      and removes any private key that an older setup added there. Name the Zwift folder to pick one.'
-      : '#      and removes the old shared zwift.com certificate there. Name the Zwift folder to pick one.',
+    '#      and removes the old shared zwift.com certificate there. Name the Zwift folder to pick one.',
     ...(script.address ? [`#   3. Points the Zwift host names at ${script.address} in /etc/hosts.`] : []),
     ...shellPrelude(script, name),
     '',
     'TARGET_HOME=$(getent passwd "${SUDO_USER:-root}" | cut -d: -f6)',
     'TARGET_HOME=${TARGET_HOME:-$HOME}',
     '',
-    ...warn,
     'echo',
     "echo 'System trust store'",
     'install_anchor() {',
     '  # A server certificate replaces the shared one that an earlier setup installed.',
-    '  [ "$NAME" = "$LEGACY_NAME" ] || rm -f "${1:?}/${LEGACY_NAME:?}.crt"',
+    '  rm -f "${1:?}/${LEGACY_NAME:?}.crt"',
     '  certificate > "$1/$NAME.crt"',
     '  shift',
     '  "$@" >/dev/null',
@@ -378,16 +329,12 @@ export function linuxSetupScript(script: SetupScript) {
     '',
     'echo',
     "echo 'Done. If Zwift or its Wine prefix is running, close it (wineserver -k), then start Zwift and sign in.'",
-    ...warn,
     '',
   ].join('\n');
 }
 
 /** A POSIX shell script for Zwift on macOS. It trusts the certificate in the System keychain, for TLS only. */
 export function macosSetupScript(script: SetupScript) {
-  const legacy = isLegacy(script.certificate);
-  const warn = shellWarning(script);
-
   return [
     '#!/bin/sh',
     '# Zluggish client setup for macOS',
@@ -395,14 +342,10 @@ export function macosSetupScript(script: SetupScript) {
     '#',
     '# Run it in Terminal with:  sh <this file> [Zwift folder]',
     '# It asks for your password through sudo, and macOS asks again before it changes certificate trust. Then it:',
-    legacy
-      ? '#   1. Adds the shared zwift.com certificate to the System keychain and trusts it for TLS.'
-      : "#   1. Adds this server's certificate to the System keychain and trusts it for TLS. It removes the",
-    ...(legacy ? [] : ["#      certificates that this server's setup added before, and the old shared zwift.com one."]),
+    "#   1. Adds this server's certificate to the System keychain and trusts it for TLS. It removes the",
+    "#      certificates that this server's setup added before, and the old shared zwift.com one.",
     '#   2. Adds it to data/cacert.pem in ~/Library/Application Support/Zwift, or in the Zwift folder you name,',
-    legacy
-      ? '#      and removes any private key that an older setup added there.'
-      : '#      and removes the old shared zwift.com certificate there.',
+    '#      and removes the old shared zwift.com certificate there.',
     ...(script.address ? [`#   3. Points the Zwift host names at ${script.address} in /etc/hosts.`] : []),
     ...shellPrelude(script, setupFileName(script.certificate, 'pem').slice(0, -'.pem'.length)),
     '',
@@ -410,7 +353,6 @@ export function macosSetupScript(script: SetupScript) {
     'TARGET_HOME=${TARGET_HOME:-$HOME}',
     'KEYCHAIN=/Library/Keychains/System.keychain',
     '',
-    ...warn,
     'echo',
     "echo 'System keychain'",
     'work=$(mktemp -d)',
@@ -464,7 +406,6 @@ export function macosSetupScript(script: SetupScript) {
     '',
     'echo',
     "echo 'Done. If Zwift is open, quit it, then start Zwift and sign in.'",
-    ...warn,
     '',
   ].join('\n');
 }

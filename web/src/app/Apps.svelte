@@ -180,17 +180,13 @@
           This server talks to Zwift without a certificate, so there is nothing to install. Ask the server administrator
           how to connect.
         </p>
+      {:else if tls?.mode === 'legacy'}
+        <p class="lead">Ask the server administrator to replace the server certificate before setting up Zwift.</p>
       {:else if tls}
         <p class="lead">
           Zwift only talks to a server it trusts. The setup makes your device trust this server and sends Zwift here
           instead of to Zwift's own servers.
         </p>
-        {#if tls.mode === 'legacy'}
-          <p class="risk">
-            This server still uses the shared Zwift certificate, whose private key is public. Others on your network
-            could read your Zwift traffic, your password included.
-          </p>
-        {/if}
         {#if featured}
           <a class="setup" href={featured.to} onclick={(event) => go(event, featured.to)}>Set up {featured.name}</a>
           <p class="featured-detail">{featured.detail}</p>
@@ -396,14 +392,6 @@
     margin: 0;
     padding-left: 0.75rem;
     border-left: 3px solid #ff6b57;
-    color: var(--alarm);
-  }
-  .risk {
-    margin: 0 0 1.25rem;
-    padding: 0.75rem 0.9rem;
-    border-left: 3px solid #ff6b57;
-    border-radius: 0 8px 8px 0;
-    background: rgb(255 90 70 / 0.12);
     color: var(--alarm);
   }
 

@@ -36,8 +36,6 @@
   let failure = $state('');
   let redirect = $state(true);
 
-  /** On a server with the shared certificate, the rider confirms the risk before the download unlocks. */
-  let accepted = $state(false);
   let address = $state('');
 
   const looksLikeIp = (value: string) =>
@@ -57,14 +55,12 @@
     `/api/tls/setup/${platform?.id ?? 'windows'}?${new URLSearchParams({ address: redirect ? address.trim() : '' })}`,
   );
 
-  const legacy = $derived(status?.mode === 'legacy');
-  const installable = $derived(status?.mode === 'managed' || status?.mode === 'custom' || legacy);
-  const blocked = $derived(!!addressError || (legacy && !accepted));
+  const installable = $derived(status?.mode === 'managed' || status?.mode === 'custom');
 
   /** The file name the server gives the shell script, so the page can show the exact command to run. */
   const command = $derived.by(() => {
     const thumbprint = status?.certificate?.thumbprint ?? '';
-    const file = legacy ? 'zluggish-zwift-shared.sh' : `zluggish-zwift-${thumbprint.slice(0, 8).toLowerCase()}.sh`;
+    const file = `zluggish-zwift-${thumbprint.slice(0, 8).toLowerCase()}.sh`;
 
     return `sh ~/Downloads/${file}`;
   });
@@ -99,6 +95,10 @@
   <section class="panel" aria-labelledby="install-plain">
     <h2 id="install-plain">Nothing to install</h2>
     <p>This server talks to Zwift without a certificate. Ask the server administrator how to connect.</p>
+  </section>
+{:else if status.mode === 'legacy'}
+  <section class="panel">
+    <p>Ask the server administrator to replace the server certificate before setting up Zwift.</p>
   </section>
 {/if}
 
@@ -139,26 +139,10 @@
           </p>
         {/if}
 
-        {#if legacy}
-          <div class="risk">
-            <p>
-              This server still uses the shared Zwift certificate, whose private key is public. Others on your network
-              could read your Zwift traffic, your password included.
-            </p>
-            <label class="check"
-              ><input type="checkbox" bind:checked={accepted} /> I understand that this connection is not private</label
-            >
-          </div>
-        {/if}
-
-        {#if blocked}
-          <button class={legacy ? 'danger' : 'primary'} type="button" disabled
-            >{legacy ? 'Download unsafe setup script' : 'Download setup script'}</button
-          >
+        {#if addressError}
+          <button class="primary" type="button" disabled>Download setup script</button>
         {:else}
-          <a class="download" class:danger={legacy} href={script} download
-            >{legacy ? 'Download unsafe setup script' : 'Download setup script'}</a
-          >
+          <a class="download" href={script} download>Download setup script</a>
         {/if}
       </li>
       <li>
@@ -198,16 +182,15 @@
               : ''}start Zwift and sign in.
         </p>
         <p class="hint">
-          {legacy
-            ? 'Run the script again after a Zwift update. When the administrator switches to a server certificate, run the new setup: it removes the shared certificate from the computer.'
-            : 'Run the script again after a Zwift update and after the administrator rotates the certificate. It also removes the old shared Zwift certificate from the computer.'}
+          Run the script again after a Zwift update and after the administrator rotates the certificate. It also removes
+          the old shared Zwift certificate from the computer.
         </p>
       </li>
     </ol>
   </section>
 
   <section class="panel" aria-labelledby="install-certificate">
-    <h2 id="install-certificate">{legacy ? 'Check the shared certificate' : 'Check the certificate'}</h2>
+    <h2 id="install-certificate">Check the certificate</h2>
     <p>
       The script prints the thumbprint it installs.{platform.id === 'windows'
         ? " Windows shows it as Thumbprint in the certificate's details."
@@ -291,38 +274,6 @@
   .walk button {
     margin: 1.25rem 0 0;
   }
-  /* The unsafe download is never the celebrated orange action: it wears the alarm outline instead. */
-  a.download.danger,
-  button.danger {
-    border: 2px solid rgb(255 179 166 / 0.75);
-    background: none;
-    box-shadow: none;
-    color: var(--alarm);
-  }
-  a.download.danger {
-    padding: 0.55rem 1.1rem;
-  }
-  a.download.danger:hover {
-    background: rgb(255 90 70 / 0.14);
-  }
-  .risk {
-    margin-top: 1.25rem;
-    padding: 0.75rem 0.9rem;
-    border-left: 3px solid #ff6b57;
-    border-radius: 0 8px 8px 0;
-    background: rgb(255 90 70 / 0.12);
-  }
-  .risk p {
-    margin: 0;
-    color: var(--alarm);
-  }
-  .risk label.check {
-    margin-top: 0.6rem;
-  }
-  .risk input {
-    accent-color: #ff6b57;
-  }
-
   /* The way out to the other systems stays quiet: most riders are on the system the page picked. */
   .switch {
     margin: -0.25rem 0 1.25rem;

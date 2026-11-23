@@ -31,15 +31,10 @@
   let status = $state<TlsStatus | null>(null);
   let failure = $state('');
 
-  const legacy = $derived(status?.mode === 'legacy');
   const address = $derived(status?.serverAddress ?? '<server-ip>');
 
   /** The name the server gives the certificate download, so the adb commands match the file. */
-  const file = $derived(
-    legacy
-      ? 'zluggish-zwift-shared.crt'
-      : `zluggish-zwift-${(status?.certificate?.thumbprint ?? '').slice(0, 8).toLowerCase()}.crt`,
-  );
+  const file = $derived(`zluggish-zwift-${(status?.certificate?.thumbprint ?? '').slice(0, 8).toLowerCase()}.crt`);
 
   let zwift = $state<ZwiftAndroidStatus | null>(null);
   let zwiftFailure = $state('');
@@ -152,15 +147,14 @@
     <h2 id="install-plain">Nothing to install</h2>
     <p>This server talks to Zwift without a certificate. Ask the server administrator how to connect.</p>
   </section>
+{:else if status.mode === 'legacy'}
+  <section class="panel">
+    {@render switcher()}
+    <p>Ask the server administrator to replace the server certificate before setting up Zwift.</p>
+  </section>
 {:else if platform === 'android'}
   <section class="panel" aria-label="Android setup steps">
     {@render switcher()}
-    {#if legacy}
-      <p class="risk">
-        This server uses the shared Zwift certificate, whose private key is public. Others on your network could read
-        your Zwift traffic, your password included.
-      </p>
-    {/if}
     {#if zwift?.app && !zwift.app.current}
       <p class="risk" role="status">
         The server certificate changed after Zwift for Zluggish was built, so it cannot connect yet.
@@ -243,9 +237,7 @@
           Download the certificate and add it to the end of <strong class="path">{data}/cacert.pem</strong>. With
           <code class="inline">adb</code> as root:
         </p>
-        <a class="download" class:danger={legacy} href="/api/tls/certificate" download
-          >{legacy ? 'Download shared certificate' : 'Download certificate'}</a
-        >
+        <a class="download" href="/api/tls/certificate" download>Download certificate</a>
         {@render code('certificate')}
         <p class="hint">Keep the owner and permissions of cacert.pem as they are.</p>
       </li>
@@ -267,7 +259,7 @@
   </section>
 
   <section class="panel" aria-labelledby="install-rooted-certificate">
-    <h2 id="install-rooted-certificate">{legacy ? 'Check the shared certificate' : 'Check the certificate'}</h2>
+    <h2 id="install-rooted-certificate">Check the certificate</h2>
     <p>The downloaded file should have this fingerprint.</p>
     <div class="prints">
       <Fingerprint label="SHA-256 fingerprint" value={status.certificate.fingerprint256} />
@@ -400,15 +392,6 @@
     transform: translateY(2px);
     box-shadow: 0 1px 0 var(--orange-deep);
   }
-  /* The shared certificate is never the celebrated orange action: it wears the alarm outline instead. */
-  a.download.danger {
-    padding: 0.55rem 1.1rem;
-    border: 2px solid rgb(255 179 166 / 0.75);
-    background: none;
-    box-shadow: none;
-    color: var(--alarm);
-  }
-
   .command {
     display: flex;
     flex-wrap: wrap;
