@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../lib/i18n/index';
   import { onMount } from 'svelte';
   import { requestJson, ConnectionError } from '../lib/connection';
   import ProfileData from './ProfileData.svelte';
@@ -44,13 +45,13 @@
   type Pending = { title: string; detail: string; label: string; destructive: boolean; confirm: () => Promise<void> };
 
   const botCommands = [
-    ['group', 'Group bots around the rider'],
-    ['groupall', 'Group all bots around the rider'],
-    ['autogroup', 'Keep bots grouped around the rider'],
-    ['autogroupall', 'Keep all bots grouped around the rider'],
-    ['stopautogroup', 'Stop automatic grouping'],
-    ['disperse', 'Spread the bots out'],
-    ['peloton', 'Set the RoboPacer peloton size'],
+    ['group', t('App.group_bots_around_the_rider')],
+    ['groupall', t('App.group_all_bots_around_the_rider')],
+    ['autogroup', t('App.keep_bots_grouped_around_the_rider')],
+    ['autogroupall', t('App.keep_all_bots_grouped_around_the_rider')],
+    ['stopautogroup', t('App.stop_automatic_grouping')],
+    ['disperse', t('App.spread_the_bots_out')],
+    ['peloton', t('App.set_the_robopacer_peloton_size')],
   ] as const;
 
   const pageSize = 25;
@@ -148,7 +149,7 @@
   );
 
   const back = $derived(
-    manage && path.startsWith('/manage/users/') ? { href: '/manage', label: 'All users' } : undefined,
+    manage && path.startsWith('/manage/users/') ? { href: '/manage', label: t('App.all_users') } : undefined,
   );
 
   const administrator = $derived(user?.role === 'administrator');
@@ -194,55 +195,55 @@
   const title = $derived(
     !user
       ? complete
-        ? 'Sign in'
-        : 'First administrator'
+        ? t('App.sign_in')
+        : t('App.first_administrator')
       : path === '/manage/server'
-        ? 'Server'
+        ? t('App.server')
         : path === '/manage/companion'
-          ? 'Companion app'
+          ? t('App.companion_app')
           : path === '/manage/zwift-android'
-            ? 'Zwift for Android'
+            ? t('App.zwift_for_android')
             : path === '/manage/users/new'
-              ? 'Create user'
+              ? t('App.create_user')
               : selected
                 ? label(selected)
                 : manage
-                  ? 'Users'
+                  ? t('App.users')
                   : path === '/activities' || path.startsWith('/activities/')
-                    ? 'Activities'
+                    ? t('App.activities')
                     : path === '/profile-data/local'
-                      ? 'Import local files'
+                      ? t('App.import_local_files')
                       : path === '/profile-data'
                         ? 'Import / Export'
                         : path === '/zwift'
-                          ? 'Zwift connection'
+                          ? t('App.zwift_connection')
                           : path === '/integrations'
-                            ? 'Integrations'
+                            ? t('App.integrations')
                             : path === '/settings'
-                              ? 'Settings'
+                              ? t('App.settings')
                               : path === '/climbs'
-                                ? 'Climbs'
+                                ? t('App.climbs')
                                 : apps
-                                  ? 'Apps'
+                                  ? t('App.apps')
                                   : path === '/install/windows'
-                                    ? 'Windows setup'
+                                    ? t('App.windows_setup')
                                     : path === '/install/macos'
-                                      ? 'macOS setup'
+                                      ? t('App.macos_setup')
                                       : path === '/install/linux'
-                                        ? 'Linux setup'
+                                        ? t('App.linux_setup')
                                         : path === '/install/android'
-                                          ? 'Android setup'
+                                          ? t('App.android_setup')
                                           : path === '/install/android-rooted'
-                                            ? 'Rooted Android setup'
+                                            ? t('App.rooted_android_setup')
                                             : path === '/install/ios'
-                                              ? 'iPhone and iPad'
+                                              ? t('App.iphone_and_ipad')
                                               : installing
-                                                ? 'Install'
+                                                ? t('App.install')
                                                 : path === '/companion/android'
-                                                  ? 'Android setup'
+                                                  ? t('App.android_setup')
                                                   : companion
-                                                    ? 'Companion'
-                                                    : 'Profile',
+                                                    ? t('App.companion')
+                                                    : t('App.profile'),
   );
 
   const initials = (r: User) => `${r.first_name.charAt(0)}${r.last_name.charAt(0)}`.toUpperCase();
@@ -295,10 +296,10 @@
         avatar = undefined;
         go('/sign-in');
         await api(ignored, '/api/setup');
-        throw new Error('Your session ended. Sign in again.');
+        throw new Error(t('App.your_session_ended_sign_in_again'));
       }
 
-      throw new Error(fields.message || 'Request failed.');
+      throw new Error(fields.message || t('App.request_failed'));
     }
 
     if (method !== 'GET') {
@@ -353,7 +354,7 @@
       await work();
     } catch (error) {
       failed = true;
-      message = error instanceof Error ? error.message : 'Request failed.';
+      message = error instanceof Error ? error.message : t('App.request_failed');
     } finally {
       busy = false;
       // Keep route-dependent mutations and loads serial. Only the latest requested
@@ -413,13 +414,13 @@
 
   async function createBackup() {
     backingUp = true;
-    backupMessage = 'Requesting backup…';
+    backupMessage = t('App.requesting_backup');
 
     try {
       let result = await api(backupResponse, '/api/manage/server/backups', 'POST', { operation: backupOperation });
 
       while (result.state === 'queued' || result.state === 'running') {
-        backupMessage = result.state === 'queued' ? 'Backup queued…' : 'Creating backup…';
+        backupMessage = result.state === 'queued' ? t('App.backup_queued') : t('App.creating_backup');
         await new Promise((resolve) => {
           setTimeout(resolve, 1000);
         });
@@ -429,10 +430,10 @@
       backupOperation = crypto.randomUUID();
       backupMessage =
         result.state === 'done'
-          ? `Backup saved in storage/backups/${result.name}.`
-          : 'Backup failed. Check the server log.';
+          ? t('App.backup_saved_in_storage_backups', { value1: result.name })
+          : t('App.backup_failed_check_the_server_log');
     } catch (error) {
-      backupMessage = error instanceof Error ? error.message : 'Backup request failed.';
+      backupMessage = error instanceof Error ? error.message : t('App.backup_request_failed');
     } finally {
       backingUp = false;
     }
@@ -469,7 +470,7 @@
         throw error;
       }
 
-      done(ghosts ? 'Ghosts turned on.' : 'Ghosts turned off.');
+      done(ghosts ? t('App.ghosts_turned_on') : t('App.ghosts_turned_off'));
     }, 'settings');
   }
 
@@ -495,7 +496,7 @@
     try {
       bitmap = await createImageBitmap(file);
     } catch {
-      throw new Error('Choose a JPG or PNG image.');
+      throw new Error(t('App.choose_a_jpg_or_png_image'));
     }
 
     const side = Math.min(bitmap.width, bitmap.height);
@@ -504,7 +505,7 @@
     const context = canvas.getContext('2d');
 
     if (!context) {
-      throw new Error('Could not process the image.');
+      throw new Error(t('App.could_not_process_the_image'));
     }
     context.drawImage(
       bitmap,
@@ -520,7 +521,11 @@
     bitmap.close();
 
     return new Promise<Blob>((done, fail) => {
-      canvas.toBlob((blob) => (blob ? done(blob) : fail(new Error('Could not read the image.'))), 'image/jpeg', 0.9);
+      canvas.toBlob(
+        (blob) => (blob ? done(blob) : fail(new Error(t('App.could_not_read_the_image')))),
+        'image/jpeg',
+        0.9,
+      );
     });
   }
 
@@ -534,7 +539,7 @@
       if (!profileId) {
         avatar = profileAvatar;
       }
-      done('Restart Zwift for the changes to take effect.');
+      done(t('App.restart_zwift_for_the_changes_to_take_effect'));
     });
   }
 
@@ -582,17 +587,17 @@
       mode = setupUsers.length ? 'existing' : 'new';
       keyAccepted = true;
     } catch (error) {
-      if (!(error instanceof Error) || error.message !== 'Setup refused.') {
+      if (!(error instanceof Error) || error.message !== t('App.setup_refused')) {
         throw error;
       }
-      fieldErrors = { key: ['This key does not match. Copy it again from the server console.'] };
+      fieldErrors = { key: [t('App.this_key_does_not_match_copy_it_again_from')] };
     }
   }
 
   async function signIn() {
     if (!complete && mode === 'new' && password !== confirmPassword) {
-      fieldErrors = { confirm: ['Passwords do not match.'] };
-      throw new Error('Check the form fields.');
+      fieldErrors = { confirm: [t('App.passwords_do_not_match')] };
+      throw new Error(t('App.check_the_form_fields'));
     }
 
     const body = complete
@@ -604,9 +609,9 @@
           ...(mode === 'new' ? { username, first_name: first, last_name: last } : { player_id: setupUserId }),
         }).catch((error) => {
           // The key stops working when the server restarts, so ask for the new one.
-          if (error instanceof Error && error.message === 'Setup refused.' && mode === 'new') {
+          if (error instanceof Error && error.message === t('App.setup_refused') && mode === 'new') {
             keyAccepted = false;
-            fieldErrors = { key: ['The server no longer accepts this key. Enter the key from the server console.'] };
+            fieldErrors = { key: [t('App.the_server_no_longer_accepts_this_key_enter_the')] };
           }
 
           throw error;
@@ -638,45 +643,45 @@
       return;
     }
     const who = name(selected);
-    const progress = selected.connected ? ` ${who} is riding now and may lose unsaved progress.` : '';
+    const progress = selected.connected ? t('App.is_riding_now_and_may_lose_unsaved_progress', { value1: who }) : '';
 
     const choices = {
       disable: {
-        title: `Disable ${who}?`,
-        detail: `${who} cannot sign in. A ride in progress can still be saved for four hours.`,
-        label: 'Disable',
+        title: t('App.disable', { value1: who }),
+        detail: t('App.cannot_sign_in_a_ride_in_progress_can_still', { value1: who }),
+        label: t('App.disable_2'),
         destructive: true,
       },
       enable: {
-        title: `Enable ${who}?`,
-        detail: `${who} can sign in again.`,
-        label: 'Enable',
+        title: t('App.enable', { value1: who }),
+        detail: t('App.can_sign_in_again', { value1: who }),
+        label: t('App.enable_2'),
         destructive: false,
       },
       role:
         selected.role === 'administrator'
           ? {
-              title: `Remove the administrator role from ${who}?`,
-              detail: `${who} loses access to Manage and is signed out everywhere.${progress}`,
-              label: 'Remove administrator',
+              title: t('App.remove_the_administrator_role_from', { value1: who }),
+              detail: t('App.loses_access_to_manage_and_is_signed_out_everywhere', { value1: who, value2: progress }),
+              label: t('App.remove_administrator'),
               destructive: true,
             }
           : {
-              title: `Give the administrator role to ${who}?`,
-              detail: `${who} can manage users and the server, and is signed out everywhere.${progress}`,
-              label: 'Make administrator',
+              title: t('App.give_the_administrator_role_to', { value1: who }),
+              detail: t('App.can_manage_users_and_the_server_and_is_signed', { value1: who, value2: progress }),
+              label: t('App.make_administrator'),
               destructive: false,
             },
       'revoke-sessions': {
-        title: `Sign ${who} out everywhere?`,
-        detail: `This also stops a ride in progress.${progress}`,
-        label: 'Sign out everywhere',
+        title: t('App.sign_out_everywhere', { value1: who }),
+        detail: t('App.this_also_stops_a_ride_in_progress', { value1: progress }),
+        label: t('App.sign_out_everywhere_2'),
         destructive: true,
       },
       password: {
-        title: `Set a new password for ${who}?`,
-        detail: `${who} is signed out everywhere.${progress}`,
-        label: 'Set password',
+        title: t('App.set_a_new_password_for', { value1: who }),
+        detail: t('App.is_signed_out_everywhere', { value1: who, value2: progress }),
+        label: t('App.set_password'),
         destructive: false,
       },
     } satisfies Record<UserAction, Omit<Pending, 'confirm'>>;
@@ -690,8 +695,8 @@
     }
 
     if (action === 'password' && targetPassword !== targetConfirm) {
-      fieldErrors = { confirm: ['Passwords do not match.'] };
-      throw new Error('Check the form fields.');
+      fieldErrors = { confirm: [t('App.passwords_do_not_match')] };
+      throw new Error(t('App.check_the_form_fields'));
     }
 
     const result = await api(
@@ -713,12 +718,12 @@
 
     const messages = {
       disable: result.completion_deadline
-        ? 'Disabled. The current ride can be saved for four hours, unless the server restarts.'
-        : 'Disabled.',
-      enable: 'Enabled.',
-      role: result.role === 'administrator' ? 'Administrator role given.' : 'Administrator role removed.',
-      'revoke-sessions': 'Signed out everywhere.',
-      password: 'Password set.',
+        ? t('App.disabled_the_current_ride_can_be_saved_for_four')
+        : t('App.disabled'),
+      enable: t('App.enabled'),
+      role: result.role === 'administrator' ? t('App.administrator_role_given') : t('App.administrator_role_removed'),
+      'revoke-sessions': t('App.signed_out_everywhere'),
+      password: t('App.password_set'),
     } satisfies Record<UserAction, string>;
 
     done(messages[action]);
@@ -726,8 +731,8 @@
 
   async function create() {
     if (newPassword !== newConfirm) {
-      fieldErrors = { confirm: ['Passwords do not match.'] };
-      throw new Error('Check the form fields.');
+      fieldErrors = { confirm: [t('App.passwords_do_not_match')] };
+      throw new Error(t('App.check_the_form_fields'));
     }
 
     const created = await api(userSchema, '/api/manage/users', 'POST', {
@@ -742,7 +747,7 @@
     newConfirm = '';
     await loadUsers();
     await openUser(created);
-    done(`${name(created)} can now sign in.`);
+    done(t('App.can_now_sign_in', { value1: name(created) }));
   }
 
   function openPassword() {
@@ -763,8 +768,8 @@
   /** Changing the password ends every session, this one too. */
   async function changePassword() {
     if (password !== confirmPassword) {
-      fieldErrors = { confirm: ['Passwords do not match.'] };
-      throw new Error('Check the form fields.');
+      fieldErrors = { confirm: [t('App.passwords_do_not_match')] };
+      throw new Error(t('App.check_the_form_fields'));
     }
 
     await api(ignored, '/api/me/password', 'POST', {
@@ -779,7 +784,7 @@
     password = '';
     confirmPassword = '';
     go('/sign-in');
-    done('Password changed. Sign in with the new password.');
+    done(t('App.password_changed_sign_in_with_the_new_password'));
   }
 
   function closeRegenerate() {
@@ -790,7 +795,7 @@
   async function regenerate() {
     regenerating = false;
     await api(ignored, '/api/me/power-curves', 'POST', { confirm: true, create: rebuild });
-    done(rebuild ? 'Regenerating power curves.' : 'Power curves deleted. They fill in again as you ride.');
+    done(rebuild ? t('App.regenerating_power_curves') : t('App.power_curves_deleted_they_fill_in_again_as_you'));
   }
 
   function focusFirst(node: HTMLElement) {
@@ -807,7 +812,7 @@
     destructive: boolean,
   ) {
     pending = {
-      title: `${label}?`,
+      title: t('App.value', { value1: label }),
       detail,
       label,
       destructive,
@@ -817,7 +822,7 @@
         });
 
         if (!body.ok) {
-          throw new Error(body.message ?? 'Operation failed.');
+          throw new Error(body.message ?? t('App.operation_failed'));
         }
         done(body.message ?? finished);
       },
@@ -826,7 +831,7 @@
 
   async function sendBots() {
     if (botUser === null) {
-      throw new Error('Choose a user who is riding now.');
+      throw new Error(t('App.choose_a_user_who_is_riding_now'));
     }
 
     const body = await api(outcomeResponse, '/api/manage/server/bots', 'POST', {
@@ -837,9 +842,9 @@
     });
 
     if (!body.ok) {
-      throw new Error(body.message ?? 'Operation failed.');
+      throw new Error(body.message ?? t('App.operation_failed'));
     }
-    done(body.message ?? 'Sent to the bots.');
+    done(body.message ?? t('App.sent_to_the_bots'));
   }
 
   onMount(() => {
@@ -910,10 +915,10 @@
   >{/snippet}
 
 {#snippet chips(r: User)}
-  {#if r.role === 'administrator'}<span class="chip admin">Administrator</span>{/if}
-  {#if !r.enabled}<span class="chip muted">Disabled</span>{/if}
-  {#if !r.has_password}<span class="chip alarm">No password</span>{/if}
-  {#if r.connected}<span class="chip riding">Riding now</span>{/if}
+  {#if r.role === 'administrator'}<span class="chip admin">{t('App.administrator')}</span>{/if}
+  {#if !r.enabled}<span class="chip muted">{t('App.disabled_2')}</span>{/if}
+  {#if !r.has_password}<span class="chip alarm">{t('App.no_password')}</span>{/if}
+  {#if r.connected}<span class="chip riding">{t('App.riding_now')}</span>{/if}
 {/snippet}
 
 {#snippet menu()}
@@ -926,7 +931,7 @@
         detail={user.username}
       />
     </div>
-    <nav class="menu" aria-label="Main">
+    <nav class="menu" aria-label={t('App.main')}>
       {@render link('/', 'Profile', !manage && title === 'Profile')}
       {@render link('/activities', 'Activities', title === 'Activities')}
       {@render link('/climbs', 'Climbs', title === 'Climbs')}
@@ -934,25 +939,25 @@
       {@render link('/settings', 'Settings', path === '/settings')}
       {@render link('/apps', 'Apps', apps || installing || companion)}
       {#if administrator}
-        <p class="group">Manage</p>
+        <p class="group">{t('App.manage')}</p>
         {@render link(
           '/manage',
           'Users',
           manage && !['/manage/server', '/manage/companion', '/manage/zwift-android'].includes(path),
         )}
         <div class="subgroup" role="group" aria-labelledby="menu-android-apps">
-          <p class="group" id="menu-android-apps">Android apps</p>
+          <p class="group" id="menu-android-apps">{t('App.android_apps')}</p>
           {@render link('/manage/zwift-android', 'Zwift', path === '/manage/zwift-android')}
           {@render link('/manage/companion', 'Companion', path === '/manage/companion')}
         </div>
         {@render link('/manage/server', 'Server', path === '/manage/server')}
       {/if}
     </nav>
-    <button class="sign-out" disabled={busy} onclick={() => run(signOut)}>Sign out</button>
+    <button class="sign-out" disabled={busy} onclick={() => run(signOut)}>{t('App.sign_out')}</button>
   {/if}
 {/snippet}
 
-<svelte:head><title>Zluggish - {title}</title></svelte:head>
+<svelte:head><title>{t('App.zluggish', { value1: title })}</title></svelte:head>
 
 <div class="app">
   <Layout
@@ -971,10 +976,10 @@
     }}
   >
     {#if certificateMode === 'legacy'}
-      <aside class="unsafe-banner" aria-label="Unsafe Zwift certificate">
+      <aside class="unsafe-banner" aria-label={t('App.unsafe_zwift_certificate')}>
         <p>
-          <strong>Unsafe Zwift certificate.</strong> This server still uses the shared certificate, whose private key is
-          public. Riders' Zwift traffic, passwords included, can be read on your network.
+          <strong>{t('App.unsafe_zwift_certificate_2')}</strong>
+          {t('App.this_server_still_uses_the_shared_certificate_whose_private')}
         </p>
         {#if administrator && path !== '/manage/server'}
           {@render link('/manage/server', 'Fix it on the Server page', false)}
@@ -983,12 +988,12 @@
     {/if}
     {#if message && !changing}<p class="notice" class:failed role={failed ? 'alert' : 'status'}>{message}</p>{/if}
 
-    {#if loading}<p role="status">Loading…</p>
+    {#if loading}<p role="status">{t('App.loading')}</p>
     {:else if !user}
       {#if path === '/setup' && complete}
         <section class="panel narrow">
-          <p>Setup complete.</p>
-          <button class="primary" onclick={() => navigate('/sign-in')}>Go to sign-in</button>
+          <p>{t('App.setup_complete')}</p>
+          <button class="primary" onclick={() => navigate('/sign-in')}>{t('App.go_to_sign_in')}</button>
         </section>
       {:else}
         <form
@@ -999,33 +1004,33 @@
           }}
         >
           {#if !complete}
-            <p class="lead">Create the first administrator.</p>
+            <p class="lead">{t('App.create_the_first_administrator')}</p>
             {#if keyAccepted}
               <div class="accepted" role="status">
-                <span><span class="tick" aria-hidden="true">✓</span> Setup key accepted</span>
+                <span><span class="tick" aria-hidden="true">✓</span> {t('App.setup_key_accepted')}</span>
               </div>
               {#if setupUsers.length}
                 <div
                   class="choice"
                   role="radiogroup"
-                  aria-label="Setup method"
+                  aria-label={t('App.setup_method')}
                   onchange={() => {
                     password = '';
                     confirmPassword = '';
                   }}
                 >
                   <label class:checked={mode === 'new'}
-                    ><input type="radio" bind:group={mode} value="new" /> Create a new user</label
+                    ><input type="radio" bind:group={mode} value="new" /> {t('App.create_a_new_user')}</label
                   >
                   <label class:checked={mode === 'existing'}
-                    ><input type="radio" bind:group={mode} value="existing" /> Use an existing user</label
+                    ><input type="radio" bind:group={mode} value="existing" /> {t('App.use_an_existing_user')}</label
                   >
                 </div>
               {/if}
             {:else}
               <TextField
                 id="setup-key"
-                label="Setup key"
+                label={t('App.setup_key')}
                 bind:value={key}
                 required
                 maxlength={200}
@@ -1037,7 +1042,7 @@
             {#if keyAccepted && mode === 'new'}
               <TextField
                 id="setup-first"
-                label="First name"
+                label={t('App.first_name')}
                 bind:value={first}
                 required
                 maxlength={50}
@@ -1045,7 +1050,7 @@
               />
               <TextField
                 id="setup-last"
-                label="Last name"
+                label={t('App.last_name')}
                 bind:value={last}
                 maxlength={50}
                 errors={errors('sign-in', 'last_name')}
@@ -1054,7 +1059,7 @@
           {/if}
           {#if !complete && keyAccepted && mode === 'existing'}
             <div class="setup-picker">
-              <label for="setup-user">User to make administrator</label>
+              <label for="setup-user">{t('App.user_to_make_administrator')}</label>
               <select
                 id="setup-user"
                 bind:value={setupUserId}
@@ -1063,22 +1068,22 @@
                   password = '';
                 }}
               >
-                <option value={null} disabled>Choose a user</option>
+                <option value={null} disabled>{t('App.choose_a_user')}</option>
                 {#each setupUsers as r (r.player_id)}
                   <option value={r.player_id} disabled={!r.enabled || !r.has_password}>
                     {`${r.first_name} ${r.last_name}`.trim() || r.username} (#{r.player_id}, {r.username}){!r.enabled
                       ? ' — Disabled'
                       : !r.has_password
-                        ? ' — No password'
+                        ? t('App.no_password_2')
                         : ''}
                   </option>
                 {/each}
               </select>
               {#if setupUsers.some((r) => !r.has_password)}
-                <p class="muted">Users without a password need one set with the server CLI first.</p>
+                <p class="muted">{t('App.users_without_a_password_need_one_set_with_the')}</p>
               {/if}
               {#if !setupUsers.some((r) => r.enabled && r.has_password)}
-                <p class="muted">No eligible users. Create a new user instead.</p>
+                <p class="muted">{t('App.no_eligible_users_create_a_new_user_instead')}</p>
               {/if}
             </div>
           {/if}
@@ -1086,7 +1091,7 @@
             {#if complete || mode === 'new'}
               <TextField
                 id="sign-in-login"
-                label="Login name"
+                label={t('App.login_name')}
                 bind:value={username}
                 autocomplete="username"
                 required
@@ -1107,7 +1112,7 @@
             {#if !complete && mode === 'new'}
               <TextField
                 id="setup-confirm"
-                label="Confirm password"
+                label={t('App.confirm_password')}
                 password
                 bind:value={confirmPassword}
                 autocomplete="new-password"
@@ -1119,7 +1124,7 @@
           <button
             class="primary"
             disabled={busy || (!complete && keyAccepted && mode === 'existing' && setupUserId === null)}
-            >{complete ? 'Sign in' : keyAccepted ? 'Complete setup' : 'Check key'}</button
+            >{complete ? t('App.sign_in') : keyAccepted ? t('App.complete_setup') : t('App.check_key')}</button
           >
         </form>
       {/if}
@@ -1143,15 +1148,15 @@
           />
 
           <section class="panel">
-            <h2>Backups</h2>
-            <p class="muted">Saved nightly in storage/backups. The 10 most recent are kept.</p>
-            <button disabled={busy || backingUp} onclick={() => void createBackup()}>Create backup</button>
+            <h2>{t('App.backups')}</h2>
+            <p class="muted">{t('App.saved_nightly_in_storage_backups_the_10_most_recent')}</p>
+            <button disabled={busy || backingUp} onclick={() => void createBackup()}>{t('App.create_backup')}</button>
             {#if backupMessage}<p role="status">{backupMessage}</p>{/if}
           </section>
 
           <div class="columns">
             <section class="panel">
-              <h2>Bots</h2>
+              <h2>{t('App.bots')}</h2>
               <div class="actions">
                 <button
                   disabled={busy}
@@ -1162,7 +1167,7 @@
                       'Bots restart with the current world settings.',
                       'Bots reloaded.',
                       false,
-                    )}>Reload bots</button
+                    )}>{t('App.reload_bots')}</button
                 >
               </div>
             </section>
@@ -1174,45 +1179,45 @@
                 void run(sendBots, 'bots');
               }}
             >
-              <h2>Bots</h2>
+              <h2>{t('App.bots')}</h2>
               {#if connected.length === 0}
-                <p class="muted">Nobody is riding. Bot commands need a rider.</p>
+                <p class="muted">{t('App.nobody_is_riding_bot_commands_need_a_rider')}</p>
               {:else}
-                <label for="bot-user">User</label>
+                <label for="bot-user">{t('App.user')}</label>
                 <select id="bot-user" bind:value={botUser} required>
-                  <option value={null} disabled>Choose a user</option>
+                  <option value={null} disabled>{t('App.choose_a_user')}</option>
                   {#each connected as r (r.player_id)}<option value={r.player_id}>{name(r)}</option>{/each}
                 </select>
-                <label for="bot-command">Command</label>
+                <label for="bot-command">{t('App.command')}</label>
                 <select id="bot-command" bind:value={botCommand}>
                   {#each botCommands as [value, label] (value)}<option {value}>{label}</option>{/each}
                 </select>
                 {#if botCommand === 'peloton'}
                   <TextField
                     id="bot-argument"
-                    label="Peloton size"
+                    label={t('App.peloton_size')}
                     bind:value={botArgument}
                     maxlength={3}
                     hint="0 to 200 bots, or off. Leave empty to see the current size."
                     errors={errors('bots', 'argument')}
                   />
                 {/if}
-                <button disabled={busy}>Send to bots</button>
+                <button disabled={busy}>{t('App.send_to_bots')}</button>
               {/if}
             </form>
           </div>
 
           <section class="panel">
-            <h2>Server logs</h2>
+            <h2>{t('App.server_logs')}</h2>
             <ServerLogs load={() => api(serverLogsResponse, '/api/manage/server/logs')} />
           </section>
 
           <section class="panel">
-            <h2>World settings</h2>
+            <h2>{t('App.world_settings')}</h2>
             {#if worldSettings.length === 0}
-              <p class="muted">No world settings yet. Riders create them with blob and peloton commands.</p>
+              <p class="muted">{t('App.no_world_settings_yet_riders_create_them_with_blob')}</p>
             {:else}
-              <div class="pills" role="group" aria-label="World settings">
+              <div class="pills" role="group" aria-label={t('App.world_settings')}>
                 {#each worldSettings as item (item.id)}<button
                     aria-pressed={worldSetting?.id === item.id}
                     onclick={() => {
@@ -1265,15 +1270,15 @@
                       </div>{/if}
                   {/each}
                 </div>
-                <button disabled={busy}>Save world settings</button>
+                <button disabled={busy}>{t('App.save_world_settings')}</button>
               </form>
             {/if}
           </section>
 
           <section class="panel">
-            <h2>Events</h2>
+            <h2>{t('App.events')}</h2>
             {#if events.length === 0}
-              <p class="muted">No private events. Users create them in the Companion app.</p>
+              <p class="muted">{t('App.no_private_events_users_create_them_in_the_companion')}</p>
             {:else}
               <ul class="plain">
                 {#each events as item (item.id)}<li>
@@ -1309,17 +1314,17 @@
                   }, 'event');
                 }}
               >
-                <TextField id="event-description" label="Description" bind:value={eventDescription} />
+                <TextField id="event-description" label={t('App.description')} bind:value={eventDescription} />
                 <TextField
                   id="event-start"
-                  label="Start time (UTC)"
+                  label={t('App.start_time_utc')}
                   bind:value={eventStart}
                   required
                   hint="For example 2026-11-20T18:00:00.000Z"
                   errors={errors('event', 'changes')}
                 />
                 <div class="actions">
-                  <button disabled={busy}>Save event</button>
+                  <button disabled={busy}>{t('App.save_event')}</button>
                   <button
                     type="button"
                     class="danger"
@@ -1341,7 +1346,7 @@
                           done('Event deleted.');
                         },
                       };
-                    }}>Delete event</button
+                    }}>{t('App.delete_event')}</button
                   >
                 </div>
               </form>
@@ -1350,11 +1355,11 @@
 
           {#if serverConfig}
             <section class="panel">
-              <h2>Configuration</h2>
+              <h2>{t('App.configuration')}</h2>
               <dl class="config">
                 {#each serverConfig.rows as [field, value] (field)}<div>
                     <dt>{field}</dt>
-                    <dd class="num" class:muted={!value}>{value || 'Not set'}</dd>
+                    <dd class="num" class:muted={!value}>{value || t('App.not_set')}</dd>
                   </div>{/each}
               </dl>
             </section>
@@ -1370,7 +1375,7 @@
             <div class="pair">
               <TextField
                 id="new-first"
-                label="First name"
+                label={t('App.first_name')}
                 bind:value={newFirst}
                 required
                 maxlength={50}
@@ -1378,7 +1383,7 @@
               />
               <TextField
                 id="new-last"
-                label="Last name"
+                label={t('App.last_name')}
                 bind:value={newLast}
                 maxlength={50}
                 errors={errors('create', 'last_name')}
@@ -1386,7 +1391,7 @@
             </div>
             <TextField
               id="new-login"
-              label="Login name"
+              label={t('App.login_name')}
               bind:value={newLogin}
               required
               maxlength={254}
@@ -1395,7 +1400,7 @@
             <div class="pair">
               <TextField
                 id="new-password"
-                label="Password"
+                label={t('App.password')}
                 password
                 bind:value={newPassword}
                 autocomplete="new-password"
@@ -1404,7 +1409,7 @@
               />
               <TextField
                 id="new-confirm"
-                label="Confirm password"
+                label={t('App.confirm_password')}
                 password
                 bind:value={newConfirm}
                 autocomplete="new-password"
@@ -1413,13 +1418,13 @@
               />
             </div>
             <div class="actions">
-              <button class="primary" disabled={busy}>Create user</button>
-              <button type="button" disabled={busy} onclick={() => navigate('/manage')}>Cancel</button>
+              <button class="primary" disabled={busy}>{t('App.create_user')}</button>
+              <button type="button" disabled={busy} onclick={() => navigate('/manage')}>{t('App.cancel')}</button>
             </div>
           </form>
         {:else if selectedId}
           {#if selected}
-            <section class="panel summary" aria-label="Account">
+            <section class="panel summary" aria-label={t('App.account')}>
               <Avatar
                 initials={initials(selected)}
                 photo={selected.avatar ? `/api/manage/users/${selected.player_id}/avatar?v=${selected.avatar}` : null}
@@ -1428,15 +1433,16 @@
                 <p class="login">{name(selected)}</p>
                 <p>{selected.username}</p>
                 <button type="button" disabled={busy} onclick={() => navigate(`/profile/${selected.player_id}`)}
-                  >Edit profile</button
+                  >{t('App.edit_profile')}</button
                 >
                 <p class="facts">
-                  <span class="chip muted num">Player ID {selected.player_id}</span>
+                  <span class="chip muted num">{t('App.player_id', { value1: selected.player_id })}</span>
                   {@render chips(selected)}
                 </p>
                 {#if selected.completion_deadline}
                   <p class="muted">
-                    The current ride can be saved until <span class="num">{time(selected.completion_deadline)}</span>.
+                    {t('App.the_current_ride_can_be_saved_until')}
+                    <span class="num">{time(selected.completion_deadline)}</span>.
                   </p>
                 {/if}
               </div>
@@ -1444,30 +1450,30 @@
 
             {#if conflict}
               <div class="conflict" role="alert">
-                <p>This user changed on the server. Your draft is kept. Review the server version:</p>
+                <p>{t('App.this_user_changed_on_the_server_your_draft_is')}</p>
                 <dl class="config">
                   <div>
-                    <dt>Name</dt>
+                    <dt>{t('App.name')}</dt>
                     <dd>{name(conflict)}</dd>
                   </div>
                   <div>
-                    <dt>Login name</dt>
+                    <dt>{t('App.login_name')}</dt>
                     <dd>{conflict.username}</dd>
                   </div>
                   <div>
-                    <dt>Role</dt>
-                    <dd>{conflict.role === 'administrator' ? 'Administrator' : 'User'}</dd>
+                    <dt>{t('App.role')}</dt>
+                    <dd>{conflict.role === 'administrator' ? t('App.administrator') : t('App.user')}</dd>
                   </div>
                   <div>
-                    <dt>Account</dt>
-                    <dd>{conflict.enabled ? 'Enabled' : 'Disabled'}</dd>
+                    <dt>{t('App.account')}</dt>
+                    <dd>{conflict.enabled ? t('App.enabled_2') : t('App.disabled_2')}</dd>
                   </div>
                 </dl>
                 <button
                   onclick={() => {
                     users = users.map((r) => (r.player_id === conflict!.player_id ? conflict! : r));
                     conflict = null;
-                  }}>Use the server version</button
+                  }}>{t('App.use_the_server_version')}</button
                 >
               </div>
             {/if}
@@ -1482,11 +1488,11 @@
                     ask('password');
                   }}
                 >
-                  <h2>{selected.has_password ? 'Password' : 'Set a password'}</h2>
-                  {#if !selected.has_password}<p class="muted">Needed to sign in.</p>{/if}
+                  <h2>{selected.has_password ? t('App.password') : t('App.set_a_password')}</h2>
+                  {#if !selected.has_password}<p class="muted">{t('App.needed_to_sign_in')}</p>{/if}
                   <TextField
                     id="target-password"
-                    label="New password"
+                    label={t('App.new_password')}
                     password
                     bind:value={targetPassword}
                     autocomplete="new-password"
@@ -1495,68 +1501,71 @@
                   />
                   <TextField
                     id="target-confirm"
-                    label="Confirm password"
+                    label={t('App.confirm_password')}
                     password
                     bind:value={targetConfirm}
                     autocomplete="new-password"
                     required
                     errors={errors('password', 'confirm')}
                   />
-                  <button disabled={busy}>Set password</button>
+                  <button disabled={busy}>{t('App.set_password')}</button>
                 </form>
               {:else}
                 <section class="panel">
-                  <h2>Password</h2>
+                  <h2>{t('App.password')}</h2>
                   <p class="muted">
-                    Change your own password on {@render link('/', 'your profile', false)}.
+                    {t('App.change_your_own_password_on')}
+                    {@render link('/', 'your profile', false)}.
                   </p>
                 </section>
               {/if}
 
               <section class="panel">
-                <h2>Access</h2>
+                <h2>{t('App.access')}</h2>
                 <ul class="plain access">
                   <li>
                     <div>
-                      <h3>Sign-in</h3>
+                      <h3>{t('App.sign_in_2')}</h3>
                       <p class="muted">
-                        {selected.enabled ? 'Enabled' : 'Disabled'}
+                        {selected.enabled ? t('App.enabled_2') : t('App.disabled_2')}
                       </p>
                     </div>
                     {#if selected.enabled}<button class="danger" disabled={busy} onclick={() => ask('disable')}
-                        >Disable</button
-                      >{:else}<button disabled={busy} onclick={() => ask('enable')}>Enable</button>{/if}
+                        >{t('App.disable_2')}</button
+                      >{:else}<button disabled={busy} onclick={() => ask('enable')}>{t('App.enable_2')}</button>{/if}
                   </li>
                   <li>
                     <div>
-                      <h3>Role</h3>
+                      <h3>{t('App.role')}</h3>
                       <p class="muted">
-                        {selected.role === 'administrator' ? 'Administrator' : 'User'}
+                        {selected.role === 'administrator' ? t('App.administrator') : t('App.user')}
                       </p>
                     </div>
                     <button class:danger={selected.role === 'administrator'} disabled={busy} onclick={() => ask('role')}
-                      >{selected.role === 'administrator' ? 'Remove administrator' : 'Make administrator'}</button
+                      >{selected.role === 'administrator'
+                        ? t('App.remove_administrator')
+                        : t('App.make_administrator')}</button
                     >
                   </li>
                   <li>
                     <div>
-                      <h3>Sessions</h3>
-                      <p class="muted">Including in the game</p>
+                      <h3>{t('App.sessions')}</h3>
+                      <p class="muted">{t('App.including_in_the_game')}</p>
                     </div>
                     <button class="danger" disabled={busy} onclick={() => ask('revoke-sessions')}
-                      >Sign out everywhere</button
+                      >{t('App.sign_out_everywhere_2')}</button
                     >
                   </li>
                 </ul>
               </section>
             </div>
           {:else if !busy}
-            <p class="empty">This user does not exist. {@render link('/manage', 'Show all users', false)}</p>
+            <p class="empty">{t('App.this_user_does_not_exist')} {@render link('/manage', 'Show all users', false)}</p>
           {/if}
         {:else}
           <div class="users-head">
             <div class="search">
-              <label for="user-search">Search users</label>
+              <label for="user-search">{t('App.search_users')}</label>
               <input
                 id="user-search"
                 type="search"
@@ -1564,16 +1573,18 @@
                 oninput={() => {
                   page = 0;
                 }}
-                placeholder="Name, login name or player ID"
+                placeholder={t('App.name_login_name_or_player_id')}
               />
             </div>
-            <button class="primary" disabled={busy} onclick={() => navigate('/manage/users/new')}>Create user</button>
+            <button class="primary" disabled={busy} onclick={() => navigate('/manage/users/new')}
+              >{t('App.create_user')}</button
+            >
           </div>
           {#if users.length <= 1}
-            <p class="empty">No other users yet.</p>
+            <p class="empty">{t('App.no_other_users_yet')}</p>
           {/if}
           {#if filtered.length === 0 && users.length > 1}
-            <p class="empty">No users match. Clear the search.</p>
+            <p class="empty">{t('App.no_users_match_clear_the_search')}</p>
           {/if}
           <ul class="plain list">
             {#each filtered.slice(page * pageSize, page * pageSize + pageSize) as r (r.player_id)}<li>
@@ -1602,9 +1613,9 @@
           </ul>
           {#if pages > 1}
             <div class="pager">
-              <button disabled={page === 0} onclick={() => page--}>Previous</button>
-              <span class="num muted">Page {page + 1} of {pages}</span>
-              <button disabled={page + 1 >= pages} onclick={() => page++}>Next</button>
+              <button disabled={page === 0} onclick={() => page--}>{t('App.previous')}</button>
+              <span class="num muted">{t('App.page_of', { value1: page + 1, value2: pages })}</span>
+              <button disabled={page + 1 >= pages} onclick={() => page++}>{t('App.next')}</button>
             </div>
           {/if}
         {/if}
@@ -1634,17 +1645,19 @@
       {:else if path === '/settings'}
         {#if settings}
           <section class="panel narrow ghosts" aria-labelledby="ghosts-title">
-            <h2 id="ghosts-title">Ghosts</h2>
+            <h2 id="ghosts-title">{t('App.ghosts')}</h2>
             <label class="check"
-              ><input type="checkbox" bind:checked={ghosts} disabled={busy} onchange={saveGhosts} /> Ride with ghosts</label
+              ><input type="checkbox" bind:checked={ghosts} disabled={busy} onchange={saveGhosts} />
+              {t('App.ride_with_ghosts')}</label
             >
             <p class="muted">
-              Saved rides appear beside you on the same route. Type <kbd>.regroup</kbd> in chat to bring them back.
+              {t('App.saved_rides_appear_beside_you_on_the_same_route')} <kbd>{t('App.regroup')}</kbd>
+              {t('App.in_chat_to_bring_them_back')}
             </p>
           </section>
           <section class="panel narrow curves" aria-labelledby="curves-title">
-            <h2 id="curves-title">Power curves</h2>
-            <p class="muted">Regenerate if your best power looks wrong, such as after importing old activities.</p>
+            <h2 id="curves-title">{t('App.power_curves')}</h2>
+            <p class="muted">{t('App.regenerate_if_your_best_power_looks_wrong_such_as')}</p>
             <button
               type="button"
               bind:this={regenerateButton}
@@ -1652,7 +1665,7 @@
               onclick={() => {
                 rebuild = true;
                 regenerating = true;
-              }}>Regenerate power curves</button
+              }}>{t('App.regenerate_power_curves')}</button
             >
           </section>
         {/if}
@@ -1701,10 +1714,12 @@
               ><Avatar
                 initials={initials(profileUser ?? user)}
                 photo={profileAvatar ? `${profileBase}/avatar?v=${profileAvatar}` : null}
-              /><span class="change" aria-hidden="true">{profileAvatar ? 'Change' : 'Choose'}</span></button
+              /><span class="change" aria-hidden="true">{profileAvatar ? t('App.change') : t('App.choose')}</span
+              ></button
             >
             <div>
-              <button type="button" disabled={busy} onclick={() => avatarInput?.click()}>Choose an avatar</button
+              <button type="button" disabled={busy} onclick={() => avatarInput?.click()}
+                >{t('App.choose_an_avatar')}</button
               >{#if profileAvatar}<button
                   type="button"
                   class="danger"
@@ -1714,7 +1729,7 @@
                       profileAvatar = (await api(avatarResponse, `${profileBase}/avatar`, 'DELETE')).avatar;
                       if (!profileId) avatar = profileAvatar;
                       done('Restart Zwift for the changes to take effect.');
-                    })}>Remove</button
+                    })}>{t('App.remove')}</button
                 >{/if}
             </div>
             <input
@@ -1731,7 +1746,7 @@
           <div class="grid">
             <TextField
               id="profile-first"
-              label="First name"
+              label={t('App.first_name')}
               bind:value={first}
               autocomplete="given-name"
               required
@@ -1740,7 +1755,7 @@
             />
             <TextField
               id="profile-last"
-              label="Last name"
+              label={t('App.last_name')}
               bind:value={last}
               autocomplete="family-name"
               maxlength={50}
@@ -1749,7 +1764,7 @@
           </div>
           <TextField
             id="profile-email"
-            label="Email"
+            label={t('App.email')}
             bind:value={username}
             autocomplete="email"
             required
@@ -1759,24 +1774,24 @@
           />
           <TextField
             id="profile-birthday"
-            label="Birthday"
+            label={t('App.birthday')}
             type="date"
             bind:value={birthday}
             errors={errors('profile', 'birthday')}
           />
           <div class="actions">
-            <button class="primary" disabled={busy}>Save profile</button>
+            <button class="primary" disabled={busy}>{t('App.save_profile')}</button>
             {#if !profileId}<button type="button" bind:this={changeButton} disabled={busy} onclick={openPassword}
-                >Change password</button
+                >{t('App.change_password')}</button
               >{/if}
             {#if profileId}<button type="button" onclick={() => navigate(`/manage/users/${profileId}`)}
-                >Back to user settings</button
+                >{t('App.back_to_user_settings')}</button
               >{/if}
           </div>
         </form>
         {#if !profileId}
           <div class="actions">
-            <button type="button" onclick={() => navigate('/profile-data')}>Import / Export</button>
+            <button type="button" onclick={() => navigate('/profile-data')}>{t('App.import_export')}</button>
           </div>
         {/if}
       {/if}
@@ -1794,8 +1809,8 @@
       aria-describedby="password-detail"
       use:focusFirst
     >
-      <h2 id="password-title">Change password</h2>
-      <p id="password-detail" class="muted">You will be signed out everywhere, including in Zwift.</p>
+      <h2 id="password-title">{t('App.change_password')}</h2>
+      <p id="password-detail" class="muted">{t('App.you_will_be_signed_out_everywhere_including_in_zwift')}</p>
       <form
         onsubmit={(e) => {
           e.preventDefault();
@@ -1806,7 +1821,7 @@
         {#if !administrator}
           <TextField
             id="own-current"
-            label="Current password"
+            label={t('App.current_password')}
             password
             bind:value={currentPassword}
             autocomplete="current-password"
@@ -1816,7 +1831,7 @@
         {/if}
         <TextField
           id="own-new"
-          label="New password"
+          label={t('App.new_password')}
           password
           bind:value={password}
           autocomplete="new-password"
@@ -1825,7 +1840,7 @@
         />
         <TextField
           id="own-confirm"
-          label="Confirm new password"
+          label={t('App.confirm_new_password')}
           password
           bind:value={confirmPassword}
           autocomplete="new-password"
@@ -1833,8 +1848,8 @@
           errors={errors('password', 'confirm')}
         />
         <div class="actions">
-          <button type="button" disabled={busy} onclick={closePassword}>Cancel</button>
-          <button class="primary" disabled={busy}>Change password</button>
+          <button type="button" disabled={busy} onclick={closePassword}>{t('App.cancel')}</button>
+          <button class="primary" disabled={busy}>{t('App.change_password')}</button>
         </div>
       </form>
     </div>
@@ -1850,20 +1865,22 @@
       aria-labelledby="curves-dialog-title"
       aria-describedby="curves-dialog-detail"
     >
-      <h2 id="curves-dialog-title">Regenerate power curves?</h2>
+      <h2 id="curves-dialog-title">{t('App.regenerate_power_curves_2')}</h2>
       <p id="curves-dialog-detail">
         {#if rebuild}
-          Your power curves are rebuilt from saved activities. They fill in gradually.
+          {t('App.your_power_curves_are_rebuilt_from_saved_activities_they')}
         {:else}
-          Your power curves are deleted and stay empty until your next ride.
+          {t('App.your_power_curves_are_deleted_and_stay_empty_until')}
         {/if}
       </p>
-      <label class="check"><input type="checkbox" bind:checked={rebuild} /> Rebuild from my saved activities</label>
+      <label class="check"
+        ><input type="checkbox" bind:checked={rebuild} /> {t('App.rebuild_from_my_saved_activities')}</label
+      >
       <div class="actions">
         <!-- svelte-ignore a11y_autofocus (the safe choice takes focus when the dialog opens) -->
-        <button autofocus disabled={busy} onclick={closeRegenerate}>Cancel</button>
+        <button autofocus disabled={busy} onclick={closeRegenerate}>{t('App.cancel')}</button>
         <button class="danger" disabled={busy} onclick={() => run(regenerate)}
-          >{rebuild ? 'Regenerate power curves' : 'Delete power curves'}</button
+          >{rebuild ? t('App.regenerate_power_curves') : t('App.delete_power_curves')}</button
         >
       </div>
     </div>
@@ -1883,7 +1900,7 @@
       <p id="dialog-detail">{pending.detail}</p>
       <div class="actions">
         <!-- svelte-ignore a11y_autofocus (the safe choice takes focus when the dialog opens) -->
-        <button autofocus disabled={busy} onclick={() => (pending = null)}>Cancel</button>
+        <button autofocus disabled={busy} onclick={() => (pending = null)}>{t('App.cancel')}</button>
         <button
           class={pending.destructive ? 'danger' : 'primary'}
           disabled={busy}

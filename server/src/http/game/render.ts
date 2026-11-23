@@ -1,3 +1,4 @@
+import { t } from '#src/i18n/index';
 import { packageRoot } from '#src/config/load';
 import type { FormResult, GamePageModel, GameSaved } from '#src/dtos/game-app.dto';
 import { browserJson } from '#src/http/game/results';
@@ -28,7 +29,7 @@ const document = Effect.fn('game.document')(function* (props: GamePageModel, ren
   const entry = manifest['src/game/client.ts'];
 
   if (!entry) {
-    throw new Error('Build the game app with pnpm build:web first');
+    throw new Error(t('render.build_the_game_app_with_pnpm_build_web_first'));
   }
 
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">${rendered.head}${(entry.css ?? []).map((file) => `<link rel="stylesheet" href="/static/launcher-ui/${file}">`).join('')}</head><body><div id="launcher-ui">${rendered.body}</div><script type="application/json" id="launcher-props">${serialize(props)}</script><script type="module" src="/static/launcher-ui/${entry.file}"></script></body></html>`;
@@ -46,15 +47,14 @@ export const gamePage = Effect.fn('game.page')(function* (c: Context, page: Game
     tls.mode() === 'legacy'
       ? {
           ...shown,
-          warning:
-            'This server uses the shared Zwift certificate, whose private key is public. Others on your network can read your Zwift traffic, including your password. Ask the server administrator to replace it.',
+          warning: t('render.this_server_uses_the_shared_zwift_certificate_whose_private'),
         }
       : shown;
 
   if (c.req.method === 'POST' && browserJson(c)) {
     const result: FormResult<GameSaved> = model.failed
-      ? { ok: false, message: model.message ?? 'The form could not be saved.' }
-      : { ok: true, data: { page: model }, message: model.message ?? 'Saved.' };
+      ? { ok: false, message: model.message ?? t('render.the_form_could_not_be_saved') }
+      : { ok: true, data: { page: model }, message: model.message ?? t('render.saved') };
 
     return c.json(result, model.failed ? (model.errorStatus ?? 400) : 200);
   }

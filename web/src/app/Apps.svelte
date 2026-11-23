@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../lib/i18n/index';
   import type { z } from 'zod';
   import { onMount } from 'svelte';
   import { companionStatus } from './companion';
@@ -37,38 +38,38 @@
   const systems = $derived<Array<Row>>([
     {
       to: '/install/windows',
-      name: 'Windows',
-      detail: 'Zwift installed from zwift.com',
-      tag: mark('windows', 'This computer'),
+      name: t('Apps.windows'),
+      detail: t('Apps.zwift_installed_from_zwift_com'),
+      tag: mark('windows', t('Apps.this_computer')),
     },
     {
       to: '/install/macos',
-      name: 'macOS',
-      detail: 'Zwift installed from zwift.com',
-      tag: mark('macos', 'This computer'),
+      name: t('Apps.macos'),
+      detail: t('Apps.zwift_installed_from_zwift_com'),
+      tag: mark('macos', t('Apps.this_computer')),
     },
     {
       to: '/install/linux',
-      name: 'Linux',
-      detail: 'Zwift in Wine, Lutris, Bottles or Steam',
-      tag: mark('linux', 'This computer'),
+      name: t('Apps.linux'),
+      detail: t('Apps.zwift_in_wine_lutris_bottles_or_steam'),
+      tag: mark('linux', t('Apps.this_computer')),
     },
     {
       to: '/install/android',
-      name: 'Android',
+      name: t('Apps.android'),
       detail: !android?.app
-        ? 'Not added yet'
+        ? t('Apps.not_added_yet')
         : android.app.current
-          ? `Zwift ${android.app.versionName}`
-          : `Zwift ${android.app.versionName}, needs a rebuild`,
-      tag: mark('android', 'This device'),
+          ? t('Apps.zwift', { value1: android.app.versionName })
+          : t('Apps.zwift_needs_a_rebuild', { value1: android.app.versionName }),
+      tag: mark('android', t('Apps.this_device')),
     },
-    { to: '/install/android-rooted', name: 'Android, rooted', detail: 'Manual setup with adb' },
+    { to: '/install/android-rooted', name: t('Apps.android_rooted'), detail: t('Apps.manual_setup_with_adb') },
     {
       to: '/install/ios',
-      name: 'iPhone and iPad',
-      detail: 'Not supported',
-      tag: mark('ios', 'This device'),
+      name: t('Apps.iphone_and_ipad'),
+      detail: t('Apps.not_supported'),
+      tag: mark('ios', t('Apps.this_device')),
       unavailable: true,
     },
   ]);
@@ -76,19 +77,19 @@
   const phones = $derived<Array<Row>>([
     {
       to: '/companion/android',
-      name: 'Android',
+      name: t('Apps.android'),
       detail: !companion?.app
-        ? 'Not added yet'
+        ? t('Apps.not_added_yet')
         : companion.app.current
-          ? `Companion ${companion.app.versionName}`
-          : `Companion ${companion.app.versionName}, needs an update`,
-      tag: mark('android', 'This phone'),
+          ? t('Apps.companion', { value1: companion.app.versionName })
+          : t('Apps.companion_needs_an_update', { value1: companion.app.versionName }),
+      tag: mark('android', t('Apps.this_phone')),
     },
     {
       to: '/companion/ios',
-      name: 'iPhone and iPad',
-      detail: 'Not supported',
-      tag: mark('ios', 'This phone'),
+      name: t('Apps.iphone_and_ipad'),
+      detail: t('Apps.not_supported'),
+      tag: mark('ios', t('Apps.this_phone')),
       unavailable: true,
     },
   ]);
@@ -119,13 +120,13 @@
     if (certificate.status === 'fulfilled') {
       tls = certificate.value;
     } else {
-      tlsFailure = reason(certificate.reason, 'The setup could not be loaded.');
+      tlsFailure = reason(certificate.reason, t('Apps.the_setup_could_not_be_loaded'));
     }
 
     if (app.status === 'fulfilled') {
       companion = app.value;
     } else {
-      companionFailure = reason(app.reason, 'The Companion app could not be loaded.');
+      companionFailure = reason(app.reason, t('Apps.the_companion_app_could_not_be_loaded'));
     }
 
     loaded = true;
@@ -156,7 +157,7 @@
 {/snippet}
 
 {#if !loaded}
-  <p role="status">Loading…</p>
+  <p role="status">{t('Apps.loading')}</p>
 {:else}
   <div class="apps">
     <section class="product zwift" aria-labelledby="apps-zwift">
@@ -167,19 +168,21 @@
           <path class="body" d="M24 30v6M16 37.5h16" />
         </svg>
         <div>
-          <h2 id="apps-zwift">Zwift</h2>
-          <p class="where">On the device you ride with</p>
+          <h2 id="apps-zwift">{t('Apps.zwift_2')}</h2>
+          <p class="where">{t('Apps.on_the_device_you_ride_with')}</p>
         </div>
       </header>
 
       {#if tlsFailure}
         <p class="failed" role="alert">{tlsFailure}</p>
       {:else if tls?.mode === 'legacy'}
-        <p class="lead">Ask the server administrator to replace the shared certificate first.</p>
+        <p class="lead">{t('Apps.ask_the_server_administrator_to_replace_the_shared_certificate')}</p>
       {:else if tls}
-        <p class="lead">Connect Zwift to this server instead of Zwift's own.</p>
+        <p class="lead">{t('Apps.connect_zwift_to_this_server_instead_of_zwift_s')}</p>
         {#if featured}
-          <a class="setup" href={featured.to} onclick={(event) => go(event, featured.to)}>Set up {featured.name}</a>
+          <a class="setup" href={featured.to} onclick={(event) => go(event, featured.to)}
+            >{t('Apps.set_up', { value1: featured.name })}</a
+          >
           <p class="featured-detail">{featured.detail}</p>
           <button
             type="button"
@@ -188,8 +191,7 @@
             aria-controls="apps-other-systems"
             onclick={() => (others = !others)}
           >
-            Other systems
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+            {t('Apps.other_systems')} <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
           </button>
           <div id="apps-other-systems" hidden={!others}>
             {@render rows(systems.filter((row) => row !== featured))}
@@ -208,24 +210,25 @@
           <path class="body" d="M21.5 35.5h5" />
         </svg>
         <div>
-          <h2 id="apps-companion">Zwift Companion</h2>
-          <p class="where">On your phone, next to the bike</p>
+          <h2 id="apps-companion">{t('Apps.zwift_companion')}</h2>
+          <p class="where">{t('Apps.on_your_phone_next_to_the_bike')}</p>
         </div>
       </header>
 
       {#if companionFailure}
         <p class="failed" role="alert">{companionFailure}</p>
       {:else}
-        <p class="lead">A Companion app patched for this server.</p>
+        <p class="lead">{t('Apps.a_companion_app_patched_for_this_server')}</p>
         {@render rows(phones)}
         {#if companion && !companion.app}
           <p class="hint">
             {#if administrator}
-              Upload the app under <a href="/manage/companion" onclick={(event) => go(event, '/manage/companion')}
-                >Manage → Companion</a
+              {t('Apps.upload_the_app_under')}
+              <a href="/manage/companion" onclick={(event) => go(event, '/manage/companion')}
+                >{t('Apps.manage_companion')}</a
               >.
             {:else}
-              Ask the server administrator to add it.
+              {t('Apps.ask_the_server_administrator_to_add_it')}
             {/if}
           </p>
         {/if}

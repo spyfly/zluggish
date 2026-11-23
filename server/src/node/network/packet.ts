@@ -1,3 +1,4 @@
+import { t } from '#src/i18n/index';
 import { CryptoRepository } from '#src/repositories/crypto.repository';
 
 export interface InitializationVector {
@@ -59,14 +60,14 @@ export function decodePacket(data: Uint8Array, key: Uint8Array, iv: Initializati
   const flags = buffer[0];
 
   if (flags === undefined || flags & ~7) {
-    throw new Error('Invalid packet flags');
+    throw new Error(t('packet.invalid_packet_flags'));
   }
   let offset = 1;
   const fields: PacketHeader = {};
 
   const take = (size: number) => {
     if (offset + size > buffer.length) {
-      throw new Error('Truncated packet header');
+      throw new Error(t('packet.truncated_packet_header'));
     }
     const start = offset;
     offset += size;
@@ -93,7 +94,7 @@ export function decodePacket(data: Uint8Array, key: Uint8Array, iv: Initializati
   };
 
   if (buffer.length - offset < 4) {
-    throw new Error('Missing packet authentication tag');
+    throw new Error(t('packet.missing_packet_authentication_tag'));
   }
 
   return {
@@ -134,7 +135,7 @@ export class FrameDecoder {
       const length = this.pending.readUInt16BE(0);
 
       if (length === 0) {
-        throw new Error('Empty TCP frame');
+        throw new Error(t('packet.empty_tcp_frame'));
       }
       const size = Math.min(length + 2 - this.pending.length, incoming.length);
       this.pending = Buffer.concat([this.pending, incoming.subarray(0, size)]);
@@ -153,7 +154,7 @@ export class FrameDecoder {
 
   finish() {
     if (this.pending.length > 0) {
-      throw new Error('Truncated TCP frame');
+      throw new Error(t('packet.truncated_tcp_frame'));
     }
   }
 }

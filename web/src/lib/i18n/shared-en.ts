@@ -1,0 +1,31 @@
+// English source catalog. Keep message keys stable when editing copy.
+export const en = {
+  'ConnectionBanner.retry_now': 'Retry now',
+  'ConnectionBanner.server_connection_lost_retrying_in_s': 'Server connection lost...retrying in {value1}s',
+  'Form.check_the_fields_below': 'Check the fields below.',
+  'Form.could_not_submit_your_draft_is_kept_try_again': 'Could not submit. Your draft is kept. Try again.',
+  'Form.saved': 'Saved.',
+  'Form.submitting': 'Submitting…',
+  'Form.unsafe_navigation': 'Unsafe navigation',
+  'Form.unsaved_changes': 'Unsaved changes',
+  'Layout.about_zluggish': 'About Zluggish',
+  'Layout.close_about': 'Close about',
+  'Layout.close_menu': 'Close menu',
+  'Layout.menu': 'Menu',
+  'Layout.source_on_github': 'Source on GitHub',
+  'Layout.supports_zwift': 'Supports Zwift',
+  'Layout.unknown': 'Unknown',
+  'Layout.v': 'v{value1}',
+  'Layout.version': 'Version',
+  'Layout.zluggish': 'zluggish',
+  'Layout.zluggish_home': 'Zluggish home',
+  'api.the_server_sent_an_unexpected_response_reload_the_page':
+    'The server sent an unexpected response. Reload the page and try again.',
+  'connection.unable_to_connect_to_the_server_please_try_again':
+    'Unable to connect to the server. Please try again once the connection is restored.',
+  'connection.unavailable': 'Unavailable',
+  'forms.enter_a_valid_value': 'Enter a valid value.',
+  'forms.passwords_did_not_match': 'Passwords did not match.',
+  'forms.this_field_is_required': 'This field is required.',
+  'forms.use_at_most_characters': 'Use at most {value1} characters.',
+} as const;

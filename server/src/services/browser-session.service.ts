@@ -1,3 +1,4 @@
+import { t } from '#src/i18n/index';
 import { ApplicationError } from '#src/errors';
 import type { User } from '#src/repositories/accounts.repository';
 import type { AccountsService } from '#src/services/auth.service';
@@ -74,7 +75,7 @@ function openSessions(accounts: AccountsService['Service']) {
     }
 
     if (browsers.size >= 10_000) {
-      throw new ApplicationError({ status: 503, message: 'Too many browser sessions' });
+      throw new ApplicationError({ status: 503, message: t('browser_session_service.too_many_browser_sessions') });
     }
 
     const token = repositories.cryptoRepository.randomBytes(32).toString('base64url');
@@ -180,7 +181,8 @@ function openSessions(accounts: AccountsService['Service']) {
         now >= exp * 1000 ||
         parsed.iat !== iat ||
         parsed.exp !== exp ||
-        parsed.typ !== (purpose === 'access' ? 'Bearer' : 'Refresh')
+        parsed.typ !==
+          (purpose === 'access' ? t('browser_session_service.bearer') : t('browser_session_service.refresh'))
       ) {
         return null;
       }
@@ -204,7 +206,7 @@ function openSessions(accounts: AccountsService['Service']) {
         iat,
         exp,
         nbf: iat,
-        typ: purpose === 'access' ? 'Bearer' : 'Refresh',
+        typ: purpose === 'access' ? t('browser_session_service.bearer') : t('browser_session_service.refresh'),
         session_cookie: repositories.cryptoRepository.signIdentity(
           `game-v1:${purpose}:${identity}:${iat}:${exp}`,
           secret,
@@ -226,7 +228,7 @@ function openSessions(accounts: AccountsService['Service']) {
     const identity = accounts.identityOf(rider);
 
     if (!accounts.identity(identity)) {
-      throw new ApplicationError({ status: 401, message: 'Account changed. Sign in again.' });
+      throw new ApplicationError({ status: 401, message: t('browser_session_service.account_changed_sign_in_again') });
     }
 
     const now = Date.now();

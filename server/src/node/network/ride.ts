@@ -1,3 +1,4 @@
+import { t } from '#src/i18n/index';
 import { RideCompletionService } from '#src/services/ride-completion.service';
 import { DocumentsService } from '#src/services/documents.service';
 import type { Runtime } from '#src/http/runtime';
@@ -90,7 +91,7 @@ export function startRideListeners(runtime: Runtime) {
         udp.send(packet, address.port, address.address);
       }
     } catch {
-      world.lifecycle.diagnostic('network.udp_rejected', 'Dropped invalid datagram');
+      world.lifecycle.diagnostic('network.udp_rejected', t('ride.dropped_invalid_datagram'));
       /* Malformed/unordered datagrams must not terminate the ride listener. */
     }
   });
@@ -128,7 +129,7 @@ export function startRideListeners(runtime: Runtime) {
       // Channel 4 has a one-byte header and a four-byte authentication tag.
       // Drop unrepresentable messages without consuming a sequence number.
       if (payload.length > 0xff_ff - 5) {
-        world.lifecycle.diagnostic('network.tcp_oversized', 'Dropped oversized relay message');
+        world.lifecycle.diagnostic('network.tcp_oversized', t('ride.dropped_oversized_relay_message'));
 
         return;
       }
@@ -159,12 +160,12 @@ export function startRideListeners(runtime: Runtime) {
           const first = playerId === null;
 
           if (playerId !== null && active.get(playerId) !== socket) {
-            throw new Error('Superseded relay connection');
+            throw new Error(t('ride.superseded_relay_connection'));
           }
 
           if (playerId === null) {
             if (!((packet[0] ?? 0) & 4) || packet.length < 5) {
-              throw new Error('Missing relay identity');
+              throw new Error(t('ride.missing_relay_identity'));
             }
 
             playerId = BigInt(packet.readUInt32BE(1));
@@ -176,7 +177,7 @@ export function startRideListeners(runtime: Runtime) {
               !rider ||
               (!rider.enabled && !runtime.effects.runSync(RideCompletionService.use((service) => service.relay(id))))
             ) {
-              throw new Error('Unknown rider');
+              throw new Error(t('ride.unknown_rider'));
             }
 
             // The stored relay key lets a restarted server accept the existing session.
@@ -208,7 +209,7 @@ export function startRideListeners(runtime: Runtime) {
           const relay = playerId === null ? null : world.relays.get(playerId);
 
           if (!relay || (!first && relay !== ownerRelay)) {
-            throw new Error('Missing relay key');
+            throw new Error(t('ride.missing_relay_key'));
           }
 
           runtime.effects.runSync(
@@ -224,7 +225,7 @@ export function startRideListeners(runtime: Runtime) {
           const incoming = fromBinary(ClientToServerSchema, decoded.payload.subarray(2));
 
           if (incoming.playerId !== playerId) {
-            throw new Error('Mismatched relay identity');
+            throw new Error(t('ride.mismatched_relay_identity'));
           }
           const account = runtime.accounts.get(Number(playerId));
 
@@ -232,7 +233,7 @@ export function startRideListeners(runtime: Runtime) {
             !account?.enabled &&
             !runtime.effects.runSync(RideCompletionService.use((service) => service.relay(Number(playerId))))
           ) {
-            throw new Error('Relay revoked');
+            throw new Error(t('ride.relay_revoked'));
           }
 
           const hello = first || decoded.iv.connection !== relay.tcpConnection;
@@ -242,7 +243,7 @@ export function startRideListeners(runtime: Runtime) {
             ownerRelay = relay;
             const previous = active.get(playerId);
 
-            world.lifecycle.log.verbose('network.tcp_connected', 'Validated relay connection', {
+            world.lifecycle.log.verbose('network.tcp_connected', t('ride.validated_relay_connection'), {
               playerId,
               replaced: !!previous && previous !== socket,
             });
@@ -331,7 +332,7 @@ export function startRideListeners(runtime: Runtime) {
 
                   send(toBinary(ServerToClientSchema, response));
                 } catch {
-                  world.lifecycle.diagnostic('network.tcp_send_failed', 'Closed failed relay stream');
+                  world.lifecycle.diagnostic('network.tcp_send_failed', t('ride.closed_failed_relay_stream'));
                   socket.destroy();
                 }
               }, 1000);
@@ -357,13 +358,13 @@ export function startRideListeners(runtime: Runtime) {
           world.lifecycle.connected(playerId);
         }
       } catch {
-        world.lifecycle.diagnostic('network.tcp_rejected', 'Closed invalid relay stream');
+        world.lifecycle.diagnostic('network.tcp_rejected', t('ride.closed_invalid_relay_stream'));
         socket.destroy();
       }
     });
     socket.on('error', () => {});
     socket.on('close', () => {
-      world.lifecycle.log.verbose('network.tcp_closed', 'Relay socket closed', {
+      world.lifecycle.log.verbose('network.tcp_closed', t('ride.relay_socket_closed'), {
         playerId,
         superseded: playerId !== null && active.get(playerId) !== socket,
       });

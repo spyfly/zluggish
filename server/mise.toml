@@ -30,7 +30,7 @@ run = 'pnpm format'
 
 [tasks.check]
 description = 'Run lint, formatting checks, and tests'
-depends = ['lint', 'format', 'test']
+depends = ['i18n:check', 'lint', 'format', 'test']
 
 [tasks.dev]
 alias = 'server-dev'
@@ -57,3 +57,7 @@ run = 'pnpm codegen'
 [tasks.cli]
 description = 'Run CLI from source'
 run = 'pnpm cli'
+
+[tasks."i18n:check"]
+description = 'Check English catalogs and untranslated user-facing strings'
+run = 'pnpm --dir .. i18n:check'

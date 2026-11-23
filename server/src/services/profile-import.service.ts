@@ -1,3 +1,4 @@
+import { t } from '#src/i18n/index';
 import { RuntimeContext } from '#src/context';
 import { filenameSchema, manifestSchema } from '#src/dtos/profile-import.dto';
 
@@ -19,7 +20,7 @@ const make = Effect.gen(function* () {
 
   const stageFolder = Effect.fn('ImportsService.folder')(function* (rider: User, stage: string) {
     if (!/^\.ts-import-[a-f0-9]{32}$/.test(stage)) {
-      throw new Error('Invalid import ID');
+      throw new Error(t('profile_import_service.invalid_import_id'));
     }
 
     return resolve(accounts.storage, String(rider.player_id), stage);
@@ -27,11 +28,11 @@ const make = Effect.gen(function* () {
 
   const prepare = Effect.fn('ImportsService.prepare')(function* (rider: User, files: ImportFiles) {
     if (!accounts.identity(accounts.identityOf(rider))) {
-      throw new Error('Import identity changed');
+      throw new Error(t('profile_import_service.import_identity_changed'));
     }
 
     if (world.active(rider.player_id)) {
-      throw new Error('Finish the active ride before importing');
+      throw new Error(t('profile_import_service.finish_the_active_ride_before_importing'));
     }
     let profile = null;
     const names: Array<ImportFile> = [];
@@ -45,7 +46,7 @@ const make = Effect.gen(function* () {
       }
 
       if (bytes.length > 16 * 1024 * 1024) {
-        throw new Error('Invalid import size');
+        throw new Error(t('profile_import_service.invalid_import_size'));
       }
 
       switch (key) {
@@ -53,7 +54,7 @@ const make = Effect.gen(function* () {
           profile = fromBinary(PlayerProfileSchema, bytes);
 
           if (!profile.id || !profile.firstName.trim()) {
-            throw new Error('Profile is missing its ID or name');
+            throw new Error(t('profile_import_service.profile_is_missing_its_id_or_name'));
           }
 
           break;
@@ -85,7 +86,7 @@ const make = Effect.gen(function* () {
               ),
             ).length === 0
           ) {
-            throw new Error('Economy configuration is empty');
+            throw new Error(t('profile_import_service.economy_configuration_is_empty'));
           }
 
           toBinary(EconomyConfigSchema, fromJsonString(EconomyConfigSchema, Buffer.from(bytes).toString()));
@@ -96,7 +97,7 @@ const make = Effect.gen(function* () {
     }
 
     if (names.length === 0) {
-      throw new Error('Select at least one import category');
+      throw new Error(t('profile_import_service.select_at_least_one_import_category'));
     }
     const stage = `.ts-import-${repositories.cryptoRepository.randomBytes(16).toString('hex')}`;
     const folder = yield* stageFolder(rider, stage);
@@ -147,7 +148,7 @@ const make = Effect.gen(function* () {
       manifest.authVersion !== rider.auth_version ||
       manifest.state !== 'staged'
     ) {
-      throw new Error('Import identity changed or import already finalized');
+      throw new Error(t('profile_import_service.import_identity_changed_or_import_already_finalized'));
     }
 
     return manifest;
@@ -159,11 +160,11 @@ const make = Effect.gen(function* () {
   */
   const publish = Effect.fn('ImportsService.publish')(function* (rider: User, stage: string, keepName: boolean) {
     if (world.active(rider.player_id)) {
-      throw new Error('Finish the active ride before importing');
+      throw new Error(t('profile_import_service.finish_the_active_ride_before_importing'));
     }
 
     if (!accounts.identity(`${rider.player_id}:${rider.auth_version}`)) {
-      throw new Error('Import identity changed');
+      throw new Error(t('profile_import_service.import_identity_changed'));
     }
     const folder = yield* stageFolder(rider, stage);
     const manifest = yield* inspect(rider, stage);
@@ -245,7 +246,7 @@ const make = Effect.gen(function* () {
         }
 
         if (entry.name.startsWith('.import-')) {
-          throw new Error('Recover the legacy profile import before starting TypeScript');
+          throw new Error(t('profile_import_service.recover_the_legacy_profile_import_before_starting_typescript'));
         }
 
         if (!/^\.ts-import-[a-f0-9]{32}$/.test(entry.name)) {
@@ -264,7 +265,7 @@ const make = Effect.gen(function* () {
         );
 
         if (String(manifest.playerId) !== name) {
-          throw new Error('Import journal rider mismatch');
+          throw new Error(t('profile_import_service.import_journal_rider_mismatch'));
         }
 
         if (manifest.state !== 'staged' || repositories.riderDocuments.imported(entry.name)) {

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../lib/i18n/index';
   let { load }: { load: () => Promise<{ entries: Array<string> }> } = $props();
 
   let open = $state(false);
@@ -13,7 +14,7 @@
     try {
       entries = (await load()).entries;
     } catch (error) {
-      errorMessage = error instanceof Error ? error.message : 'Could not load server logs.';
+      errorMessage = error instanceof Error ? error.message : t('ServerLogs.could_not_load_server_logs');
     } finally {
       loading = false;
     }
@@ -30,24 +31,24 @@
 
 <div class="actions">
   <button type="button" aria-expanded={open} aria-controls="server-log-output" onclick={toggle}>
-    {open ? 'Hide logs' : 'View logs'}
+    {open ? t('ServerLogs.hide_logs') : t('ServerLogs.view_logs')}
   </button>
   {#if open}
-    <button type="button" disabled={loading} onclick={refresh}>Refresh logs</button>
+    <button type="button" disabled={loading} onclick={refresh}>{t('ServerLogs.refresh_logs')}</button>
   {/if}
 </div>
 <div id="server-log-output" hidden={!open}>
   {#if open}
-    <p>Newest first.</p>
-    {#if loading}<p role="status">Loading logs…</p>{/if}
+    <p>{t('ServerLogs.newest_first')}</p>
+    {#if loading}<p role="status">{t('ServerLogs.loading_logs')}</p>{/if}
     {#if errorMessage}<p role="alert">{errorMessage}</p>{/if}
     {#if entries.length}
       <!-- svelte-ignore a11y_no_noninteractive_tabindex (the scroll region needs keyboard focus) -->
-      <div class="output" role="region" tabindex="0" aria-label="Server log entries">
+      <div class="output" role="region" tabindex="0" aria-label={t('ServerLogs.server_log_entries')}>
         <pre>{entries.join('\n')}</pre>
       </div>
     {:else if !loading && !errorMessage}
-      <p>No server logs yet.</p>
+      <p>{t('ServerLogs.no_server_logs_yet')}</p>
     {/if}
   {/if}
 </div>

@@ -1,3 +1,4 @@
+import { t } from './i18n/shared';
 import { writable } from 'svelte/store';
 import { z } from 'zod';
 
@@ -9,7 +10,7 @@ export const connection = writable({ unavailable: false, checking: false, retryI
 
 export class ConnectionError extends Error {
   constructor() {
-    super('Unable to connect to the server. Please try again once the connection is restored.');
+    super(t('connection.unable_to_connect_to_the_server_please_try_again'));
   }
 }
 
@@ -82,7 +83,7 @@ export async function checkConnection() {
     const healthy = z.object({ name: z.literal('zluggish'), status: z.literal('ok') }).safeParse(await response.json());
 
     if (!response.ok || !healthy.success) {
-      throw new Error('Unavailable');
+      throw new Error(t('connection.unavailable'));
     }
     unavailable = false;
     failures = 0;

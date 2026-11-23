@@ -1,3 +1,4 @@
+import { t } from '#src/i18n/index';
 import { backupDirectory } from '#src/migrations/backup-paths';
 import type { ResolvedConfig } from '#src/config/index';
 import { immediate } from '#src/db/transaction';
@@ -72,10 +73,13 @@ function cleanup({ repositories, retention, storage }: RetentionScope) {
       const folder = resolve(storage, String(row.player_id));
 
       if (row.table === 'activity_image') {
-        await add(resolve(folder, 'images', `${row.id}.jpg`), 'abandoned upload', { kind: 'images', id: row.id });
+        await add(resolve(folder, 'images', `${row.id}.jpg`), t('retention_service.abandoned_upload'), {
+          kind: 'images',
+          id: row.id,
+        });
       } else {
         for (const extension of ['mp4', 'mov']) {
-          await add(resolve(folder, 'medias', `${row.id}.${extension}`), 'abandoned upload', {
+          await add(resolve(folder, 'medias', `${row.id}.${extension}`), t('retention_service.abandoned_upload'), {
             kind: 'media',
             id: row.id,
           });
@@ -87,7 +91,7 @@ function cleanup({ repositories, retention, storage }: RetentionScope) {
 
     for (const entry of await repositories.filesRepository.entriesAsync(resolve(storage, 'activities'))) {
       if (entry.isFile() && /^\d+$/.test(entry.name) && !owners.charts.has(Number(entry.name))) {
-        await add(resolve(storage, 'activities', entry.name), 'orphaned chart', {
+        await add(resolve(storage, 'activities', entry.name), t('retention_service.orphaned_chart'), {
           kind: 'charts',
           id: Number(entry.name),
         });
@@ -119,7 +123,7 @@ function cleanup({ repositories, retention, storage }: RetentionScope) {
           const id = /^(\d+)\.\w+$/.exec(entry.name)?.[1];
 
           if (id !== undefined && !owned.has(Number(id)) && !abandoned.has(`${table}:${id}`)) {
-            await add(resolve(folder, directory, entry.name), 'orphaned media', {
+            await add(resolve(folder, directory, entry.name), t('retention_service.orphaned_media'), {
               kind: table === 'activity_image' ? 'images' : 'media',
               id: Number(id),
             });
@@ -138,7 +142,7 @@ function cleanup({ repositories, retention, storage }: RetentionScope) {
       const info = await repositories.filesRepository.statAsync(path);
 
       if (info && info.modified < now - retention.temporaryFileHours * hour) {
-        files.push({ path, bytes: info.bytes, reason: 'temporary file' });
+        files.push({ path, bytes: info.bytes, reason: t('retention_service.temporary_file') });
       }
     }
 
@@ -161,7 +165,7 @@ function cleanup({ repositories, retention, storage }: RetentionScope) {
 
       for (const name of backups.slice(retention.migrationBackups)) {
         const path = resolve(directory, name);
-        files.push({ path, bytes: await size(path), reason: 'old migration backup' });
+        files.push({ path, bytes: await size(path), reason: t('retention_service.old_migration_backup') });
       }
     }
 
@@ -192,7 +196,7 @@ function cleanup({ repositories, retention, storage }: RetentionScope) {
     }
 
     for (const old of recordings.toSorted((a, b) => b.modified - a.modified).slice(retention.ghostsPerRoute)) {
-      files.push({ path: old.path, bytes: old.bytes, reason: 'old ghost recording' });
+      files.push({ path: old.path, bytes: old.bytes, reason: t('retention_service.old_ghost_recording') });
     }
   }
 

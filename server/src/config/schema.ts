@@ -1,3 +1,4 @@
+import { t } from '#src/i18n/index';
 import { FeatureMode, LogLevelInput, RiderPosition, StravaMethod } from '#src/enum';
 import { FiniteAbove, FiniteFrom, IntBetween, NonBlank, satisfies, Text, withDefault } from '#src/schema';
 import { Schema, SchemaGetter } from 'effect';
@@ -14,7 +15,7 @@ const advertisedIp = Schema.String.check(
     const family = isIP(value);
 
     return family !== 0 && !unspecifiedAddresses.check(value, family === 4 ? 'ipv4' : 'ipv6');
-  }, 'Expected a non-wildcard IP address'),
+  }, t('schema.expected_a_non_wildcard_ip_address')),
 );
 
 const listenerHost = Schema.String.check(
@@ -34,13 +35,13 @@ const listenerHost = Schema.String.check(
     const labels = (value.endsWith('.') ? value.slice(0, -1) : value).split('.');
 
     return labels.every((label) => /^[a-z\d_](?:[a-z\d_-]{0,61}[a-z\d_])?$/i.test(label));
-  }, 'Expected a non-empty IP address or hostname'),
+  }, t('schema.expected_a_non_empty_ip_address_or_hostname')),
 );
 
 const httpUrl = Schema.String.check(
   satisfies(
     (value: string) => URL.canParse(value) && /^https?:$/.test(new URL(value).protocol),
-    'Expected an http(s) URL',
+    t('schema.expected_an_http_s_url'),
   ),
 );
 
@@ -53,7 +54,7 @@ const NonNegativeInt = IntBetween(0);
 const port = IntBetween(1, 65_535);
 
 const seconds = NonNegativeInt.check(
-  satisfies((value: number) => value === 0 || value >= 10, 'Use 0 or at least 10 seconds'),
+  satisfies((value: number) => value === 0 || value >= 10, t('schema.use_0_or_at_least_10_seconds')),
 );
 
 // Empty optional paths select built-in resources or disable the feature.
@@ -140,7 +141,7 @@ const logLevel = Schema.Enum(LogLevelInput).pipe(
 );
 
 const publicUrl = httpUrl.check(
-  satisfies((value: string) => new URL(value).pathname === '/', 'Expected an origin without a path'),
+  satisfies((value: string) => new URL(value).pathname === '/', t('schema.expected_an_origin_without_a_path')),
 );
 
 export const configSchema = Schema.Struct({

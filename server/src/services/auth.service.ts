@@ -1,3 +1,4 @@
+import { t } from '#src/i18n/index';
 import { Context } from 'effect';
 import { ConfigError } from '#src/config/index';
 import { Repositories } from '#src/repositories';
@@ -54,12 +55,12 @@ function open(storage: string) {
     const displayName = name.trim();
 
     if (!displayName || displayName.length > 100) {
-      throw new ConfigError('Enter a name between 1 and 100 characters');
+      throw new ConfigError(t('auth_service.enter_a_name_between_1_and_100_characters'));
     }
 
     // Every rider has a password; the launcher can remember it per computer instead.
     if (!password) {
-      throw new ConfigError('Choose a password for this rider');
+      throw new ConfigError(t('auth_service.choose_a_password_for_this_rider'));
     }
     const passwordHash = await repositories.cryptoRepository.hashPassword(password);
     let created: string | null = null;
@@ -77,7 +78,7 @@ function open(storage: string) {
       const id = Math.max(0, ...occupied) + 1;
 
       if (!Number.isSafeInteger(id) || id > 2_147_483_647) {
-        throw new ConfigError('Rider ID space exhausted');
+        throw new ConfigError(t('auth_service.rider_id_space_exhausted'));
       }
       const folder = resolve(storage, String(id));
       repositories.filesRepository.mkdirSync(folder);
@@ -96,7 +97,7 @@ function open(storage: string) {
       const user = get(id);
 
       if (!user) {
-        throw new Error('Created rider unavailable');
+        throw new Error(t('auth_service.created_rider_unavailable'));
       }
 
       db.exec('COMMIT');
@@ -137,7 +138,7 @@ function open(storage: string) {
 
   async function changePassword(id: number, password: string, admin = false, live: () => boolean = () => true) {
     if (!password) {
-      throw new ConfigError('Password must not be empty');
+      throw new ConfigError(t('auth_service.password_must_not_be_empty'));
     }
     const before = get(id);
     const hash = await repositories.cryptoRepository.hashPassword(password);
@@ -150,7 +151,7 @@ function open(storage: string) {
       current.auth_version !== before.auth_version ||
       current.pass_hash !== before.pass_hash
     ) {
-      throw new ConfigError('Account changed. Retry.');
+      throw new ConfigError(t('auth_service.account_changed_retry'));
     }
     repository.setPassword(id, hash, admin);
     onRevoke?.(id);

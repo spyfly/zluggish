@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../lib/i18n/index';
   import { onMount } from 'svelte';
   import { z } from 'zod';
   import { ignored } from '../lib/api';
@@ -38,21 +39,21 @@
   const exportDetails = new Map<string, { title: string; description?: string }>(
     Object.entries({
       'profile.bin': {
-        title: 'Rider profile and progress',
-        description: 'Rider details, avatar, gear, XP, Drops and lifetime totals.',
+        title: t('ProfileData.rider_profile_and_progress'),
+        description: t('ProfileData.rider_details_avatar_gear_xp_drops_and_lifetime_totals'),
       },
       'achievements.bin': {
-        title: 'Achievements',
+        title: t('ProfileData.achievements'),
       },
       'user_storage.bin': {
-        title: 'Game settings and bike upgrades',
-        description: 'In-game preferences, garage, bike customizations and upgrades.',
+        title: t('ProfileData.game_settings_and_bike_upgrades'),
+        description: t('ProfileData.in_game_preferences_garage_bike_customizations_and_upgrades'),
       },
       'streaks.bin': {
-        title: 'Riding streaks',
+        title: t('ProfileData.riding_streaks'),
       },
       'economy_config.txt': {
-        title: 'Level and reward rules',
+        title: t('ProfileData.level_and_reward_rules'),
       },
     }),
   );
@@ -82,7 +83,7 @@
       await work();
     } catch (error) {
       failed = true;
-      message = error instanceof Error ? error.message : 'Request failed.';
+      message = error instanceof Error ? error.message : t('ProfileData.request_failed');
     } finally {
       busy = false;
     }
@@ -116,7 +117,7 @@
 </script>
 
 {#if path === '/profile-data'}
-  <nav class="import-options" aria-label="Import source">
+  <nav class="import-options" aria-label={t('ProfileData.import_source')}>
     <a
       href="/profile-data/local"
       onclick={(e) => {
@@ -124,8 +125,8 @@
         void navigate('/profile-data/local');
       }}
     >
-      <span class="option-title">Import from local files</span>
-      <span class="option-description">Profile files from your computer</span>
+      <span class="option-title">{t('ProfileData.import_from_local_files')}</span>
+      <span class="option-description">{t('ProfileData.profile_files_from_your_computer')}</span>
     </a>
     <a
       href="/zwift"
@@ -134,34 +135,36 @@
         void navigate('/zwift');
       }}
     >
-      <span class="option-title">Import from Zwift</span>
-      <span class="option-description">Download from your Zwift account</span>
+      <span class="option-title">{t('ProfileData.import_from_zwift')}</span>
+      <span class="option-description">{t('ProfileData.download_from_your_zwift_account')}</span>
     </a>
   </nav>
 {:else if path === '/profile-data/local' || path === '/zwift'}
-  <nav aria-label="Profile data">
+  <nav aria-label={t('ProfileData.profile_data')}>
     <a
       href="/profile-data"
       onclick={(e) => {
         e.preventDefault();
         void navigate('/profile-data');
-      }}>← Import / Export</a
+      }}>{t('ProfileData.import_export')}</a
     >
   </nav>
 {/if}
 {#if message}<p class="notice" class:failed role={failed ? 'alert' : 'status'}>{message}</p>{/if}
 {#if path === '/profile-data'}
   <section class="panel">
-    <h2>Export your user data</h2>
-    <p>Download every file to back up your data or move it to another Zluggish server.</p>
+    <h2>{t('ProfileData.export_your_user_data')}</h2>
+    <p>{t('ProfileData.download_every_file_to_back_up_your_data_or')}</p>
     {#each filenames as filename (filename)}
       <div class="export-file">
         <h3>{exportDetails.get(filename)?.title ?? filename}</h3>
         {#if exportDetails.get(filename)?.description}<p>{exportDetails.get(filename)?.description}</p>{/if}
-        <a href={`/api/me/export/${encodeURIComponent(filename)}`} download={filename}>Download {filename}</a>
+        <a href={`/api/me/export/${encodeURIComponent(filename)}`} download={filename}
+          >{t('ProfileData.download', { value1: filename })}</a
+        >
       </div>
     {:else}
-      {#if !busy && !failed}<p>No files available to export.</p>{/if}
+      {#if !busy && !failed}<p>{t('ProfileData.no_files_available_to_export')}</p>{/if}
     {/each}
   </section>
 {/if}
@@ -178,15 +181,15 @@
       });
     }}
   >
-    <h2>Confirm profile import</h2>
-    <p>{review.firstName} {review.lastName} ({review.sourceId ?? 'unknown source'})</p>
-    <p>Replace: {review.files.join(', ')}</p>
+    <h2>{t('ProfileData.confirm_profile_import')}</h2>
+    <p>{review.firstName} {review.lastName} ({review.sourceId ?? t('ProfileData.unknown_source')})</p>
+    <p>{t('ProfileData.replace', { value1: review.files.join(', ') })}</p>
     {#if review.confirmSource}<label
-        ><input type="checkbox" bind:checked={confirmSource} required /> Confirm this source may differ or be shared with
-        another user</label
+        ><input type="checkbox" bind:checked={confirmSource} required />
+        {t('ProfileData.confirm_this_source_may_differ_or_be_shared_with')}</label
       >{/if}
-    <label><input type="checkbox" bind:checked={keepName} /> Keep local name</label>
-    <button class="primary" disabled={busy}>Confirm import</button>
+    <label><input type="checkbox" bind:checked={keepName} /> {t('ProfileData.keep_local_name')}</label>
+    <button class="primary" disabled={busy}>{t('ProfileData.confirm_import')}</button>
     <button
       type="button"
       disabled={busy}
@@ -195,7 +198,7 @@
           await request(ignored, '/api/me/import/confirm', 'POST', { stage: review!.stage, cancel: true });
           review = null;
           message = 'Import canceled. Your user data is unchanged.';
-        })}>Cancel</button
+        })}>{t('ProfileData.cancel')}</button
     >
   </form>
 {:else if path === '/profile-data/local'}
@@ -212,13 +215,13 @@
       <label for={filename}>{filename}</label>
       <input id={filename} name={filename} type="file" disabled={busy} />
     {/each}
-    <button class="primary" disabled={busy || !filenames.length}>Review import</button>
+    <button class="primary" disabled={busy || !filenames.length}>{t('ProfileData.review_import')}</button>
   </form>
 {:else if path === '/zwift' && connection}
   <p>
     {connection.connected
-      ? 'Credentials saved. Leave username and password blank to keep them.'
-      : 'Save your official Zwift credentials to connect.'}
+      ? t('ProfileData.credentials_saved_leave_username_and_password_blank_to_keep')
+      : t('ProfileData.save_your_official_zwift_credentials_to_connect')}
   </p>
   <form
     class="panel"
@@ -237,13 +240,18 @@
       });
     }}
   >
-    <label for="zwift-username">Username</label>
+    <label for="zwift-username">{t('ProfileData.username')}</label>
     <input id="zwift-username" autocomplete="username" bind:value={username} disabled={busy} />
-    <label for="zwift-password">Password</label>
+    <label for="zwift-password">{t('ProfileData.password')}</label>
     <input id="zwift-password" type="password" autocomplete="new-password" bind:value={password} disabled={busy} />
-    <label><input type="checkbox" bind:checked={connection.upload} /> Upload activities to Zwift</label>
-    <label><input type="checkbox" bind:checked={connection.click} /> Enable Zwift Click authentication</label>
-    <button class="primary" disabled={busy}>Save connection</button>
+    <label
+      ><input type="checkbox" bind:checked={connection.upload} /> {t('ProfileData.upload_activities_to_zwift')}</label
+    >
+    <label
+      ><input type="checkbox" bind:checked={connection.click} />
+      {t('ProfileData.enable_zwift_click_authentication')}</label
+    >
+    <button class="primary" disabled={busy}>{t('ProfileData.save_connection')}</button>
   </form>
   {#if connection.connected}
     <form
@@ -255,14 +263,16 @@
         );
       }}
     >
-      <h2>Download user data</h2>
-      <label><input type="checkbox" bind:checked={profile} /> Download profile and economy</label>
-      <label><input type="checkbox" bind:checked={achievements} /> Download achievements</label>
-      <button class="primary" disabled={busy || (!profile && !achievements)}>Download and review import</button>
+      <h2>{t('ProfileData.download_user_data')}</h2>
+      <label><input type="checkbox" bind:checked={profile} /> {t('ProfileData.download_profile_and_economy')}</label>
+      <label><input type="checkbox" bind:checked={achievements} /> {t('ProfileData.download_achievements')}</label>
+      <button class="primary" disabled={busy || (!profile && !achievements)}
+        >{t('ProfileData.download_and_review_import')}</button
+      >
     </form>
     <section class="panel">
       {#if removing}
-        <p>Remove Zwift credentials?</p>
+        <p>{t('ProfileData.remove_zwift_credentials')}</p>
         <button
           disabled={busy}
           onclick={() =>
@@ -270,10 +280,11 @@
               connection = await request(connectionResponse, '/api/me/zwift', 'DELETE', {});
               removing = false;
               message = 'Credentials removed.';
-            })}>Remove credentials</button
+            })}>{t('ProfileData.remove_credentials')}</button
         >
-        <button disabled={busy} onclick={() => (removing = false)}>Cancel</button>
-      {:else}<button disabled={busy} onclick={() => (removing = true)}>Remove credentials</button>{/if}
+        <button disabled={busy} onclick={() => (removing = false)}>{t('ProfileData.cancel')}</button>
+      {:else}<button disabled={busy} onclick={() => (removing = true)}>{t('ProfileData.remove_credentials')}</button
+        >{/if}
     </section>
   {/if}
 {/if}

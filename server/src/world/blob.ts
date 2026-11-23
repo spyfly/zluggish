@@ -1,3 +1,4 @@
+import { t } from '#src/i18n/index';
 import { BlobBehavior } from '#src/world/blob-mode';
 import type { GesturePhase } from '#src/enum';
 import type { ResolvedConfig } from '#src/config/index';
@@ -479,14 +480,14 @@ export class Blob {
     this.form();
 
     return this.mode === 'hammer'
-      ? 'HAMMER TIME! The group goes full gas.'
+      ? t('blob.hammer_time_the_group_goes_full_gas')
       : this.mode === 'toast'
-        ? 'Everybody eases off and regroups.'
+        ? t('blob.everybody_eases_off_and_regroups')
         : this.mode === 'lead'
-          ? 'You lead, we sit in.'
+          ? t('blob.you_lead_we_sit_in')
           : this.mode === 'attack'
-            ? 'Somebody is coming through.'
-            : 'Back to normal, we take the front.';
+            ? t('blob.somebody_is_coming_through')
+            : t('blob.back_to_normal_we_take_the_front');
   }
 
   rotate() {

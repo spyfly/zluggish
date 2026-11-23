@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../lib/i18n/shared';
   import { onMount } from 'svelte';
   import { connection, checkConnection, monitorConnection } from '../lib/connection';
 
@@ -8,9 +9,11 @@
 {#if $connection.unavailable}
   <div class="connection" role="status">
     <div>
-      <strong>Server connection lost...retrying in {$connection.retryIn}s</strong>
+      <strong>{t('ConnectionBanner.server_connection_lost_retrying_in_s', { value1: $connection.retryIn })}</strong>
     </div>
-    <button type="button" disabled={$connection.checking} onclick={() => void checkConnection()}>Retry now</button>
+    <button type="button" disabled={$connection.checking} onclick={() => void checkConnection()}
+      >{t('ConnectionBanner.retry_now')}</button
+    >
   </div>
 {/if}
 

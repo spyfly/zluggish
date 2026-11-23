@@ -1,3 +1,4 @@
+import { t } from '#src/i18n/index';
 import { IntervalsAthleteId } from '#src/dtos/intervals.dto';
 import { AccountsService } from '#src/services/auth.service';
 import { WebSessionsService } from '#src/services/web-session.service';
@@ -113,7 +114,7 @@ export function webConnectionRoutes(app: Hono<WebEnv>, runtime: HttpRuntime) {
       const secret = input.secret || (yield* connectionsService.inspect(player, name)).credentials?.[1];
 
       if (!secret) {
-        throw new ApplicationError({ status: 400, message: 'Enter a secret.' });
+        throw new ApplicationError({ status: 400, message: t('web_connections.enter_a_secret') });
       }
       yield* connectionsService.save(player, name, [input.username, secret]);
 
@@ -205,7 +206,7 @@ export function webConnectionRoutes(app: Hono<WebEnv>, runtime: HttpRuntime) {
           user,
           input.code,
         )
-        .pipe(asProviderFailure(runtime, 400, 'Garmin authorization failed or expired. Try again.'));
+        .pipe(asProviderFailure(runtime, 400, t('web_connections.garmin_authorization_failed_or_expired_try_again')));
 
       return c.json({ status });
     }),
@@ -233,13 +234,13 @@ export function webConnectionRoutes(app: Hono<WebEnv>, runtime: HttpRuntime) {
         const session = yield* webSessionsService.session(id);
 
         if (!session.stravaState || input.state !== session.stravaState) {
-          throw new ApplicationError({ status: 403, message: 'Authorization expired.' });
+          throw new ApplicationError({ status: 403, message: t('web_connections.authorization_expired') });
         }
         delete session.stravaState;
 
         yield* integrationsService
           .authorizeStravaSession(() => Effect.runSync(webSessionsService.current(id, identity)), user, input.code)
-          .pipe(asProviderFailure(runtime, 400, 'Strava authorization failed. Try again.'));
+          .pipe(asProviderFailure(runtime, 400, t('web_connections.strava_authorization_failed_try_again')));
 
         return c.json({ ok: true });
       }
@@ -247,7 +248,7 @@ export function webConnectionRoutes(app: Hono<WebEnv>, runtime: HttpRuntime) {
       const client = yield* connectionsService.read(user.player_id, 'strava');
 
       if (!client) {
-        throw new ApplicationError({ status: 400, message: 'Save Strava API credentials first.' });
+        throw new ApplicationError({ status: 400, message: t('web_connections.save_strava_api_credentials_first') });
       }
       const redirect = new URL('/integrations', runtime.config.network.web.publicUrl ?? c.req.url).href;
       const state = yield* webSessionsService.token();
@@ -268,14 +269,16 @@ export function webConnectionRoutes(app: Hono<WebEnv>, runtime: HttpRuntime) {
       const cookie = (yield* documentsService.text(player, 'strava4_session.txt'))?.split(/\r?\n/, 1)[0];
 
       if (!cookie) {
-        throw new ApplicationError({ status: 400, message: 'Save a session cookie first.' });
+        throw new ApplicationError({ status: 400, message: t('web_connections.save_a_session_cookie_first') });
       }
 
       const valid = yield* integrationsService
         .checkSession(cookie, (fresh) =>
           runtime.effects.runSync(documentsService.put(player, 'strava4_session.txt', fresh)),
         )
-        .pipe(asProviderFailure(runtime, 503, 'Could not reach Strava. Check your internet connection.'));
+        .pipe(
+          asProviderFailure(runtime, 503, t('web_connections.could_not_reach_strava_check_your_internet_connection')),
+        );
 
       return c.json({ valid });
     }),
@@ -307,10 +310,12 @@ export function webConnectionRoutes(app: Hono<WebEnv>, runtime: HttpRuntime) {
 
       const message = yield* workoutsService
         .sync(user.player_id)
-        .pipe(asProviderFailure(runtime, 503, 'Workout sync failed. Existing workouts were retained.'));
+        .pipe(
+          asProviderFailure(runtime, 503, t('web_connections.workout_sync_failed_existing_workouts_were_retained')),
+        );
 
       if (!(yield* webSessionsService.current(id, identity))) {
-        throw new ApplicationError({ status: 401, message: 'Session changed.' });
+        throw new ApplicationError({ status: 401, message: t('web_connections.session_changed') });
       }
 
       return c.json({ message });

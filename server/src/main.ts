@@ -1,3 +1,4 @@
+import { t } from '#src/i18n/index';
 import { ManagementService } from '#src/services/management.service';
 import { TlsService } from '#src/services/tls.service';
 import { Resources } from '#src/node/lifecycle/resources';
@@ -43,7 +44,7 @@ const { config, path: configPath } = await loadConfig(prepareContainerConfig(opt
 });
 
 if (existsSync(resolve(config.storageDir, '.config-migration.json'))) {
-  throw new ConfigError('Interrupted config migration; resume config migrate before starting');
+  throw new ConfigError(t('main.interrupted_config_migration_resume_config_migrate_before_starting'));
 }
 
 const root = packageRoot();
@@ -94,7 +95,7 @@ const serve = Effect.fn('server.start')(function* () {
       ...(config.dns.enabled ? [53] : []),
     ].includes(webConfig.port)
   ) {
-    throw new ConfigError('The web port must differ from every game listener port.');
+    throw new ConfigError(t('main.the_web_port_must_differ_from_every_game_listener'));
   }
 
   const owner = yield* Effect.acquireRelease(
@@ -111,7 +112,7 @@ const serve = Effect.fn('server.start')(function* () {
   const material = tls.material();
 
   if (!material) {
-    throw new ConfigError('The Zwift API requires a TLS certificate.');
+    throw new ConfigError(t('main.the_zwift_api_requires_a_tls_certificate'));
   }
   listener.tls = material;
 
@@ -174,11 +175,11 @@ const serve = Effect.fn('server.start')(function* () {
   yield* Effect.tryPromise({
     try: () => Promise.all(listeners.map((socket) => once(socket, 'listening'))),
     catch: (error) => {
-      log.critical('server.start_failed', 'Required listener could not start', {
+      log.critical('server.start_failed', t('main.required_listener_could_not_start'), {
         error: error instanceof Error ? error : String(error),
       });
 
-      return new Error('Required listener could not start', { cause: error });
+      return new Error(t('main.required_listener_could_not_start'), { cause: error });
     },
   });
 
@@ -280,7 +281,9 @@ async function start() {
     try {
       await resources.close();
     } catch (cleanupError) {
-      throw new AggregateError([error, cleanupError], 'Server startup and cleanup failed', { cause: cleanupError });
+      throw new AggregateError([error, cleanupError], t('main.server_startup_and_cleanup_failed'), {
+        cause: cleanupError,
+      });
     }
 
     throw error;

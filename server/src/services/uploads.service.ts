@@ -1,3 +1,4 @@
+import { t } from '#src/i18n/index';
 import { isIntervalsAthleteId } from '#src/dtos/intervals.dto';
 import { RuntimeContext } from '#src/context';
 import { UploadProvider, UploadState } from '#src/enum';
@@ -142,18 +143,21 @@ const make = Effect.gen(function* () {
       const stored = repositories.activitiesRepository.fit(activity);
 
       if (!stored || stored.player !== player) {
-        throw new ApplicationError({ status: 404, message: 'Activity not found.' });
+        throw new ApplicationError({ status: 404, message: t('uploads_service.activity_not_found') });
       }
 
       if (!stored.fit?.length || !uploadPayload(activity)) {
         throw new ApplicationError({
           status: 409,
-          message: 'Only a finished activity with a FIT file can be uploaded.',
+          message: t('uploads_service.only_a_finished_activity_with_a_fit_file_can'),
         });
       }
 
       if (!configured(player).includes(provider)) {
-        throw new ApplicationError({ status: 409, message: 'Connect this service in Integrations first.' });
+        throw new ApplicationError({
+          status: 409,
+          message: t('uploads_service.connect_this_service_in_integrations_first'),
+        });
       }
       const state = repositories.uploadsRepository.get(activity, provider)?.state;
 
@@ -164,7 +168,7 @@ const make = Effect.gen(function* () {
       if ((state === 'sent' || state === 'ambiguous') && !again) {
         throw new ApplicationError({
           status: 409,
-          message: 'This activity may already be there. Confirm to upload it again.',
+          message: t('uploads_service.this_activity_may_already_be_there_confirm_to_upload'),
         });
       }
 
@@ -498,7 +502,7 @@ const make = Effect.gen(function* () {
       await fetch(`https://intervals.icu/api/v1/athlete/${athlete}/activities?${query}`, {
         method: 'POST',
         headers: {
-          Authorization: `Basic ${Buffer.from(`API_KEY:${key}`).toString('base64')}`,
+          Authorization: t('uploads_service.basic', { value1: Buffer.from(`API_KEY:${key}`).toString('base64') }),
         },
         body: form,
         signal: AbortSignal.timeout(30_000),

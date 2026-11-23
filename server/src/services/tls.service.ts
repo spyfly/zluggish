@@ -1,3 +1,4 @@
+import { t } from '#src/i18n/index';
 import { RuntimeContext } from '#src/context';
 import { ApplicationError } from '#src/errors';
 import type { CertificateMaterial } from '#src/repositories/certificate.repository';
@@ -173,7 +174,7 @@ const make = Effect.gen(function* () {
       if (source !== 'managed') {
         throw new ApplicationError({
           status: 409,
-          message: 'This server uses the certificate files from its configuration. Replace those files to change it.',
+          message: t('tls_service.this_server_uses_the_certificate_files_from_its_configuration'),
         });
       }
 

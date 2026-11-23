@@ -1,3 +1,4 @@
+import { t } from '#src/i18n/index';
 import { archiveSuffix, readArchivedFile } from '#src/migrations/backup-archive';
 import { Schema } from 'effect';
 import { ConfigError } from '#src/config/index';
@@ -25,14 +26,16 @@ export function legacyPlan(storage: string): LegacyPlan {
   const manifest = readManifest(storage);
 
   if (manifest?.state !== 'published') {
-    throw new ConfigError('No published storage migration; nothing to clean');
+    throw new ConfigError(t('legacy.no_published_storage_migration_nothing_to_clean'));
   }
 
   const archived = manifest.backup.endsWith(archiveSuffix);
   const backupPath = archived ? manifest.backup : resolve(manifest.backup, 'backup-manifest.json');
 
   if (!existsSync(backupPath)) {
-    throw new ConfigError(`The migration backup ${manifest.backup} is missing; keep the legacy files`);
+    throw new ConfigError(
+      t('legacy.the_migration_backup_is_missing_keep_the_legacy_files', { value1: manifest.backup }),
+    );
   }
 
   const backup = Schema.decodeUnknownSync(Schema.Struct({ checksums: Schema.Record(Schema.String, Schema.String) }))(
@@ -58,11 +61,11 @@ export function legacyPlan(storage: string): LegacyPlan {
 
     const consider = (path: string, imported: boolean) => {
       if (!backedUp(path)) {
-        plan.kept.push({ path, reason: 'not identical to the migration backup' });
+        plan.kept.push({ path, reason: t('legacy.not_identical_to_the_migration_backup') });
       } else if (imported) {
         plan.removable.push({ path, bytes: statSync(path).size });
       } else {
-        plan.kept.push({ path, reason: 'not in the database' });
+        plan.kept.push({ path, reason: t('legacy.not_in_the_database') });
       }
     };
 
@@ -102,7 +105,7 @@ export function legacyPlan(storage: string): LegacyPlan {
       const root = resolve(storage, folder);
 
       if (!users.has(player)) {
-        plan.kept.push({ path: root, reason: 'no account for this rider folder' });
+        plan.kept.push({ path: root, reason: t('legacy.no_account_for_this_rider_folder') });
         continue;
       }
 
@@ -141,7 +144,7 @@ export function legacyPlan(storage: string): LegacyPlan {
         if (merged) {
           plan.removable.push({ path: settings, bytes: statSync(settings).size });
         } else {
-          plan.kept.push({ path: settings, reason: 'rows differ from the database; resolve them first' });
+          plan.kept.push({ path: settings, reason: t('legacy.rows_differ_from_the_database_resolve_them_first') });
         }
       } finally {
         legacy.close();

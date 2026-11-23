@@ -85,3 +85,29 @@ In tests, the fixture gives `f.effects`, the application runtime. Get a service 
 ESLint uses TypeScript-aware correctness rules, import checks and Unicorn conventions. The first configuration came from the `server/eslint.config.mjs` file of `immich-app/immich`. The vendored Oxlint rules record their source revision in [UPSTREAM.md](https://github.com/zluggish/zluggish/blob/main/server/tools/oxlint/anti-slop/UPSTREAM.md).
 
 The shared ESLint, Oxlint, Prettier and mise configuration is in `server/`.
+
+### Translations
+
+Runtime messages live in the English source catalogs:
+`web/src/lib/i18n/en.ts` for the app, `game-en.ts` for the launcher,
+and `shared-en.ts` for shared components; `server/src/i18n/en.ts`
+for server responses, validation, CLI output, and chat messages. English is the
+only locale for now.
+
+Add a stable, descriptive key to the appropriate catalog and call `t('key')`.
+Use named placeholders for dynamic values, for example
+`t('key', { value1: count })` with `"{value1} riders"` in the catalog. The helper
+checks keys and interpolation arguments with TypeScript; Svelte escapes the
+result as ordinary text. Keep complete sentences together where possible.
+
+Run `mise run i18n:check` (or `pnpm i18n:check`) from the repository root before
+committing. This validates missing and unused keys, duplicate catalog keys,
+interpolation arguments, and untranslated UI text. `mise run i18n:test` tests
+the checker and interpolation. GitHub Actions runs both tasks on pull requests
+and pushes to main.
+
+Protocol values, SQL, certificate identities, and executable setup-script syntax
+must remain literal. The source checker excludes common technical contexts;
+any other exception needs a specific file, exact value, and reason in
+`scripts/i18n-exemptions.json`. Stale exceptions fail the check. Documentation
+and the static marketing sites are maintained separately from runtime messages.

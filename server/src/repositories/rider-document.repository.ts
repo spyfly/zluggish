@@ -1,3 +1,4 @@
+import { t } from '#src/i18n/index';
 import { SecretDocuments } from '#src/enum';
 import type { RiderDocumentName } from '#src/enum';
 import { query, SqliteExecutor } from '#src/db/query';
@@ -35,11 +36,19 @@ export class RiderDocuments {
       }
       key = readFileSync(file);
     } catch (error) {
-      throw new Error(`Could not read or create the credentials key ${file}; check its permissions`, { cause: error });
+      throw new Error(
+        t('rider_document_repository.could_not_read_or_create_the_credentials_key_check', { value1: file }),
+        { cause: error },
+      );
     }
 
     if (key.length !== 32) {
-      throw new Error(`The credentials key ${file} has ${key.length} bytes, not 32; restore it from a backup`);
+      throw new Error(
+        t('rider_document_repository.the_credentials_key_has_bytes_not_32_restore_it', {
+          value1: file,
+          value2: key.length,
+        }),
+      );
     }
 
     return key;

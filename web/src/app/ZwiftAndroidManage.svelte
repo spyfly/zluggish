@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../lib/i18n/index';
   import { onDestroy, onMount } from 'svelte';
   import { z } from 'zod';
   import type { Api } from '../lib/api';
@@ -42,18 +43,18 @@
   let transfer: AbortController | undefined;
 
   const labels: Record<Step, string> = {
-    upload: 'Uploading',
-    extract: 'Unpacking the game files',
-    certificate: 'Adding this server’s certificate',
-    inspect: 'Checking the app',
-    runtime: 'Downloading Java',
-    editor: 'Downloading APKEditor',
-    merge: 'Merging the split APKs',
-    decode: 'Unpacking the app',
-    rename: 'Renaming it Zwift for Zluggish',
-    build: 'Rebuilding the app',
-    sign: 'Packing and signing',
-    publish: 'Publishing',
+    upload: t('ZwiftAndroidManage.uploading'),
+    extract: t('ZwiftAndroidManage.unpacking_the_game_files'),
+    certificate: t('ZwiftAndroidManage.adding_this_server_s_certificate'),
+    inspect: t('ZwiftAndroidManage.checking_the_app'),
+    runtime: t('ZwiftAndroidManage.downloading_java'),
+    editor: t('ZwiftAndroidManage.downloading_apkeditor'),
+    merge: t('ZwiftAndroidManage.merging_the_split_apks'),
+    decode: t('ZwiftAndroidManage.unpacking_the_app'),
+    rename: t('ZwiftAndroidManage.renaming_it_zwift_for_zluggish'),
+    build: t('ZwiftAndroidManage.rebuilding_the_app'),
+    sign: t('ZwiftAndroidManage.packing_and_signing'),
+    publish: t('ZwiftAndroidManage.publishing'),
   };
 
   /** Rough shares of the whole job, for the width of each stretch of the bar. Copying gigabytes dominates. */
@@ -125,14 +126,16 @@
     }
 
     if (job.state === 'done') {
-      return `Published Zwift ${admin?.app?.versionName ?? ''}`;
+      return t('ZwiftAndroidManage.published_zwift', { value1: admin?.app?.versionName ?? '' });
     }
 
     if (job.state === 'failed') {
-      return 'The build stopped';
+      return t('ZwiftAndroidManage.the_build_stopped');
     }
 
-    return upload ? `Uploading ${upload.name}` : 'Building Zwift for Zluggish';
+    return upload
+      ? t('ZwiftAndroidManage.uploading_2', { value1: upload.name })
+      : t('ZwiftAndroidManage.building_zwift_for_zluggish');
   });
 
   const detail = $derived.by(() => {
@@ -141,14 +144,14 @@
     }
 
     if (job.state === 'failed') {
-      return 'The build failed.';
+      return t('ZwiftAndroidManage.the_build_failed');
     }
 
     if (job.state === 'done') {
-      return 'Riders can download it now.';
+      return t('ZwiftAndroidManage.riders_can_download_it_now');
     }
 
-    return upload ? 'Keep this page open until the upload finishes.' : `${labels[job.step]}…`;
+    return upload ? t('ZwiftAndroidManage.keep_this_page_open_until_the_upload_finishes') : `${labels[job.step]}…`;
   });
 
   const day = (iso: string) =>
@@ -158,7 +161,7 @@
     try {
       admin = await api(zwiftAndroidAdminStatus, endpoint);
     } catch (error) {
-      failure = error instanceof Error ? error.message : 'Zwift for Android could not be loaded.';
+      failure = error instanceof Error ? error.message : t('ZwiftAndroidManage.zwift_for_android_could_not_be_loaded');
     }
   }
 
@@ -187,7 +190,7 @@
       admin = await work();
       notice = done;
     } catch (error) {
-      failure = error instanceof Error ? error.message : 'The request failed.';
+      failure = error instanceof Error ? error.message : t('ZwiftAndroidManage.the_request_failed');
     } finally {
       working = false;
     }
@@ -218,13 +221,15 @@
           sent(result.data.offset);
           resolve(result.data);
         } else if (xhr.status === 409 || xhr.status >= 500) {
-          reject(new TypeError('The transfer was interrupted.'));
+          reject(new TypeError(t('ZwiftAndroidManage.the_transfer_was_interrupted')));
         } else {
           const response = z.object({ message: z.string() }).safeParse(xhr.response);
-          reject(new Error(response.data?.message ?? `The upload failed (${xhr.status}).`));
+          reject(
+            new Error(response.data?.message ?? t('ZwiftAndroidManage.the_upload_failed', { value1: xhr.status })),
+          );
         }
       };
-      xhr.onerror = () => reject(new TypeError('The transfer was interrupted.'));
+      xhr.onerror = () => reject(new TypeError(t('ZwiftAndroidManage.the_transfer_was_interrupted')));
       xhr.onabort = () => reject(signal.reason);
       xhr.send(file.slice(offset, offset + size));
     });
@@ -255,13 +260,13 @@
     notice = '';
 
     if (!/\.apkm$/i.test(file.name)) {
-      uploadError = 'Choose the Zwift .apkm bundle.';
+      uploadError = t('ZwiftAndroidManage.choose_the_zwift_apkm_bundle');
 
       return;
     }
 
     if (admin && file.size > admin.uploadLimit) {
-      uploadError = `The file is larger than ${megabytes(admin.uploadLimit)}.`;
+      uploadError = t('ZwiftAndroidManage.the_file_is_larger_than', { value1: megabytes(admin.uploadLimit) });
 
       return;
     }
@@ -297,7 +302,7 @@
       finished = true;
     } catch (error) {
       if (!signal.aborted) {
-        uploadError = error instanceof Error ? error.message : 'The upload failed.';
+        uploadError = error instanceof Error ? error.message : t('ZwiftAndroidManage.the_upload_failed_2');
       }
     } finally {
       const cancel = url;
@@ -345,44 +350,46 @@
 {#if failure}<p class="notice failed" role="alert">{failure}</p>{/if}
 
 {#if admin === null}
-  {#if !failure}<p role="status">Loading…</p>{/if}
+  {#if !failure}<p role="status">{t('ZwiftAndroidManage.loading')}</p>{/if}
 {:else}
   <section class="panel" aria-labelledby="zwift-android-app">
-    <h2 id="zwift-android-app">Zwift for Android</h2>
+    <h2 id="zwift-android-app">{t('ZwiftAndroidManage.zwift_for_android')}</h2>
     <p class="lead">
-      Upload Zwift and the server patches it to trust this server. Riders download it under
-      <a href="/apps" onclick={(event) => go(event, '/apps')}>Apps</a>.
+      {t('ZwiftAndroidManage.upload_zwift_and_the_server_patches_it_to_trust')}
+      <a href="/apps" onclick={(event) => go(event, '/apps')}>{t('ZwiftAndroidManage.apps')}</a>.
     </p>
 
     {#if !certificateReady}
       <p class="stale">
         {#if admin.tlsMode === 'legacy'}
-          Replace the shared certificate before building Zwift for Android.
+          {t('ZwiftAndroidManage.replace_the_shared_certificate_before_building_zwift_for_android')}
         {:else}
-          This server has no certificate for Zwift to trust.
+          {t('ZwiftAndroidManage.this_server_has_no_certificate_for_zwift_to_trust')}
         {/if}
       </p>
     {:else if admin.app && !admin.app.current && admin.activity?.state !== 'running'}
-      <p class="stale">The certificate changed since this build. Build again so riders can download it.</p>
+      <p class="stale">{t('ZwiftAndroidManage.the_certificate_changed_since_this_build_build_again_so')}</p>
     {/if}
 
     {#if admin.app}
       <dl class="facts">
         <div>
-          <dt>Version</dt>
+          <dt>{t('ZwiftAndroidManage.version')}</dt>
           <dd>{admin.app.versionName}</dd>
         </div>
         <div>
-          <dt>Download</dt>
+          <dt>{t('ZwiftAndroidManage.download')}</dt>
           <dd>{megabytes(admin.app.bytes)}</dd>
         </div>
         <div>
-          <dt>Built</dt>
+          <dt>{t('ZwiftAndroidManage.built')}</dt>
           <dd>{day(admin.app.createdAt)}</dd>
         </div>
         <div>
-          <dt>Certificate</dt>
-          <dd class:alarm={!admin.app.current}>{admin.app.current ? 'Current' : 'Outdated'}</dd>
+          <dt>{t('ZwiftAndroidManage.certificate')}</dt>
+          <dd class:alarm={!admin.app.current}>
+            {admin.app.current ? t('ZwiftAndroidManage.current') : t('ZwiftAndroidManage.outdated')}
+          </dd>
         </div>
       </dl>
     {/if}
@@ -390,28 +397,38 @@
     {#if job}
       <JobProgress id="zwift-android-job" {job} {labels} {weights} {headline} {detail} {upload}>
         {#if upload}
-          <button type="button" onclick={() => transfer?.abort()}>Stop upload</button>
+          <button type="button" onclick={() => transfer?.abort()}>{t('ZwiftAndroidManage.stop_upload')}</button>
         {:else if job.state === 'running'}
           <button
             type="button"
             disabled={working}
-            onclick={() => act(() => api(zwiftAndroidAdminStatus, `${endpoint}/stop`, 'POST', {}))}>Stop build</button
+            onclick={() => act(() => api(zwiftAndroidAdminStatus, `${endpoint}/stop`, 'POST', {}))}
+            >{t('ZwiftAndroidManage.stop_build')}</button
           >
-          <p class="hint">The build continues if you leave this page.</p>
+          <p class="hint">{t('ZwiftAndroidManage.the_build_continues_if_you_leave_this_page')}</p>
         {/if}
       </JobProgress>
     {/if}
 
     {#if !busy}
       <ol class="fetch">
-        <li>Open <a href={apkMirror} target="_blank" rel="noopener noreferrer">Zwift on APKMirror</a>.</li>
-        <li>Download the <strong>BUNDLE 1 OBB</strong> variant, a large .apkm file.</li>
-        <li>Drop it below.</li>
+        <li>
+          {t('ZwiftAndroidManage.open')}
+          <a href={apkMirror} target="_blank" rel="noopener noreferrer">{t('ZwiftAndroidManage.zwift_on_apkmirror')}</a
+          >.
+        </li>
+        <li>
+          {t('ZwiftAndroidManage.download_the')} <strong>{t('ZwiftAndroidManage.bundle_1_obb')}</strong>
+          {t('ZwiftAndroidManage.variant_a_large_apkm_file')}
+        </li>
+        <li>{t('ZwiftAndroidManage.drop_it_below')}</li>
       </ol>
       {#if lowSpace && admin.disk.free !== null}
         <p class="stale" role="status">
-          Only {megabytes(admin.disk.free)} free on the server. A build needs about
-          {megabytes(admin.disk.recommended)}.
+          {t('ZwiftAndroidManage.only_free_on_the_server_a_build_needs_about', {
+            value1: megabytes(admin.disk.free),
+            value2: megabytes(admin.disk.recommended),
+          })}
         </p>
       {/if}
       <label
@@ -439,14 +456,22 @@
           }}
         />
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0-5 5m5-5 5 5M5 20h14" /></svg>
-        <span class="title">{admin.app ? 'Upload a newer Zwift' : 'Upload Zwift'}</span>
-        <span class="detail">Drop or choose the .apkm file, up to {megabytes(admin.uploadLimit)}.</span>
+        <span class="title"
+          >{admin.app ? t('ZwiftAndroidManage.upload_a_newer_zwift') : t('ZwiftAndroidManage.upload_zwift')}</span
+        >
+        <span class="detail"
+          >{t('ZwiftAndroidManage.drop_or_choose_the_apkm_file_up_to', { value1: megabytes(admin.uploadLimit) })}</span
+        >
       </label>
       {#if !admin.tools.ready && admin.tools.supported}
-        <p class="hint">The first build downloads Java and APKEditor ({megabytes(admin.tools.downloadBytes)}).</p>
+        <p class="hint">
+          {t('ZwiftAndroidManage.the_first_build_downloads_java_and_apkeditor', {
+            value1: megabytes(admin.tools.downloadBytes),
+          })}
+        </p>
       {/if}
       {#if !admin.tools.ready && !admin.tools.supported}
-        <p class="stale">Install Java 11 or later on the server before you upload.</p>
+        <p class="stale">{t('ZwiftAndroidManage.install_java_11_or_later_on_the_server_before')}</p>
       {/if}
     {/if}
     {#if uploadError}<p class="notice failed" role="alert">{uploadError}</p>{/if}
@@ -454,15 +479,20 @@
 
   {#if admin.original || admin.app}
     <section class="panel" aria-labelledby="zwift-android-saved">
-      <h2 id="zwift-android-saved">Saved upload</h2>
+      <h2 id="zwift-android-saved">{t('ZwiftAndroidManage.saved_upload')}</h2>
       {#if admin.original}
         <p class="file">
           <span class="name">{admin.original.name}</span>
-          <span class="meta">{megabytes(admin.original.bytes)}, uploaded {day(admin.original.uploadedAt)}</span>
+          <span class="meta"
+            >{t('ZwiftAndroidManage.uploaded', {
+              value1: megabytes(admin.original.bytes),
+              value2: day(admin.original.uploadedAt),
+            })}</span
+          >
         </p>
-        <p class="hint">Kept to rebuild the app automatically when the certificate rotates.</p>
+        <p class="hint">{t('ZwiftAndroidManage.kept_to_rebuild_the_app_automatically_when_the_certificate')}</p>
       {:else}
-        <p class="hint">No upload saved. A new certificate needs a fresh upload.</p>
+        <p class="hint">{t('ZwiftAndroidManage.no_upload_saved_a_new_certificate_needs_a_fresh')}</p>
       {/if}
       <div class="actions">
         {#if admin.original}
@@ -471,7 +501,7 @@
             class:primary={!!admin.app && !admin.app.current}
             disabled={working || busy || !certificateReady}
             onclick={() => act(() => api(zwiftAndroidAdminStatus, `${endpoint}/rebuild`, 'POST', {}))}
-            >Build again</button
+            >{t('ZwiftAndroidManage.build_again')}</button
           >
         {/if}
         {#if admin.app}
@@ -479,7 +509,7 @@
             type="button"
             disabled={working || busy}
             onclick={() => act(() => api(zwiftAndroidAdminStatus, `${endpoint}/app`, 'DELETE', {}), 'App removed.')}
-            >Remove the app</button
+            >{t('ZwiftAndroidManage.remove_the_app')}</button
           >
         {/if}
       </div>

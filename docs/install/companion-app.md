@@ -41,9 +41,9 @@ over the old app.
 
 ### Java tools
 
-Only an app straight from the Play Store needs them, and the server never downloads them unasked. When you upload
-such an app, the upload waits and asks: select **Download Java tools and continue**, or **Discard upload**. You can
-also download them ahead of time under **Manage → Companion → Java tools**. The server downloads:
+Only an app straight from the Play Store needs them. When you upload such an app, the server automatically installs
+the tools and continues patching. **Manage → Companion → Java tools** shows the download size. If installation fails,
+you can retry the download or discard the upload. The server downloads:
 
 - An [Eclipse Temurin](https://adoptium.net) Java 21 runtime, about 50 MB. If the server already has Java 11 or later
   on its `PATH`, it uses that instead.

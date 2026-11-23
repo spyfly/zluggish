@@ -1,3 +1,4 @@
+import { t } from '#src/i18n/index';
 import type { PlayerState, ServerToClient, WorldAttribute } from '#src/protocol/generated/udp-node-msgs_pb';
 import { PlayerStateSchema, ServerToClientSchema } from '#src/protocol/generated/udp-node-msgs_pb';
 import { Lifecycle } from '#src/world/lifecycle';
@@ -58,7 +59,7 @@ export class Relay {
 
   private save() {
     if (this.failed) {
-      throw new Error('Relay persistence failed');
+      throw new Error(t('state.relay_persistence_failed'));
     }
     try {
       this.checkpoint?.(this.history);
@@ -71,7 +72,7 @@ export class Relay {
   acceptUdp(connection: number, _explicitConnection?: number, sequence = this.udpRead) {
     const previous = this.history.udp.find(([id]) => id === connection);
     if (previous && sequence <= previous[1]) {
-      throw new Error('Replayed UDP packet');
+      throw new Error(t('state.replayed_udp_packet'));
     }
     const entry: [number, number, number] = previous ?? [connection, -1, 0];
     if (!previous) {
@@ -87,7 +88,7 @@ export class Relay {
   acceptTcp(connection: number, hello: boolean, sequence = hello ? 0 : this.tcpRead) {
     if (hello) {
       if (sequence !== 0 || this.history.tcp.includes(connection)) {
-        throw new Error('Reused TCP connection');
+        throw new Error(t('state.reused_tcp_connection'));
       }
       // Burn the entire TCP connection ID before any reply. After a restart
       // its implicit output counter cannot be reconstructed safely.
@@ -98,7 +99,7 @@ export class Relay {
       this.tcpWrite = 0;
     } else {
       if (connection !== this.tcpConnection || sequence !== this.tcpRead) {
-        throw new Error('Unexpected TCP sequence');
+        throw new Error(t('state.unexpected_tcp_sequence'));
       }
       this.tcpRead++;
     }
@@ -107,7 +108,7 @@ export class Relay {
   nextUdp() {
     const entry = this.history.udp.find(([id]) => id === this.udpConnection);
     if (!entry || entry[2] > 0xff_ff_ff_ff) {
-      throw new Error('UDP nonce space exhausted');
+      throw new Error(t('state.udp_nonce_space_exhausted'));
     }
     const sequence = entry[2]++;
     this.save();
@@ -117,7 +118,7 @@ export class Relay {
 
   nextTcp() {
     if (this.failed || this.tcpWrite > 0xff_ff_ff_ff) {
-      throw new Error('TCP nonce space exhausted');
+      throw new Error(t('state.tcp_nonce_space_exhausted'));
     }
     return this.tcpWrite++;
   }
@@ -194,7 +195,7 @@ export class World {
 
   login(playerId: bigint, key: Uint8Array) {
     if (![16, 24, 32].includes(key.length)) {
-      throw new Error('Invalid relay key');
+      throw new Error(t('state.invalid_relay_key'));
     }
 
     this.disconnect?.(playerId);
@@ -228,7 +229,7 @@ export class World {
 
   receive(playerId: bigint, state: PlayerState) {
     if (state.id && state.id !== playerId) {
-      throw new Error('State identity does not match relay');
+      throw new Error(t('state.state_identity_does_not_match_relay'));
     }
     const previous = this.online.get(playerId);
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../lib/i18n/shared';
   import { onMount } from 'svelte';
   import type { Snippet } from 'svelte';
   import ConnectionBanner from './ConnectionBanner.svelte';
@@ -68,7 +69,7 @@
 <div class="bar" class:has-menu={!!menu}>
   {#if menu && !desktop}<button
       class="round"
-      aria-label="Menu"
+      aria-label={t('Layout.menu')}
       aria-haspopup="dialog"
       aria-controls="menu"
       aria-expanded={open}
@@ -77,7 +78,7 @@
   <a
     class="brand"
     href="/"
-    aria-label="Zluggish home"
+    aria-label={t('Layout.zluggish_home')}
     onclick={(event) => {
       if (onhome && event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
         event.preventDefault();
@@ -86,25 +87,25 @@
     }}
   >
     <span class="logo" aria-hidden="true"></span>
-    <span class="wordmark">zluggish</span>
+    <span class="wordmark">{t('Layout.zluggish')}</span>
   </a>
   {@render aside?.()}
   {#if !menu && version}<button
       class="version"
       aria-label={`About Zluggish v${version}`}
       aria-haspopup="dialog"
-      onclick={() => about?.showModal()}>v{version}</button
+      onclick={() => about?.showModal()}>{t('Layout.v', { value1: version })}</button
     >{/if}
 </div>
 {#if menu && desktop}
-  <aside class="sidebar" aria-label="Menu">
+  <aside class="sidebar" aria-label={t('Layout.menu')}>
     <div class="sheet">
       {@render menu()}
       {#if version}<button
           class="version"
           aria-label={`About Zluggish v${version}`}
           aria-haspopup="dialog"
-          onclick={() => about?.showModal()}>v{version}</button
+          onclick={() => about?.showModal()}>{t('Layout.v', { value1: version })}</button
         >{/if}
     </div>
   </aside>
@@ -112,7 +113,7 @@
   <dialog
     id="menu"
     class="drawer"
-    aria-label="Menu"
+    aria-label={t('Layout.menu')}
     bind:this={drawer}
     onclose={() => (open = false)}
     onclick={(event) => {
@@ -120,7 +121,7 @@
     }}
   >
     <div class="sheet">
-      <button class="round close" aria-label="Close menu"
+      <button class="round close" aria-label={t('Layout.close_menu')}
         ><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17" /></svg></button
       >
       {@render menu()}
@@ -128,7 +129,7 @@
           class="version"
           aria-label={`About Zluggish v${version}`}
           aria-haspopup="dialog"
-          onclick={() => about?.showModal()}>v{version}</button
+          onclick={() => about?.showModal()}>{t('Layout.v', { value1: version })}</button
         >{/if}
     </div>
   </dialog>
@@ -142,18 +143,20 @@
   }}
 >
   <div class="about-content">
-    <button class="round about-close" aria-label="Close about" onclick={() => about?.close()}
+    <button class="round about-close" aria-label={t('Layout.close_about')} onclick={() => about?.close()}
       ><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17" /></svg></button
     >
-    <h2 id="about-title">About Zluggish</h2>
+    <h2 id="about-title">{t('Layout.about_zluggish')}</h2>
     <dl>
-      <dt>Version</dt>
+      <dt>{t('Layout.version')}</dt>
       <dd>{version}</dd>
-      <dt>Supports Zwift</dt>
-      <dd>{zwiftVersion || 'Unknown'}</dd>
+      <dt>{t('Layout.supports_zwift')}</dt>
+      <dd>{zwiftVersion || t('Layout.unknown')}</dd>
     </dl>
     <p class="star">
-      <a href="https://github.com/zluggish/zluggish" target="_blank" rel="noopener noreferrer">Source on GitHub</a>
+      <a href="https://github.com/zluggish/zluggish" target="_blank" rel="noopener noreferrer"
+        >{t('Layout.source_on_github')}</a
+      >
     </p>
   </div>
 </dialog>

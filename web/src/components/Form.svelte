@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../lib/i18n/shared';
   import { untrack } from 'svelte';
   import { requestJson } from '../lib/connection';
   import type { Snippet } from 'svelte';
@@ -127,7 +128,7 @@
     serverErrors = {};
 
     if (!skip && Object.keys(errors).length) {
-      fail('Check the fields below.');
+      fail(t('Form.check_the_fields_below'));
       queueMicrotask(focusError);
 
       return;
@@ -140,7 +141,7 @@
     }
     pending = true;
     failed = false;
-    message = 'Submitting…';
+    message = t('Form.submitting');
     controller = new AbortController();
 
     try {
@@ -181,7 +182,7 @@
 
       if (result.redirectTo) {
         if (!safeNavigation(result.redirectTo)) {
-          throw new Error('Unsafe navigation');
+          throw new Error(t('Form.unsafe_navigation'));
         }
 
         if (['/login/', '/riders/switch/'].includes(model.action)) {
@@ -207,12 +208,12 @@
       if (result.data.page) {
         onpage(result.data.page);
       }
-      message = result.message ?? 'Saved.';
+      message = result.message ?? t('Form.saved');
       touched = {};
       submitted = false;
     } catch {
       if (alive && !controller.signal.aborted) {
-        fail('Could not submit. Your draft is kept. Try again.');
+        fail(t('Form.could_not_submit_your_draft_is_kept_try_again'));
       }
     } finally {
       if (alive) {
@@ -312,12 +313,12 @@
             photo={model.user.photo}
             name={pending ? 'Submitting…' : button.label}
             detail={model.user.email}
-          />{:else}{pending ? 'Submitting…' : button.label}{/if}</button
+          />{:else}{pending ? t('Form.submitting') : button.label}{/if}</button
       >
     {/each}
     {@render actions?.()}
   </fieldset>
-  <p aria-live="polite">{failed ? '' : message || (dirty && !model.transient ? 'Unsaved changes' : '')}</p>
+  <p aria-live="polite">{failed ? '' : message || (dirty && !model.transient ? t('Form.unsaved_changes') : '')}</p>
 </form>
 
 <style>

@@ -1,3 +1,4 @@
+import { t } from '#src/i18n/index';
 import { Effect, Schema, Scope } from 'effect';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -133,10 +134,10 @@ const acquireRuntime = Effect.fn('runtime.acquire')(function* (
 
   const bridges = [
     ...(config.integrations.discord.enabled
-      ? yield* optionalBridge(world, 'Discord', effects.runSync(DiscordService).start())
+      ? yield* optionalBridge(world, t('runtime.discord'), effects.runSync(DiscordService).start())
       : []),
     ...(config.integrations.matrix.enabled
-      ? yield* optionalBridge(world, 'Matrix', effects.runSync(MatrixService).start())
+      ? yield* optionalBridge(world, t('runtime.matrix'), effects.runSync(MatrixService).start())
       : []),
   ];
 
@@ -169,7 +170,7 @@ export async function openRuntime(config: ResolvedConfig, assets: string, config
     try {
       await resources.close();
     } catch (cleanupError) {
-      throw new AggregateError([error, cleanupError], 'Runtime initialization and cleanup failed', {
+      throw new AggregateError([error, cleanupError], t('runtime.runtime_initialization_and_cleanup_failed'), {
         cause: cleanupError,
       });
     }

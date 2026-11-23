@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../lib/i18n/index';
   import type { z } from 'zod';
   import { onMount } from 'svelte';
   import type { CompanionStatus } from './companion';
@@ -63,7 +64,7 @@
     try {
       status = await api(companionStatus, '/api/companion');
     } catch (error) {
-      failure = error instanceof Error ? error.message : 'The Companion app could not be loaded.';
+      failure = error instanceof Error ? error.message : t('Companion.the_companion_app_could_not_be_loaded');
     }
   });
 </script>
@@ -71,86 +72,97 @@
 {#snippet switcher(name: string)}
   <p class="switch">
     {name} ·
-    <a href="/apps" onclick={(event) => go(event, '/apps')}>Other systems</a>
+    <a href="/apps" onclick={(event) => go(event, '/apps')}>{t('Companion.other_systems')}</a>
   </p>
 {/snippet}
 
 {#snippet manageLink()}
-  <a href="/manage/companion" onclick={(event) => go(event, '/manage/companion')}>Manage → Companion</a>
+  <a href="/manage/companion" onclick={(event) => go(event, '/manage/companion')}>{t('Companion.manage_companion')}</a>
 {/snippet}
 
 {#if failure}<p class="notice failed" role="alert">{failure}</p>{/if}
 
 {#if status === null}
-  {#if !failure}<p role="status">Loading…</p>{/if}
+  {#if !failure}<p role="status">{t('Companion.loading')}</p>{/if}
 {:else if platform === 'ios'}
   <section class="panel" aria-labelledby="companion-ios">
     {@render switcher('iPhone and iPad')}
-    <h2 id="companion-ios">Not supported on iPhone and iPad</h2>
-    <p class="lead">iOS does not allow a patched Companion. Use an Android phone or tablet instead.</p>
+    <h2 id="companion-ios">{t('Companion.not_supported_on_iphone_and_ipad')}</h2>
+    <p class="lead">{t('Companion.ios_does_not_allow_a_patched_companion_use_an')}</p>
   </section>
 {:else if platform === 'android'}
-  <section class="panel" aria-label="Android setup steps">
+  <section class="panel" aria-label={t('Companion.android_setup_steps')}>
     {@render switcher('Android')}
 
     {#if status.app && !status.app.current}
       <p class="stale" role="status">
-        This app was made for an old certificate and cannot connect.
-        {#if administrator}Update it under {@render manageLink()}.{:else}Ask the server administrator to update it.{/if}
+        {t('Companion.this_app_was_made_for_an_old_certificate_and')}
+        {#if administrator}{t('Companion.update_it_under')} {@render manageLink()}.{:else}{t(
+            'Companion.ask_the_server_administrator_to_update_it',
+          )}{/if}
       </p>
     {/if}
 
     <ol class="walk">
       <li>
-        <h2>Remove the Play Store version</h2>
-        <p>Uninstall Zwift Companion if it came from the Play Store or another site.</p>
-        <p class="hint">Skip this when updating an app downloaded here.</p>
+        <h2>{t('Companion.remove_the_play_store_version')}</h2>
+        <p>{t('Companion.uninstall_zwift_companion_if_it_came_from_the_play')}</p>
+        <p class="hint">{t('Companion.skip_this_when_updating_an_app_downloaded_here')}</p>
       </li>
       <li>
-        <h2>Download the app</h2>
+        <h2>{t('Companion.download_the_app')}</h2>
         {#if status.app}
-          <p>Download it on the phone.</p>
+          <p>{t('Companion.download_it_on_the_phone')}</p>
           <a class="download" class:muted-action={!status.app.current} href="/api/companion/app" download
-            >Download Companion {status.app.versionName}</a
+            >{t('Companion.download_companion', { value1: status.app.versionName })}</a
           >
-          <p class="hint">{megabytes(status.app.bytes)}, patched on {day(status.app.createdAt)}.</p>
+          <p class="hint">
+            {t('Companion.patched_on', { value1: megabytes(status.app.bytes), value2: day(status.app.createdAt) })}
+          </p>
         {:else}
           <p class="empty">
-            Not added yet.
-            {#if administrator}Upload it under {@render manageLink()}.{:else}Ask the server administrator to add it.{/if}
+            {t('Companion.not_added_yet')}
+            {#if administrator}{t('Companion.upload_it_under')} {@render manageLink()}.{:else}{t(
+                'Companion.ask_the_server_administrator_to_add_it',
+              )}{/if}
           </p>
         {/if}
       </li>
       <li>
-        <h2>Install it</h2>
-        <p>Open the downloaded file, allow your browser to install apps, then select <strong>Install</strong>.</p>
-        <p class="hint">If Play Protect warns, select <strong>Install anyway</strong>.</p>
+        <h2>{t('Companion.install_it')}</h2>
+        <p>
+          {t('Companion.open_the_downloaded_file_allow_your_browser_to_install')}
+          <strong>{t('Companion.install')}</strong>.
+        </p>
+        <p class="hint">
+          {t('Companion.if_play_protect_warns_select')} <strong>{t('Companion.install_anyway')}</strong>.
+        </p>
       </li>
       <li>
-        <h2>Send Companion to this server</h2>
+        <h2>{t('Companion.send_companion_to_this_server')}</h2>
         <p>
-          Install <a
-            href="https://github.com/x-falcon/Virtual-Hosts/releases/latest"
-            target="_blank"
-            rel="noopener noreferrer">Virtual Hosts</a
-          >, save these lines as <strong>hosts.txt</strong> and select the file in Virtual Hosts:
+          {t('Companion.install')}
+          <a href="https://github.com/x-falcon/Virtual-Hosts/releases/latest" target="_blank" rel="noopener noreferrer"
+            >{t('Companion.virtual_hosts')}</a
+          >{t('Companion.save_these_lines_as')} <strong>{t('Companion.hosts_txt')}</strong>
+          {t('Companion.and_select_the_file_in_virtual_hosts')}
         </p>
         <div class="command">
           <code>{hosts}</code>
           {#if canCopy}
             <button type="button" class="copy" onclick={copyHosts} aria-live="polite"
-              >{copied ? 'Copied' : 'Copy'}</button
+              >{copied ? t('Companion.copied') : t('Companion.copy')}</button
             >
           {/if}
         </div>
         <p class="hint">
-          Turn off <strong>Private DNS</strong> in Android settings. While Virtual Hosts is on, every Companion on the phone
-          connects here.
+          {t('Companion.turn_off')} <strong>{t('Companion.private_dns')}</strong>
+          {t('Companion.in_android_settings_while_virtual_hosts_is_on_every')}
         </p>
       </li>
       <li>
-        <h2>Sign in</h2>
-        <p>Open Companion and sign in with your Zluggish account.</p>
+        <h2>{t('Companion.sign_in')}</h2>
+        <p>{t('Companion.open_companion_and_sign_in_with_your_zluggish_account')}</p>
       </li>
     </ol>
   </section>

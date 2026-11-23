@@ -1,3 +1,4 @@
+import { t } from '#src/i18n/index';
 import { configSchema } from '#src/config/schema';
 import type { Runtime } from '#src/http/runtime';
 import { PlayerProfileSchema } from '#src/protocol/generated/profile_pb';
@@ -387,7 +388,7 @@ export class Simulation {
     }
 
     if (index === undefined) {
-      throw new Error('At most four simultaneous solo blobs are supported');
+      throw new Error(t('simulation.at_most_four_simultaneous_solo_blobs_are_supported'));
     }
 
     const blob = new Blob(
@@ -528,7 +529,7 @@ export class Simulation {
       const profile = clone(PlayerProfileSchema, rider);
       profile.id = ghostId;
       profile.firstName = '';
-      profile.lastName = 'Ghost';
+      profile.lastName = t('simulation.ghost');
       profile.countryCode = 0;
       this.pool.customizeGhost(profile, this.ghostAppearance);
       this.runtime.profiles.synthetic.set(ghostId, profile);
@@ -634,7 +635,7 @@ export class Simulation {
     const state = this.runtime.world.online.get(id);
 
     if (state) {
-      this.bookmark(state, state.sport === 1 ? 'Last run' : 'Last ride');
+      this.bookmark(state, state.sport === 1 ? t('simulation.last_run') : t('simulation.last_ride'));
     }
     this.ghosts.delete(id);
     this.runtime.world.personal.delete(id);
@@ -688,7 +689,7 @@ export class Simulation {
     if (name === 'regroup') {
       this.regroup(id);
 
-      return 'Ghosts regrouped.';
+      return t('simulation.ghosts_regrouped');
     }
 
     if (name === 'bookmark') {
@@ -698,24 +699,24 @@ export class Simulation {
         this.bookmark(state, argument);
       }
 
-      return 'Bookmark saved.';
+      return t('simulation.bookmark_saved');
     }
 
     // These change the world for every rider. Only the management area sends them, on behalf of a rider.
     if (!administrator && Schema.is(botCommand)(name)) {
-      return 'Use the web app management area for server commands.';
+      return t('simulation.use_the_web_app_management_area_for_server_commands');
     }
 
     if (name === 'group' || name === 'groupall') {
       this.group(id, name === 'groupall');
 
-      return 'Bots grouped.';
+      return t('simulation.bots_grouped');
     }
 
     if (name === 'autogroup' || name === 'autogroupall') {
       this.trackGroup(id, name === 'autogroupall');
 
-      return 'Automatic grouping enabled.';
+      return t('simulation.automatic_grouping_enabled');
     }
 
     if (name === 'stopautogroup' || name === 'disperse') {
@@ -729,7 +730,7 @@ export class Simulation {
         }
       }
 
-      return 'Automatic grouping stopped.';
+      return t('simulation.automatic_grouping_stopped');
     }
 
     if (name === 'blob') {
@@ -737,7 +738,7 @@ export class Simulation {
 
       if (!argument) {
         return blob
-          ? `Blob active: ${blob.riders.length} riders. Mode: ${blob.mode ?? 'normal'}.`
+          ? t('simulation.blob_active_riders_mode', { value1: blob.riders.length, value2: blob.mode ?? 'normal' })
           : 'Blob off. Start with .blob <n>.';
       }
 
@@ -751,13 +752,13 @@ export class Simulation {
       const action = actions.get(argument);
 
       if (action !== undefined) {
-        return blob?.gesture(action) ?? 'Start a blob first.';
+        return blob?.gesture(action) ?? t('simulation.start_a_blob_first');
       }
 
       if (['new', 'restart', 'reroll'].includes(argument)) {
         this.loadBlob(id);
 
-        return 'New riders on the road.';
+        return t('simulation.new_riders_on_the_road');
       }
 
       const saved = this.runtime.settings.world(`blob:${id}`);
@@ -770,19 +771,19 @@ export class Simulation {
         saved.enabled = true;
         saved.riders = Number(argument);
       } else {
-        return 'Usage: .blob <1..30>, new, off, record, hammer, toast, attack, lead';
+        return t('simulation.usage_blob_1_30_new_off_record_hammer_toast');
       }
       this.runtime.settings.saveWorld(`blob:${id}`, saved);
       this.loadBlob(id);
 
-      return this.blobs.has(id) ? 'Blob settings saved.' : 'Blob off.';
+      return this.blobs.has(id) ? t('simulation.blob_settings_saved') : t('simulation.blob_off');
     }
 
     if (name === 'peloton') {
       const state = this.runtime.world.online.get(id);
 
       if (!state) {
-        return 'Start riding first.';
+        return t('simulation.start_riding_first');
       }
 
       const score = (replay: ReplayRider) =>
@@ -799,7 +800,7 @@ export class Simulation {
         })[0];
 
       if (!pacer) {
-        return 'No RoboPacer on this course.';
+        return t('simulation.no_robopacer_on_this_course');
       }
 
       const existing = [...this.pelotons].find(([, group]) => group.pacer === pacer);
@@ -822,10 +823,10 @@ export class Simulation {
       this.runtime.settings.saveWorld(`peloton:${key}`, saved);
       this.loadPelotons();
 
-      return 'Peloton settings saved.';
+      return t('simulation.peloton_settings_saved');
     }
 
-    return `Invalid command: ${command}`;
+    return t('simulation.invalid_command', { value1: command });
   }
 
   /** Off -> tracking; switching rider resets the road/direction checkpoint. */

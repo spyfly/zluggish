@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../lib/i18n/index';
   import { onMount } from 'svelte';
   import Fingerprint from '../components/Fingerprint.svelte';
   import { tlsStatus } from './tls';
@@ -21,9 +22,9 @@
   type Platform = 'windows' | 'macos' | 'linux';
 
   const systems: Array<{ id: Platform; name: string }> = [
-    { id: 'windows', name: 'Windows' },
-    { id: 'macos', name: 'macOS' },
-    { id: 'linux', name: 'Linux' },
+    { id: 'windows', name: t('Install.windows') },
+    { id: 'macos', name: t('Install.macos') },
+    { id: 'linux', name: t('Install.linux') },
   ];
 
   const here = detect();
@@ -45,10 +46,10 @@
     !redirect
       ? ''
       : !address.trim()
-        ? 'Enter the IP address of the server.'
+        ? t('Install.enter_the_ip_address_of_the_server')
         : looksLikeIp(address.trim())
           ? ''
-          : 'Enter an IP address, such as 192.168.1.20.',
+          : t('Install.enter_an_ip_address_such_as_192_168_1'),
   );
 
   const script = $derived(
@@ -83,17 +84,17 @@
       // The advertised IP as the server is configured, even 127.0.0.1: the web app's own address may differ.
       address = status.serverAddress;
     } catch (error) {
-      failure = error instanceof Error ? error.message : 'The certificate could not be loaded.';
+      failure = error instanceof Error ? error.message : t('Install.the_certificate_could_not_be_loaded');
     }
   });
 </script>
 
 {#if failure}<p class="notice failed" role="alert">{failure}</p>{/if}
 {#if status === null}
-  {#if !failure}<p role="status">Loading…</p>{/if}
+  {#if !failure}<p role="status">{t('Install.loading')}</p>{/if}
 {:else if status.mode === 'legacy'}
   <section class="panel">
-    <p>Ask the server administrator to replace the shared certificate first.</p>
+    <p>{t('Install.ask_the_server_administrator_to_replace_the_shared_certificate')}</p>
   </section>
 {/if}
 
@@ -106,15 +107,17 @@
         onclick={(event) => {
           event.preventDefault();
           void navigate('/apps');
-        }}>Other systems</a
+        }}>{t('Install.other_systems')}</a
       >
     </p>
     <ol class="walk">
       <li>
-        <h2>Download the setup script</h2>
-        <label class="check"><input type="checkbox" bind:checked={redirect} /> Send Zwift to this server</label>
+        <h2>{t('Install.download_the_setup_script')}</h2>
+        <label class="check"
+          ><input type="checkbox" bind:checked={redirect} /> {t('Install.send_zwift_to_this_server')}</label
+        >
         {#if redirect}
-          <label for="install-address">Server IP address</label>
+          <label for="install-address">{t('Install.server_ip_address')}</label>
           <input
             id="install-address"
             bind:value={address}
@@ -126,70 +129,83 @@
             aria-describedby="install-address-hint"
           />
           <p id="install-address-hint" class="hint" class:failed={!!addressError}>
-            {addressError || 'Added to the hosts file for the Zwift server names.'}
+            {addressError || t('Install.added_to_the_hosts_file_for_the_zwift_server')}
           </p>
         {:else}
-          <p class="hint">The hosts file is left alone. Use DNS or similar instead.</p>
+          <p class="hint">{t('Install.the_hosts_file_is_left_alone_use_dns_or')}</p>
         {/if}
 
         {#if addressError}
-          <button class="primary" type="button" disabled>Download setup script</button>
+          <button class="primary" type="button" disabled>{t('Install.download_setup_script')}</button>
         {:else}
-          <a class="download" href={script} download>Download setup script</a>
+          <a class="download" href={script} download>{t('Install.download_setup_script')}</a>
         {/if}
       </li>
       <li>
-        <h2>Run the setup script</h2>
+        <h2>{t('Install.run_the_setup_script')}</h2>
         {#if platform.id === 'windows'}
-          <p>Open the downloaded <strong>.bat</strong> file and allow administrator rights.</p>
+          <p>
+            {t('Install.open_the_downloaded')} <strong>{t('Install.bat')}</strong>
+            {t('Install.file_and_allow_administrator_rights')}
+          </p>
           <p class="hint">
-            If SmartScreen blocks it, select <strong>More info</strong>, then <strong>Run anyway</strong>.
+            {t('Install.if_smartscreen_blocks_it_select')} <strong>{t('Install.more_info')}</strong>{t('Install.then')}
+            <strong>{t('Install.run_anyway')}</strong>.
           </p>
         {:else}
           <p>
-            {platform.id === 'macos' ? 'In Terminal, run:' : 'In a terminal, run:'}
+            {platform.id === 'macos' ? t('Install.in_terminal_run') : t('Install.in_a_terminal_run')}
           </p>
           <div class="command">
             <code>{command}</code>
             {#if canCopy}
-              <button type="button" class="copy" onclick={copy} aria-live="polite">{copied ? 'Copied' : 'Copy'}</button>
+              <button type="button" class="copy" onclick={copy} aria-live="polite"
+                >{copied ? t('Install.copied') : t('Install.copy')}</button
+              >
             {/if}
           </div>
           <p class="hint">
             {platform.id === 'macos'
-              ? 'Enter your password when asked, then approve the certificate.'
-              : 'Enter your password when asked. If Zwift is not found, add the Zwift folder as the last argument.'}
+              ? t('Install.enter_your_password_when_asked_then_approve_the_certificate')
+              : t('Install.enter_your_password_when_asked_if_zwift_is_not')}
           </p>
         {/if}
       </li>
       <li>
-        <h2>Start Zwift</h2>
+        <h2>{t('Install.start_zwift')}</h2>
         <p>
-          When the script says <strong>Done</strong>, {platform.id === 'linux'
-            ? "close Zwift's Wine prefix, then "
-            : platform.id === 'macos'
-              ? 'quit Zwift if it is open, then '
-              : ''}start Zwift and sign in.
+          {t('Install.when_the_script_says')} <strong>{t('Install.done')}</strong>{t(
+            'Install.start_zwift_and_sign_in',
+            {
+              value1:
+                platform.id === 'linux'
+                  ? t('Install.close_zwift_s_wine_prefix_then')
+                  : platform.id === 'macos'
+                    ? t('Install.quit_zwift_if_it_is_open_then')
+                    : '',
+            },
+          )}
         </p>
-        <p class="hint">Run it again after a Zwift update or a certificate rotation.</p>
+        <p class="hint">{t('Install.run_it_again_after_a_zwift_update_or_a')}</p>
       </li>
     </ol>
   </section>
 
   <section class="panel" aria-labelledby="install-certificate">
-    <h2 id="install-certificate">Check the certificate</h2>
-    <p>The thumbprint the script prints should match.</p>
+    <h2 id="install-certificate">{t('Install.check_the_certificate')}</h2>
+    <p>{t('Install.the_thumbprint_the_script_prints_should_match')}</p>
     <div class="prints">
-      <Fingerprint label="Thumbprint (SHA-1)" value={status.certificate.thumbprint} />
-      <Fingerprint label="Fingerprint (SHA-256)" value={status.certificate.fingerprint256} />
+      <Fingerprint label={t('Install.thumbprint_sha_1')} value={status.certificate.thumbprint} />
+      <Fingerprint label={t('Install.fingerprint_sha_256')} value={status.certificate.fingerprint256} />
     </div>
-    <p class="muted">Valid until {day(status.certificate.notAfter)}.</p>
+    <p class="muted">{t('Install.valid_until', { value1: day(status.certificate.notAfter) })}</p>
     <p class="manual">
       {#if platform.id === 'windows'}
-        Manual install: <a href="/api/tls/certificate?format=der" download>.cer</a> for the Windows certificate store,
-        <a href="/api/tls/certificate" download>.crt</a> for Zwift's cacert.pem.
+        {t('Install.manual_install')} <a href="/api/tls/certificate?format=der" download>{t('Install.cer')}</a>
+        {t('Install.for_the_windows_certificate_store')} <a href="/api/tls/certificate" download>{t('Install.crt')}</a>
+        {t('Install.for_zwift_s_cacert_pem')}
       {:else}
-        Manual install: <a href="/api/tls/certificate" download>.crt (PEM)</a>.
+        {t('Install.manual_install')} <a href="/api/tls/certificate" download>{t('Install.crt_pem')}</a>.
       {/if}
     </p>
   </section>
