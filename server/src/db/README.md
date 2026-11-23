@@ -58,7 +58,11 @@ or a `settings.db` from an offline config migration, runs the storage merge in
 `../migrations/storage.ts`: backup, import into a temporary database, validation,
 closed-database publication with a durable manifest, and a startup check of that
 manifest. Later schema changes go in the `migrations` list in `open.ts`; each runs in
-one transaction at startup.
+one transaction at startup. A migration marked `backup` backs up an existing store
+first. Version 11 (`../migrations/activity-folders.ts`) rebuilds `activity` with
+`AUTOINCREMENT`, so ids are never reused, and moves activity files into one folder per
+activity (`../activity-storage.ts`). Its file moves are repeatable, so a stop before the
+commit only runs it again.
 
 ## Durable jobs
 

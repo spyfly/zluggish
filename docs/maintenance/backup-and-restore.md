@@ -73,3 +73,21 @@ If you copy the storage directory manually, pause the uploads before the first s
 ```sh
 node server/dist/src/cli/bin.js --storage-dir ./storage uploads pause
 ```
+
+## Activity files
+
+Each activity has its own folder in the rider folder. The folder name is the start time of the activity in UTC, followed by the activity ID, so a directory listing sorts the activities by time:
+
+```text
+storage/<player id>/activities/
+  2026-11-22T223716Z_33/
+    activity.fit        FIT export of the activity
+    chart.json          chart cache, created again when missing
+    images/41.jpg       screenshots
+    videos/7.mp4        videos
+  orphaned/             files that the update to this layout could not match to an activity
+```
+
+The database holds the canonical FIT data. `activity.fit` is a copy, which the server writes again when it is missing.
+
+Older versions kept the FIT exports in `fit/`, the screenshots in `images/` and the videos in `medias/`. The first start of a newer server makes a backup and then moves these files into the activity folders. A FIT export moves only when it is identical to the FIT data in the database. The server keeps any other files in `activities/orphaned/` and never removes them. Examine these files, and delete them when you do not need them.

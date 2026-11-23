@@ -8,6 +8,7 @@ import { ApplicationError, DeliveryRefusedError, refused, UnreadableCredentialsE
 import type { Activity } from '#src/protocol/generated/activity_pb';
 import { ActivitySchema } from '#src/protocol/generated/activity_pb';
 import { PlayerProfileSchema } from '#src/protocol/generated/profile_pb';
+import { activityFolder, imagePath, videoPath } from '#src/activity-storage';
 import { SystemFlag } from '#src/repositories/system-flag.repository';
 import type { Delivery } from '#src/repositories/uploads.repository';
 import { officialRelay } from '#src/repositories/zwift.repository';
@@ -18,7 +19,6 @@ import { SettingsService } from '#src/services/settings.service';
 import type { StoredEntry } from '#src/dtos/workout.dto';
 import { WorkoutsService } from '#src/services/workout.service';
 import { clearField, clone, fromBinary, toBinary } from '@bufbuild/protobuf';
-import { resolve } from 'node:path';
 import { Context, Effect, Layer, Schema } from 'effect';
 
 const isoDate = (value: string | null | undefined) =>
@@ -387,20 +387,23 @@ const make = Effect.gen(function* () {
 
   /** Ready photos and videos only: a reserved row may have no complete file yet. */
   function photosNow(player: number, activity: number) {
-    const folder = context.profiles.folder(player);
+    const stored = repositories.activitiesRepository.storageDirectory(activity);
+
+    if (!stored || stored.player !== player) {
+      return [];
+    }
+    const folder = activityFolder(context.profiles.folder(player), stored.directory);
     const paths = [];
 
     for (const photo of repositories.activitiesRepository.listActivityImage(player, activity)) {
       if (photo.state === 'ready') {
-        paths.push(resolve(folder, 'images', `${photo.id}.jpg`));
+        paths.push(imagePath(folder, photo.id));
       }
     }
 
     for (const photo of repositories.activitiesRepository.listActivityMedia(player, activity)) {
       if (photo.state === 'ready') {
-        paths.push(
-          resolve(folder, 'medias', `${photo.id}.${photo.content_type.includes('quicktime') ? 'mov' : 'mp4'}`),
-        );
+        paths.push(videoPath(folder, photo.id, photo.content_type));
       }
     }
 
