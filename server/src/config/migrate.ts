@@ -87,7 +87,7 @@ function legacySection(file: string, ...input: Parameters<typeof decodeConfigInp
   try {
     return decodeConfigInput(...input);
   } catch {
-    throw new ConfigError(t('migrate.invalid_legacy_configuration', { value1: file }));
+    throw new ConfigError(t('invalid_legacy_configuration', { value1: file }));
   }
 }
 
@@ -106,15 +106,15 @@ export function migrationCandidate(options: MigrationOptions) {
   const output = resolve(options.output);
 
   if (basename(output) !== CONFIG_NAME) {
-    throw new ConfigError(t('migrate.migration_output_must_be_named', { value1: CONFIG_NAME }));
+    throw new ConfigError(t('migrate_output_name_required', { value1: CONFIG_NAME }));
   }
 
   if (existsSync(output)) {
-    throw new ConfigError(t('migrate.destination_exists_migration_never_overwrites_configuration'));
+    throw new ConfigError(t('migrate_destination_exists'));
   }
 
   if (!existsSync(storage)) {
-    throw new ConfigError(t('migrate.legacy_storage_directory_does_not_exist'));
+    throw new ConfigError(t('migrate_storage_directory_missing'));
   }
   const exists = (name: string) => existsSync(resolve(storage, name));
 
@@ -138,14 +138,14 @@ export function migrationCandidate(options: MigrationOptions) {
     const parsed = decodeDiscord(parseIni(text('discord.cfg')));
 
     if (Exit.isFailure(parsed)) {
-      throw new ConfigError(t('migrate.discord_cfg_invalid_legacy_configuration'));
+      throw new ConfigError(t('migrate_discord_config_invalid'));
     }
     const values = parsed.value.discord;
     const yes = ['1', 'yes', 'true', 'on'];
     const no = ['0', 'no', 'false', 'off'];
 
     if (![...yes, ...no].includes(String(values.announce_players).toLowerCase())) {
-      throw new ConfigError(t('migrate.discord_cfg_invalid_announce_players'));
+      throw new ConfigError(t('migrate_discord_announce_players_invalid'));
     }
 
     discord = {
@@ -248,12 +248,12 @@ export function migrationCandidate(options: MigrationOptions) {
     );
 
     if (folders.length > 0 && !options.soloPlayer) {
-      throw new ConfigError(t('migrate.legacy_solo_data_needs_explicit_solo_player_id_no'));
+      throw new ConfigError(t('migrate_solo_player_required'));
     }
 
     if (options.soloPlayer) {
       if (!folders.includes(String(options.soloPlayer))) {
-        throw new ConfigError(t('migrate.solo_player_must_identify_an_existing_profile_folder'));
+        throw new ConfigError(t('migrate_solo_profile_missing'));
       }
 
       riders.push({
@@ -262,7 +262,7 @@ export function migrationCandidate(options: MigrationOptions) {
       });
     }
   } else if (options.soloPlayer) {
-    throw new ConfigError(t('migrate.solo_player_only_applies_to_legacy_solo_storage'));
+    throw new ConfigError(t('migrate_solo_player_inapplicable'));
   }
 
   const preferences: Array<Preference> = riders.map((rider) => {
@@ -285,7 +285,7 @@ export function migrationCandidate(options: MigrationOptions) {
     });
 
     if (Exit.isFailure(parsed)) {
-      throw new ConfigError(t('migrate.invalid_legacy_preferences_for_rider', { value1: rider.player_id }));
+      throw new ConfigError(t('migrate_preferences_invalid', { value1: rider.player_id }));
     }
 
     return parsed.value;
@@ -299,9 +299,7 @@ export function migrationCandidate(options: MigrationOptions) {
         const exists = store.has(preference.playerId);
 
         if (exists && JSON.stringify(store.read(preference.playerId)) !== JSON.stringify(preference.overrides)) {
-          throw new ConfigError(
-            t('migrate.conflicting_persisted_preferences_for_rider', { value1: preference.playerId }),
-          );
+          throw new ConfigError(t('migrate_preferences_conflict', { value1: preference.playerId }));
         }
       }
     } finally {
@@ -338,7 +336,7 @@ export async function migrateConfig(options: MigrationOptions) {
       journal = decodeJournal(JSON.parse(readFileSync(journalPath, 'utf8')));
 
       if (resolve(options.output) !== journal.output) {
-        throw new ConfigError(t('migrate.an_interrupted_migration_targets_another_output_resume_that_destination'));
+        throw new ConfigError(t('migrate_destination_conflict'));
       }
     } else {
       const candidate = migrationCandidate(options);
@@ -357,7 +355,7 @@ export async function migrateConfig(options: MigrationOptions) {
     }
 
     if (existsSync(journal.output) && readFileSync(journal.output, 'utf8') !== journal.source) {
-      throw new ConfigError(t('migrate.migration_output_changed_recover_manually_before_continuing'));
+      throw new ConfigError(t('migrate_output_changed'));
     }
 
     const settings = SettingsStore.open(options.storage);

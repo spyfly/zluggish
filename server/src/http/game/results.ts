@@ -18,7 +18,7 @@ export function navigationPath(path: string) {
 
 export function gameRedirect(c: Context<RuntimeEnv>, path: string) {
   if (!navigationPath(path)) {
-    throw new Error(t('results.unsafe_game_app_redirect'));
+    throw new Error(t('unsafe_game_app_redirect'));
   }
   c.header('Cache-Control', 'no-store');
 

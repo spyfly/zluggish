@@ -42,8 +42,7 @@ export class BackupSnapshotWorker {
       }
     });
     worker.on('error', (error) => {
-      failure =
-        error instanceof Error ? error : new Error(t('backup_snapshot_worker.backup_worker_failed'), { cause: error });
+      failure = error instanceof Error ? error : new Error(t('backup_worker_failed'), { cause: error });
     });
     const exited = new Promise<number>((resolve) => {
       worker.once('exit', resolve);

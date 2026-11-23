@@ -14,7 +14,7 @@
     try {
       entries = (await load()).entries;
     } catch (error) {
-      errorMessage = error instanceof Error ? error.message : t('ServerLogs.could_not_load_server_logs');
+      errorMessage = error instanceof Error ? error.message : t('server_logs_load_error');
     } finally {
       loading = false;
     }
@@ -31,24 +31,24 @@
 
 <div class="actions">
   <button type="button" aria-expanded={open} aria-controls="server-log-output" onclick={toggle}>
-    {open ? t('ServerLogs.hide_logs') : t('ServerLogs.view_logs')}
+    {open ? t('hide_logs') : t('view_logs')}
   </button>
   {#if open}
-    <button type="button" disabled={loading} onclick={refresh}>{t('ServerLogs.refresh_logs')}</button>
+    <button type="button" disabled={loading} onclick={refresh}>{t('refresh_logs')}</button>
   {/if}
 </div>
 <div id="server-log-output" hidden={!open}>
   {#if open}
-    <p>{t('ServerLogs.newest_first')}</p>
-    {#if loading}<p role="status">{t('ServerLogs.loading_logs')}</p>{/if}
+    <p>{t('newest_first')}</p>
+    {#if loading}<p role="status">{t('loading_logs')}</p>{/if}
     {#if errorMessage}<p role="alert">{errorMessage}</p>{/if}
     {#if entries.length}
       <!-- svelte-ignore a11y_no_noninteractive_tabindex (the scroll region needs keyboard focus) -->
-      <div class="output" role="region" tabindex="0" aria-label={t('ServerLogs.server_log_entries')}>
+      <div class="output" role="region" tabindex="0" aria-label={t('server_log_entries')}>
         <pre>{entries.join('\n')}</pre>
       </div>
     {:else if !loading && !errorMessage}
-      <p>{t('ServerLogs.no_server_logs_yet')}</p>
+      <p>{t('server_logs_empty')}</p>
     {/if}
   {/if}
 </div>

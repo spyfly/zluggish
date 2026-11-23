@@ -30,7 +30,7 @@ export function form(
       ...fields,
       ...(options.confirmation
         ? [
-            field('confirm_action', t('models.i_confirm', { value1: options.confirmation }), {
+            field('confirm_action', t('i_confirm', { value1: options.confirmation }), {
               type: 'checkbox',
               required: true,
             }),

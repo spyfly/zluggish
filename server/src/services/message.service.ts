@@ -33,7 +33,7 @@ const make = Effect.gen(function* () {
             playerId: 0n,
             toPlayerId: 0n,
             spaType: SocialPlayerActionType.SOCIAL_TEXT_MESSAGE,
-            firstName: sender === 'Server' ? t('message_service.server') : sender,
+            firstName: sender === 'Server' ? t('server') : sender,
             lastName: '',
             message,
             countryCode: 0,

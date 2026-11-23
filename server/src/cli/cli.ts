@@ -26,7 +26,7 @@ import { Schema, Effect } from 'effect';
 
 const decodeId = Schema.decodeUnknownSync(PositiveIntFromString);
 
-export const HELP = t('cli.usage_zluggish_config_path_storage_dir_dir_config_init');
+export const HELP = t('cli_usage');
 
 export async function run(argv: Array<string>, output: (message: string) => void = console.log): Promise<number> {
   const { values, positionals } = parseArgs({
@@ -59,7 +59,7 @@ export async function run(argv: Array<string>, output: (message: string) => void
   }
 
   if (extra.length > 0) {
-    throw new ConfigError(t('cli.unexpected_arguments'));
+    throw new ConfigError(t('unexpected_arguments'));
   }
   const containerStorage = process.env.ZLUGGISH_CONTAINER_STORAGE_DIR;
 
@@ -86,7 +86,7 @@ export async function run(argv: Array<string>, output: (message: string) => void
       const loaded = await loadConfig({ path: selected });
       storage = loaded.config.storageDir;
     } else if ((values.config !== undefined || process.env.ZLUGGISH_CONFIG !== undefined) && !existsSync(selected)) {
-      throw new ConfigError(t('cli.missing', { value1: selected }));
+      throw new ConfigError(t('missing', { value1: selected }));
     }
 
     const release = await new LockRepository().acquireStorageLock(storage);
@@ -95,38 +95,34 @@ export async function run(argv: Array<string>, output: (message: string) => void
       if (action === 'migrate') {
         const selected = values['solo-player'];
         migrateAccounts(storage, selected === undefined ? undefined : decodeId(selected));
-        output(t('cli.accounts_migrated'));
+        output(t('accounts_migrated'));
       } else if (action === 'recover') {
         const playerId = decodeId(values.user);
 
         const passwordFile = values['password-file'];
 
         if (!passwordFile) {
-          throw new ConfigError(t('cli.choose_password_file_path'));
+          throw new ConfigError(t('password_file_required'));
         }
         const accounts = AccountsService.open(storage);
 
         try {
           if (!accounts.get(playerId)) {
-            throw new ConfigError(t('cli.unknown_user'));
+            throw new ConfigError(t('unknown_user'));
           }
           const password = readFileSync(passwordFile, 'utf8').replace(/\r?\n$/, '');
 
           if (password === '') {
-            throw new ConfigError(t('cli.password_must_not_be_empty'));
+            throw new ConfigError(t('cli_password_empty'));
           }
 
           await accounts.changePassword(playerId, password, values.admin ?? false);
-          output(
-            values.admin
-              ? t('cli.password_set_account_enabled_as_administrator_and_signed_out')
-              : t('cli.password_set_account_signed_out_everywhere'),
-          );
+          output(values.admin ? t('cli_admin_password_set_notice') : t('cli_password_set_notice'));
         } finally {
           accounts.close();
         }
       } else {
-        throw new ConfigError(t('cli.unknown_accounts_command'));
+        throw new ConfigError(t('unknown_accounts_command'));
       }
     } finally {
       await release();
@@ -137,7 +133,7 @@ export async function run(argv: Array<string>, output: (message: string) => void
 
   if (group === 'storage' || group === 'uploads') {
     if (key !== undefined || raw !== undefined) {
-      throw new ConfigError(t('cli.unexpected_arguments_2', { value1: group }));
+      throw new ConfigError(t('cli_unexpected_arguments_list', { value1: group }));
     }
     const options: LoadOptions = { path: selected };
 
@@ -168,7 +164,7 @@ export async function run(argv: Array<string>, output: (message: string) => void
 
   if (group === 'config') {
     if (key !== undefined || raw !== undefined) {
-      throw new ConfigError(t('cli.unexpected_config_arguments'));
+      throw new ConfigError(t('unexpected_config_arguments'));
     }
 
     switch (action) {
@@ -177,7 +173,7 @@ export async function run(argv: Array<string>, output: (message: string) => void
           selected,
           readFileSync(resolve(packageRoot(), '../examples/zluggish.config.ts'), 'utf8'),
         );
-        output(t('cli.created', { value1: selected }));
+        output(t('created_notice', { value1: selected }));
 
         return 0;
       }
@@ -260,7 +256,7 @@ export async function run(argv: Array<string>, output: (message: string) => void
                   enabled: loaded.config.bots.enabled,
                   multiplier: loaded.config.bots.multiplier,
                 },
-                omitted: t('cli.paths_integration_values_rider_defaults_and_operator_strings_are'),
+                omitted: t('cli_config_migration_preservation_hint'),
               },
               null,
               2,
@@ -272,13 +268,13 @@ export async function run(argv: Array<string>, output: (message: string) => void
       }
 
       default: {
-        throw new ConfigError(t('cli.unknown_config_command'));
+        throw new ConfigError(t('unknown_config_command'));
       }
     }
   }
 
   if (group !== 'settings' || !['show', 'set', 'reset'].includes(action ?? '')) {
-    throw new ConfigError(t('cli.unknown_command'));
+    throw new ConfigError(t('unknown_command'));
   }
   const playerId = decodeId(values.user);
   const options: LoadOptions = { path: selected };
@@ -291,7 +287,7 @@ export async function run(argv: Array<string>, output: (message: string) => void
 
   if (action === 'show') {
     if (key !== undefined) {
-      throw new ConfigError(t('cli.unexpected_settings_show_arguments'));
+      throw new ConfigError(t('unexpected_settings_show_arguments'));
     }
     const store = SettingsStore.openReadOnly(config.storageDir);
 
@@ -313,11 +309,11 @@ export async function run(argv: Array<string>, output: (message: string) => void
   const setting = decodeSettingKey(key);
 
   if (action === 'set' && raw === undefined) {
-    throw new ConfigError(t('cli.provide_a_json_setting_value'));
+    throw new ConfigError(t('cli_setting_value_required'));
   }
 
   if (action === 'reset' && raw !== undefined) {
-    throw new ConfigError(t('cli.unexpected_reset_value'));
+    throw new ConfigError(t('unexpected_reset_value'));
   }
   const value: unknown = action === 'set' ? JSON.parse(raw ?? '') : null;
 
@@ -342,7 +338,7 @@ export async function run(argv: Array<string>, output: (message: string) => void
       store?.close();
     }
 
-    output(t('cli.valid_change_dry_run'));
+    output(t('valid_change_dry_run'));
 
     return 0;
   }
@@ -358,7 +354,7 @@ export async function run(argv: Array<string>, output: (message: string) => void
       store.close();
     }
 
-    output(t('cli.settings_saved'));
+    output(t('settings_saved'));
   } finally {
     await release();
   }
@@ -402,7 +398,7 @@ async function storageCommand(
         output(`${file.reason}: ${file.path} (${file.bytes} bytes)`);
       }
       output(
-        t('cli.files_bytes_finished_jobs_delivery_records_abandoned_uploads', {
+        t('cli_storage_cleanup_summary', {
           value1: plan.files.length,
           value2: bytes,
           value3: plan.jobs,
@@ -415,7 +411,7 @@ async function storageCommand(
         return 0;
       }
       await Effect.runPromise(service.apply(plan));
-      output(t('cli.cleanup_complete'));
+      output(t('cleanup_complete'));
 
       return 0;
     } finally {
@@ -435,42 +431,42 @@ async function storageCommand(
     }
 
     if (!values.confirm) {
-      output(t('cli.legacy_files_can_be_removed_run_again_with_confirm', { value1: plan.removable.length }));
+      output(t('cli_legacy_cleanup_preview', { value1: plan.removable.length }));
 
       return 0;
     }
 
     removeLegacy(storage, plan);
-    output(t('cli.legacy_files_removed', { value1: plan.removable.length }));
+    output(t('legacy_files_removed', { value1: plan.removable.length }));
 
     return 0;
   }
 
   if (action === 'backup') {
     if (!values.output) {
-      throw new ConfigError(t('cli.choose_a_directory_or_tar_gz_file_with_output'));
+      throw new ConfigError(t('cli_backup_output_required'));
     }
     // Opening the database applies pending migrations, so the backup has the current schema.
     openDatabase(storage).close();
     const path = resolve(values.output);
     const createBackup = path.endsWith(archiveSuffix) ? backupStorageArchive : backupStorage;
     const files = await createBackup(storage, path, config);
-    output(t('cli.backup_complete_files', { value1: files }));
+    output(t('backup_complete_files', { value1: files }));
 
     return 0;
   }
 
   if (action === 'restore') {
     if (!values.input) {
-      throw new ConfigError(t('cli.choose_a_directory_or_tar_gz_file_with_input'));
+      throw new ConfigError(t('cli_backup_input_required'));
     }
     restoreStorage(storage, resolve(values.input), config);
-    output(t('cli.restore_complete_uploads_stay_paused_review_them_with_uploads'));
+    output(t('cli_restore_success_hint'));
 
     return 0;
   }
 
-  throw new ConfigError(t('cli.unknown_storage_command'));
+  throw new ConfigError(t('unknown_storage_command'));
 }
 
 function uploadsCommand(
@@ -481,7 +477,7 @@ function uploadsCommand(
 ) {
   if (action === 'pause') {
     pauseUploads(storage, 'operator');
-    output(t('cli.uploads_paused'));
+    output(t('uploads_paused'));
 
     return 0;
   }
@@ -494,13 +490,19 @@ function uploadsCommand(
 
     const list = () => {
       for (const delivery of repositories.uploadsRepository.waiting()) {
-        output(t('cli.activity', { value1: delivery.activity_id, value2: delivery.provider, value3: delivery.state }));
+        output(
+          t('activity_record_summary', {
+            value1: delivery.activity_id,
+            value2: delivery.provider,
+            value3: delivery.state,
+          }),
+        );
       }
     };
 
     switch (action) {
       case 'list': {
-        output(flags.get(SystemFlag.UploadPause) === null ? t('cli.uploads_are_running') : t('cli.uploads_are_paused'));
+        output(flags.get(SystemFlag.UploadPause) === null ? t('uploads_running_status') : t('uploads_paused_status'));
         list();
 
         return 0;
@@ -509,11 +511,11 @@ function uploadsCommand(
       case 'resume': {
         if (!values.confirm) {
           list();
-          throw new ConfigError(t('cli.cancel_unwanted_deliveries_first_then_run_uploads_resume_confirm'));
+          throw new ConfigError(t('cli_uploads_resume_hint'));
         }
 
         flags.clear(SystemFlag.UploadPause);
-        output(t('cli.uploads_resumed'));
+        output(t('uploads_resumed'));
 
         return 0;
       }
@@ -523,15 +525,15 @@ function uploadsCommand(
         const provider = Schema.decodeUnknownSync(Schema.NonEmptyString)(values.provider);
 
         if (!repositories.uploadsRepository.cancel(activity, provider)) {
-          throw new ConfigError(t('cli.no_pending_failed_or_ambiguous_delivery_matches'));
+          throw new ConfigError(t('cli_delivery_not_found'));
         }
-        output(t('cli.delivery_cancelled'));
+        output(t('delivery_cancelled'));
 
         return 0;
       }
 
       default: {
-        throw new ConfigError(t('cli.unknown_uploads_command'));
+        throw new ConfigError(t('unknown_uploads_command'));
       }
     }
   } finally {

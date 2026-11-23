@@ -128,7 +128,7 @@
     serverErrors = {};
 
     if (!skip && Object.keys(errors).length) {
-      fail(t('Form.check_the_fields_below'));
+      fail(t('form_fields_hint'));
       queueMicrotask(focusError);
 
       return;
@@ -141,7 +141,7 @@
     }
     pending = true;
     failed = false;
-    message = t('Form.submitting');
+    message = t('submitting');
     controller = new AbortController();
 
     try {
@@ -182,7 +182,7 @@
 
       if (result.redirectTo) {
         if (!safeNavigation(result.redirectTo)) {
-          throw new Error(t('Form.unsafe_navigation'));
+          throw new Error(t('unsafe_navigation'));
         }
 
         if (['/login/', '/riders/switch/'].includes(model.action)) {
@@ -208,12 +208,12 @@
       if (result.data.page) {
         onpage(result.data.page);
       }
-      message = result.message ?? t('Form.saved');
+      message = result.message ?? t('saved');
       touched = {};
       submitted = false;
     } catch {
       if (alive && !controller.signal.aborted) {
-        fail(t('Form.could_not_submit_your_draft_is_kept_try_again'));
+        fail(t('form_submit_error'));
       }
     } finally {
       if (alive) {
@@ -313,12 +313,12 @@
             photo={model.user.photo}
             name={pending ? 'Submitting…' : button.label}
             detail={model.user.email}
-          />{:else}{pending ? t('Form.submitting') : button.label}{/if}</button
+          />{:else}{pending ? t('submitting') : button.label}{/if}</button
       >
     {/each}
     {@render actions?.()}
   </fieldset>
-  <p aria-live="polite">{failed ? '' : message || (dirty && !model.transient ? t('Form.unsaved_changes') : '')}</p>
+  <p aria-live="polite">{failed ? '' : message || (dirty && !model.transient ? t('unsaved_changes') : '')}</p>
 </form>
 
 <style>

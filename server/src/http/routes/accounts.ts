@@ -53,22 +53,22 @@ function unlockPage(c: Context<RuntimeEnv>, user: User, error = '') {
         [
           hidden('player_id', String(user.player_id)),
           hidden('step', 'password'),
-          field('password', t('accounts.password'), {
+          field('password', t('password'), {
             type: 'password',
             required: true,
             autocomplete: 'current-password',
             autofocus: true,
           }),
-          checkbox('remember', t('accounts.remember_password')),
+          checkbox('remember', t('remember_password')),
         ],
-        t('accounts.sign_in'),
+        t('sign_in'),
         { primary: true, transient: true },
       ),
     ],
     {
       message: error,
       failed: !!error,
-      back: { href: '/login/', label: t('accounts.choose_another_user') },
+      back: { href: '/login/', label: t('user_select_alternative') },
     },
   );
 }
@@ -84,7 +84,7 @@ export async function csrf(c: Context<RuntimeEnv>, runtime: Runtime): Promise<Fo
       .validCsrf(c.get('browser'), Schema.decodeUnknownSync(Schema.String.pipe(orElse('')))(form.csrf_token))
   ) {
     throw new HTTPException(400, {
-      message: t('accounts.the_form_expired_reload_and_retry'),
+      message: t('accounts_form_expired'),
     });
   }
 
@@ -119,7 +119,7 @@ export function accountRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
 
     if (!release) {
       c.header('Retry-After', '60');
-      const message = t('accounts.too_many_password_attempts_try_again_in_a_minute');
+      const message = t('accounts_password_rate_limit');
 
       throw new HTTPException(429, { message, res: c.text(message, 429) });
     }
@@ -187,7 +187,7 @@ export function accountRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
 
     if (browserJson(c) && context && context !== c.get('browser').csrf) {
       throw new HTTPException(c.get('user') ? 409 : 401, {
-        message: t('accounts.your_session_or_user_changed_reload_and_retry'),
+        message: t('accounts_session_changed'),
       });
     }
     await next();
@@ -210,11 +210,11 @@ export function accountRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
       return runtime.effects.runPromise(
         gamePage(
           c,
-          model(c, 'message', t('accounts.registration_is_not_available'), [], {
-            message: t('accounts.registration_is_not_available_ask_the_administrator_to_create'),
+          model(c, 'message', t('registration_unavailable'), [], {
+            message: t('accounts_registration_unavailable'),
             failed: true,
             errorStatus: 403,
-            back: { href: '/login/', label: t('accounts.choose_a_user') },
+            back: { href: '/login/', label: t('user_select_placeholder') },
           }),
         ),
       );
@@ -225,7 +225,7 @@ export function accountRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
     return model(
       c,
       'login',
-      t('accounts.who_s_riding'),
+      t('who_s_riding'),
       accounts
         .list()
         .filter((user) => user.enabled)
@@ -253,11 +253,7 @@ export function accountRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
           ),
         ),
       {
-        message:
-          error ||
-          (accounts.list().some((user) => user.enabled)
-            ? ''
-            : t('accounts.no_users_are_available_ask_the_administrator_to_create')),
+        message: error || (accounts.list().some((user) => user.enabled) ? '' : t('accounts_users_unavailable')),
         failed: !!error,
       },
     );
@@ -283,11 +279,11 @@ export function accountRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
       if (user && !user.pass_hash) {
         runtime.world.lifecycle.log.warn(
           'auth.login_no_password',
-          t('accounts.login_without_password', { value1: user.player_id, value2: riderName(user) }),
+          t('login_without_password', { value1: user.player_id, value2: riderName(user) }),
           { playerId: user.player_id },
         );
 
-        return runtime.effects.runPromise(gamePage(c, loginPage(c, t('accounts.login_failed'))));
+        return runtime.effects.runPromise(gamePage(c, loginPage(c, t('login_failed'))));
       }
 
       if (user && !step) {
@@ -353,11 +349,11 @@ export function accountRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
           { playerId: user.player_id, flow: 'browser' },
         );
 
-        return runtime.effects.runPromise(gamePage(c, unlockPage(c, user, t('accounts.wrong_password_try_again'))));
+        return runtime.effects.runPromise(gamePage(c, unlockPage(c, user, t('wrong_password_try_again'))));
       }
 
       runtime.world.lifecycle.log.warn('auth.login_failed', 'Login failed: unknown rider', { flow: 'browser' });
-      error = t('accounts.that_user_no_longer_exists_choose_another_user');
+      error = t('accounts_user_not_found');
     }
 
     return runtime.effects.runPromise(gamePage(c, loginPage(c, error)));
@@ -396,12 +392,12 @@ export function accountRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
       return yield* Effect.suspend(() =>
         gamePage(
           c,
-          model(c, 'dashboard', t('accounts.value', { value1: user.first_name, value2: user.last_name }), [
+          model(c, 'dashboard', t('value_pair', { value1: user.first_name, value2: user.last_name }), [
             makeForm(
               'launch',
               '/start-zwift',
               [
-                field('map', t('accounts.map'), {
+                field('map', t('map'), {
                   type: 'select',
                   value: 'CALENDAR',
                   options: [
@@ -409,7 +405,7 @@ export function accountRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
                     ...mapChoices.map(({ value, label }) => ({ value, label })),
                   ],
                 }),
-                field('climb', t('accounts.climb'), {
+                field('climb', t('climb'), {
                   type: 'select',
                   value: 'CALENDAR',
                   options: [
@@ -421,10 +417,10 @@ export function accountRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
                   ],
                 }),
               ],
-              t('accounts.start_zwift'),
+              t('start_zwift'),
               { navigation: true, primary: true },
             ),
-            makeForm('switch', '/riders/switch/', [], t('accounts.switch_rider')),
+            makeForm('switch', '/riders/switch/', [], t('switch_rider')),
           ]),
         ),
       );
@@ -512,7 +508,7 @@ export function accountRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
       );
 
       if (!user || !valid) {
-        runtime.world.lifecycle.diagnostic('auth.login_failed', t('accounts.login_rejected'), true);
+        runtime.world.lifecycle.diagnostic('auth.login_failed', t('login_rejected'), true);
         throw new HTTPException(401);
       }
     } else {
@@ -539,7 +535,7 @@ export function accountRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
         flow: 'credentials',
       });
     } else {
-      runtime.world.lifecycle.log.verbose('auth.token_exchanged', t('accounts.authentication_token_exchanged'), {
+      runtime.world.lifecycle.log.verbose('auth.token_exchanged', t('authentication_token_exchanged'), {
         playerId: user.player_id,
       });
     }
@@ -547,7 +543,7 @@ export function accountRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
     return c.json(result);
   });
 
-  app.post('/api/users', (c) => c.text(t('accounts.registration_is_not_available'), 403));
+  app.post('/api/users', (c) => c.text(t('registration_unavailable'), 403));
   app.post('/api/users/password-reset/', async (c) => {
     const user = authenticated(c);
 

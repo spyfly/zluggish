@@ -29,7 +29,7 @@ const document = Effect.fn('game.document')(function* (props: GamePageModel, ren
   const entry = manifest['src/game/client.ts'];
 
   if (!entry) {
-    throw new Error(t('render.build_the_game_app_with_pnpm_build_web_first'));
+    throw new Error(t('game_render_game_build_missing'));
   }
 
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">${rendered.head}${(entry.css ?? []).map((file) => `<link rel="stylesheet" href="/static/launcher-ui/${file}">`).join('')}</head><body><div id="launcher-ui">${rendered.body}</div><script type="application/json" id="launcher-props">${serialize(props)}</script><script type="module" src="/static/launcher-ui/${entry.file}"></script></body></html>`;
@@ -47,14 +47,14 @@ export const gamePage = Effect.fn('game.page')(function* (c: Context, page: Game
     tls.mode() === 'legacy'
       ? {
           ...shown,
-          warning: t('render.this_server_uses_the_shared_zwift_certificate_whose_private'),
+          warning: t('game_render_shared_certificate_warning'),
         }
       : shown;
 
   if (c.req.method === 'POST' && browserJson(c)) {
     const result: FormResult<GameSaved> = model.failed
-      ? { ok: false, message: model.message ?? t('render.the_form_could_not_be_saved') }
-      : { ok: true, data: { page: model }, message: model.message ?? t('render.saved') };
+      ? { ok: false, message: model.message ?? t('game_render_form_save_error') }
+      : { ok: true, data: { page: model }, message: model.message ?? t('saved') };
 
     return c.json(result, model.failed ? (model.errorStatus ?? 400) : 200);
   }

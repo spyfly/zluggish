@@ -9,10 +9,10 @@
 {#if $connection.unavailable}
   <div class="connection" role="status">
     <div>
-      <strong>{t('ConnectionBanner.server_connection_lost_retrying_in_s', { value1: $connection.retryIn })}</strong>
+      <strong>{t('connection_reconnecting', { value1: $connection.retryIn })}</strong>
     </div>
     <button type="button" disabled={$connection.checking} onclick={() => void checkConnection()}
-      >{t('ConnectionBanner.retry_now')}</button
+      >{t('retry_now')}</button
     >
   </div>
 {/if}

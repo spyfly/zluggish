@@ -88,24 +88,24 @@
   let pressedBackdrop = false;
 
   const integrations: Array<{ name: Integration; title: string }> = [
-    { name: 'strava', title: t('Connections.strava_2') },
-    { name: 'garmin', title: t('Connections.garmin_2') },
-    { name: 'intervals', title: t('Connections.intervals_icu') },
-    { name: 'trainingpeaks', title: t('Connections.trainingpeaks_2') },
+    { name: 'strava', title: t('connections_strava_title') },
+    { name: 'garmin', title: t('connections_garmin_title') },
+    { name: 'intervals', title: t('intervals_icu') },
+    { name: 'trainingpeaks', title: t('connections_trainingpeaks_title') },
   ];
 
   const fields: Record<Provider, { username: string; secret: string }> = {
-    strava: { username: t('Connections.client_id'), secret: t('Connections.client_secret') },
-    garmin: { username: t('Connections.email'), secret: t('Connections.password') },
-    intervals: { username: t('Connections.athlete_id'), secret: t('Connections.api_key') },
+    strava: { username: t('client_id'), secret: t('client_secret') },
+    garmin: { username: t('email'), secret: t('password') },
+    intervals: { username: t('athlete_id'), secret: t('api_key') },
   };
 
   /** Connected means finished rides (or workouts) actually flow, not just that something was typed in. */
   function status(name: Integration, all: Record<Provider, Connection>) {
     if (name === 'trainingpeaks') {
       return saved.bridgeFolder
-        ? { connected: true, text: t('Connections.folder_set') }
-        : { connected: false, text: t('Connections.no_folder_set') };
+        ? { connected: true, text: t('folder_set') }
+        : { connected: false, text: t('folder_unset') };
     }
 
     const connection = all[name];
@@ -122,16 +122,16 @@
     return {
       connected,
       text: connected
-        ? t('Connections.connected')
+        ? t('connected')
         : name === 'strava' && saved.stravaMethod === 'free' && connection.cookie
           ? cookieStatus === 'invalid'
-            ? t('Connections.session_expired_or_invalid')
-            : t('Connections.session_saved_not_verified')
+            ? t('session_expired_or_invalid')
+            : t('session_saved_not_verified')
           : connection.unreadable
-            ? t('Connections.credentials_unreadable_enter_them_again')
+            ? t('connections_credentials_unreadable')
             : connection.saved
-              ? t('Connections.credentials_saved')
-              : t('Connections.not_connected'),
+              ? t('credentials_saved')
+              : t('not_connected'),
     };
   }
 
@@ -147,7 +147,7 @@
       jobs = (await api(jobsResponse, '/api/me/uploads')).jobs;
     } catch (error) {
       failed = true;
-      message = error instanceof Error ? error.message : t('Connections.could_not_save_connection');
+      message = error instanceof Error ? error.message : t('connection_save_error');
     } finally {
       busy = false;
     }
@@ -181,27 +181,27 @@
       if (connection.saved) {
         items.push({
           id: 'strava/api',
-          label: t('Connections.api_application'),
-          detail: t('Connections.client_id_and_secret'),
-          effect: t('Connections.authorizing_again_needs_the_client_id_and_secret'),
+          label: t('api_application'),
+          detail: t('client_id_and_secret'),
+          effect: t('connections_strava_reauthorize_hint'),
         });
       }
 
       if (connection.authorized) {
         items.push({
           id: 'strava/authorization',
-          label: t('Connections.authorization'),
-          detail: t('Connections.access_granted_to_your_api_application'),
-          effect: t('Connections.api_uploads_stop_until_you_authorize_again'),
+          label: t('authorization'),
+          detail: t('connections_strava_api_access_hint'),
+          effect: t('connections_strava_revoke_warning'),
         });
       }
 
       if (connection.cookie) {
         items.push({
           id: 'strava/cookie',
-          label: t('Connections.session_cookie'),
-          detail: t('Connections.strava4_session'),
-          effect: t('Connections.session_cookie_uploads_stop_until_you_save_a_new'),
+          label: t('session_cookie'),
+          detail: t('strava4_session'),
+          effect: t('connections_strava_cookie_removal_warning'),
         });
       }
 
@@ -211,18 +211,18 @@
     if (connection.saved) {
       items.push({
         id: 'garmin/credentials',
-        label: t('Connections.email_and_password'),
-        detail: t('Connections.garmin_connect_sign_in'),
-        effect: t('Connections.authorizing_again_needs_your_email_and_password'),
+        label: t('email_and_password'),
+        detail: t('garmin_connect_sign_in'),
+        effect: t('connections_garmin_reauthorize_hint'),
       });
     }
 
     if (connection.authorized) {
       items.push({
         id: 'garmin/authorization',
-        label: t('Connections.authorization'),
-        detail: t('Connections.sign_in_tokens_from_garmin_connect'),
-        effect: t('Connections.garmin_uploads_stop_until_you_authorize_again'),
+        label: t('authorization'),
+        detail: t('connections_garmin_token_hint'),
+        effect: t('connections_garmin_revoke_warning'),
       });
     }
 
@@ -243,7 +243,7 @@
         code = '';
       }
 
-      message = t('Connections.removed', { value1: item.label });
+      message = t('removed', { value1: item.label });
     });
   }
 
@@ -259,7 +259,7 @@
         secret: secrets[name],
       });
       secrets[name] = '';
-      message = t('Connections.credentials_saved_2');
+      message = t('connections_credentials_saved_status');
     });
   }
 
@@ -272,7 +272,7 @@
         throw error;
       }
 
-      message = t('Connections.upload_method_saved');
+      message = t('upload_method_saved');
     });
   }
 
@@ -293,7 +293,7 @@
 
       mfa = result.status === 'mfa';
       code = '';
-      message = mfa ? t('Connections.enter_the_verification_code_from_garmin') : t('Connections.authorized');
+      message = mfa ? t('connections_garmin_verification_hint') : t('authorized');
     });
   }
 
@@ -311,7 +311,7 @@
         code = '';
       }
 
-      message = t('Connections.disconnected');
+      message = t('disconnected');
     });
   }
 
@@ -325,7 +325,7 @@
     void run(async () => {
       await api(ignored, '/api/me/uploads/retry', 'POST', { ambiguous });
       confirmUnknown = false;
-      message = t('Connections.retry_requested_check_the_provider_before_retrying_again');
+      message = t('connections_uploads_retry_notice');
     }, 'uploads');
   }
 
@@ -360,10 +360,10 @@
         open = 'strava';
 
         if (!authorizationCode) {
-          throw new Error(t('Connections.strava_authorization_canceled'));
+          throw new Error(t('strava_authorization_canceled'));
         }
         await api(ignored, '/api/me/connections/strava/authorize', 'POST', { code: authorizationCode, state });
-        message = t('Connections.strava_authorized');
+        message = t('strava_authorized');
       }
     }).then(() => {
       // Verification is not stored, so a saved session cookie is tested again whenever the page opens.
@@ -401,7 +401,7 @@
           ? 'Leave blank to keep the saved secret.'
           : undefined}
     />
-    <button disabled={busy}>{t('Connections.save_credentials')}</button>
+    <button disabled={busy}>{t('save_credentials')}</button>
   </form>
 {/snippet}
 
@@ -409,14 +409,14 @@
   <button
     class="quiet"
     disabled={busy || !(connections![name].saved || connections![name].authorized || connections![name].cookie)}
-    onclick={() => disconnect(name)}>{t('Connections.disconnect')}</button
+    onclick={() => disconnect(name)}>{t('disconnect')}</button
   >
 {/snippet}
 
 {#snippet storedList(name: 'strava' | 'garmin')}
   {@const items = stored(name, connections![name])}
   {#if items.length}
-    <h4>{t('Connections.saved_on_this_server')}</h4>
+    <h4>{t('saved_on_this_server')}</h4>
     <ul class="stored">
       {#each items as item (item.id)}
         <li>
@@ -434,18 +434,18 @@
                 removing = null;
               }}
             >
-              <p>{t('Connections.remove_the', { value1: item.label.toLowerCase(), value2: item.effect })}</p>
+              <p>{t('remove_the', { value1: item.label.toLowerCase(), value2: item.effect })}</p>
               <button
                 class="danger"
                 disabled={busy}
                 {@attach (node) => node.focus()}
-                onclick={() => removeCredential(item)}>{t('Connections.remove')}</button
+                onclick={() => removeCredential(item)}>{t('remove')}</button
               >
-              <button class="quiet" disabled={busy} onclick={() => (removing = null)}>{t('Connections.keep')}</button>
+              <button class="quiet" disabled={busy} onclick={() => (removing = null)}>{t('keep')}</button>
             </div>
           {:else}
             <button class="quiet" disabled={busy} onclick={() => (removing = item.id)}
-              >{t('Connections.remove')}<span class="visually-hidden"> {item.label.toLowerCase()}</span></button
+              >{t('remove')}<span class="visually-hidden"> {item.label.toLowerCase()}</span></button
             >
           {/if}
         </li>
@@ -455,8 +455,8 @@
 {/snippet}
 
 <section class="integrations" aria-labelledby="integrations-title">
-  <h2 id="integrations-title">{t('Connections.integrations')}</h2>
-  <p class="lead">{t('Connections.upload_rides_and_import_planned_workouts')}</p>
+  <h2 id="integrations-title">{t('integrations')}</h2>
+  <p class="lead">{t('connections_description')}</p>
   {#if message && where === 'integration' && (!open || !connections)}<p
       class="notice"
       class:failed
@@ -498,7 +498,7 @@
       </span>
       <h3 id="integration-title" class="name">{integrations.find((item) => item.name === open)!.title}</h3>
       <span class="state">{current.text}</span>
-      <button type="button" class="close" aria-label={t('Connections.close')} onclick={() => dialog?.close()}
+      <button type="button" class="close" aria-label={t('close')} onclick={() => dialog?.close()}
         ><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7 7 17" /></svg></button
       >
     </header>
@@ -508,43 +508,42 @@
         </p>{/if}
 
       {#if open === 'strava'}
-        <label for="strava-method">{t('Connections.upload_method')}</label>
+        <label for="strava-method">{t('upload_method')}</label>
         <select id="strava-method" bind:value={stravaMethod} disabled={busy} onchange={saveMethod}>
-          <option value="paid">{t('Connections.strava_api_application')}</option>
-          <option value="free">{t('Connections.browser_session_cookie')}</option>
+          <option value="paid">{t('strava_api_application')}</option>
+          <option value="free">{t('browser_session_cookie')}</option>
         </select>
         {#if stravaMethod === 'paid'}
           {@render credentials('strava')}
-          <p class="muted">{t('Connections.set_the_api_application_s_callback_domain_to_this')}</p>
+          <p class="muted">{t('connections_strava_callback_hint')}</p>
           <div class="actions">
             <button disabled={busy || !connections.strava.saved} onclick={() => authorize('strava')}
-              >{t('Connections.authorize')}</button
+              >{t('authorize')}</button
             >
             {@render disconnectButton('strava')}
           </div>
         {:else}
           <details class="cookie-help">
-            <summary>{t('Connections.how_to_get_the_cookie')}</summary>
-            <p class="muted">{t('Connections.in_chrome_or_edge')}</p>
+            <summary>{t('connections_strava_cookie_help_title')}</summary>
+            <p class="muted">{t('cookie_browser_hint')}</p>
             <ol>
               <li>
-                {t('Connections.open')}
-                <a href="https://www.strava.com" target="_blank" rel="noreferrer">{t('Connections.strava_2')}</a>
-                {t('Connections.and_sign_in')}
+                {t('open')}
+                <a href="https://www.strava.com" target="_blank" rel="noreferrer">{t('connections_strava_title')}</a>
+                {t('sign_in_hint_suffix')}
               </li>
               <li>
-                {t('Connections.open_developer_tools')}<kbd>{t('Connections.i')}</kbd>
-                {t('Connections.or')} <kbd>{t('Connections.ctrl_shift_i')}</kbd>{t('Connections.and_select')}
-                <strong>{t('Connections.application')}</strong>.
+                {t('open_developer_tools')}<kbd>{t('i')}</kbd>
+                {t('or')} <kbd>{t('ctrl_shift_i')}</kbd>{t('hosts_select_hint_suffix')}
+                <strong>{t('application')}</strong>.
               </li>
               <li>
-                {t('Connections.under')} <strong>{t('Connections.storage_cookies_https_www_strava_com')}</strong>{t(
-                  'Connections.find',
-                )} <code>{t('Connections.strava4_session')}</code>.
+                {t('under')} <strong>{t('connections_strava_cookie_location')}</strong>{t('find')}
+                <code>{t('strava4_session')}</code>.
               </li>
               <li>
-                {t('Connections.copy_its')} <strong>{t('Connections.value')}</strong>
-                {t('Connections.and_paste_it_below')}
+                {t('copy_its')} <strong>{t('value')}</strong>
+                {t('cookie_paste_hint')}
               </li>
             </ol>
           </details>
@@ -561,7 +560,7 @@
           >
             <TextField
               id="strava-cookie"
-              label={t('Connections.strava4_session')}
+              label={t('strava4_session')}
               bind:value={cookie}
               password
               required
@@ -569,9 +568,7 @@
               hint={connections.strava.cookie ? 'Saved. Paste a new one to replace it.' : 'Treat it like a password.'}
             />
             <button disabled={busy}
-              >{cookieStatus === 'checking'
-                ? t('Connections.testing_session')
-                : t('Connections.save_session_cookie')}</button
+              >{cookieStatus === 'checking' ? t('testing_session') : t('save_session_cookie')}</button
             >
           </form>
           {#if connections.strava.cookie || cookieStatus !== 'unchecked'}
@@ -584,29 +581,25 @@
             >
               {#if cookieStatus === 'valid'}
                 <span class="cookie-check" aria-hidden="true">✓</span>
-                <span><strong>{t('Connections.strava_session_verified')}</strong></span>
+                <span><strong>{t('strava_session_verified')}</strong></span>
               {:else if cookieStatus === 'checking'}
-                <span>{t('Connections.checking_your_session_with_strava')}</span>
+                <span>{t('connections_strava_session_checking')}</span>
               {:else if cookieStatus === 'invalid'}
-                <span
-                  ><strong>{t('Connections.session_expired_or_invalid')}</strong><br />{t(
-                    'Connections.save_a_fresh_cookie',
-                  )}</span
-                >
+                <span><strong>{t('session_expired_or_invalid')}</strong><br />{t('save_a_fresh_cookie')}</span>
               {:else if cookieStatus === 'error'}
                 <span
-                  ><strong>{t('Connections.couldn_t_reach_strava')}</strong><br />{t(
-                    'Connections.the_cookie_is_saved_test_again_later',
+                  ><strong>{t('couldn_t_reach_strava')}</strong><br />{t(
+                    'connections_strava_session_test_deferred',
                   )}</span
                 >
               {:else}
-                <span>{t('Connections.cookie_saved_use_test_session_to_confirm_it_works')}</span>
+                <span>{t('connections_strava_cookie_saved_notice')}</span>
               {/if}
             </div>
           {/if}
           <div class="actions">
             <button disabled={busy || !connections.strava.cookie} onclick={() => void run(testCookie)}
-              >{cookieStatus === 'checking' ? t('Connections.testing_session') : t('Connections.test_session')}</button
+              >{cookieStatus === 'checking' ? t('testing_session') : t('test_session')}</button
             >
             {@render disconnectButton('strava')}
           </div>
@@ -614,30 +607,25 @@
         {@render storedList('strava')}
       {:else if open === 'garmin'}
         {@render credentials('garmin')}
-        {#if mfa}<TextField
-            id="garmin-code"
-            label={t('Connections.verification_code')}
-            bind:value={code}
-            maxlength={32}
-          />{/if}
+        {#if mfa}<TextField id="garmin-code" label={t('verification_code')} bind:value={code} maxlength={32} />{/if}
         <div class="actions">
           <button disabled={busy || !connections.garmin.saved} onclick={() => authorize('garmin')}
-            >{mfa ? t('Connections.verify_garmin') : t('Connections.authorize')}</button
+            >{mfa ? t('verify_garmin') : t('authorize')}</button
           >
           {@render disconnectButton('garmin')}
         </div>
         {@render storedList('garmin')}
       {:else if open === 'intervals'}
-        <p class="muted">{t('Connections.find_the_athlete_id_and_api_key_under_developer')}</p>
+        <p class="muted">{t('connections_intervals_credentials_hint')}</p>
         {@render credentials('intervals')}
         <div class="actions">
           <button disabled={busy || !connections.intervals.saved} onclick={() => sync('intervals')}
-            >{t('Connections.sync_workouts')}</button
+            >{t('sync_workouts')}</button
           >
           {@render disconnectButton('intervals')}
         </div>
       {:else}
-        <p class="muted">{t('Connections.the_server_folder_holding_zwo_files_exported_from_trainingpeaks')}</p>
+        <p class="muted">{t('connections_trainingpeaks_folder_hint')}</p>
         <form
           onsubmit={(event) => {
             event.preventDefault();
@@ -647,17 +635,12 @@
             });
           }}
         >
-          <TextField
-            id="bridge-folder"
-            label={t('Connections.export_folder')}
-            bind:value={bridgeFolder}
-            maxlength={500}
-          />
-          <button disabled={busy}>{t('Connections.save_folder')}</button>
+          <TextField id="bridge-folder" label={t('export_folder')} bind:value={bridgeFolder} maxlength={500} />
+          <button disabled={busy}>{t('save_folder')}</button>
         </form>
         <div class="actions">
           <button disabled={busy || !saved.bridgeFolder} onclick={() => sync('trainingpeaks')}
-            >{t('Connections.import_workouts')}</button
+            >{t('import_workouts')}</button
           >
         </div>
       {/if}
@@ -667,30 +650,30 @@
 
 {#if connections}
   <section class="detail uploads" aria-labelledby="uploads-title">
-    <h2 id="uploads-title">{t('Connections.activity_uploads')}</h2>
+    <h2 id="uploads-title">{t('activity_uploads')}</h2>
     {#if message && where === 'uploads'}<p class="notice" class:failed role={failed ? 'alert' : 'status'}>
         {message}
       </p>{/if}
     {#if jobs.length}
       <ul>
         {#each jobs as job (`${job.activity_id}-${job.provider}`)}<li>
-            {t('Connections.activity', { value1: job.activity_id, value2: job.provider, value3: job.state })}
+            {t('activity', { value1: job.activity_id, value2: job.provider, value3: job.state })}
           </li>{/each}
       </ul>
     {:else}
-      <p class="muted">{t('Connections.no_activity_uploads_yet')}</p>
+      <p class="muted">{t('activity_uploads_empty')}</p>
     {/if}
     <button disabled={busy || !jobs.some((job) => job.state === 'failed')} onclick={() => retry(false)}
-      >{t('Connections.retry_failed_uploads')}</button
+      >{t('retry_failed_uploads')}</button
     >
     {#if jobs.some((job) => job.state === 'ambiguous')}
-      <p class="muted">{t('Connections.some_uploads_got_no_reply_retrying_may_create_duplicates')}</p>
+      <p class="muted">{t('connections_uploads_unknown_result_warning')}</p>
       <label class="check"
         ><input type="checkbox" bind:checked={confirmUnknown} />
-        {t('Connections.i_checked_the_provider_and_want_to_upload_them')}</label
+        {t('connections_uploads_retry_confirmation')}</label
       >
       <button disabled={busy || !confirmUnknown} onclick={() => retry(true)}
-        >{t('Connections.retry_uploads_with_an_unknown_result')}</button
+        >{t('connections_uploads_retry_action')}</button
       >
     {/if}
   </section>

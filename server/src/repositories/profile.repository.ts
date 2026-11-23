@@ -103,7 +103,7 @@ export class Profiles {
     const user = this.accounts.get(id);
 
     if (!user) {
-      throw new Error(t('profile_repository.unknown_rider'));
+      throw new Error(t('unknown_rider'));
     }
 
     return create(PlayerProfileSchema, {

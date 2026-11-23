@@ -131,14 +131,14 @@ const make = Effect.gen(function* () {
     if (mode === 'legacy') {
       throw new ApplicationError({
         status: 409,
-        message: t('companion_service.replace_the_shared_zwift_certificate_before_building_the_companion'),
+        message: t('companion_shared_certificate_blocked'),
       });
     }
 
     if (!material) {
       throw new ApplicationError({
         status: 409,
-        message: t('companion_service.the_server_certificate_is_not_ready_restart_the_server'),
+        message: t('companion_certificate_unavailable'),
       });
     }
 
@@ -146,7 +146,7 @@ const make = Effect.gen(function* () {
     if (!pem) {
       throw new ApplicationError({
         status: 409,
-        message: t('companion_service.the_server_certificate_contains_no_pem_certificate'),
+        message: t('companion_certificate_pem_missing'),
       });
     }
 
@@ -213,12 +213,12 @@ const make = Effect.gen(function* () {
     if (activity?.state === 'running') {
       throw new ApplicationError({
         status: 409,
-        message: t('companion_service.wait_for_the_current_companion_job_to_finish'),
+        message: t('companion_job_busy'),
       });
     }
     const step = steps[0];
     if (!step) {
-      throw new Error(t('companion_service.a_companion_job_needs_at_least_one_step'));
+      throw new Error(t('companion_job_steps_required'));
     }
     abort = new AbortController();
     activity = {
@@ -273,7 +273,7 @@ const make = Effect.gen(function* () {
     const trusted = await apk.trustedCertificates(output);
 
     if (trusted.length === 0) {
-      throw new Error(t('companion_service.the_rebuilt_app_does_not_hold_the_server_certificate'));
+      throw new Error(t('companion_build_certificate_verification_failed'));
     }
 
     return output;
@@ -310,7 +310,7 @@ const make = Effect.gen(function* () {
     const upload = await apk.inspect(path);
 
     if (upload.kind === 'unknown') {
-      throw new ApplicationError({ status: 400, message: t('companion_service.this_is_not_an_apk_apks_xapk_or_apkm') });
+      throw new ApplicationError({ status: 400, message: t('companion_file_type_unsupported') });
     }
 
     if (upload.kind === 'bundle') {
@@ -321,8 +321,8 @@ const make = Effect.gen(function* () {
     if (manifest.packageName !== companionPackage) {
       throw new ApplicationError({
         status: 400,
-        message: t('companion_service.this_apk_is_not_zwift_companion', {
-          value1: manifest.packageName || t('companion_service.an_unknown_app'),
+        message: t('companion_apk_app_mismatch', {
+          value1: manifest.packageName || t('companion_unknown_app'),
           value2: companionPackage,
         }),
       });
@@ -331,7 +331,7 @@ const make = Effect.gen(function* () {
     if (manifest.minSdk < 24) {
       throw new ApplicationError({
         status: 400,
-        message: t('companion_service.this_companion_version_is_too_old_upload_a_newer'),
+        message: t('companion_version_unsupported'),
       });
     }
 
@@ -415,7 +415,7 @@ const make = Effect.gen(function* () {
       const tools = await toolchain.state();
 
       if (!tools.java || !tools.editor) {
-        throw new Error(t('companion_service.the_java_tools_are_no_longer_installed_upload_the'));
+        throw new Error(t('companion_toolchain_missing'));
       }
 
       let source = path;
@@ -430,14 +430,14 @@ const make = Effect.gen(function* () {
 
         if (merged.packageName !== companionPackage) {
           throw new Error(
-            t('companion_service.the_bundle_holds_not_zwift_companion', {
-              value1: merged.packageName || t('companion_service.an_unknown_app'),
+            t('companion_bundle_app_mismatch', {
+              value1: merged.packageName || t('companion_unknown_app'),
             }),
           );
         }
 
         if (merged.minSdk < 24) {
-          throw new Error(t('companion_service.this_companion_version_is_too_old_upload_a_newer'));
+          throw new Error(t('companion_version_unsupported'));
         }
       }
 
@@ -531,7 +531,7 @@ const make = Effect.gen(function* () {
       if (activity?.state === 'running') {
         throw new ApplicationError({
           status: 409,
-          message: t('companion_service.wait_for_the_current_companion_job_to_finish'),
+          message: t('companion_job_busy'),
         });
       }
       serverCertificate();
@@ -552,7 +552,7 @@ const make = Effect.gen(function* () {
             ? error
             : new ApplicationError({
                 status: 400,
-                message: error instanceof Error ? error.message : t('companion_service.the_upload_failed'),
+                message: error instanceof Error ? error.message : t('companion_upload_failed'),
               });
         }
       });
@@ -585,7 +585,7 @@ const make = Effect.gen(function* () {
       if (activity?.state === 'running') {
         throw new ApplicationError({
           status: 409,
-          message: t('companion_service.wait_for_the_current_companion_job_to_finish'),
+          message: t('companion_job_busy'),
         });
       }
       yield* Effect.promise(async () => {
@@ -605,7 +605,7 @@ const make = Effect.gen(function* () {
       if (activity?.state === 'running' && activity.kind !== 'toolchain') {
         throw new ApplicationError({
           status: 409,
-          message: t('companion_service.wait_for_the_current_companion_job_to_finish'),
+          message: t('companion_job_busy'),
         });
       }
       yield* Effect.promise(discardPending);
@@ -616,7 +616,7 @@ const make = Effect.gen(function* () {
       if (activity?.state === 'running') {
         throw new ApplicationError({
           status: 409,
-          message: t('companion_service.wait_for_the_current_companion_job_to_finish'),
+          message: t('companion_job_busy'),
         });
       }
       yield* Effect.promise(() => toolchain.remove());
@@ -626,7 +626,7 @@ const make = Effect.gen(function* () {
       return yield* Effect.promise(adminStatus);
     }),
     cancel: Effect.fn('CompanionService.cancel')(function* () {
-      abort?.abort(new Error(t('companion_service.stopped_by_the_administrator')));
+      abort?.abort(new Error(t('companion_cancelled_by_admin')));
 
       return yield* Effect.promise(adminStatus);
     }),

@@ -7,7 +7,7 @@ import { parentPort, workerData } from 'node:worker_threads';
 const port = parentPort;
 
 if (!port) {
-  throw new Error(t('backup_snapshot_worker.backup_snapshot_requires_a_worker_thread'));
+  throw new Error(t('backup_snapshot_worker_worker_required'));
 }
 
 const { storage, config, snapshot } = Schema.decodeUnknownSync(snapshotRequest)(workerData);

@@ -143,20 +143,20 @@ const make = Effect.gen(function* () {
       const stored = repositories.activitiesRepository.fit(activity);
 
       if (!stored || stored.player !== player) {
-        throw new ApplicationError({ status: 404, message: t('uploads_service.activity_not_found') });
+        throw new ApplicationError({ status: 404, message: t('activity_not_found') });
       }
 
       if (!stored.fit?.length || !uploadPayload(activity)) {
         throw new ApplicationError({
           status: 409,
-          message: t('uploads_service.only_a_finished_activity_with_a_fit_file_can'),
+          message: t('uploads_activity_not_uploadable'),
         });
       }
 
       if (!configured(player).includes(provider)) {
         throw new ApplicationError({
           status: 409,
-          message: t('uploads_service.connect_this_service_in_integrations_first'),
+          message: t('uploads_connection_required'),
         });
       }
       const state = repositories.uploadsRepository.get(activity, provider)?.state;
@@ -168,7 +168,7 @@ const make = Effect.gen(function* () {
       if ((state === 'sent' || state === 'ambiguous') && !again) {
         throw new ApplicationError({
           status: 409,
-          message: t('uploads_service.this_activity_may_already_be_there_confirm_to_upload'),
+          message: t('uploads_duplicate_confirmation_required'),
         });
       }
 
@@ -502,7 +502,7 @@ const make = Effect.gen(function* () {
       await fetch(`https://intervals.icu/api/v1/athlete/${athlete}/activities?${query}`, {
         method: 'POST',
         headers: {
-          Authorization: t('uploads_service.basic', { value1: Buffer.from(`API_KEY:${key}`).toString('base64') }),
+          Authorization: t('basic', { value1: Buffer.from(`API_KEY:${key}`).toString('base64') }),
         },
         body: form,
         signal: AbortSignal.timeout(30_000),

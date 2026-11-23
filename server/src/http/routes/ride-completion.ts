@@ -30,7 +30,7 @@ export function rideCompletionRoutes(app: Hono<RuntimeEnv>, runtime: HttpRuntime
         )(c.req.param());
 
         if (Option.isNone(ids)) {
-          throw new ApplicationError({ status: 400, message: t('ride_completion.invalid_ride_identity') });
+          throw new ApplicationError({ status: 400, message: t('invalid_ride_identity') });
         }
         const player = Number(ids.value.id);
         const activityId = BigInt(ids.value.activityId);
@@ -38,7 +38,7 @@ export function rideCompletionRoutes(app: Hono<RuntimeEnv>, runtime: HttpRuntime
         const permitted = yield* completion.authorize(player, activityId, bearer, bytes);
 
         if (permitted.receipt !== null && (c.req.method !== 'PUT' || c.req.query('upload-to-strava') !== 'true')) {
-          throw new ApplicationError({ status: 401, message: t('ride_completion.final_save_retry_only') });
+          throw new ApplicationError({ status: 401, message: t('final_save_retry_only') });
         }
 
         if (permitted.receipt !== null) {
@@ -46,7 +46,7 @@ export function rideCompletionRoutes(app: Hono<RuntimeEnv>, runtime: HttpRuntime
         }
 
         if (c.req.header('Source') === 'zwift-companion') {
-          throw new ApplicationError({ status: 403, message: t('ride_completion.native_ride_saves_only') });
+          throw new ApplicationError({ status: 403, message: t('native_ride_saves_only') });
         }
 
         if (c.req.method === 'DELETE') {
@@ -59,7 +59,7 @@ export function rideCompletionRoutes(app: Hono<RuntimeEnv>, runtime: HttpRuntime
         const activity = parseProtobuf(ActivitySchema, bytes);
 
         if (activity.playerId !== BigInt(player) || activity.id !== activityId) {
-          throw new ApplicationError({ status: 403, message: t('ride_completion.ride_identity_does_not_match') });
+          throw new ApplicationError({ status: 403, message: t('ride_completion_ride_identity_mismatch') });
         }
         const finish = c.req.query('upload-to-strava') === 'true';
         yield* activities.saveInTurn(

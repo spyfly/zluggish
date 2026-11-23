@@ -6,6 +6,6 @@ import App from './App.svelte';
 const target = document.getElementById('app');
 
 if (!target) {
-  throw new Error(t('client.the_page_has_no_app_element'));
+  throw new Error(t('app_client_missing_mount_element'));
 }
 mount(App, { target });

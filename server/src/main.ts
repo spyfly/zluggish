@@ -44,7 +44,7 @@ const { config, path: configPath } = await loadConfig(prepareContainerConfig(opt
 });
 
 if (existsSync(resolve(config.storageDir, '.config-migration.json'))) {
-  throw new ConfigError(t('main.interrupted_config_migration_resume_config_migrate_before_starting'));
+  throw new ConfigError(t('main_config_migration_incomplete'));
 }
 
 const root = packageRoot();
@@ -95,7 +95,7 @@ const serve = Effect.fn('server.start')(function* () {
       ...(config.dns.enabled ? [53] : []),
     ].includes(webConfig.port)
   ) {
-    throw new ConfigError(t('main.the_web_port_must_differ_from_every_game_listener'));
+    throw new ConfigError(t('main_web_port_conflict'));
   }
 
   const owner = yield* Effect.acquireRelease(
@@ -112,7 +112,7 @@ const serve = Effect.fn('server.start')(function* () {
   const material = tls.material();
 
   if (!material) {
-    throw new ConfigError(t('main.the_zwift_api_requires_a_tls_certificate'));
+    throw new ConfigError(t('main_tls_certificate_required'));
   }
   listener.tls = material;
 
@@ -175,11 +175,11 @@ const serve = Effect.fn('server.start')(function* () {
   yield* Effect.tryPromise({
     try: () => Promise.all(listeners.map((socket) => once(socket, 'listening'))),
     catch: (error) => {
-      log.critical('server.start_failed', t('main.required_listener_could_not_start'), {
+      log.critical('server.start_failed', t('main_listener_start_failed'), {
         error: error instanceof Error ? error : String(error),
       });
 
-      return new Error(t('main.required_listener_could_not_start'), { cause: error });
+      return new Error(t('main_listener_start_failed'), { cause: error });
     },
   });
 
@@ -281,7 +281,7 @@ async function start() {
     try {
       await resources.close();
     } catch (cleanupError) {
-      throw new AggregateError([error, cleanupError], t('main.server_startup_and_cleanup_failed'), {
+      throw new AggregateError([error, cleanupError], t('main_startup_cleanup_failed'), {
         cause: cleanupError,
       });
     }

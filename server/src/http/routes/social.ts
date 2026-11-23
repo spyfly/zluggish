@@ -78,7 +78,7 @@ export function socialRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
                 : Effect.succeed(
                     create(PlayerProfileSchema, {
                       id: BigInt(id),
-                      lastName: id > 9_000_000 && id < 10_000_000 ? t('social.bookmark') : '',
+                      lastName: id > 9_000_000 && id < 10_000_000 ? t('bookmark') : '',
                     }),
                   ),
             ),
@@ -307,8 +307,7 @@ export function socialRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
         update.payload = toBinary(SocialPlayerActionSchema, action);
 
         if (action.message.startsWith('.')) {
-          const reply =
-            runtime.world.simulation?.command(id, action.message.slice(1)) ?? t('social.simulation_is_unavailable');
+          const reply = runtime.world.simulation?.command(id, action.message.slice(1)) ?? t('simulation_unavailable');
 
           yield* socialService.sendMessage(reply, [id]);
 

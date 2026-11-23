@@ -52,7 +52,7 @@ export function withBackupDirectory<T>(input: string, use: (directory: string) =
     const entries = readdirSync(stage, { recursive: true, withFileTypes: true });
 
     if (entries.some((entry) => !entry.isFile() && !entry.isDirectory())) {
-      throw new ConfigError(t('backup_archive.the_backup_archive_contains_an_unsupported_file_type'));
+      throw new ConfigError(t('backup_archive_file_type_unsupported'));
     }
 
     return use(stage);

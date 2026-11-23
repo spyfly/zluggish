@@ -91,7 +91,7 @@ async function snapshotDatabase(source: string, target: string, signal?: AbortSi
       : null;
 
     if (current && version !== SCHEMA_VERSION) {
-      throw new ConfigError(t('backup.start_the_server_once_to_upgrade_storage_first'));
+      throw new ConfigError(t('backup_storage_upgrade_required'));
     }
 
     signal?.throwIfAborted();
@@ -163,7 +163,7 @@ function requireSafeBackupOutput(storage: string, output: string) {
   }
 
   if (!isAbsolute(location) && location !== '..' && !location.startsWith(`..${sep}`)) {
-    throw new ConfigError(t('backup.choose_a_backup_destination_outside_storage_or_inside_its'));
+    throw new ConfigError(t('backup_destination_invalid'));
   }
 }
 
@@ -193,7 +193,7 @@ async function writeSnapshot(
   const entries = await readdir(output);
 
   if (entries.length > 0) {
-    throw new ConfigError(t('backup.the_backup_directory_is_not_empty'));
+    throw new ConfigError(t('backup_destination_not_empty'));
   }
 
   // A null prototype keeps file names such as __proto__ ordinary keys; Object.create returns any.
@@ -299,7 +299,7 @@ export async function backupStorageArchive(storage: string, output: string, conf
   await mkdir(directory, { recursive: true, mode: 0o700 });
 
   if (existsSync(output)) {
-    throw new ConfigError(t('backup.the_backup_already_exists'));
+    throw new ConfigError(t('backup_exists'));
   }
   const stage = await mkdtemp(resolve(directory, '.backup-'));
 
@@ -345,12 +345,12 @@ function validateBackup(input: string) {
   const path = resolve(input, backupManifest);
 
   if (!existsSync(path)) {
-    throw new ConfigError(t('backup.the_backup_has_no_manifest'));
+    throw new ConfigError(t('backup_manifest_missing'));
   }
   const manifest = Schema.decodeUnknownSync(manifestSchema)(JSON.parse(readFileSync(path, 'utf8')));
 
   if (manifest.config && (basename(manifest.config) !== manifest.config || manifest.config === '..')) {
-    throw new ConfigError(t('backup.the_backup_manifest_contains_an_invalid_config_filename'));
+    throw new ConfigError(t('backup_manifest_config_name_invalid'));
   }
 
   for (const [name, checksum] of Object.entries(manifest.checksums)) {
@@ -358,29 +358,29 @@ function validateBackup(input: string) {
     const location = relative(input, file);
 
     if (isAbsolute(location) || location === '' || location === '..' || location.startsWith(`..${sep}`)) {
-      throw new ConfigError(t('backup.the_backup_manifest_contains_a_path_outside_the_backup'));
+      throw new ConfigError(t('backup_manifest_path_unsafe'));
     }
 
     if (!existsSync(file) || crypto.sha256File(file) !== checksum) {
-      throw new ConfigError(t('backup.the_backup_file_is_missing_or_changed', { value1: name }));
+      throw new ConfigError(t('backup_file_changed', { value1: name }));
     }
   }
 
   if (manifest.schemaVersion > SCHEMA_VERSION) {
-    throw new ConfigError(t('backup.the_backup_is_newer_than_this_release'));
+    throw new ConfigError(t('backup_version_unsupported'));
   }
   const db = new DatabaseSync(resolve(input, StorageFile.Database), { readOnly: true });
 
   try {
     if (db.prepare('PRAGMA integrity_check').get()?.integrity_check !== 'ok') {
-      throw new ConfigError(t('backup.the_backup_database_failed_its_integrity_check'));
+      throw new ConfigError(t('backup_integrity_check_failed'));
     }
 
     if (
       db.prepare('SELECT 1 FROM rider_document WHERE encrypted=1 LIMIT 1').get() &&
       !existsSync(resolve(input, StorageFile.CredentialsKey))
     ) {
-      throw new ConfigError(t('backup.the_backup_has_encrypted_credentials_but_no_credentials_key'));
+      throw new ConfigError(t('backup_credentials_key_missing'));
     }
   } finally {
     db.close();
@@ -406,7 +406,7 @@ function closeCurrent(storage: string) {
     );
 
     if (result.busy !== 0) {
-      throw new ConfigError(t('backup.the_database_is_busy_stop_the_server_before_a'));
+      throw new ConfigError(t('backup_database_busy'));
     }
     db.exec('PRAGMA journal_mode=DELETE');
   } finally {
@@ -414,7 +414,7 @@ function closeCurrent(storage: string) {
   }
 
   if (existsSync(`${path}-wal`) && statSync(`${path}-wal`).size > 0) {
-    throw new ConfigError(t('backup.the_current_database_still_has_wal_changes_stop_the'));
+    throw new ConfigError(t('backup_database_wal_pending'));
   }
 
   rmSync(`${path}-wal`, { force: true });

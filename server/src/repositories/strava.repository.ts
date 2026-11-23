@@ -34,7 +34,7 @@ async function oauth(form: Record<string, string>) {
   });
 
   if (!response.ok) {
-    throw new Error(t('strava_repository.strava_oauth_failed', { value1: response.status }));
+    throw new Error(t('strava_oauth_failed', { value1: response.status }));
   }
 
   return Schema.decodeUnknownSync(tokenResponse)(await response.json());
@@ -81,7 +81,7 @@ async function uploadPhoto(session: CookieSession, token: string, athlete: numbe
   });
 
   if (!metadata.ok) {
-    throw new Error(t('strava_repository.photo_metadata_failed'));
+    throw new Error(t('photo_metadata_failed'));
   }
 
   const target = Schema.decodeUnknownSync(
@@ -96,7 +96,7 @@ async function uploadPhoto(session: CookieSession, token: string, athlete: numbe
   });
 
   if (!stored.ok) {
-    throw new Error(t('strava_repository.photo_upload_failed'));
+    throw new Error(t('photo_upload_failed'));
   }
 
   return { uid, kind };
@@ -106,7 +106,7 @@ async function updateActivity(session: CookieSession, id: string, name: string, 
   const edit = await session.request(`${site}/activities/${id}/edit`);
 
   if (!edit.ok) {
-    throw new Error(t('strava_repository.unable_to_get_activity_edit_page'));
+    throw new Error(t('strava_edit_page_fetch_failed'));
   }
   const text = await edit.text();
   const token = /name="authenticity_token" value="([^"]+)"/.exec(text)?.[1];
@@ -114,7 +114,7 @@ async function updateActivity(session: CookieSession, id: string, name: string, 
   const form = /<form class="edit_activity"[\s\S]*?<\/form>/.exec(text)?.[0];
 
   if (token === undefined || athlete === undefined || form === undefined) {
-    throw new Error(t('strava_repository.cannot_parse_the_strava_edit_page'));
+    throw new Error(t('strava_edit_page_parse_failed'));
   }
 
   const data = new StravaRepository().parseForm(form);
@@ -148,7 +148,7 @@ async function updateActivity(session: CookieSession, id: string, name: string, 
   });
 
   if (!saved.ok) {
-    throw new Error(t('strava_repository.failed_to_save_activity'));
+    throw new Error(t('failed_to_save_activity'));
   }
 }
 
@@ -172,14 +172,14 @@ async function waitReady(session: CookieSession, upload: string, delay = 1000) {
     }
 
     if (item?.workflow === 'error' || item?.workflow === 'empty') {
-      throw new Error(t('strava_repository.upload_failed', { value1: item.workflow }));
+      throw new Error(t('upload_failed', { value1: item.workflow }));
     }
     await new Promise((done) => {
       setTimeout(done, delay);
     });
   }
 
-  throw new Error(t('strava_repository.upload_timed_out'));
+  throw new Error(t('upload_timed_out'));
 }
 
 export class StravaRepository {
@@ -267,7 +267,7 @@ export class StravaRepository {
 
     const response = await fetch(`${site}/api/v3/uploads`, {
       method: 'POST',
-      headers: { Authorization: t('strava_repository.bearer', { value1: token.access }) },
+      headers: { Authorization: t('strava_bearer', { value1: token.access }) },
       body: form,
       signal: AbortSignal.timeout(60_000),
     });
@@ -280,7 +280,7 @@ export class StravaRepository {
     if (refused(response.status)) {
       throw new DeliveryRefusedError({ code: `strava_${response.status}` });
     }
-    throw new Error(t('strava_repository.strava_upload_failed', { value1: response.status }));
+    throw new Error(t('strava_upload_failed', { value1: response.status }));
   }
 
   async checkSession(cookie: string, save?: (cookie: string) => void) {
@@ -415,7 +415,7 @@ export class StravaRepository {
     const body = await response.text();
 
     if (!body.includes('workflow')) {
-      throw new Error(t('strava_repository.strava_rejected_the_upload'));
+      throw new Error(t('strava_upload_rejected'));
     }
 
     for (const upload of Schema.decodeUnknownSync(progress)(JSON.parse(body))) {
@@ -426,7 +426,7 @@ export class StravaRepository {
       const id = item.activity?.id ?? item.id;
 
       if (id === undefined) {
-        throw new Error(t('strava_repository.no_activity_id_in_upload_response'));
+        throw new Error(t('strava_upload_activity_id_missing'));
       }
       await updateActivity(session, String(id), name, photos);
     }

@@ -42,7 +42,7 @@ export class WorkoutPublication {
       for (const entry of journal.files) {
         const path = resolve(this.storage, entry.path);
         if (relative(this.storage, path).startsWith('..') || path === resolve(this.storage)) {
-          throw new Error(t('workout_publication_repository.invalid_workout_recovery_path'));
+          throw new Error(t('invalid_workout_recovery_path'));
         }
         if (entry.previous === null) {
           this.files.rmSync(path, { force: true });
@@ -67,7 +67,7 @@ export class WorkoutPublication {
       .map((path) => {
         const name = relative(this.storage, path);
         if (name.startsWith('..') || name === '') {
-          throw new Error(t('workout_publication_repository.invalid_workout_publication_path'));
+          throw new Error(t('invalid_workout_publication_path'));
         }
         return {
           path: name,

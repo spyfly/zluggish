@@ -49,10 +49,10 @@
       `${address} launcher.zwift.com`,
     ].join('\n'),
     certificate: [
-      t('InstallPhone.adb_push_zluggish_crt', { value1: file, value2: data }),
-      t('InstallPhone.adb_shell_cat_zluggish_crt_cacert_pem', { value1: data, value2: data }),
+      t('adb_push_zluggish_crt', { value1: file, value2: data }),
+      t('phone_setup_rooted_android_append_certificate_command', { value1: data, value2: data }),
     ].join('\n'),
-    etcHosts: t('InstallPhone.us_or_rly101_zwift_com_secure_zwift_com_cdn', { value1: address }),
+    etcHosts: t('phone_setup_rooted_android_hostnames', { value1: address }),
   });
 
   /** Browsers allow the clipboard only on HTTPS or localhost; elsewhere the lines are there to select. */
@@ -79,8 +79,7 @@
           zwift = body;
         })
         .catch((error: unknown) => {
-          zwiftFailure =
-            error instanceof Error ? error.message : t('InstallPhone.zwift_for_android_could_not_be_loaded');
+          zwiftFailure = error instanceof Error ? error.message : t('phone_setup_load_error');
         });
     }
   });
@@ -89,7 +88,7 @@
     try {
       status = await api(tlsStatus, '/api/tls');
     } catch (error) {
-      failure = error instanceof Error ? error.message : t('InstallPhone.the_certificate_could_not_be_loaded');
+      failure = error instanceof Error ? error.message : t('phone_setup_certificate_load_error');
     }
   });
 </script>
@@ -99,7 +98,7 @@
     <code>{blocks[key]}</code>
     {#if canCopy}
       <button type="button" class="copy" onclick={() => copy(key)} aria-live="polite"
-        >{copied === key ? t('InstallPhone.copied') : t('InstallPhone.copy')}</button
+        >{copied === key ? t('copied') : t('copy')}</button
       >
     {/if}
   </div>
@@ -107,7 +106,7 @@
 
 {#snippet manageLink()}
   <a href="/manage/zwift-android" onclick={(event) => go(event, '/manage/zwift-android')}
-    >{t('InstallPhone.manage_zwift_for_android')}</a
+    >{t('manage_zwift_for_android')}</a
   >
 {/snippet}
 
@@ -115,131 +114,131 @@
 
 {#if platform === 'ios'}
   <section class="panel" aria-labelledby="install-ios">
-    <h2 id="install-ios">{t('InstallPhone.not_supported_on_iphone_and_ipad')}</h2>
-    <p class="lead">{t('InstallPhone.ios_does_not_allow_a_patched_zwift_ride_from')}</p>
+    <h2 id="install-ios">{t('phone_setup_ios_unsupported')}</h2>
+    <p class="lead">{t('phone_setup_ios_description')}</p>
   </section>
 {:else if status === null}
-  {#if !failure}<p role="status">{t('InstallPhone.loading')}</p>{/if}
+  {#if !failure}<p role="status">{t('loading')}</p>{/if}
 {:else if status.mode === 'legacy'}
   <section class="panel">
-    <p>{t('InstallPhone.ask_the_server_administrator_to_replace_the_shared_certificate')}</p>
+    <p>{t('phone_setup_certificate_shared_hint')}</p>
   </section>
 {:else if platform === 'android'}
-  <section class="panel" aria-label={t('InstallPhone.android_setup_steps')}>
+  <section class="panel" aria-label={t('android_setup_steps')}>
     {#if zwift?.app && !zwift.app.current}
       <p class="risk" role="status">
-        {t('InstallPhone.this_app_was_built_for_an_old_certificate_and')}
-        {#if administrator}{t('InstallPhone.build_it_again_under')} {@render manageLink()}.{:else}{t(
-            'InstallPhone.ask_the_server_administrator_to_rebuild_it',
+        {t('phone_setup_app_stale_certificate_warning')}
+        {#if administrator}{t('build_it_again_under')} {@render manageLink()}.{:else}{t(
+            'phone_setup_app_rebuild_hint',
           )}{/if}
       </p>
     {/if}
 
     <ol class="walk">
       <li>
-        <h2>{t('InstallPhone.download_zwift_for_zluggish')}</h2>
+        <h2>{t('download_zwift_for_zluggish')}</h2>
         {#if zwiftFailure}
           <p class="notice failed" role="alert">{zwiftFailure}</p>
         {:else if zwift === null}
-          <p role="status">{t('InstallPhone.loading')}</p>
+          <p role="status">{t('loading')}</p>
         {:else if zwift.app?.current}
           <p>
-            {t('InstallPhone.installs_next_to_zwift_from_google_play')}
-            {#if !onAndroid}{t('InstallPhone.download_it_on_the_android_device')}{/if}
+            {t('phone_setup_app_coexistence_hint')}
+            {#if !onAndroid}{t('phone_setup_app_download_hint')}{/if}
           </p>
           <a class="download" href="/api/install/android/app" download
-            >{t('InstallPhone.download_zwift', { value1: zwift.app.versionName })}</a
+            >{t('download_zwift', { value1: zwift.app.versionName })}</a
           >
           <p class="hint">
-            {t('InstallPhone.built_needs_twice_that_space_free', {
+            {t('phone_setup_app_disk_space_hint', {
               value1: megabytes(zwift.app.bytes),
               value2: day(zwift.app.createdAt),
             })}
           </p>
         {:else if !zwift.app}
           <p class="empty">
-            {t('InstallPhone.this_server_does_not_have_zwift_for_android_yet')}
-            {#if administrator}{t('InstallPhone.set_it_up_under')} {@render manageLink()}.{:else}{t(
-                'InstallPhone.the_server_administrator_needs_to_set_it_up_first',
+            {t('phone_setup_app_unavailable')}
+            {#if administrator}{t('set_it_up_under')} {@render manageLink()}.{:else}{t(
+                'phone_setup_app_unavailable_hint',
               )}{/if}
           </p>
         {/if}
       </li>
       <li>
-        <h2>{t('InstallPhone.install_it')}</h2>
+        <h2>{t('install_it')}</h2>
         <p>
-          {t('InstallPhone.open_the_downloaded_file_allow_your_browser_to_install')}
-          <strong>{t('InstallPhone.install')}</strong>.
+          {t('phone_setup_install_open_file_hint')}
+          <strong>{t('install')}</strong>.
         </p>
         <p class="hint">
-          {t('InstallPhone.if_play_protect_warns_select')} <strong>{t('InstallPhone.install_anyway')}</strong>.
+          {t('phone_setup_install_play_protect_hint_prefix')} <strong>{t('install_anyway')}</strong>.
         </p>
       </li>
       <li>
-        <h2>{t('InstallPhone.send_zwift_to_this_server')}</h2>
+        <h2>{t('phone_setup_description')}</h2>
         <p>
-          {t('InstallPhone.install')}
+          {t('install')}
           <a href="https://github.com/x-falcon/Virtual-Hosts/releases/latest" target="_blank" rel="noopener noreferrer"
-            >{t('InstallPhone.virtual_hosts')}</a
-          >{t('InstallPhone.save_these_lines_as')} <strong>{t('InstallPhone.hosts_txt')}</strong>
-          {t('InstallPhone.and_select_the_file_in_virtual_hosts')}
+            >{t('virtual_hosts')}</a
+          >{t('save_these_lines_as')} <strong>{t('hosts_txt')}</strong>
+          {t('phone_setup_hosts_select_file_suffix')}
         </p>
         {@render code('hosts')}
         <p class="hint">
-          {t('InstallPhone.turn_off')} <strong>{t('InstallPhone.private_dns')}</strong>
-          {t('InstallPhone.in_android_settings')}
+          {t('turn_off')} <strong>{t('private_dns')}</strong>
+          {t('android_settings_hint')}
         </p>
       </li>
       <li>
-        <h2>{t('InstallPhone.ride')}</h2>
+        <h2>{t('phone_setup_ride')}</h2>
         <p>
-          {t('InstallPhone.turn_on_virtual_hosts_open')} <strong>{t('InstallPhone.zwift_for_zluggish')}</strong>
-          {t('InstallPhone.and_sign_in_with_your_zluggish_account')}
+          {t('phone_setup_hosts_enable_hint')} <strong>{t('zwift_for_zluggish')}</strong>
+          {t('phone_setup_install_sign_in_hint')}
         </p>
-        <p class="hint">{t('InstallPhone.the_first_start_takes_a_few_minutes_turn_virtual')}</p>
+        <p class="hint">{t('phone_setup_install_first_launch_hint')}</p>
       </li>
     </ol>
   </section>
 {:else if status.certificate}
-  <section class="panel" aria-label={t('InstallPhone.rooted_android_setup_steps')}>
+  <section class="panel" aria-label={t('rooted_android_setup_steps')}>
     <ol class="walk">
       <li>
-        <h2>{t('InstallPhone.start_zwift_once')}</h2>
-        <p>{t('InstallPhone.install_zwift_start_it_once_so_it_creates_cacert')}</p>
+        <h2>{t('start_zwift_once')}</h2>
+        <p>{t('phone_setup_rooted_android_initialize_hint')}</p>
       </li>
       <li>
-        <h2>{t('InstallPhone.add_the_certificate')}</h2>
+        <h2>{t('certificate_install_title')}</h2>
         <p>
-          {t('InstallPhone.append_the_certificate_to')}
-          <strong class="path">{t('InstallPhone.cacert_pem', { value1: data })}</strong>{t('InstallPhone.with')}
-          <code class="inline">{t('InstallPhone.adb')}</code>
-          {t('InstallPhone.as_root')}
+          {t('certificate_append_hint')}
+          <strong class="path">{t('cacert_pem', { value1: data })}</strong>{t('with')}
+          <code class="inline">{t('adb')}</code>
+          {t('as_root')}
         </p>
-        <a class="download" href="/api/tls/certificate" download>{t('InstallPhone.download_certificate')}</a>
+        <a class="download" href="/api/tls/certificate" download>{t('download_certificate')}</a>
         {@render code('certificate')}
-        <p class="hint">{t('InstallPhone.keep_the_file_s_owner_and_permissions')}</p>
+        <p class="hint">{t('phone_setup_rooted_android_permissions_hint')}</p>
       </li>
       <li>
-        <h2>{t('InstallPhone.send_zwift_to_this_server')}</h2>
-        <p>{t('InstallPhone.append_this_line_to')} <strong>{t('InstallPhone.etc_hosts')}</strong>:</p>
+        <h2>{t('phone_setup_description')}</h2>
+        <p>{t('append_this_line_to')} <strong>{t('etc_hosts')}</strong>:</p>
         {@render code('etcHosts')}
         <p class="hint">
-          {t('InstallPhone.or_edit_it_on_a_computer_with')}
-          <code class="inline">{t('InstallPhone.adb_pull_etc_hosts')}</code>
-          {t('InstallPhone.and')} <code class="inline">{t('InstallPhone.adb_push_hosts_etc_hosts')}</code>.
+          {t('phone_setup_rooted_android_edit_hosts_hint')}
+          <code class="inline">{t('adb_pull_etc_hosts')}</code>
+          {t('and')} <code class="inline">{t('phone_setup_rooted_android_push_hosts_command')}</code>.
         </p>
       </li>
       <li>
-        <h2>{t('InstallPhone.ride')}</h2>
-        <p>{t('InstallPhone.start_zwift_and_sign_in_with_your_zluggish_account')}</p>
+        <h2>{t('phone_setup_ride')}</h2>
+        <p>{t('phone_setup_rooted_android_launch_hint')}</p>
       </li>
     </ol>
   </section>
 
   <section class="panel" aria-labelledby="install-rooted-certificate">
-    <h2 id="install-rooted-certificate">{t('InstallPhone.check_the_certificate')}</h2>
+    <h2 id="install-rooted-certificate">{t('certificate_verify_title')}</h2>
     <div class="prints">
-      <Fingerprint label={t('InstallPhone.fingerprint')} value={status.certificate.fingerprint256} />
+      <Fingerprint label={t('fingerprint')} value={status.certificate.fingerprint256} />
     </div>
   </section>
 {/if}

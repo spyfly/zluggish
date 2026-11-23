@@ -24,7 +24,7 @@ export function packageRoot(): string {
     current = dirname(current);
   }
 
-  throw new ConfigError(t('load.cannot_locate_server_package'));
+  throw new ConfigError(t('config_load_server_package_not_found'));
 }
 
 let version: string | undefined;
@@ -45,14 +45,14 @@ export function supportedZwiftVersion(): string {
     'utf8',
   );
 
-  return /sversion="([^"]+)"/.exec(manifest)?.[1] ?? t('load.unknown');
+  return /sversion="([^"]+)"/.exec(manifest)?.[1] ?? t('unknown');
 }
 
 export function selectConfigPath(path?: string, env = process.env): string {
   const selected = resolve(path ?? env.ZLUGGISH_CONFIG ?? resolve(packageRoot(), CONFIG_NAME));
 
   if (basename(selected) !== CONFIG_NAME) {
-    throw new ConfigError(t('load.configuration_must_be_named', { value1: CONFIG_NAME }));
+    throw new ConfigError(t('config_load_config_name_required', { value1: CONFIG_NAME }));
   }
 
   return selected;
@@ -104,7 +104,7 @@ function loadError(cause: unknown): LoadError {
     Predicate.hasProperty(cause, key) && Predicate.isString(cause[key]) ? cause[key] : undefined;
 
   return {
-    name: field('name') ?? t('load.error'),
+    name: field('name') ?? t('error'),
     code: field('code'),
     message: field('message') ?? '',
     stack: field('stack') ?? '',
@@ -118,21 +118,24 @@ function describeLoadError({ name, code, message, stack }: LoadError, path: stri
   const normalizedStack = stack.replaceAll('\\', '/');
   const escaped = normalizedPath.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
   const position = new RegExp(String.raw`${escaped}:(\d+):(\d+)`).exec(`${normalizedMessage}\n${normalizedStack}`);
-  const where = position ? t('load.at_line_column', { value1: position[1], value2: position[2] }) : '';
+  const where = position ? t('config_error_position', { value1: position[1], value2: position[2] }) : '';
   const missing = /Cannot find (?:module|package) '([^']+)'/.exec(message)?.[1];
 
   if (code === 'MODULE_NOT_FOUND' || code === 'ERR_MODULE_NOT_FOUND') {
-    return t('load.cannot_find_the_import', { value1: missing ? `'${missing}'` : t('load.it_names'), value2: where });
+    return t('config_load_import_not_found', {
+      value1: missing ? `'${missing}'` : t('config_load_resolved_path'),
+      value2: where,
+    });
   }
   const parse = /^ParseError: (?:[A-Z]:[\\/]: )?([^\n]+)/.exec(message)?.[1]?.trim();
 
   if (parse) {
-    return t('load.syntax_error', { value1: where, value2: parse });
+    return t('syntax_error', { value1: where, value2: parse });
   }
   const undefinedName = name === 'ReferenceError' ? /^(\S+) is not defined$/.exec(message)?.[1] : undefined;
 
   if (undefinedName) {
-    return t('load.is_not_defined', { value1: undefinedName, value2: where });
+    return t('config_load_undefined_identifier', { value1: undefinedName, value2: where });
   }
 
   const frame = stack
@@ -152,7 +155,7 @@ export async function loadConfig(options: LoadOptions = {}): Promise<LoadedConfi
   const path = selectConfigPath(options.path, env);
 
   if (!existsSync(path)) {
-    throw new ConfigError(t('load.missing_run_config_init_or_config_migrate', { value1: path }));
+    throw new ConfigError(t('config_load_config_missing', { value1: path }));
   }
   const extension = import.meta.url.endsWith('.ts') ? 'ts' : 'js';
 
@@ -178,7 +181,7 @@ export async function loadConfig(options: LoadOptions = {}): Promise<LoadedConfi
       : value;
 
     if (Predicate.isPromise(evaluated)) {
-      throw new ConfigError(t('load.async_configuration_is_not_supported'));
+      throw new ConfigError(t('config_load_async_config_unsupported'));
     }
     const parsed = decodeConfigInput(evaluated);
 
@@ -192,7 +195,7 @@ export async function loadConfig(options: LoadOptions = {}): Promise<LoadedConfi
     }
 
     throw new ConfigError(
-      t('load.cannot_evaluate', { value1: path, value2: describeLoadError(loadError(error), path) }),
+      t('config_evaluation_error', { value1: path, value2: describeLoadError(loadError(error), path) }),
     );
   }
 
@@ -246,7 +249,7 @@ export async function loadConfig(options: LoadOptions = {}): Promise<LoadedConfi
 
     try {
       if (!statSync(resource).isFile()) {
-        throw new ConfigError(t('load.expected_a_readable_regular_file', { value1: field }));
+        throw new ConfigError(t('config_load_file_unreadable', { value1: field }));
       }
       accessSync(resource, constants.R_OK);
     } catch (error) {
@@ -254,12 +257,12 @@ export async function loadConfig(options: LoadOptions = {}): Promise<LoadedConfi
         throw error;
       }
 
-      throw new ConfigError(t('load.referenced_file_missing_or_unreadable', { value1: field }));
+      throw new ConfigError(t('config_load_referenced_file_unreadable', { value1: field }));
     }
   }
 
   if (existsSync(resolved.storageDir) && !statSync(resolved.storageDir).isDirectory()) {
-    throw new ConfigError(t('load.storagedir_expected_a_directory'));
+    throw new ConfigError(t('config_load_storage_directory_invalid'));
   }
 
   if (resolved.tls.certFile && resolved.tls.keyFile) {
@@ -269,7 +272,7 @@ export async function loadConfig(options: LoadOptions = {}): Promise<LoadedConfi
         key: readFileSync(resolved.tls.keyFile),
       });
     } catch {
-      throw new ConfigError(t('load.tls_invalid_certificate_or_private_key'));
+      throw new ConfigError(t('config_load_tls_key_pair_invalid'));
     }
   }
 

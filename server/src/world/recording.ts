@@ -77,7 +77,7 @@ export class Recording {
     const size = this.sizes[index];
 
     if (offset === undefined || size === undefined) {
-      throw new RangeError(t('recording.no_state_at', { value1: index }));
+      throw new RangeError(t('recording_state_missing', { value1: index }));
     }
 
     return fromBinary(PlayerStateSchema, this.bytes.subarray(offset, offset + size));

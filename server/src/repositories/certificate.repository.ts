@@ -112,7 +112,7 @@ function subjectPublicKey(spki: Uint8Array) {
 }
 
 const certificatePem = (der: Uint8Array) =>
-  t('certificate_repository.begin_certificate_end_certificate', {
+  t('begin_certificate_end_certificate', {
     value1: (
       Buffer.from(der)
         .toString('base64')
@@ -223,9 +223,7 @@ export class CertificateRepository {
     const cert = /-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----\n?/.exec(text)?.[0];
 
     if (!key || !cert || !this.crypto.certificateMatchesKey(cert, key)) {
-      throw new Error(
-        t('certificate_repository.does_not_hold_a_matching_private_key_and_certificate', { value1: path }),
-      );
+      throw new Error(t('certificate_key_pair_mismatch', { value1: path }));
     }
 
     return { cert, key };

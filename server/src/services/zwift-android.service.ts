@@ -92,8 +92,7 @@ interface Upload {
   readonly workspace: string;
 }
 
-const message = (error: unknown) =>
-  error instanceof Error ? error.message : t('zwift_android_service.the_zwift_app_could_not_be_built');
+const message = (error: unknown) => (error instanceof Error ? error.message : t('zwift_android_build_failed'));
 
 const make = Effect.gen(function* () {
   const { config, world } = yield* RuntimeContext;
@@ -151,14 +150,14 @@ const make = Effect.gen(function* () {
     if (tls.mode() === 'legacy') {
       throw new ApplicationError({
         status: 409,
-        message: t('zwift_android_service.replace_the_shared_zwift_certificate_before_building_zwift_for'),
+        message: t('zwift_android_shared_certificate_blocked'),
       });
     }
 
     if (!pem) {
       throw new ApplicationError({
         status: 409,
-        message: t('zwift_android_service.the_server_certificate_is_not_ready_restart_the_server'),
+        message: t('zwift_android_certificate_unavailable'),
       });
     }
 
@@ -283,7 +282,7 @@ const make = Effect.gen(function* () {
     if (!idle()) {
       throw new ApplicationError({
         status: 409,
-        message: t('zwift_android_service.wait_for_the_current_zwift_upload_or_build_to'),
+        message: t('zwift_android_build_busy'),
       });
     }
   }
@@ -292,7 +291,7 @@ const make = Effect.gen(function* () {
     if (!upload || upload.owner !== owner || upload.id !== id) {
       throw new ApplicationError({
         status: 404,
-        message: t('zwift_android_service.the_upload_has_expired_or_was_cancelled'),
+        message: t('zwift_android_upload_expired'),
       });
     }
 
@@ -349,7 +348,7 @@ const make = Effect.gen(function* () {
   function begin(kind: ZwiftAndroidActivity['kind'], steps: ReadonlyArray<ZwiftAndroidStep>) {
     const [step] = steps;
     if (!step) {
-      throw new Error(t('zwift_android_service.a_zwift_build_needs_at_least_one_step'));
+      throw new Error(t('zwift_android_build_steps_required'));
     }
     abort = new AbortController();
     activity = {
@@ -421,7 +420,7 @@ const make = Effect.gen(function* () {
     const splits = resolve(directory, 'splits');
     const { base, parts } = await apk.extractZwiftApks(source, splits, versionCode, signal);
     if (base.manifest.minSdk < 26) {
-      throw new Error(t('zwift_android_service.this_zwift_version_is_too_old_upload_one_for'));
+      throw new Error(t('zwift_android_version_unsupported'));
     }
 
     const tools = await toolchain.state();
@@ -449,7 +448,7 @@ const make = Effect.gen(function* () {
     await toolchain.editor(['b', '-i', decoded, '-o', rebuilt, '-f'], options);
     const renamed = await apk.manifest(rebuilt);
     if (renamed.packageName !== standaloneZwiftPackage || renamed.versionCode !== versionCode) {
-      throw new Error(t('zwift_android_service.the_rebuilt_app_has_an_unexpected_application_id_or'));
+      throw new Error(t('zwift_android_build_identity_mismatch'));
     }
 
     const output = resolve(directory, 'signed.apk');
@@ -483,7 +482,7 @@ const make = Effect.gen(function* () {
       await build(input, directory, signal);
       finish();
     } catch (error) {
-      const reason = signal.aborted ? t('zwift_android_service.stopped_by_the_administrator') : message(error);
+      const reason = signal.aborted ? t('zwift_android_cancelled_by_admin') : message(error);
       log.warn('android.build_failed', 'Could not build Zwift for Zluggish', { error: reason });
       finish(reason);
     } finally {
@@ -498,7 +497,7 @@ const make = Effect.gen(function* () {
     if (!saved) {
       throw new ApplicationError({
         status: 404,
-        message: t('zwift_android_service.there_is_no_saved_upload_to_build_from'),
+        message: t('zwift_android_upload_missing'),
       });
     }
     requireIdle();
@@ -539,11 +538,11 @@ const make = Effect.gen(function* () {
       if (!/\.apkm$/i.test(name)) {
         throw new ApplicationError({
           status: 400,
-          message: t('zwift_android_service.choose_a_zwift_apkm_bundle_with_the_expansion_file'),
+          message: t('zwift_android_expansion_file_required'),
         });
       }
       if (!Number.isSafeInteger(size) || size < 1 || size > zwiftAndroidUploadLimit) {
-        throw new ApplicationError({ status: 400, message: t('zwift_android_service.the_file_is_larger_than_10_gb') });
+        throw new ApplicationError({ status: 400, message: t('zwift_android_upload_size_limit') });
       }
       serverCertificate();
       // The upload alone must fit; the page warns about the room the build needs on top of it.
@@ -551,7 +550,7 @@ const make = Effect.gen(function* () {
       if (free !== null && free < size) {
         throw new ApplicationError({
           status: 409,
-          message: t('zwift_android_service.the_server_has_gb_free_too_little_for_this', {
+          message: t('zwift_android_upload_disk_space_insufficient', {
             value1: Math.floor(free / 1e8) / 10,
             value2: Math.ceil(size / 1e8) / 10,
           }),
@@ -560,7 +559,7 @@ const make = Effect.gen(function* () {
       if (activity?.state === 'running' || writing) {
         throw new ApplicationError({
           status: 409,
-          message: t('zwift_android_service.wait_for_the_current_zwift_upload_or_build_to'),
+          message: t('zwift_android_build_busy'),
         });
       }
 
@@ -586,7 +585,7 @@ const make = Effect.gen(function* () {
       if (writing) {
         throw new ApplicationError({
           status: 409,
-          message: t('zwift_android_service.the_upload_cannot_be_cancelled_right_now'),
+          message: t('zwift_android_upload_cancellation_blocked'),
         });
       }
       clearTimeout(expiry);
@@ -598,7 +597,7 @@ const make = Effect.gen(function* () {
       if (!Number.isSafeInteger(offset) || offset < 0 || offset > session.offset || writing) {
         throw new ApplicationError({
           status: 409,
-          message: t('zwift_android_service.the_upload_offset_has_changed_retry_the_chunk'),
+          message: t('zwift_android_upload_offset_conflict'),
         });
       }
       if (offset < session.offset) {
@@ -611,7 +610,7 @@ const make = Effect.gen(function* () {
         const expected = Math.min(zwiftAndroidChunkSize, session.size - offset);
         const bytes = await apk.receive(body, file, expected);
         if (bytes !== expected) {
-          throw new Error(t('zwift_android_service.the_upload_chunk_is_incomplete'));
+          throw new Error(t('zwift_android_upload_chunk_incomplete'));
         }
         await apk.appendUpload(resolve(session.workspace, 'upload'), file, offset);
         session.offset += bytes;
@@ -656,7 +655,7 @@ const make = Effect.gen(function* () {
       return adminStatus();
     },
     stop() {
-      abort?.abort(new Error(t('zwift_android_service.stopped_by_the_administrator')));
+      abort?.abort(new Error(t('zwift_android_cancelled_by_admin')));
 
       return adminStatus();
     },

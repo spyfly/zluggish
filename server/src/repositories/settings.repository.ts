@@ -50,7 +50,7 @@ export class SettingsStore {
     const path = resolve(storage, 'settings.db');
 
     if (readOnly && !existsSync(path)) {
-      throw new ConfigError(t('settings_repository.no_persisted_preferences_initialize_storage_first'));
+      throw new ConfigError(t('settings_storage_uninitialized'));
     }
 
     if (!readOnly) {
@@ -65,7 +65,7 @@ export class SettingsStore {
 
     if (version > 1 || (readOnly && version !== 1)) {
       db.close();
-      throw new ConfigError(t('settings_repository.unsupported_settings_database_version'));
+      throw new ConfigError(t('unsupported_settings_database_version'));
     }
 
     if (!readOnly) {
@@ -158,7 +158,7 @@ export class SettingsStore {
     if (expected !== undefined && this.revision(playerId) !== expected) {
       throw new ApplicationError({
         status: 409,
-        message: t('settings_repository.settings_changed_review_the_new_data'),
+        message: t('settings_settings_conflict'),
       });
     }
     const candidate = decodePreference({ playerId, overrides });
@@ -193,9 +193,7 @@ export class SettingsStore {
           );
 
           if (row && JSON.stringify(this.read(preference.playerId)) !== JSON.stringify(preference.overrides)) {
-            throw new ConfigError(
-              t('settings_repository.conflicting_persisted_preferences_for_rider', { value1: preference.playerId }),
-            );
+            throw new ConfigError(t('settings_preferences_conflict', { value1: preference.playerId }));
           }
 
           this.save(preference.playerId, preference.overrides);
@@ -240,7 +238,7 @@ export class SettingsStore {
     if (expected !== undefined && this.worldRevision(id) !== expected) {
       throw new ApplicationError({
         status: 409,
-        message: t('settings_repository.settings_changed_review_the_new_data'),
+        message: t('settings_settings_conflict'),
       });
     }
     const checked = decodeRecord(value);
@@ -282,13 +280,13 @@ export class RiderRepository {
     const path = resolve(storage, 'zluggish.db');
 
     if (!existsSync(path)) {
-      throw new ConfigError(t('settings_repository.unknown_rider_initialize_accounts_before_changing_preferences'));
+      throw new ConfigError(t('settings_rider_account_missing'));
     }
     const db = new DatabaseSync(path, { readOnly: true });
 
     try {
       if (!new SqliteExecutor(db).get(query.selectFrom('user').select('player_id').where('player_id', '=', playerId))) {
-        throw new ConfigError(t('settings_repository.unknown_rider'));
+        throw new ConfigError(t('unknown_rider'));
       }
     } finally {
       db.close();

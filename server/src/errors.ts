@@ -44,6 +44,6 @@ export class JobError extends Schema.TaggedError<JobError>()('JobError', {
 
 export class FitQueueFullError extends Schema.TaggedError<FitQueueFullError>()('FitQueueFullError', {}) {
   override get message() {
-    return t('errors.fit_processing_queue_is_full');
+    return t('errors_fit_queue_full');
   }
 }

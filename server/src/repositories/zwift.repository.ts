@@ -21,7 +21,7 @@ export class ZwiftRepository {
     });
 
     if (!response.ok) {
-      throw new Error(t('zwift_repository.zwift_login_was_rejected'));
+      throw new Error(t('zwift_login_was_rejected'));
     }
 
     return Schema.decodeUnknownSync(
@@ -36,7 +36,7 @@ export class ZwiftRepository {
   }
 
   officialHeaders = (token: string) => ({
-    Authorization: t('zwift_repository.bearer', { value1: token }),
+    Authorization: t('zwift_bearer', { value1: token }),
     'User-Agent': 'Zwift/115 CFNetwork/758.0.2 Darwin/15.0.0',
     'Accept-Language': 'en-us',
   });

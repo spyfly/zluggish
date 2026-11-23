@@ -34,7 +34,7 @@ const make = Effect.gen(function* () {
     let pending = 0;
     let stopped = false;
 
-    const send = (content: string, sender = t('chat_bridge_service.server')) => {
+    const send = (content: string, sender = t('server')) => {
       if (stopped || pending >= 100) {
         return;
       }
@@ -58,7 +58,7 @@ const make = Effect.gen(function* () {
         const current = settings();
 
         if (content === '!online') {
-          send(t('chat_bridge_service.riders_online', { value1: context.world.online.size }));
+          send(t('riders_online', { value1: context.world.online.size }));
         } else if (content === '!ping') {
           send('pong');
         } else if (content === '!help' && current.helpMessage) {
@@ -77,10 +77,7 @@ const make = Effect.gen(function* () {
           return;
         }
         const profile = context.profiles.get(Number(id));
-        send(
-          joining ? t('chat_bridge_service.riding') : t('chat_bridge_service.leaving'),
-          `${profile.firstName} ${profile.lastName}`,
-        );
+        send(joining ? t('riding') : t('leaving'), `${profile.firstName} ${profile.lastName}`);
       },
 
       close: async () => {

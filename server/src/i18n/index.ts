@@ -1,6 +1,6 @@
 import catalog from '@zluggish/i18n/en.json' with { type: 'json' };
 
-const en = catalog.server;
+const en = catalog;
 
 export type MessageKey = keyof typeof en;
 type InterpolationValue = string | number | boolean | bigint | null | undefined;

@@ -16,7 +16,7 @@ export async function fetchCdn(path: string): Promise<Response> {
         lookup(hostname, options, callback) {
           resolver.resolve4(hostname, (error, addresses) => {
             if (error || !addresses[0]) {
-              callback(error ?? new Error(t('proxy.no_upstream_address')), '', 4);
+              callback(error ?? new Error(t('upstream_address_missing')), '', 4);
 
               return;
             }
@@ -71,7 +71,7 @@ export async function fetchCdn(path: string): Promise<Response> {
       },
     );
 
-    req.setTimeout(30_000, () => req.destroy(new Error(t('proxy.cdn_proxy_timeout'))));
+    req.setTimeout(30_000, () => req.destroy(new Error(t('cdn_proxy_timeout'))));
     req.once('error', fail);
     req.end();
   });

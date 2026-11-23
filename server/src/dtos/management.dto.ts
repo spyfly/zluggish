@@ -13,7 +13,7 @@ export const loginName = normalized(
   Schema.String.check(
     Schema.isMinLength(1),
     Schema.isMaxLength(254),
-    satisfies<string>((value) => !/[\s\0]/.test(value), t('management_dto.enter_a_login_name_without_spaces')),
+    satisfies<string>((value) => !/[\s\0]/.test(value), t('management_dto_login_name_invalid')),
   ),
 );
 

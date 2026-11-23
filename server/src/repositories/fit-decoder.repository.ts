@@ -35,7 +35,7 @@ export class FitDecoder {
     const decoder = new Decoder(Stream.fromByteArray(bytes));
 
     if (!decoder.isFIT()) {
-      throw new Error(t('fit_decoder_repository.invalid_fit_activity'));
+      throw new Error(t('invalid_fit_activity'));
     }
 
     const { messages, errors } = decoder.read({
@@ -44,7 +44,7 @@ export class FitDecoder {
     });
 
     if (errors.length > 0) {
-      throw new AggregateError(errors, t('fit_decoder_repository.invalid_fit_activity'), { cause: errors[0] });
+      throw new AggregateError(errors, t('invalid_fit_activity'), { cause: errors[0] });
     }
 
     return {

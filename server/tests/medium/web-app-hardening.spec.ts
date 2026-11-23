@@ -299,8 +299,8 @@ await test('the game app bundle contains no web app code', () => {
       '/api/session',
       '/api/me',
       'Confirm your password to manage',
-      'Activities.activities_could_not_be_loaded',
-      'accounts.login_without_password',
+      'activities_list_load_error',
+      'login_without_password',
     ]) {
       assert.equal(text.includes(marker), false, `${file} contains ${marker}`);
     }

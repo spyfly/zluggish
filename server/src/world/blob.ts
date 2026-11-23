@@ -480,14 +480,14 @@ export class Blob {
     this.form();
 
     return this.mode === 'hammer'
-      ? t('blob.hammer_time_the_group_goes_full_gas')
+      ? t('blob_hammer_mode_notice')
       : this.mode === 'toast'
-        ? t('blob.everybody_eases_off_and_regroups')
+        ? t('blob_regroup_notice')
         : this.mode === 'lead'
-          ? t('blob.you_lead_we_sit_in')
+          ? t('blob_toast_mode_notice')
           : this.mode === 'attack'
-            ? t('blob.somebody_is_coming_through')
-            : t('blob.back_to_normal_we_take_the_front');
+            ? t('blob_rider_approaching')
+            : t('blob_normal_mode_notice');
   }
 
   rotate() {

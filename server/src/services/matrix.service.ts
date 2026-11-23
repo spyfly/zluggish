@@ -19,7 +19,7 @@ const make = Effect.gen(function* () {
         presence: (count) => transport.presence(count),
         close: () => transport.close(),
       },
-      t('matrix_service.matrix'),
+      t('matrix'),
       settings,
     );
 

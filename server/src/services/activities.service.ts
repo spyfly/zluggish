@@ -182,7 +182,7 @@ const make = Effect.gen(function* () {
     ) {
       throw new ApplicationError({
         status: 409,
-        message: t('activities_service.completed_activities_cannot_be_replaced'),
+        message: t('activities_completed_activity_immutable'),
       });
     }
 
@@ -560,7 +560,7 @@ const make = Effect.gen(function* () {
     const [activity] = own(player, id);
 
     if (!activity) {
-      throw new ApplicationError({ status: 404, message: t('activities_service.activity_not_found') });
+      throw new ApplicationError({ status: 404, message: t('activity_not_found') });
     }
 
     const images = Schema.decodeUnknownSync(Schema.Array(Schema.Struct({ id: Schema.Finite, state: Schema.String })))(
@@ -582,7 +582,7 @@ const make = Effect.gen(function* () {
     const stored = repositories.activitiesRepository.fit(id);
 
     if (!stored?.fit || stored.player !== player) {
-      throw new ApplicationError({ status: 404, message: t('activities_service.fit_file_not_found') });
+      throw new ApplicationError({ status: 404, message: t('fit_file_not_found') });
     }
 
     const base = stored.filename
@@ -608,7 +608,7 @@ const make = Effect.gen(function* () {
       !repositories.filesRepository.existsSync(path) ||
       !repositories.filesRepository.statSync(path).isFile()
     ) {
-      throw new ApplicationError({ status: 404, message: t('activities_service.image_not_found') });
+      throw new ApplicationError({ status: 404, message: t('image_not_found') });
     }
 
     return path;

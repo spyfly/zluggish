@@ -33,9 +33,9 @@
   type Platform = 'windows' | 'macos' | 'linux';
 
   const systems: Array<{ id: Platform; name: string }> = [
-    { id: 'windows', name: t('Install.windows') },
-    { id: 'macos', name: t('Install.macos') },
-    { id: 'linux', name: t('Install.linux') },
+    { id: 'windows', name: t('windows') },
+    { id: 'macos', name: t('macos') },
+    { id: 'linux', name: t('linux') },
   ];
 
   const here = detect();
@@ -60,10 +60,10 @@
     !redirect
       ? ''
       : !address.trim()
-        ? t('Install.enter_the_ip_address_of_the_server')
+        ? t('desktop_setup_address_hint')
         : looksLikeIp(address.trim())
           ? ''
-          : t('Install.enter_an_ip_address_such_as_192_168_1'),
+          : t('desktop_setup_address_validation_error'),
   );
 
   /** The rider typed over the address the server advertises, so offer it back. */
@@ -73,9 +73,9 @@
     const server = status?.serverAddress ?? '';
 
     confirm({
-      title: t('Install.reset_the_server_ip_address'),
-      detail: t('Install.the_setup_script_will_use_the_address_this', { value1: server }),
-      label: t('Install.reset'),
+      title: t('desktop_setup_address_reset_action'),
+      detail: t('desktop_setup_address_auto_hint', { value1: server }),
+      label: t('reset'),
       destructive: false,
       confirm: async () => {
         address = server;
@@ -126,59 +126,59 @@
       // The advertised IP as the server is configured, even 127.0.0.1: the web app's own address may differ.
       address = status.serverAddress;
     } catch (error) {
-      failure = error instanceof Error ? error.message : t('Install.the_certificate_could_not_be_loaded');
+      failure = error instanceof Error ? error.message : t('desktop_setup_certificate_load_error');
     }
   });
 </script>
 
 {#if failure}<p class="notice failed" role="alert">{failure}</p>{/if}
 {#if status === null}
-  {#if !failure}<p role="status">{t('Install.loading')}</p>{/if}
+  {#if !failure}<p role="status">{t('loading')}</p>{/if}
 {:else if status.mode === 'legacy'}
   <section class="panel">
-    <p>{t('Install.ask_the_server_administrator_to_replace_the_shared_certificate')}</p>
+    <p>{t('desktop_setup_certificate_shared_hint')}</p>
   </section>
 {/if}
 
 {#if status && installable && status.certificate && manual}
-  <section class="panel" aria-label={t('Install.manual_setup')}>
-    <p class="lede">{t('Install.install_the_certificate_and_point_zwift_at_this')}</p>
+  <section class="panel" aria-label={t('manual_setup')}>
+    <p class="lede">{t('desktop_setup_description')}</p>
 
-    <h2>{t('Install.certificate')}</h2>
+    <h2>{t('certificate')}</h2>
     <ul class="files">
       <li>
-        <a class="file" href="/api/tls/certificate" download>{t('Install.download_crt')}</a>
-        <span class="hint">{t('Install.pem_for_macos_linux_and_zwift_s_cacert_pem')}</span>
+        <a class="file" href="/api/tls/certificate" download>{t('download_crt')}</a>
+        <span class="hint">{t('desktop_setup_certificate_pem_format_hint')}</span>
       </li>
       <li>
-        <a class="file" href="/api/tls/certificate?format=der" download>{t('Install.download_cer')}</a>
-        <span class="hint">{t('Install.for_the_windows_certificate_store')}</span>
+        <a class="file" href="/api/tls/certificate?format=der" download>{t('download_cer')}</a>
+        <span class="hint">{t('desktop_setup_certificate_windows_format_hint')}</span>
       </li>
     </ul>
-    <p class="hint">{t('Install.check_that_the_certificate_you_install_shows')}</p>
+    <p class="hint">{t('desktop_setup_certificate_verify_hint')}</p>
     <div class="prints">
-      <Fingerprint label={t('Install.thumbprint_sha_1')} value={status.certificate.thumbprint} />
-      <Fingerprint label={t('Install.fingerprint_sha_256')} value={status.certificate.fingerprint256} />
+      <Fingerprint label={t('thumbprint_sha_1')} value={status.certificate.thumbprint} />
+      <Fingerprint label={t('fingerprint_sha_256')} value={status.certificate.fingerprint256} />
     </div>
-    <p class="hint">{t('Install.valid_until', { value1: day(status.certificate.notAfter) })}</p>
+    <p class="hint">{t('valid_until', { value1: day(status.certificate.notAfter) })}</p>
 
     {#if target}
-      <h2>{t('Install.hosts_file')}</h2>
-      <p>{t('Install.add_this_line_to_the_hosts_file')}</p>
+      <h2>{t('hosts_file')}</h2>
+      <p>{t('desktop_setup_hosts_edit_hint')}</p>
       {@render line(hostsLine)}
-      <p class="hint">{t('Install.it_is_etc_hosts_on_macos_and_linux')}</p>
+      <p class="hint">{t('desktop_setup_hosts_path_hint')}</p>
     {/if}
   </section>
 {:else if status && installable && status.certificate && platform}
   <section class="panel" aria-label={`${platform.name} setup steps`}>
     <ol class="walk">
       <li>
-        <h2>{t('Install.download_the_setup_script')}</h2>
+        <h2>{t('setup_script_download')}</h2>
         <div class="setup-actions">
           {#if addressError}
-            <button class="primary" type="button" disabled>{t('Install.download_setup_script')}</button>
+            <button class="primary" type="button" disabled>{t('download_setup_script')}</button>
           {:else}
-            <a class="download" href={script} download>{t('Install.download_setup_script')}</a>
+            <a class="download" href={script} download>{t('download_setup_script')}</a>
           {/if}
           <button
             class="advanced-toggle"
@@ -186,16 +186,16 @@
             aria-expanded={advanced}
             aria-controls="install-advanced"
             onclick={() => (advanced = !advanced)}
-            >{advanced ? t('Install.hide_advanced_settings') : t('Install.advanced_settings')}</button
+            >{advanced ? t('hide_advanced_settings') : t('advanced_settings')}</button
           >
         </div>
         {#if addressError && !advanced}
           <p class="hint failed" role="alert">{addressError}</p>
         {/if}
         <div id="install-advanced" class="advanced-settings" hidden={!advanced}>
-          <label class="check"><input type="checkbox" bind:checked={redirect} /> {t('Install.patch_hosts_file')}</label>
+          <label class="check"><input type="checkbox" bind:checked={redirect} /> {t('patch_hosts_file')}</label>
           {#if redirect}
-            <label for="install-address">{t('Install.server_ip_address')}</label>
+            <label for="install-address">{t('server_ip_address')}</label>
             <div class="address">
               <input
                 id="install-address"
@@ -208,60 +208,57 @@
                 aria-describedby="install-address-hint"
               />
               {#if changed}
-                <button type="button" class="reset" aria-haspopup="dialog" onclick={reset}>{t('Install.reset')}</button>
+                <button type="button" class="reset" aria-haspopup="dialog" onclick={reset}>{t('reset')}</button>
               {/if}
             </div>
             <p id="install-address-hint" class="hint" class:failed={!!addressError}>
-              {addressError || t('Install.zwift_s_server_names_point_to_this_address')}
+              {addressError || t('desktop_setup_address_description')}
             </p>
           {:else}
-            <p class="hint">{t('Install.point_the_zwift_server_names_at_this_server')}</p>
+            <p class="hint">{t('desktop_setup_hosts_description')}</p>
           {/if}
         </div>
       </li>
       <li>
-        <h2>{t('Install.run_the_setup_script')}</h2>
+        <h2>{t('setup_script_run_title')}</h2>
         {#if platform.id === 'windows'}
           <p>
-            {t('Install.open_the_downloaded')} <strong>{t('Install.bat')}</strong>
-            {t('Install.file_and_allow_administrator_rights')}
+            {t('download_open_hint_prefix')} <strong>{t('bat')}</strong>
+            {t('desktop_setup_windows_permission_hint_suffix')}
           </p>
           <p class="hint">
-            {t('Install.if_smartscreen_blocks_it_select')} <strong>{t('Install.more_info')}</strong>{t('Install.then')}
-            <strong>{t('Install.run_anyway')}</strong>.
+            {t('desktop_setup_windows_smart_screen_hint')} <strong>{t('more_info')}</strong>{t('then')}
+            <strong>{t('run_anyway')}</strong>.
           </p>
         {:else}
           <p>
-            {platform.id === 'macos' ? t('Install.in_terminal_run') : t('Install.in_a_terminal_run')}
+            {platform.id === 'macos' ? t('macos_terminal_command_hint') : t('terminal_command_hint')}
           </p>
           {@render line(command)}
           <p class="hint">
             {platform.id === 'macos'
-              ? t('Install.enter_your_password_when_asked_then_approve_the_certificate')
-              : t('Install.enter_your_password_when_asked_if_zwift_is_not')}
+              ? t('desktop_setup_macos_permission_hint')
+              : t('desktop_setup_linux_permission_hint')}
           </p>
         {/if}
       </li>
       <li>
-        <h2>{t('Install.start_zwift')}</h2>
+        <h2>{t('start_zwift')}</h2>
         <p>
-          {t('Install.when_the_script_says')} <strong>{t('Install.done')}</strong>{t(
-            'Install.start_zwift_and_sign_in',
-            {
-              value1:
-                platform.id === 'linux'
-                  ? t('Install.close_zwift_s_wine_prefix_then')
-                  : platform.id === 'macos'
-                    ? t('Install.quit_zwift_if_it_is_open_then')
-                    : '',
-            },
-          )}
+          {t('setup_script_completion_hint')} <strong>{t('done')}</strong>{t('desktop_setup_launch_hint', {
+            value1:
+              platform.id === 'linux'
+                ? t('desktop_setup_linux_close_hint')
+                : platform.id === 'macos'
+                  ? t('desktop_setup_desktop_close_hint')
+                  : '',
+          })}
         </p>
       </li>
     </ol>
     <p class="elsewhere">
-      {t('Install.prefer_to_install_the_certificate_yourself')}
-      <a href="/install/manual" onclick={(event) => go(event, '/install/manual')}>{t('Install.manual_setup')}</a>
+      {t('desktop_setup_manual_title')}
+      <a href="/install/manual" onclick={(event) => go(event, '/install/manual')}>{t('manual_setup')}</a>
     </p>
   </section>
 {/if}
@@ -271,7 +268,7 @@
     <code>{text}</code>
     {#if canCopy}
       <button type="button" class="copy" onclick={() => copy(text)} aria-live="polite"
-        >{copied === text ? t('Install.copied') : t('Install.copy')}</button
+        >{copied === text ? t('copied') : t('copy')}</button
       >
     {/if}
   </div>

@@ -55,7 +55,7 @@ Incompatible schema/hash/folder evidence requires explicit account migration.
 */
 export function openDatabase(storage: string): DatabaseSync {
   if (existsSync(resolve(storage, StorageFile.RestoreMarker))) {
-    throw new ConfigError(t('open.a_storage_restore_did_not_finish_run_storage_restore'));
+    throw new ConfigError(t('storage_open_restore_incomplete'));
   }
 
   resolvePendingMigration(storage);
@@ -83,7 +83,7 @@ export function openDatabase(storage: string): DatabaseSync {
       );
 
       if (version !== undefined && version > SCHEMA_VERSION) {
-        throw new ConfigError(t('open.the_database_is_newer_than_this_release_use_a'));
+        throw new ConfigError(t('storage_open_database_version_unsupported'));
       }
 
       if (
@@ -96,13 +96,13 @@ export function openDatabase(storage: string): DatabaseSync {
           .get() ||
         !inspection.prepare("SELECT 1 FROM sqlite_master WHERE name='account_state'").get()
       ) {
-        throw new ConfigError(t('open.account_database_upgrade_required_run_accounts_migrate_while_stopped'));
+        throw new ConfigError(t('storage_open_accounts_migration_required'));
       }
     } finally {
       inspection.close();
     }
   } else if (existsSync(storage) && readdirSync(storage).some((name) => /^\d+$/.test(name))) {
-    throw new ConfigError(t('open.legacy_rider_folders_require_accounts_migrate_refusing_to_create'));
+    throw new ConfigError(t('storage_open_legacy_migration_required'));
   }
 
   if (legacyVersion === 4 || (!fresh && existingPath !== path)) {

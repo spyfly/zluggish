@@ -19,6 +19,6 @@ parentPort?.on('message', (message) => {
     const result = task === 'chart' ? decoder.chart(bytes) : decoder.powerBests(bytes);
     parentPort?.postMessage({ id, result, duration: performance.now() - start });
   } catch {
-    parentPort?.postMessage({ id, error: t('fit_worker.invalid_fit_activity'), duration: performance.now() - start });
+    parentPort?.postMessage({ id, error: t('invalid_fit_activity'), duration: performance.now() - start });
   }
 });

@@ -69,7 +69,7 @@ export class Random {
     const item = items[Math.floor(this.value() * items.length)];
 
     if (item === undefined) {
-      throw new Error(t('geometry.empty_random_pool'));
+      throw new Error(t('empty_random_pool'));
     }
 
     return item;

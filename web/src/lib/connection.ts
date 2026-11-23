@@ -10,7 +10,7 @@ export const connection = writable({ unavailable: false, checking: false, retryI
 
 export class ConnectionError extends Error {
   constructor() {
-    super(t('connection.unable_to_connect_to_the_server_please_try_again'));
+    super(t('connection_connection_error'));
   }
 }
 
@@ -83,7 +83,7 @@ export async function checkConnection() {
     const healthy = z.object({ name: z.literal('zluggish'), status: z.literal('ok') }).safeParse(await response.json());
 
     if (!response.ok || !healthy.success) {
-      throw new Error(t('connection.unavailable'));
+      throw new Error(t('unavailable'));
     }
     unavailable = false;
     failures = 0;

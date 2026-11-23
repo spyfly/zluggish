@@ -251,7 +251,7 @@ export class Peloton {
       }
 
       if (this.pacer.recording.length === 0) {
-        throw new Error(t('peloton.empty_pacer_route'));
+        throw new Error(t('empty_pacer_route'));
       }
 
       // a and b are only read: interpolate() clones before it mutates.

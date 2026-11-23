@@ -107,7 +107,7 @@ export class RiderPool {
 
     const profile = create(PlayerProfileSchema, {
       id,
-      firstName: t('riders.rider'),
+      firstName: t('rider'),
       lastName: String(id),
       isMale: rng.value() > 0.5,
       weightInGrams: Math.round(rng.between(62, 86) * 1000),

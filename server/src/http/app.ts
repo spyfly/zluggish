@@ -55,7 +55,7 @@ export function createGameApp(metadata: PublicMetadata, runtime?: Runtime) {
     c.set('requestId', requestId);
     const started = performance.now();
     await next();
-    log.verbose('http.completed', t('app.request_completed'), {
+    log.verbose('http.completed', t('request_completed'), {
       requestId,
       method: c.req.method,
       route: c.req.routePath === '*' ? 'unmatched' : c.req.routePath,
@@ -188,19 +188,19 @@ export function createGameApp(metadata: PublicMetadata, runtime?: Runtime) {
       c.header('Cache-Control', 'no-store');
 
       if (Schema.isSchemaError(error)) {
-        return c.json({ ok: false, message: t('app.check_the_form_fields'), fieldErrors: fieldErrors(error) }, 400);
+        return c.json({ ok: false, message: t('form_validation_error'), fieldErrors: fieldErrors(error) }, 400);
       }
 
       if (error instanceof HTTPException || error instanceof ApplicationError) {
         const status = error.status;
         const reload = status === 401 || error.message.includes('Reload') || error.message.includes('expired');
 
-        return c.json({ ok: false, message: error.message || t('app.the_request_was_refused'), reload }, status);
+        return c.json({ ok: false, message: error.message || t('request_refused'), reload }, status);
       }
 
       log.error('http.failed', 'Game app request failed', { requestId: c.get('requestId'), error });
 
-      return c.json({ ok: false, message: t('app.could_not_save_try_again') }, 500);
+      return c.json({ ok: false, message: t('app_save_error') }, 500);
     }
 
     if (error instanceof ApplicationError) {
@@ -212,7 +212,7 @@ export function createGameApp(metadata: PublicMetadata, runtime?: Runtime) {
     }
 
     if (Schema.isSchemaError(error)) {
-      return c.text(t('app.invalid_request'), 400);
+      return c.text(t('invalid_request'), 400);
     }
 
     log.error('http.failed', 'Request failed unexpectedly', {
@@ -222,7 +222,7 @@ export function createGameApp(metadata: PublicMetadata, runtime?: Runtime) {
       error: error instanceof Error ? error : String(error),
     });
 
-    return c.text(t('app.request_failed'), 500);
+    return c.text(t('request_failed_detail'), 500);
   });
 
   return app;

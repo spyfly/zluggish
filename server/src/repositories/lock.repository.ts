@@ -28,7 +28,7 @@ export class LockRepository {
         }
       } catch {
         closeSync(descriptor);
-        throw new ConfigError(t('lock_repository.storage_is_busy_or_cannot_be_locked_stop_the'));
+        throw new ConfigError(t('lock_storage_lock_failed'));
       }
 
       let closed = false;

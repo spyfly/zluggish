@@ -65,7 +65,7 @@ function packetAlgorithm(key: Uint8Array) {
     }
 
     default: {
-      throw new Error(t('crypto_repository.invalid_aes_key_length'));
+      throw new Error(t('invalid_aes_key_length'));
     }
   }
 }
@@ -115,7 +115,7 @@ export class CryptoRepository {
 
   encryptCredentials(key: Uint8Array, credentials: readonly [string, string], iv = randomBytes(16)) {
     if (key.length !== 32 || iv.length !== 16) {
-      throw new Error(t('crypto_repository.invalid_credential_key_iv'));
+      throw new Error(t('invalid_credential_key_iv'));
     }
     const cipher = createCipheriv('aes-256-cfb8', key, iv);
 
@@ -124,11 +124,11 @@ export class CryptoRepository {
 
   decryptCredentials(key: Uint8Array, bytes: Uint8Array): readonly [string, string] {
     if (key.length !== 32) {
-      throw new Error(t('crypto_repository.invalid_credentials_key'));
+      throw new Error(t('invalid_credentials_key'));
     }
 
     if (bytes.length < 16) {
-      throw new UnreadableCredentialsError({ message: t('crypto_repository.stored_credentials_are_truncated') });
+      throw new UnreadableCredentialsError({ message: t('crypto_credentials_truncated') });
     }
     const decipher = createDecipheriv('aes-256-cfb8', key, bytes.subarray(0, 16));
     const plain = Buffer.concat([decipher.update(bytes.subarray(16)), decipher.final()]);
@@ -139,7 +139,7 @@ export class CryptoRepository {
       text = new TextDecoder('utf-8', { fatal: true }).decode(plain);
     } catch (error) {
       throw new UnreadableCredentialsError({
-        message: t('crypto_repository.stored_credentials_do_not_decrypt_with_this_credentials_key'),
+        message: t('crypto_credentials_decryption_failed'),
         cause: error,
       });
     }
@@ -150,7 +150,7 @@ export class CryptoRepository {
 
     if (first === undefined || second === undefined) {
       throw new UnreadableCredentialsError({
-        message: t('crypto_repository.stored_credentials_do_not_decrypt_with_this_credentials_key'),
+        message: t('crypto_credentials_decryption_failed'),
       });
     }
 
@@ -160,7 +160,7 @@ export class CryptoRepository {
   /** AES-256-GCM: 12-byte IV, 16-byte tag, ciphertext. Tampering fails decryption. */
   encryptSecret(key: Uint8Array, data: Uint8Array) {
     if (key.length !== 32) {
-      throw new Error(t('crypto_repository.invalid_secret_key'));
+      throw new Error(t('invalid_secret_key'));
     }
     const iv = randomBytes(12);
     const cipher = createCipheriv('aes-256-gcm', key, iv);
@@ -171,7 +171,7 @@ export class CryptoRepository {
 
   decryptSecret(key: Uint8Array, bytes: Uint8Array) {
     if (key.length !== 32 || bytes.length < 28) {
-      throw new Error(t('crypto_repository.invalid_secret'));
+      throw new Error(t('invalid_secret'));
     }
     const decipher = createDecipheriv('aes-256-gcm', key, bytes.subarray(0, 12));
     decipher.setAuthTag(bytes.subarray(12, 28));
@@ -285,7 +285,7 @@ export class CryptoRepository {
   /** Reject unauthenticated packets before exposing plaintext to callers. */
   decryptPacketPayload(payload: Uint8Array, key: Uint8Array, nonce: Uint8Array, header: Uint8Array) {
     if (payload.length < 4) {
-      throw new Error(t('crypto_repository.missing_packet_authentication_tag'));
+      throw new Error(t('missing_packet_authentication_tag'));
     }
     const decipher = createDecipheriv(packetAlgorithm(key), key, nonce, { authTagLength: 4 });
     decipher.setAAD(header);

@@ -134,10 +134,10 @@ const acquireRuntime = Effect.fn('runtime.acquire')(function* (
 
   const bridges = [
     ...(config.integrations.discord.enabled
-      ? yield* optionalBridge(world, t('runtime.discord'), effects.runSync(DiscordService).start())
+      ? yield* optionalBridge(world, t('discord'), effects.runSync(DiscordService).start())
       : []),
     ...(config.integrations.matrix.enabled
-      ? yield* optionalBridge(world, t('runtime.matrix'), effects.runSync(MatrixService).start())
+      ? yield* optionalBridge(world, t('matrix'), effects.runSync(MatrixService).start())
       : []),
   ];
 
@@ -170,7 +170,7 @@ export async function openRuntime(config: ResolvedConfig, assets: string, config
     try {
       await resources.close();
     } catch (cleanupError) {
-      throw new AggregateError([error, cleanupError], t('runtime.runtime_initialization_and_cleanup_failed'), {
+      throw new AggregateError([error, cleanupError], t('runtime_initialization_cleanup_failed'), {
         cause: cleanupError,
       });
     }

@@ -43,38 +43,46 @@ test('interpolation preserves dollar signs and treats markup as plain text', asy
   assert.equal(t('example', { value1: '$& <script>' }), 'Value: $& <script>; again: $& <script>');
 });
 
-test('JSON catalogs reject duplicate message and section keys', (t) => {
+test('JSON catalogs reject duplicate message keys', (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'zluggish-i18n-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const file = join(dir, 'en.json');
-  writeFileSync(file, '{"app":{"label":"First","label":"Second"},"app":{},"game":{},"shared":{},"server":{}}');
+  writeFileSync(file, '{"label":"First","label":"Second"}');
   const result = readCatalog(file);
   assert.equal(result.catalog, undefined);
-  assert.ok(result.errors.some((error) => error.includes('duplicate key app.label')));
-  assert.ok(result.errors.some((error) => error.endsWith('duplicate key app')));
+  assert.ok(result.errors.some((error) => error.includes('duplicate key label')));
 });
 
 test('JSON catalogs reject invalid JSON and non-string values', (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'zluggish-i18n-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const file = join(dir, 'en.json');
-  writeFileSync(file, '{"app":{},}');
+  writeFileSync(file, '{"label":"Label",}');
   assert.equal(readCatalog(file).catalog, undefined);
-  writeFileSync(file, JSON.stringify({ app: { label: 42 }, game: {}, shared: {}, server: {} }));
-  assert.ok(readCatalog(file).errors.some((error) => error.includes('app.label must be a nonempty string')));
+  writeFileSync(file, JSON.stringify({ label: 42 }));
+  assert.ok(readCatalog(file).errors.some((error) => error.includes('label must be a nonempty string')));
+});
+
+test('JSON catalogs accept flat keys and reject nested sections and dotted keys', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'zluggish-i18n-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const file = join(dir, 'en.json');
+  const catalog = { account: 'Account', account_settings: 'Account settings' };
+  writeFileSync(file, JSON.stringify(catalog));
+  assert.deepEqual(readCatalog(file), { catalog, errors: [] });
+  writeFileSync(file, JSON.stringify({ app: catalog }));
+  assert.ok(readCatalog(file).errors.some((error) => error.includes('app must be a nonempty string')));
+  writeFileSync(file, JSON.stringify({ 'app.account': 'Account' }));
+  assert.ok(readCatalog(file).errors.some((error) => error.includes('must be a flat snake_case key')));
 });
 
 test('languages must match English keys and placeholder names', () => {
-  const english = { app: { greeting: 'Hello {name}' }, game: {}, shared: {}, server: {} };
-  const valid = { ...english, app: { greeting: 'Hej {name}' } };
+  const english = { greeting: 'Hello {name}' };
+  const valid = { greeting: 'Hej {name}' };
   assert.deepEqual(compareCatalogs(english, valid, 'sv.json'), []);
-  const invalid = { ...english, app: { greeting: 'Hej {person}', extra: 'Extra' } };
+  const invalid = { greeting: 'Hej {person}', extra: 'Extra' };
   const errors = compareCatalogs(english, invalid, 'sv.json');
   assert.ok(errors.some((error) => error.includes('interpolation values differ')));
-  assert.ok(errors.some((error) => error.includes('unused message app.extra')));
-  assert.ok(
-    compareCatalogs(english, { ...english, app: {} }, 'sv.json').some((error) =>
-      error.includes('missing message app.greeting'),
-    ),
-  );
+  assert.ok(errors.some((error) => error.includes('unused message extra')));
+  assert.ok(compareCatalogs(english, {}, 'sv.json').some((error) => error.includes('missing message greeting')));
 });

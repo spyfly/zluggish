@@ -36,15 +36,12 @@ export class RiderDocuments {
       }
       key = readFileSync(file);
     } catch (error) {
-      throw new Error(
-        t('rider_document_repository.could_not_read_or_create_the_credentials_key_check', { value1: file }),
-        { cause: error },
-      );
+      throw new Error(t('rider_document_credentials_key_unavailable', { value1: file }), { cause: error });
     }
 
     if (key.length !== 32) {
       throw new Error(
-        t('rider_document_repository.the_credentials_key_has_bytes_not_32_restore_it', {
+        t('rider_document_credentials_key_size_invalid', {
           value1: file,
           value2: key.length,
         }),

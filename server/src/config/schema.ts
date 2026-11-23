@@ -15,7 +15,7 @@ const advertisedIp = Schema.String.check(
     const family = isIP(value);
 
     return family !== 0 && !unspecifiedAddresses.check(value, family === 4 ? 'ipv4' : 'ipv6');
-  }, t('schema.expected_a_non_wildcard_ip_address')),
+  }, t('schema_wildcard_address_invalid')),
 );
 
 const listenerHost = Schema.String.check(
@@ -35,13 +35,13 @@ const listenerHost = Schema.String.check(
     const labels = (value.endsWith('.') ? value.slice(0, -1) : value).split('.');
 
     return labels.every((label) => /^[a-z\d_](?:[a-z\d_-]{0,61}[a-z\d_])?$/i.test(label));
-  }, t('schema.expected_a_non_empty_ip_address_or_hostname')),
+  }, t('schema_hostname_required')),
 );
 
 const httpUrl = Schema.String.check(
   satisfies(
     (value: string) => URL.canParse(value) && /^https?:$/.test(new URL(value).protocol),
-    t('schema.expected_an_http_s_url'),
+    t('schema_http_url_invalid'),
   ),
 );
 
@@ -54,7 +54,7 @@ const NonNegativeInt = IntBetween(0);
 const port = IntBetween(1, 65_535);
 
 const seconds = NonNegativeInt.check(
-  satisfies((value: number) => value === 0 || value >= 10, t('schema.use_0_or_at_least_10_seconds')),
+  satisfies((value: number) => value === 0 || value >= 10, t('schema_interval_invalid')),
 );
 
 // Empty optional paths select built-in resources or disable the feature.
@@ -141,7 +141,7 @@ const logLevel = Schema.Enum(LogLevelInput).pipe(
 );
 
 const publicUrl = httpUrl.check(
-  satisfies((value: string) => new URL(value).pathname === '/', t('schema.expected_an_origin_without_a_path')),
+  satisfies((value: string) => new URL(value).pathname === '/', t('schema_origin_invalid')),
 );
 
 export const configSchema = Schema.Struct({

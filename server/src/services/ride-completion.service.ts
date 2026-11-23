@@ -52,11 +52,11 @@ const make = Effect.gen(function* () {
     const write = (ledger: Record<string, RelayHistory>) => {
       const db = context.accounts.db;
       if (db.isTransaction) {
-        throw new Error(t('ride_completion_service.nonce_reservation_must_commit_before_sending'));
+        throw new Error(t('ride_completion_nonce_reservation_uncommitted'));
       }
       const mode = db.prepare('PRAGMA synchronous').get()?.synchronous;
       if (mode !== 0 && mode !== 1 && mode !== 2 && mode !== 3) {
-        throw new Error(t('ride_completion_service.unknown_database_durability_mode'));
+        throw new Error(t('unknown_database_durability_mode'));
       }
       // Runtime HTTP writes normally use an asynchronous WAL flush. Relay sends
       // are synchronous: the reservation must survive power loss before send().
@@ -92,7 +92,7 @@ const make = Effect.gen(function* () {
     if (!history && (!fresh || (oldKey && Buffer.from(oldKey).equals(relay.key)))) {
       throw new ApplicationError({
         status: 409,
-        message: t('ride_completion_service.relay_nonce_history_unavailable_login_with_a_fresh_key'),
+        message: t('ride_completion_nonce_history_unavailable'),
       });
     }
     relay.protect(history ?? { tcp: [], udp: [] }, (updated) => {
@@ -111,7 +111,7 @@ const make = Effect.gen(function* () {
       const rider = context.accounts.get(player);
 
       if (!rider?.enabled || rider.auth_version !== version) {
-        throw new ApplicationError({ status: 401, message: t('ride_completion_service.relay_revoked') });
+        throw new ApplicationError({ status: 401, message: t('ride_completion_relay_revoked') });
       }
       repositories.riderDocuments.put(player, 'encryption_key.bin', key);
       repositories.riderDocuments.put(player, 'relay-auth-version', String(version));
@@ -204,7 +204,7 @@ const make = Effect.gen(function* () {
 
     if (receipt && receipt.until > Date.now() && receipt.token === digest && receipt.activity === activity) {
       if (receipt.body !== body) {
-        throw new ApplicationError({ status: 409, message: t('ride_completion_service.final_save_data_changed') });
+        throw new ApplicationError({ status: 409, message: t('final_save_data_changed') });
       }
 
       return { receipt: receipt.result };
@@ -215,7 +215,7 @@ const make = Effect.gen(function* () {
     if (!permission || permission.token !== digest || permission.activity !== activity) {
       throw new ApplicationError({
         status: 401,
-        message: t('ride_completion_service.ride_completion_permission_expired'),
+        message: t('ride_completion_permission_expired'),
       });
     }
 

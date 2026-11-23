@@ -52,8 +52,7 @@
   const day = (iso: string) =>
     new Date(iso).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' });
 
-  const plural = (count: number) =>
-    t('Climbs.ride_count', { value1: count, value2: count === 1 ? t('Climbs.ride') : t('Climbs.rides') });
+  const plural = (count: number) => t('ride_count', { value1: count, value2: count === 1 ? t('ride') : t('rides') });
 
   onMount(async () => {
     try {
@@ -61,24 +60,24 @@
       total = body.total;
       climbs = body.climbs;
     } catch (error) {
-      failure = error instanceof Error ? error.message : t('Climbs.climbs_could_not_be_loaded');
+      failure = error instanceof Error ? error.message : t('climbs_load_error');
     }
   });
 </script>
 
 {#if failure}<p class="notice failed" role="alert">{failure}</p>{/if}
 {#if climbs === null}
-  {#if !failure}<p class="delayed" role="status">{t('Climbs.loading_climbs')}</p>{/if}
+  {#if !failure}<p class="delayed" role="status">{t('loading_climbs')}</p>{/if}
 {:else if climbs.length === 0}
   <section class="panel narrow">
-    <h2>{t('Climbs.no_climb_portals_ridden_yet')}</h2>
+    <h2>{t('climbs_empty')}</h2>
     <p>
-      {t('Climbs.choose_a_climb_under')} <strong>{t('Climbs.climb')}</strong>
-      {t('Climbs.in_the_launcher_then_ride_to_the_top')}
+      {t('climbs_empty_hint_prefix')} <strong>{t('climb')}</strong>
+      {t('climbs_empty_hint_suffix')}
     </p>
   </section>
 {:else}
-  <section class="climbs" aria-label={t('Climbs.climb_portals')}>
+  <section class="climbs" aria-label={t('climb_portals')}>
     <ul class="panel">
       {#each ordered as climb (climb.road)}
         {@const grade = gradient(climb)}
@@ -86,8 +85,8 @@
           <p class="height">
             {#if climb.elevationM !== null}
               <strong
-                >{t('Climbs.m', { value1: climb.elevationM.toLocaleString() })}<span class="hidden">
-                  {t('Climbs.climbing')}</span
+                >{t('m', { value1: climb.elevationM.toLocaleString() })}<span class="hidden">
+                  {t('climbing')}</span
                 ></strong
               >
             {/if}
@@ -96,23 +95,23 @@
           <div class="name">
             <h3>{climb.name}</h3>
             {#if climb.distanceKm !== null && grade !== null}
-              <p>{t('Climbs.km_at', { value1: climb.distanceKm, value2: grade.toFixed(1) })}</p>
+              <p>{t('km_at', { value1: climb.distanceKm, value2: grade.toFixed(1) })}</p>
             {/if}
           </div>
 
           <p class="best">
             {#if climb.bestMs !== null}
               <strong>{clock(climb.bestMs)}</strong>
-              <span>{t('Climbs.best_of', { value1: climb.rides })}</span>
+              <span>{t('best_of', { value1: climb.rides })}</span>
             {:else}
-              <strong class="none">{t('Climbs.no_time')}</strong>
+              <strong class="none">{t('no_time')}</strong>
             {/if}
           </p>
 
           <p class="last">
             {#if climb.lastRide}
               <strong><time datetime={climb.lastRide}>{day(climb.lastRide)}</time></strong>
-              <span>{t('Climbs.last_ride')}</span>
+              <span>{t('last_ride')}</span>
             {/if}
           </p>
 
@@ -123,23 +122,23 @@
                   href={segment(climb.strava.watopia)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  aria-label="{climb.name} on Strava, ridden from Watopia">{t('Climbs.watopia')}</a
+                  aria-label="{climb.name} on Strava, ridden from Watopia">{t('watopia')}</a
                 >
                 <a
                   href={segment(climb.strava.france)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  aria-label="{climb.name} on Strava, ridden from France">{t('Climbs.france')}</a
+                  aria-label="{climb.name} on Strava, ridden from France">{t('france')}</a
                 >
               </span>
-              <span>{t('Climbs.on_strava')}</span>
+              <span>{t('strava_link_suffix')}</span>
             </p>
           {/if}
         </li>
       {/each}
     </ul>
     <p class="summary">
-      {t('Climbs.of_climb_portals_ridden', { value1: climbs.length, value2: total, value3: plural(rides) })}
+      {t('of_climb_portals_ridden', { value1: climbs.length, value2: total, value3: plural(rides) })}
     </p>
   </section>
 {/if}

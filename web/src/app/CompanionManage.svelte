@@ -46,16 +46,16 @@
   const tools = $derived(admin ? !!admin.toolchain.java && admin.toolchain.editor : false);
 
   const labels: Record<CompanionStep, string> = {
-    upload: t('CompanionManage.uploading'),
-    runtime: t('CompanionManage.downloading_java'),
-    editor: t('CompanionManage.downloading_apkeditor'),
-    inspect: t('CompanionManage.checking_the_file'),
-    merge: t('CompanionManage.merging_the_split_apks'),
-    decode: t('CompanionManage.unpacking_the_resources'),
-    patch: t('CompanionManage.pointing_the_app_at_this_server'),
-    build: t('CompanionManage.rebuilding_the_app'),
-    sign: t('CompanionManage.signing_the_app'),
-    publish: t('CompanionManage.publishing'),
+    upload: t('companion_build_uploading'),
+    runtime: t('downloading_java'),
+    editor: t('downloading_apkeditor'),
+    inspect: t('file_validation_progress'),
+    merge: t('apk_merge_progress'),
+    decode: t('resources_unpack_progress'),
+    patch: t('companion_build_build_retargeting'),
+    build: t('app_rebuild_progress'),
+    sign: t('app_sign_progress'),
+    publish: t('publishing'),
   };
 
   /** Rough shares of the whole job, for the width of each stretch of the bar. Rebuilding the app dominates. */
@@ -125,23 +125,23 @@
 
     switch (job.state) {
       case 'waiting':
-        return t('CompanionManage.waiting_for_the_java_tools');
+        return t('companion_build_toolchain_pending');
       case 'done':
         return tools
-          ? t('CompanionManage.the_java_tools_are_ready')
-          : t('CompanionManage.published_companion', { value1: admin?.app?.versionName ?? '' });
+          ? t('companion_build_toolchain_ready')
+          : t('published_companion', { value1: admin?.app?.versionName ?? '' });
       case 'failed':
-        return tools ? t('CompanionManage.the_download_stopped') : t('CompanionManage.the_patch_stopped');
+        return tools ? t('download_stopped') : t('patch_stopped');
       default:
         if (upload) {
-          return t('CompanionManage.uploading_2', { value1: upload.name });
+          return t('companion_build_upload_progress', { value1: upload.name });
         }
 
         return tools
-          ? t('CompanionManage.downloading_the_java_tools')
+          ? t('java_tools_download_progress')
           : job.kind === 'rekey'
-            ? t('CompanionManage.adding_the_new_certificate')
-            : t('CompanionManage.patching_companion_for_this_server');
+            ? t('certificate_install_progress')
+            : t('companion_build_build_progress');
     }
   });
 
@@ -154,13 +154,13 @@
 
     switch (job.state) {
       case 'waiting':
-        return t('CompanionManage.continues_once_the_java_tools_are_ready');
+        return t('companion_build_toolchain_resume_hint');
       case 'done':
-        return tools ? t('CompanionManage.ready_to_rebuild_apps') : t('CompanionManage.riders_can_download_it_now');
+        return tools ? t('ready_to_rebuild_apps') : t('companion_build_build_ready_hint');
       case 'failed':
-        return tools ? t('CompanionManage.the_download_failed') : t('CompanionManage.the_patch_failed');
+        return tools ? t('download_error') : t('patch_error');
       default:
-        return upload ? t('CompanionManage.keep_this_page_open_until_the_upload_finishes') : `${labels[job.step]}…`;
+        return upload ? t('companion_build_upload_keep_open_hint') : `${labels[job.step]}…`;
     }
   });
 
@@ -168,7 +168,7 @@
     try {
       admin = await api(companionAdminStatus, '/api/manage/companion');
     } catch (error) {
-      failure = error instanceof Error ? error.message : t('CompanionManage.the_companion_app_could_not_be_loaded');
+      failure = error instanceof Error ? error.message : t('companion_build_load_error');
     }
   }
 
@@ -197,7 +197,7 @@
       admin = await work();
       notice = done;
     } catch (error) {
-      failure = error instanceof Error ? error.message : t('CompanionManage.the_request_failed');
+      failure = error instanceof Error ? error.message : t('request_error');
     } finally {
       working = false;
     }
@@ -231,13 +231,13 @@
     notice = '';
 
     if (!/\.(apk|apks|xapk|apkm)$/i.test(file.name)) {
-      uploadError = t('CompanionManage.choose_an_apk_apks_xapk_or_apkm_file');
+      uploadError = t('companion_build_upload_file_required');
 
       return;
     }
 
     if (admin && file.size > admin.uploadLimit) {
-      uploadError = t('CompanionManage.the_file_is_larger_than', { value1: megabytes(admin.uploadLimit) });
+      uploadError = t('companion_build_upload_size_error', { value1: megabytes(admin.uploadLimit) });
 
       return;
     }
@@ -261,15 +261,14 @@
         void refresh();
       } else {
         uploadError =
-          failureMessage.safeParse(xhr.response).data?.message ??
-          t('CompanionManage.the_upload_failed', { value1: xhr.status });
+          failureMessage.safeParse(xhr.response).data?.message ?? t('upload_error_detail', { value1: xhr.status });
       }
     };
 
     xhr.onerror = () => {
       upload = null;
       request = null;
-      uploadError = t('CompanionManage.the_upload_stopped_check_the_connection_and_try_again');
+      uploadError = t('companion_build_upload_interrupted');
     };
 
     xhr.onabort = () => {
@@ -310,21 +309,21 @@
 {#if failure}<p class="notice failed" role="alert">{failure}</p>{/if}
 
 {#if admin === null}
-  {#if !failure}<p role="status">{t('CompanionManage.loading')}</p>{/if}
+  {#if !failure}<p role="status">{t('loading')}</p>{/if}
 {:else}
   <section class="panel" aria-labelledby="companion-app">
-    <h2 id="companion-app">{t('CompanionManage.companion_for_android')}</h2>
+    <h2 id="companion-app">{t('companion_for_android')}</h2>
     <p class="lead">
-      {t('CompanionManage.upload_zwift_companion_and_the_server_patches_it_to')}
-      <a href="/apps" onclick={(event) => go(event, '/apps')}>{t('CompanionManage.apps')}</a>.
+      {t('companion_build_description')}
+      <a href="/apps" onclick={(event) => go(event, '/apps')}>{t('apps')}</a>.
     </p>
 
     {#if !certificateReady}
       <p class="stale">
         {#if admin.tlsMode === 'legacy'}
-          {t('CompanionManage.replace_the_shared_certificate_before_building_companion_for_android')}
+          {t('companion_build_certificate_shared_warning')}
         {:else}
-          {t('CompanionManage.this_server_has_no_certificate_for_companion_to_trust')}
+          {t('companion_build_certificate_missing')}
         {/if}
       </p>
     {/if}
@@ -332,21 +331,21 @@
     {#if admin.app}
       <dl class="facts">
         <div>
-          <dt>{t('CompanionManage.version')}</dt>
+          <dt>{t('version')}</dt>
           <dd>{admin.app.versionName}</dd>
         </div>
         <div>
-          <dt>{t('CompanionManage.size')}</dt>
+          <dt>{t('size')}</dt>
           <dd>{megabytes(admin.app.bytes)}</dd>
         </div>
         <div>
-          <dt>{t('CompanionManage.patched')}</dt>
+          <dt>{t('patched')}</dt>
           <dd>{day(admin.app.createdAt)}</dd>
         </div>
         <div>
-          <dt>{t('CompanionManage.certificate')}</dt>
+          <dt>{t('certificate')}</dt>
           <dd class:alarm={!admin.app.current}>
-            {admin.app.current ? t('CompanionManage.current') : t('CompanionManage.outdated')}
+            {admin.app.current ? t('current') : t('outdated')}
           </dd>
         </div>
       </dl>
@@ -355,38 +354,38 @@
     {#if job}
       <JobProgress id="companion-job" {job} {labels} {weights} {headline} {detail} {upload}>
         {#if upload}
-          <button type="button" onclick={() => request?.abort()}>{t('CompanionManage.stop_upload')}</button>
+          <button type="button" onclick={() => request?.abort()}>{t('stop_upload')}</button>
         {:else if job.state === 'running'}
           {#if job.kind === 'toolchain' && admin.pending}
-            <p class="hint">{t('CompanionManage.your_upload_continues_once_they_are_ready')}</p>
+            <p class="hint">{t('companion_build_upload_resume_hint')}</p>
           {/if}
           <button
             type="button"
             disabled={working}
             onclick={() => act(() => api(companionAdminStatus, '/api/manage/companion/cancel', 'POST', {}))}
-            >{t('CompanionManage.stop')}</button
+            >{t('stop')}</button
           >
-          <p class="hint">{t('CompanionManage.the_job_continues_if_you_leave_this_page')}</p>
+          <p class="hint">{t('companion_build_build_background_hint')}</p>
         {:else if admin.pending}
           {#if admin.toolchain.supported}
             <p class="ask">
-              {t('CompanionManage.this_app_needs_a_rebuild_with_java_the_server', {
-                value1: admin.toolchain.java ? 'APKEditor' : t('CompanionManage.java_and_apkeditor'),
+              {t('companion_build_build_automatic_rebuild_hint', {
+                value1: admin.toolchain.java ? 'APKEditor' : t('java_and_apkeditor'),
                 value2: megabytes(admin.toolchain.downloadBytes),
               })}
             </p>
             <button type="button" class="primary" disabled={working} onclick={installTools}
-              >{t('CompanionManage.download_java_tools_and_continue')}</button
+              >{t('companion_build_toolchain_download_action')}</button
             >
           {:else}
-            <p class="ask">{t('CompanionManage.this_app_needs_a_rebuild_with_java_install_java')}</p>
+            <p class="ask">{t('companion_build_build_manual_rebuild_hint')}</p>
           {/if}
           <button
             type="button"
             disabled={working}
             onclick={() =>
               act(() => api(companionAdminStatus, '/api/manage/companion/pending', 'DELETE', {}), 'Upload discarded.')}
-            >{t('CompanionManage.discard_upload')}</button
+            >{t('discard_upload')}</button
           >
         {/if}
       </JobProgress>
@@ -418,11 +417,9 @@
           }}
         />
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0-5 5m5-5 5 5M5 20h14" /></svg>
-        <span class="title"
-          >{admin.app ? t('CompanionManage.upload_a_newer_companion') : t('CompanionManage.upload_companion')}</span
-        >
+        <span class="title">{admin.app ? t('upload_a_newer_companion') : t('upload_companion')}</span>
         <span class="detail"
-          >{t('CompanionManage.drop_or_choose_an_apk_apks_xapk_or_apkm', {
+          >{t('companion_build_upload_dropzone', {
             value1: megabytes(admin.uploadLimit),
           })}</span
         >
@@ -435,40 +432,40 @@
         type="button"
         disabled={working || busy}
         onclick={() => act(() => api(companionAdminStatus, '/api/manage/companion/app', 'DELETE', {}), 'App removed.')}
-        >{t('CompanionManage.remove_the_app')}</button
+        >{t('app_remove_action')}</button
       >
     {/if}
     {#if notice}<p class="hint" role="status">{notice}</p>{/if}
   </section>
 
   <section class="panel" aria-labelledby="companion-tools">
-    <h2 id="companion-tools">{t('CompanionManage.java_tools')}</h2>
+    <h2 id="companion-tools">{t('java_tools')}</h2>
     {#if tools && admin.toolchain.java}
       <p>
-        {t('CompanionManage.ready_using', {
+        {t('ready_using', {
           value1:
             admin.toolchain.java.source === 'system'
-              ? t('CompanionManage.the_server_s_java', { value1: admin.toolchain.java.version })
-              : t('CompanionManage.java', { value1: admin.toolchain.java.version }),
+              ? t('server_java_version', { value1: admin.toolchain.java.version })
+              : t('java', { value1: admin.toolchain.java.version }),
         })}
       </p>
-      <p class="hint">{t('CompanionManage.stored_in', { value1: admin.toolchain.folder })}</p>
+      <p class="hint">{t('stored_in', { value1: admin.toolchain.folder })}</p>
       <button
         type="button"
         disabled={working || busy}
         onclick={() =>
           act(() => api(companionAdminStatus, '/api/manage/companion/toolchain', 'DELETE', {}), 'Java tools removed.')}
-        >{t('CompanionManage.remove_java_tools')}</button
+        >{t('remove_java_tools')}</button
       >
     {:else if !admin.toolchain.supported}
-      <p>{t('CompanionManage.install_java_11_or_later_on_the_server_to')}</p>
+      <p>{t('companion_build_toolchain_install_hint')}</p>
     {:else}
       <p>
-        {t('CompanionManage.java_tools_installed_automatically', {
+        {t('java_tools_installed_automatically', {
           size: megabytes(admin.toolchain.downloadBytes),
         })}
       </p>
-      <p class="hint">{t('CompanionManage.stored_in_outside_backups', { value1: admin.toolchain.folder })}</p>
+      <p class="hint">{t('stored_in_outside_backups', { value1: admin.toolchain.folder })}</p>
     {/if}
   </section>
 {/if}

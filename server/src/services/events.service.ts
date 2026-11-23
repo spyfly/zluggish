@@ -271,7 +271,7 @@ const make = Effect.gen(function* () {
           ...input,
           id,
           eventSubgroupId: id,
-          name: t('events_service.route', { value1: input.routeId }),
+          name: t('route', { value1: input.routeId }),
           organizerProfileId: user.player_id,
           organizerId: user.player_id,
           organizerFirstName: organizer.firstName,

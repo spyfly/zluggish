@@ -36,7 +36,7 @@ export function migrateAccounts(storage: string, soloPlayer?: number) {
       ).version;
 
       if (found > SCHEMA_VERSION || found < 3) {
-        throw new ConfigError(t('accounts.unsupported_activity_database_version_migrate_with_the_original_release'));
+        throw new ConfigError(t('accounts_activity_database_version_unsupported'));
       }
 
       // A current account schema is already migrated. Never recreate legacy permissions.
@@ -117,18 +117,18 @@ export function migrateAccounts(storage: string, soloPlayer?: number) {
     const selected = soloPlayer ?? (users.length === 0 && profiles.length === 1 ? profiles[0] : undefined);
 
     if (orphans.length > 0 && selected === undefined) {
-      throw new ConfigError(t('accounts.ambiguous_legacy_riders_select_solo_player_id_explicitly'));
+      throw new ConfigError(t('accounts_legacy_rider_ambiguous'));
     }
 
     if (selected !== undefined) {
       if (!profiles.includes(selected)) {
-        throw new ConfigError(t('accounts.selected_legacy_profile_is_missing'));
+        throw new ConfigError(t('accounts_legacy_profile_missing'));
       }
 
       const profile = fromBinary(PlayerProfileSchema, readFileSync(resolve(storage, String(selected), 'profile.bin')));
 
       if (!profile.firstName.trim()) {
-        throw new ConfigError(t('accounts.legacy_profile_has_no_name'));
+        throw new ConfigError(t('accounts_legacy_profile_name_missing'));
       }
 
       if (!ids.has(selected)) {

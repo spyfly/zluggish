@@ -11,6 +11,6 @@ export function parseProtobuf<Schema extends DescMessage>(schema: Schema, bytes:
 
     return message;
   } catch {
-    throw new HTTPException(400, { message: t('protobuf.invalid_request') });
+    throw new HTTPException(400, { message: t('invalid_request') });
   }
 }

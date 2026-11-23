@@ -64,93 +64,91 @@
     try {
       status = await api(companionStatus, '/api/companion');
     } catch (error) {
-      failure = error instanceof Error ? error.message : t('Companion.the_companion_app_could_not_be_loaded');
+      failure = error instanceof Error ? error.message : t('companion_load_error');
     }
   });
 </script>
 
 {#snippet manageLink()}
-  <a href="/manage/companion" onclick={(event) => go(event, '/manage/companion')}>{t('Companion.manage_companion')}</a>
+  <a href="/manage/companion" onclick={(event) => go(event, '/manage/companion')}>{t('manage_companion')}</a>
 {/snippet}
 
 {#if failure}<p class="notice failed" role="alert">{failure}</p>{/if}
 
 {#if status === null}
-  {#if !failure}<p role="status">{t('Companion.loading')}</p>{/if}
+  {#if !failure}<p role="status">{t('loading')}</p>{/if}
 {:else if platform === 'ios'}
   <section class="panel" aria-labelledby="companion-ios">
-    <h2 id="companion-ios">{t('Companion.not_supported_on_iphone_and_ipad')}</h2>
-    <p class="lead">{t('Companion.ios_does_not_allow_a_patched_companion_use_an')}</p>
+    <h2 id="companion-ios">{t('companion_ios_unsupported')}</h2>
+    <p class="lead">{t('companion_ios_description')}</p>
   </section>
 {:else if platform === 'android'}
-  <section class="panel" aria-label={t('Companion.android_setup_steps')}>
+  <section class="panel" aria-label={t('android_setup_steps')}>
     {#if status.app && !status.app.current}
       <p class="stale" role="status">
-        {t('Companion.this_app_was_made_for_an_old_certificate_and')}
-        {#if administrator}{t('Companion.update_it_under')} {@render manageLink()}.{:else}{t(
-            'Companion.ask_the_server_administrator_to_update_it',
-          )}{/if}
+        {t('companion_app_stale_certificate_warning')}
+        {#if administrator}{t('update_it_under')} {@render manageLink()}.{:else}{t('companion_app_update_hint')}{/if}
       </p>
     {/if}
 
     <ol class="walk">
       <li>
-        <h2>{t('Companion.download_companion_for_zluggish')}</h2>
+        <h2>{t('download_companion_for_zluggish')}</h2>
         {#if status.app}
           <p>
-            {t('Companion.installs_next_to_zwift_companion_from_google_play')}
-            {t('Companion.download_it_on_the_phone')}
+            {t('companion_app_coexistence_hint')}
+            {t('companion_app_download_hint')}
           </p>
           <a class="download" class:muted-action={!status.app.current} href="/api/companion/app" download
-            >{t('Companion.download_companion', { value1: status.app.versionName })}</a
+            >{t('download_companion', { value1: status.app.versionName })}</a
           >
           <p class="hint">
-            {t('Companion.patched_on', { value1: megabytes(status.app.bytes), value2: day(status.app.createdAt) })}
+            {t('patched_on', { value1: megabytes(status.app.bytes), value2: day(status.app.createdAt) })}
           </p>
         {:else}
           <p class="empty">
-            {t('Companion.this_server_does_not_have_the_companion_app_yet')}
-            {#if administrator}{t('Companion.set_it_up_under')} {@render manageLink()}.{:else}{t(
-                'Companion.the_server_administrator_needs_to_set_it_up_first',
+            {t('companion_app_unavailable')}
+            {#if administrator}{t('set_it_up_under')} {@render manageLink()}.{:else}{t(
+                'companion_app_unavailable_hint',
               )}{/if}
           </p>
         {/if}
       </li>
       <li>
-        <h2>{t('Companion.install_it')}</h2>
+        <h2>{t('install_it')}</h2>
         <p>
-          {t('Companion.open_the_downloaded_file_allow_your_browser_to_install')}
-          <strong>{t('Companion.install')}</strong>.
+          {t('companion_install_open_file_hint')}
+          <strong>{t('install')}</strong>.
         </p>
         <p class="hint">
-          {t('Companion.if_play_protect_warns_select')} <strong>{t('Companion.install_anyway')}</strong>.
+          {t('companion_install_play_protect_hint_prefix')} <strong>{t('install_anyway')}</strong>.
         </p>
       </li>
       <li>
-        <h2>{t('Companion.send_companion_to_this_server')}</h2>
+        <h2>{t('companion_description')}</h2>
         <p>
-          {t('Companion.install')}
+          {t('install')}
           <a href="https://github.com/x-falcon/Virtual-Hosts/releases/latest" target="_blank" rel="noopener noreferrer"
-            >{t('Companion.virtual_hosts')}</a
-          >{t('Companion.save_these_lines_as')} <strong>{t('Companion.hosts_txt')}</strong>
-          {t('Companion.and_select_the_file_in_virtual_hosts')}
+            >{t('virtual_hosts')}</a
+          >{t('save_these_lines_as')} <strong>{t('hosts_txt')}</strong>
+          {t('companion_hosts_select_file_suffix')}
         </p>
         <div class="command">
           <code>{hosts}</code>
           {#if canCopy}
             <button type="button" class="copy" onclick={copyHosts} aria-live="polite"
-              >{copied ? t('Companion.copied') : t('Companion.copy')}</button
+              >{copied ? t('copied') : t('copy')}</button
             >
           {/if}
         </div>
         <p class="hint">
-          {t('Companion.turn_off')} <strong>{t('Companion.private_dns')}</strong>
-          {t('Companion.in_android_settings_while_virtual_hosts_is_on_every')}
+          {t('turn_off')} <strong>{t('private_dns')}</strong>
+          {t('companion_hosts_private_dns_hint')}
         </p>
       </li>
       <li>
-        <h2>{t('Companion.sign_in')}</h2>
-        <p>{t('Companion.open_companion_with_the_zluggish_icon_and_sign')}</p>
+        <h2>{t('sign_in')}</h2>
+        <p>{t('companion_install_launch_hint')}</p>
       </li>
     </ol>
   </section>

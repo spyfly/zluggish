@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import ts from '../server/node_modules/typescript/lib/typescript.js';
 
-export const sections = ['app', 'game', 'shared', 'server'];
 const placeholders = (value) => [...new Set([...value.matchAll(/\{(\w+)\}/g)].map((match) => match[1]))].sort();
 
 /** Parse strict JSON and inspect the syntax tree before duplicate keys can be lost. */
@@ -31,19 +30,9 @@ export function readCatalog(file) {
   if (!catalog || typeof catalog !== 'object' || Array.isArray(catalog)) {
     return { catalog: undefined, errors: [...errors, `${file}: expected a catalog object`] };
   }
-  for (const section of Object.keys(catalog)) {
-    if (!sections.includes(section)) errors.push(`${file}: unknown section ${section}`);
-  }
-  for (const section of sections) {
-    const messages = catalog[section];
-    if (!messages || typeof messages !== 'object' || Array.isArray(messages)) {
-      errors.push(`${file}: expected ${section} messages`);
-      continue;
-    }
-    for (const [key, value] of Object.entries(messages)) {
-      if (typeof value !== 'string' || !value.trim())
-        errors.push(`${file}: ${section}.${key} must be a nonempty string`);
-    }
+  for (const [key, value] of Object.entries(catalog)) {
+    if (!/^[a-z][a-z0-9_]*$/.test(key)) errors.push(`${file}: ${key} must be a flat snake_case key`);
+    if (typeof value !== 'string' || !value.trim()) errors.push(`${file}: ${key} must be a nonempty string`);
   }
   return { catalog: errors.length ? undefined : catalog, errors };
 }
@@ -51,17 +40,15 @@ export function readCatalog(file) {
 /** Other languages must cover the English keys and preserve interpolation names. */
 export function compareCatalogs(english, translated, file) {
   const errors = [];
-  for (const section of sections) {
-    for (const [key, value] of Object.entries(english[section])) {
-      const translation = translated[section][key];
-      if (translation === undefined) errors.push(`${file}: missing message ${section}.${key}`);
-      else if (JSON.stringify(placeholders(value)) !== JSON.stringify(placeholders(translation))) {
-        errors.push(`${file}: interpolation values differ for ${section}.${key}`);
-      }
+  for (const [key, value] of Object.entries(english)) {
+    const translation = translated[key];
+    if (translation === undefined) errors.push(`${file}: missing message ${key}`);
+    else if (JSON.stringify(placeholders(value)) !== JSON.stringify(placeholders(translation))) {
+      errors.push(`${file}: interpolation values differ for ${key}`);
     }
-    for (const key of Object.keys(translated[section])) {
-      if (!Object.hasOwn(english[section], key)) errors.push(`${file}: unused message ${section}.${key}`);
-    }
+  }
+  for (const key of Object.keys(translated)) {
+    if (!Object.hasOwn(english, key)) errors.push(`${file}: unused message ${key}`);
   }
   return errors;
 }

@@ -29,12 +29,12 @@ export class ProfileDownloadRepository {
       });
 
       if (!response.ok) {
-        throw new Error(t('profile_download_repository.official_profile_download_failed'));
+        throw new Error(t('official_profile_download_failed'));
       }
       const bytes = new Uint8Array(await response.arrayBuffer());
 
       if (bytes.length > 16 * 1024 * 1024) {
-        throw new Error(t('profile_download_repository.official_profile_download_is_too_large'));
+        throw new Error(t('profile_download_download_size_limit'));
       }
 
       return bytes;

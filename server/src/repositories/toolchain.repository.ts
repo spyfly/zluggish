@@ -95,7 +95,7 @@ function execute(command: string, args: ReadonlyArray<string>, options: { cwd?: 
       } else {
         fail(
           new Error(
-            t('toolchain_repository.exited_with_code', {
+            t('toolchain_process_exit_error', {
               value1: command,
               value2: code,
               value3: output.trim().split('\n').slice(-8).join('\n'),
@@ -203,7 +203,7 @@ export class ToolchainRepository {
 
       if (!runtime) {
         throw new Error(
-          t('toolchain_repository.no_java_runtime_is_published_for_on_install_java', {
+          t('toolchain_java_platform_unsupported', {
             value1: platform(),
             value2: arch(),
           }),
@@ -227,7 +227,7 @@ export class ToolchainRepository {
       }
 
       if (!(await this.java())) {
-        throw new Error(t('toolchain_repository.the_downloaded_java_runtime_does_not_start_on_this'));
+        throw new Error(t('toolchain_java_startup_failed'));
       }
     }
 
@@ -254,7 +254,7 @@ export class ToolchainRepository {
     const java = await this.java();
 
     if (!java || !(await this.exists(this.editorPath))) {
-      throw new Error(t('toolchain_repository.the_java_tools_are_not_installed'));
+      throw new Error(t('toolchain_java_tools_missing'));
     }
 
     return execute(java.command, ['-Djava.awt.headless=true', '-jar', this.editorPath, ...args], options);
@@ -264,9 +264,7 @@ export class ToolchainRepository {
     const response = await fetch(file.url, { signal });
 
     if (!response.ok || !response.body) {
-      throw new Error(
-        t('toolchain_repository.downloading_failed_with_status', { value1: file.url, value2: response.status }),
-      );
+      throw new Error(t('toolchain_download_http_error', { value1: file.url, value2: response.status }));
     }
     let received = 0;
 
@@ -275,7 +273,7 @@ export class ToolchainRepository {
         received += chunk.length;
 
         if (received > file.bytes) {
-          next(new Error(t('toolchain_repository.is_larger_than_expected', { value1: file.url })));
+          next(new Error(t('toolchain_download_size_limit', { value1: file.url })));
 
           return;
         }
@@ -291,7 +289,7 @@ export class ToolchainRepository {
     });
 
     if ((await this.crypto.sha256FileAsync(target)) !== file.sha256) {
-      throw new Error(t('toolchain_repository.does_not_match_its_pinned_checksum', { value1: file.url }));
+      throw new Error(t('toolchain_checksum_mismatch', { value1: file.url }));
     }
   }
 }

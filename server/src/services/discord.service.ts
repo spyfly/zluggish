@@ -17,7 +17,7 @@ const make = Effect.gen(function* () {
         presence: (count) => transport.presence(count),
         close: () => transport.close(),
       },
-      t('discord_service.discord'),
+      t('discord'),
       settings,
     );
 

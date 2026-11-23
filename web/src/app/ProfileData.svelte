@@ -39,21 +39,21 @@
   const exportDetails = new Map<string, { title: string; description?: string }>(
     Object.entries({
       'profile.bin': {
-        title: t('ProfileData.rider_profile_and_progress'),
-        description: t('ProfileData.rider_details_avatar_gear_xp_drops_and_lifetime_totals'),
+        title: t('rider_profile_and_progress'),
+        description: t('profile_data_import_profile_description'),
       },
       'achievements.bin': {
-        title: t('ProfileData.achievements'),
+        title: t('achievements'),
       },
       'user_storage.bin': {
-        title: t('ProfileData.game_settings_and_bike_upgrades'),
-        description: t('ProfileData.in_game_preferences_garage_bike_customizations_and_upgrades'),
+        title: t('profile_data_import_settings_label'),
+        description: t('profile_data_import_settings_description'),
       },
       'streaks.bin': {
-        title: t('ProfileData.riding_streaks'),
+        title: t('riding_streaks'),
       },
       'economy_config.txt': {
-        title: t('ProfileData.level_and_reward_rules'),
+        title: t('level_and_reward_rules'),
       },
     }),
   );
@@ -83,7 +83,7 @@
       await work();
     } catch (error) {
       failed = true;
-      message = error instanceof Error ? error.message : t('ProfileData.request_failed');
+      message = error instanceof Error ? error.message : t('request_failed');
     } finally {
       busy = false;
     }
@@ -117,7 +117,7 @@
 </script>
 
 {#if path === '/profile-data'}
-  <nav class="import-options" aria-label={t('ProfileData.import_source')}>
+  <nav class="import-options" aria-label={t('import_source')}>
     <a
       href="/profile-data/local"
       onclick={(e) => {
@@ -125,8 +125,8 @@
         void navigate('/profile-data/local');
       }}
     >
-      <span class="option-title">{t('ProfileData.import_from_local_files')}</span>
-      <span class="option-description">{t('ProfileData.profile_files_from_your_computer')}</span>
+      <span class="option-title">{t('import_from_local_files')}</span>
+      <span class="option-description">{t('profile_data_import_description')}</span>
     </a>
     <a
       href="/zwift"
@@ -135,36 +135,36 @@
         void navigate('/zwift');
       }}
     >
-      <span class="option-title">{t('ProfileData.import_from_zwift')}</span>
-      <span class="option-description">{t('ProfileData.download_from_your_zwift_account')}</span>
+      <span class="option-title">{t('import_from_zwift')}</span>
+      <span class="option-description">{t('profile_data_download_description')}</span>
     </a>
   </nav>
 {:else if path === '/profile-data/local' || path === '/zwift'}
-  <nav aria-label={t('ProfileData.profile_data')}>
+  <nav aria-label={t('profile_data')}>
     <a
       href="/profile-data"
       onclick={(e) => {
         e.preventDefault();
         void navigate('/profile-data');
-      }}>{t('ProfileData.import_export')}</a
+      }}>{t('profile_data_import_export')}</a
     >
   </nav>
 {/if}
 {#if message}<p class="notice" class:failed role={failed ? 'alert' : 'status'}>{message}</p>{/if}
 {#if path === '/profile-data'}
   <section class="panel">
-    <h2>{t('ProfileData.export_your_user_data')}</h2>
-    <p>{t('ProfileData.download_every_file_to_back_up_your_data_or')}</p>
+    <h2>{t('export_your_user_data')}</h2>
+    <p>{t('profile_data_export_description')}</p>
     {#each filenames as filename (filename)}
       <div class="export-file">
         <h3>{exportDetails.get(filename)?.title ?? filename}</h3>
         {#if exportDetails.get(filename)?.description}<p>{exportDetails.get(filename)?.description}</p>{/if}
         <a href={`/api/me/export/${encodeURIComponent(filename)}`} download={filename}
-          >{t('ProfileData.download', { value1: filename })}</a
+          >{t('profile_data_download', { value1: filename })}</a
         >
       </div>
     {:else}
-      {#if !busy && !failed}<p>{t('ProfileData.no_files_available_to_export')}</p>{/if}
+      {#if !busy && !failed}<p>{t('profile_data_export_empty')}</p>{/if}
     {/each}
   </section>
 {/if}
@@ -181,15 +181,15 @@
       });
     }}
   >
-    <h2>{t('ProfileData.confirm_profile_import')}</h2>
-    <p>{review.firstName} {review.lastName} ({review.sourceId ?? t('ProfileData.unknown_source')})</p>
-    <p>{t('ProfileData.replace', { value1: review.files.join(', ') })}</p>
+    <h2>{t('confirm_profile_import')}</h2>
+    <p>{review.firstName} {review.lastName} ({review.sourceId ?? t('unknown_source')})</p>
+    <p>{t('replace', { value1: review.files.join(', ') })}</p>
     {#if review.confirmSource}<label
         ><input type="checkbox" bind:checked={confirmSource} required />
-        {t('ProfileData.confirm_this_source_may_differ_or_be_shared_with')}</label
+        {t('profile_data_import_source_warning')}</label
       >{/if}
-    <label><input type="checkbox" bind:checked={keepName} /> {t('ProfileData.keep_local_name')}</label>
-    <button class="primary" disabled={busy}>{t('ProfileData.confirm_import')}</button>
+    <label><input type="checkbox" bind:checked={keepName} /> {t('keep_local_name')}</label>
+    <button class="primary" disabled={busy}>{t('confirm_import')}</button>
     <button
       type="button"
       disabled={busy}
@@ -198,7 +198,7 @@
           await request(ignored, '/api/me/import/confirm', 'POST', { stage: review!.stage, cancel: true });
           review = null;
           message = 'Import canceled. Your user data is unchanged.';
-        })}>{t('ProfileData.cancel')}</button
+        })}>{t('cancel')}</button
     >
   </form>
 {:else if path === '/profile-data/local'}
@@ -215,13 +215,11 @@
       <label for={filename}>{filename}</label>
       <input id={filename} name={filename} type="file" disabled={busy} />
     {/each}
-    <button class="primary" disabled={busy || !filenames.length}>{t('ProfileData.review_import')}</button>
+    <button class="primary" disabled={busy || !filenames.length}>{t('review_import')}</button>
   </form>
 {:else if path === '/zwift' && connection}
   <p>
-    {connection.connected
-      ? t('ProfileData.credentials_saved_leave_username_and_password_blank_to_keep')
-      : t('ProfileData.save_your_official_zwift_credentials_to_connect')}
+    {connection.connected ? t('profile_data_credentials_saved_hint') : t('profile_data_credentials_description')}
   </p>
   <form
     class="panel"
@@ -240,18 +238,16 @@
       });
     }}
   >
-    <label for="zwift-username">{t('ProfileData.username')}</label>
+    <label for="zwift-username">{t('username')}</label>
     <input id="zwift-username" autocomplete="username" bind:value={username} disabled={busy} />
-    <label for="zwift-password">{t('ProfileData.password')}</label>
+    <label for="zwift-password">{t('password')}</label>
     <input id="zwift-password" type="password" autocomplete="new-password" bind:value={password} disabled={busy} />
-    <label
-      ><input type="checkbox" bind:checked={connection.upload} /> {t('ProfileData.upload_activities_to_zwift')}</label
-    >
+    <label><input type="checkbox" bind:checked={connection.upload} /> {t('upload_activities_to_zwift')}</label>
     <label
       ><input type="checkbox" bind:checked={connection.click} />
-      {t('ProfileData.enable_zwift_click_authentication')}</label
+      {t('enable_zwift_click_authentication')}</label
     >
-    <button class="primary" disabled={busy}>{t('ProfileData.save_connection')}</button>
+    <button class="primary" disabled={busy}>{t('save_connection')}</button>
   </form>
   {#if connection.connected}
     <form
@@ -263,16 +259,14 @@
         );
       }}
     >
-      <h2>{t('ProfileData.download_user_data')}</h2>
-      <label><input type="checkbox" bind:checked={profile} /> {t('ProfileData.download_profile_and_economy')}</label>
-      <label><input type="checkbox" bind:checked={achievements} /> {t('ProfileData.download_achievements')}</label>
-      <button class="primary" disabled={busy || (!profile && !achievements)}
-        >{t('ProfileData.download_and_review_import')}</button
-      >
+      <h2>{t('download_user_data')}</h2>
+      <label><input type="checkbox" bind:checked={profile} /> {t('download_profile_and_economy')}</label>
+      <label><input type="checkbox" bind:checked={achievements} /> {t('download_achievements')}</label>
+      <button class="primary" disabled={busy || (!profile && !achievements)}>{t('download_and_review_import')}</button>
     </form>
     <section class="panel">
       {#if removing}
-        <p>{t('ProfileData.remove_zwift_credentials')}</p>
+        <p>{t('remove_zwift_credentials')}</p>
         <button
           disabled={busy}
           onclick={() =>
@@ -280,11 +274,10 @@
               connection = await request(connectionResponse, '/api/me/zwift', 'DELETE', {});
               removing = false;
               message = 'Credentials removed.';
-            })}>{t('ProfileData.remove_credentials')}</button
+            })}>{t('remove_credentials')}</button
         >
-        <button disabled={busy} onclick={() => (removing = false)}>{t('ProfileData.cancel')}</button>
-      {:else}<button disabled={busy} onclick={() => (removing = true)}>{t('ProfileData.remove_credentials')}</button
-        >{/if}
+        <button disabled={busy} onclick={() => (removing = false)}>{t('cancel')}</button>
+      {:else}<button disabled={busy} onclick={() => (removing = true)}>{t('remove_credentials')}</button>{/if}
     </section>
   {/if}
 {/if}

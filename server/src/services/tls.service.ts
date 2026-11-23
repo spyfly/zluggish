@@ -174,7 +174,7 @@ const make = Effect.gen(function* () {
       if (source !== 'managed') {
         throw new ApplicationError({
           status: 409,
-          message: t('tls_service.this_server_uses_the_certificate_files_from_its_configuration'),
+          message: t('tls_configured_certificate_notice'),
         });
       }
 

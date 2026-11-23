@@ -93,7 +93,7 @@ export class AccountsRepository {
   // Offline recovery preserves disabled state unless administrator access is requested.
   setPassword(id: number, hash: string | null, admin: boolean) {
     if (!hash) {
-      throw new Error(t('accounts_repository.a_password_is_required'));
+      throw new Error(t('password_required'));
     }
     atomic(this.db, () => {
       this.executor.run(

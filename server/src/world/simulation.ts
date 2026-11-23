@@ -388,7 +388,7 @@ export class Simulation {
     }
 
     if (index === undefined) {
-      throw new Error(t('simulation.at_most_four_simultaneous_solo_blobs_are_supported'));
+      throw new Error(t('simulation_solo_blob_limit'));
     }
 
     const blob = new Blob(
@@ -529,7 +529,7 @@ export class Simulation {
       const profile = clone(PlayerProfileSchema, rider);
       profile.id = ghostId;
       profile.firstName = '';
-      profile.lastName = t('simulation.ghost');
+      profile.lastName = t('ghost');
       profile.countryCode = 0;
       this.pool.customizeGhost(profile, this.ghostAppearance);
       this.runtime.profiles.synthetic.set(ghostId, profile);
@@ -635,7 +635,7 @@ export class Simulation {
     const state = this.runtime.world.online.get(id);
 
     if (state) {
-      this.bookmark(state, state.sport === 1 ? t('simulation.last_run') : t('simulation.last_ride'));
+      this.bookmark(state, state.sport === 1 ? t('last_run') : t('last_ride_label'));
     }
     this.ghosts.delete(id);
     this.runtime.world.personal.delete(id);
@@ -689,7 +689,7 @@ export class Simulation {
     if (name === 'regroup') {
       this.regroup(id);
 
-      return t('simulation.ghosts_regrouped');
+      return t('ghosts_regrouped');
     }
 
     if (name === 'bookmark') {
@@ -699,24 +699,24 @@ export class Simulation {
         this.bookmark(state, argument);
       }
 
-      return t('simulation.bookmark_saved');
+      return t('bookmark_saved');
     }
 
     // These change the world for every rider. Only the management area sends them, on behalf of a rider.
     if (!administrator && Schema.is(botCommand)(name)) {
-      return t('simulation.use_the_web_app_management_area_for_server_commands');
+      return t('simulation_management_hint');
     }
 
     if (name === 'group' || name === 'groupall') {
       this.group(id, name === 'groupall');
 
-      return t('simulation.bots_grouped');
+      return t('bots_grouped');
     }
 
     if (name === 'autogroup' || name === 'autogroupall') {
       this.trackGroup(id, name === 'autogroupall');
 
-      return t('simulation.automatic_grouping_enabled');
+      return t('automatic_grouping_enabled');
     }
 
     if (name === 'stopautogroup' || name === 'disperse') {
@@ -730,7 +730,7 @@ export class Simulation {
         }
       }
 
-      return t('simulation.automatic_grouping_stopped');
+      return t('automatic_grouping_stopped');
     }
 
     if (name === 'blob') {
@@ -738,7 +738,7 @@ export class Simulation {
 
       if (!argument) {
         return blob
-          ? t('simulation.blob_active_riders_mode', { value1: blob.riders.length, value2: blob.mode ?? 'normal' })
+          ? t('blob_active_riders_mode', { value1: blob.riders.length, value2: blob.mode ?? 'normal' })
           : 'Blob off. Start with .blob <n>.';
       }
 
@@ -752,13 +752,13 @@ export class Simulation {
       const action = actions.get(argument);
 
       if (action !== undefined) {
-        return blob?.gesture(action) ?? t('simulation.start_a_blob_first');
+        return blob?.gesture(action) ?? t('simulation_blob_required');
       }
 
       if (['new', 'restart', 'reroll'].includes(argument)) {
         this.loadBlob(id);
 
-        return t('simulation.new_riders_on_the_road');
+        return t('simulation_new_riders_notice');
       }
 
       const saved = this.runtime.settings.world(`blob:${id}`);
@@ -771,19 +771,19 @@ export class Simulation {
         saved.enabled = true;
         saved.riders = Number(argument);
       } else {
-        return t('simulation.usage_blob_1_30_new_off_record_hammer_toast');
+        return t('simulation_blob_usage');
       }
       this.runtime.settings.saveWorld(`blob:${id}`, saved);
       this.loadBlob(id);
 
-      return this.blobs.has(id) ? t('simulation.blob_settings_saved') : t('simulation.blob_off');
+      return this.blobs.has(id) ? t('blob_settings_saved') : t('blob_off');
     }
 
     if (name === 'peloton') {
       const state = this.runtime.world.online.get(id);
 
       if (!state) {
-        return t('simulation.start_riding_first');
+        return t('simulation_active_ride_required');
       }
 
       const score = (replay: ReplayRider) =>
@@ -800,7 +800,7 @@ export class Simulation {
         })[0];
 
       if (!pacer) {
-        return t('simulation.no_robopacer_on_this_course');
+        return t('simulation_robopacer_missing');
       }
 
       const existing = [...this.pelotons].find(([, group]) => group.pacer === pacer);
@@ -823,10 +823,10 @@ export class Simulation {
       this.runtime.settings.saveWorld(`peloton:${key}`, saved);
       this.loadPelotons();
 
-      return t('simulation.peloton_settings_saved');
+      return t('peloton_settings_saved');
     }
 
-    return t('simulation.invalid_command', { value1: command });
+    return t('invalid_command', { value1: command });
   }
 
   /** Off -> tracking; switching rider resets the road/direction checkpoint. */

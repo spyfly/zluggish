@@ -75,7 +75,7 @@ function openSessions(accounts: AccountsService['Service']) {
     }
 
     if (browsers.size >= 10_000) {
-      throw new ApplicationError({ status: 503, message: t('browser_session_service.too_many_browser_sessions') });
+      throw new ApplicationError({ status: 503, message: t('too_many_browser_sessions') });
     }
 
     const token = repositories.cryptoRepository.randomBytes(32).toString('base64url');
@@ -181,8 +181,7 @@ function openSessions(accounts: AccountsService['Service']) {
         now >= exp * 1000 ||
         parsed.iat !== iat ||
         parsed.exp !== exp ||
-        parsed.typ !==
-          (purpose === 'access' ? t('browser_session_service.bearer') : t('browser_session_service.refresh'))
+        parsed.typ !== (purpose === 'access' ? t('bearer') : t('refresh'))
       ) {
         return null;
       }
@@ -206,7 +205,7 @@ function openSessions(accounts: AccountsService['Service']) {
         iat,
         exp,
         nbf: iat,
-        typ: purpose === 'access' ? t('browser_session_service.bearer') : t('browser_session_service.refresh'),
+        typ: purpose === 'access' ? t('bearer') : t('refresh'),
         session_cookie: repositories.cryptoRepository.signIdentity(
           `game-v1:${purpose}:${identity}:${iat}:${exp}`,
           secret,
@@ -228,7 +227,7 @@ function openSessions(accounts: AccountsService['Service']) {
     const identity = accounts.identityOf(rider);
 
     if (!accounts.identity(identity)) {
-      throw new ApplicationError({ status: 401, message: t('browser_session_service.account_changed_sign_in_again') });
+      throw new ApplicationError({ status: 401, message: t('browser_session_account_changed') });
     }
 
     const now = Date.now();

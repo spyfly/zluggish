@@ -110,10 +110,8 @@ export class FitRepository {
       }
     });
 
-    worker.on('error', (error) =>
-      this.fail(error instanceof Error ? error : new Error(t('fit_repository.fit_worker_failed'))),
-    );
-    worker.on('exit', () => this.fail(new Error(t('fit_repository.fit_worker_stopped'))));
+    worker.on('error', (error) => this.fail(error instanceof Error ? error : new Error(t('fit_worker_failed'))));
+    worker.on('exit', () => this.fail(new Error(t('fit_worker_stopped'))));
     this.worker = worker;
 
     return worker;

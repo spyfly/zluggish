@@ -41,7 +41,7 @@ function parseXML(content: string) {
     Buffer.byteLength(content) > 16 * 1024 * 1024 ||
     XMLValidator.validate(content) !== true
   ) {
-    throw new Error(t('workout_service.invalid_workout_xml'));
+    throw new Error(t('invalid_workout_xml'));
   }
 
   return Schema.decodeUnknownSync(documentSchema)(parser.parse(content));
@@ -112,9 +112,7 @@ function workoutDetails(content: string) {
         }
         add(repeat * number(step['@_OnDuration']), number(step['@_OnPower'], -1));
         add(repeat * number(step['@_OffDuration']), number(step['@_OffPower'], -1));
-      } else if (
-        [t('workout_service.warmup'), t('workout_service.cooldown'), t('workout_service.ramp')].includes(tag)
-      ) {
+      } else if ([t('warmup'), t('cooldown'), t('ramp')].includes(tag)) {
         add(number(step['@_Duration']), number(step['@_PowerLow'], -1), number(step['@_PowerHigh'], -1));
       } else {
         add(number(step['@_Duration']), number(step['@_Power'], -1));
@@ -361,7 +359,7 @@ const make = Effect.gen(function* () {
     }
 
     if (provider !== 'intervals-icu') {
-      return t('workout_service.configure_a_workout_provider_first');
+      return t('workout_provider_required');
     }
 
     let credentials: readonly [string, string] | null;
@@ -378,20 +376,20 @@ const make = Effect.gen(function* () {
         error,
       });
 
-      return t('workout_service.the_saved_intervals_icu_credentials_cannot_be_read_enter');
+      return t('workout_intervals_credentials_unreadable');
     }
 
     if (!credentials) {
-      return t('workout_service.intervals_icu_credentials_are_missing');
+      return t('workout_intervals_credentials_missing');
     }
     const [athlete, key] = credentials;
 
     if (!isIntervalsAthleteId(athlete)) {
-      throw new Error(t('workout_service.invalid_athlete_id'));
+      throw new Error(t('invalid_athlete_id'));
     }
 
     const headers = {
-      Authorization: t('workout_service.basic', { value1: Buffer.from(`API_KEY:${key}`).toString('base64') }),
+      Authorization: t('basic', { value1: Buffer.from(`API_KEY:${key}`).toString('base64') }),
     };
 
     const base = `https://intervals.icu/api/v1/athlete/${athlete}`;
@@ -403,7 +401,7 @@ const make = Effect.gen(function* () {
     );
 
     if (!response.ok) {
-      throw new Error(t('workout_service.intervals_icu_sync_failed'));
+      throw new Error(t('intervals_icu_sync_failed'));
     }
 
     const events = Schema.decodeUnknownSync(
@@ -435,12 +433,12 @@ const make = Effect.gen(function* () {
       });
 
       if (!response.ok) {
-        throw new Error(t('workout_service.intervals_icu_download_failed'));
+        throw new Error(t('intervals_icu_download_failed'));
       }
       const text = await response.text();
 
       if (!workoutDetails(text)) {
-        throw new Error(t('workout_service.invalid_cycling_workout'));
+        throw new Error(t('invalid_cycling_workout'));
       }
       downloads.push({ event, text });
     }
@@ -470,7 +468,7 @@ const make = Effect.gen(function* () {
       const root = ordered.find((node) => 'workout_file' in node);
 
       if (!root) {
-        throw new Error(t('workout_service.missing_workout_root'));
+        throw new Error(t('missing_workout_root'));
       }
       const children = Schema.decodeUnknownSync(Schema.Array(documentSchema))(root.workout_file);
       root.workout_file = [...children.filter((node) => !('uniqueId' in node)), { uniqueId: [{ '#text': identity }] }];
@@ -479,7 +477,7 @@ const make = Effect.gen(function* () {
       const file = fileOf(identity);
 
       if (!file) {
-        throw new Error(t('workout_service.invalid_workout_identity'));
+        throw new Error(t('invalid_workout_identity'));
       }
       pendingFiles.set(file, Schema.decodeUnknownSync(Schema.String)(content));
 
@@ -505,7 +503,7 @@ const make = Effect.gen(function* () {
     // Publication is synchronous: no request can observe new metadata before all files exist.
     repositories.workoutPublication.publish(pendingFiles);
 
-    return t('workout_service.synced_intervals_icu_workouts', { value1: entries.length });
+    return t('synced_intervals_icu_workouts', { value1: entries.length });
   }
 
   function importBridge(id: number, signal = AbortSignal.timeout(30_000)) {
@@ -514,7 +512,7 @@ const make = Effect.gen(function* () {
     const folder = settings.workouts.trainingpeaks.bridgeFolder;
 
     if (!folder || !repositories.filesRepository.existsSync(folder)) {
-      return t('workout_service.trainingpeaks_bridge_folder_is_missing');
+      return t('workout_trainingpeaks_folder_missing');
     }
     const imports: Array<{ filename: string; content: Buffer }> = [];
 
@@ -538,7 +536,7 @@ const make = Effect.gen(function* () {
       }.zwo`;
 
       if (imports.some((item) => item.filename === filename)) {
-        throw new Error(t('workout_service.workout_filenames_collide', { value1: filename }));
+        throw new Error(t('workout_filenames_collide', { value1: filename }));
       }
       imports.push({ filename, content });
     }
@@ -564,7 +562,7 @@ const make = Effect.gen(function* () {
       }
     });
 
-    return t('workout_service.imported_trainingpeaks_workouts', { value1: imports.length });
+    return t('imported_trainingpeaks_workouts', { value1: imports.length });
   }
 
   const requests = new Map<string, Promise<void>>();

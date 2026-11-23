@@ -79,22 +79,22 @@
   {#snippet aside()}
     {#if current.webApp && (current.kind === 'dashboard' || current.kind === 'login')}
       <a class="web-app" href={current.webApp} target="_blank" rel="noopener noreferrer">
-        {t('Game.manage_your_account')}
+        {t('manage_your_account')}
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3h7v7M13 3 4 12" /></svg>
-        <span class="visually-hidden">{t('Game.opens_the_web_app_in_your_browser')}</span>
+        <span class="visually-hidden">{t('web_app_hint')}</span>
       </a>
     {/if}
   {/snippet}
   {#if current.warning}<p class="security" role="alert">
-      <strong>{t('Game.unsafe_connection')}</strong>
+      <strong>{t('unsafe_connection')}</strong>
       {current.warning}
     </p>{/if}
   {#key failures}{#if current.message}<p class="notice" role={current.failed ? 'alert' : 'status'}>
         {current.message}
       </p>{/if}{/key}
   {#if locked}<p class="error" role="alert">
-      {t('Game.your_session_or_user_changed')} <a href="/login/">{t('Game.sign_in')}</a>
-      {t('Game.or')} <button type="button" onclick={() => location.reload()}>{t('Game.reload_this_page')}</button>.
+      {t('rider_session_changed')} <a href="/login/">{t('sign_in')}</a>
+      {t('or')} <button type="button" onclick={() => location.reload()}>{t('reload_this_page')}</button>.
     </p>{/if}
   {#each current.forms as model (model.id)}
     <div hidden={current.kind === 'dashboard' && model.id === 'switch'}>
@@ -115,7 +115,7 @@
       >
         {#snippet actions()}
           {#if current.kind === 'dashboard' && model.id === 'launch'}
-            <button type="submit" form="game-form-switch" disabled={locked}>{t('Game.switch_rider')}</button>
+            <button type="submit" form="game-form-switch" disabled={locked}>{t('switch_rider')}</button>
           {/if}
         {/snippet}
       </Form>

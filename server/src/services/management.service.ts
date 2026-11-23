@@ -41,7 +41,7 @@ const decodeJson = Schema.decodeUnknownSync(Schema.fromJsonString(Schema.Json));
 /** The browser gets a parsed outcome: a failure message, a bot reply, or plain success. */
 function outcome(status: string, result: JsonValue) {
   if (status !== 'complete') {
-    return { status, ok: false, message: t('management_service.the_result_is_unknown_check_the_server_log_before') };
+    return { status, ok: false, message: t('management_result_unknown') };
   }
 
   if (isFailure(result)) {
@@ -51,7 +51,7 @@ function outcome(status: string, result: JsonValue) {
   return {
     status,
     ok: true,
-    message: isString(result) ? result : result === false ? t('management_service.nothing_to_change') : null,
+    message: isString(result) ? result : result === false ? t('nothing_to_change') : null,
   };
 }
 
@@ -67,7 +67,7 @@ function configuration(value: JsonValue, prefix = ''): Array<[string, string]> {
 /** The result a completed operation recorded, returned again when its request is retried. */
 function recorded(prior: { result: string | null }) {
   if (prior.result === null) {
-    throw new ApplicationError({ status: 409, message: t('management_service.operation_changed') });
+    throw new ApplicationError({ status: 409, message: t('operation_changed') });
   }
 
   return JSON.parse(prior.result);
@@ -92,7 +92,7 @@ const make = Effect.gen(function* () {
     const user = context.accounts.get(player);
 
     if (!user) {
-      throw new ApplicationError({ status: 404, message: t('management_service.user_not_found') });
+      throw new ApplicationError({ status: 404, message: t('user_not_found_error') });
     }
 
     return user;
@@ -134,13 +134,13 @@ const make = Effect.gen(function* () {
   /** Lets the setup form check the key before asking for account details. */
   function checkSetupKey(key: string) {
     if (store.complete() || !keyValid(key)) {
-      throw new ApplicationError({ status: 403, message: t('management_service.setup_refused') });
+      throw new ApplicationError({ status: 403, message: t('setup_refused') });
     }
   }
 
   async function passwordTask<T>(work: () => Promise<T>) {
     if (passwordWork >= 4) {
-      throw new ApplicationError({ status: 503, message: t('management_service.try_again_shortly') });
+      throw new ApplicationError({ status: 503, message: t('management_retry_later') });
     }
     passwordWork++;
 
@@ -153,7 +153,7 @@ const make = Effect.gen(function* () {
 
   function insert(input: (typeof newUser)['Type'], hash: string) {
     if (context.accounts.loginNameTaken(input.username)) {
-      throw new ApplicationError({ status: 409, message: t('management_service.login_name_already_exists') });
+      throw new ApplicationError({ status: 409, message: t('login_name_already_exists') });
     }
 
     const occupied = [
@@ -167,7 +167,7 @@ const make = Effect.gen(function* () {
     const id = Math.max(0, ...occupied) + 1;
 
     if (!Number.isSafeInteger(id) || id > 2_147_483_647) {
-      throw new ApplicationError({ status: 409, message: t('management_service.user_id_space_exhausted') });
+      throw new ApplicationError({ status: 409, message: t('user_id_space_exhausted') });
     }
     repositories.accountsRepository.insert({
       player_id: id,
@@ -184,7 +184,7 @@ const make = Effect.gen(function* () {
     const input = Schema.decodeUnknownSync(setupRequest)(raw);
 
     if (store.complete() || !keyValid(input.key)) {
-      throw new ApplicationError({ status: 403, message: t('management_service.setup_refused') });
+      throw new ApplicationError({ status: 403, message: t('setup_refused') });
     }
 
     const existing =
@@ -197,7 +197,7 @@ const make = Effect.gen(function* () {
     if (input.mode === 'existing' && existing && !existing.pass_hash) {
       throw new ApplicationError({
         status: 400,
-        message: t('management_service.this_user_has_no_password_create_a_new_user'),
+        message: t('management_user_password_missing'),
       });
     }
 
@@ -207,7 +207,7 @@ const make = Effect.gen(function* () {
       }
 
       if (!existing || !(await context.accounts.verify(existing, input.password))) {
-        throw new ApplicationError({ status: 403, message: t('management_service.setup_refused') });
+        throw new ApplicationError({ status: 403, message: t('setup_refused') });
       }
 
       return null;
@@ -215,13 +215,13 @@ const make = Effect.gen(function* () {
 
     const user = store.transaction(() => {
       if (!live() || store.complete() || !keyValid(input.key)) {
-        throw new ApplicationError({ status: 409, message: t('management_service.setup_refused') });
+        throw new ApplicationError({ status: 409, message: t('setup_refused') });
       }
       let target: User;
 
       if (input.mode === 'new') {
         if (hash === null) {
-          throw new ApplicationError({ status: 409, message: t('management_service.setup_refused') });
+          throw new ApplicationError({ status: 409, message: t('setup_refused') });
         }
         target = insert(input, hash);
       } else {
@@ -235,7 +235,7 @@ const make = Effect.gen(function* () {
           current.pass_hash !== existing.pass_hash ||
           current.username !== existing.username
         ) {
-          throw new ApplicationError({ status: 409, message: t('management_service.account_changed_retry') });
+          throw new ApplicationError({ status: 409, message: t('account_changed_retry') });
         }
         target = current;
       }
@@ -269,7 +269,7 @@ const make = Effect.gen(function* () {
       current.pass_hash !== user.pass_hash ||
       current.username !== user.username
     ) {
-      throw new ApplicationError({ status: 401, message: t('management_service.login_name_or_password_is_incorrect') });
+      throw new ApplicationError({ status: 401, message: t('management_credentials_invalid') });
     }
 
     return user;
@@ -283,7 +283,7 @@ const make = Effect.gen(function* () {
       !(await passwordTask(() => context.accounts.verify(user, password))) ||
       !Effect.runSync(sessions.current(id, identity))
     ) {
-      throw new ApplicationError({ status: 401, message: t('management_service.confirmation_refused') });
+      throw new ApplicationError({ status: 401, message: t('confirmation_refused') });
     }
     Effect.runSync(sessions.require(id, true, false));
     Effect.runSync(sessions.session(id)).confirmedUntil = Date.now() + 900_000;
@@ -296,7 +296,7 @@ const make = Effect.gen(function* () {
 
     const hash = await passwordTask(async () => {
       if (user.role !== 'administrator' && !(await context.accounts.verify(user, current ?? ''))) {
-        throw new ApplicationError({ status: 403, message: t('management_service.password_incorrect') });
+        throw new ApplicationError({ status: 403, message: t('password_incorrect') });
       }
 
       return repositories.cryptoRepository.hashPassword(password);
@@ -304,7 +304,7 @@ const make = Effect.gen(function* () {
 
     store.transaction(() => {
       if (!Effect.runSync(sessions.current(id, identity))) {
-        throw new ApplicationError({ status: 401, message: t('management_service.session_changed') });
+        throw new ApplicationError({ status: 401, message: t('session_changed') });
       }
       store.update(user.player_id, { pass_hash: hash });
     });
@@ -329,7 +329,7 @@ const make = Effect.gen(function* () {
 
       if (prior) {
         if (prior.action !== 'create' || prior.fingerprint !== fingerprint) {
-          throw new ApplicationError({ status: 409, message: t('management_service.operation_changed') });
+          throw new ApplicationError({ status: 409, message: t('operation_changed') });
         }
 
         return recorded(prior);
@@ -359,27 +359,27 @@ const make = Effect.gen(function* () {
       if (actor.player_id === targetId && action === 'password') {
         throw new ApplicationError({
           status: 403,
-          message: t('management_service.change_your_own_password_on_your_profile'),
+          message: t('management_own_password_reset_blocked'),
         });
       }
       const target = context.accounts.get(targetId);
 
       if (!target) {
-        throw new ApplicationError({ status: 404, message: t('management_service.user_not_found') });
+        throw new ApplicationError({ status: 404, message: t('user_not_found_error') });
       }
       const fingerprint = fingerprintNow({ action, targetId, input });
       const prior = store.operation(actor.player_id, input.operation);
 
       if (prior) {
         if (prior.fingerprint !== fingerprint) {
-          throw new ApplicationError({ status: 409, message: t('management_service.operation_changed') });
+          throw new ApplicationError({ status: 409, message: t('operation_changed') });
         }
 
         return recorded(prior);
       }
 
       if (target.revision !== input.revision) {
-        throw new ApplicationError({ status: 409, message: t('management_service.user_changed_review_the_new_data') });
+        throw new ApplicationError({ status: 409, message: t('management_user_conflict') });
       }
 
       if (
@@ -390,7 +390,7 @@ const make = Effect.gen(function* () {
       ) {
         throw new ApplicationError({
           status: 409,
-          message: t('management_service.keep_at_least_one_enabled_administrator'),
+          message: t('management_last_admin_protected'),
         });
       }
 
@@ -412,7 +412,7 @@ const make = Effect.gen(function* () {
                   : null;
 
       if (!values) {
-        throw new ApplicationError({ status: 400, message: t('management_service.invalid_action') });
+        throw new ApplicationError({ status: 400, message: t('invalid_action') });
       }
       store.update(targetId, values);
       committed = true;
@@ -446,14 +446,14 @@ const make = Effect.gen(function* () {
       const target = context.accounts.get(player);
 
       if (!target) {
-        throw new ApplicationError({ status: 404, message: t('management_service.user_not_found') });
+        throw new ApplicationError({ status: 404, message: t('user_not_found_error') });
       }
       const fingerprint = fingerprintNow(input);
       const prior = store.operation(actor.player_id, input.operation);
 
       if (prior) {
         if (prior.fingerprint !== fingerprint || prior.action !== 'edit') {
-          throw new ApplicationError({ status: 409, message: t('management_service.operation_changed') });
+          throw new ApplicationError({ status: 409, message: t('operation_changed') });
         }
 
         return recorded(prior);
@@ -462,16 +462,16 @@ const make = Effect.gen(function* () {
       if (context.world.active(player)) {
         throw new ApplicationError({
           status: 409,
-          message: t('management_service.disconnect_the_user_before_changing_names'),
+          message: t('management_active_user_rename_blocked'),
         });
       }
 
       if (target.revision !== input.revision) {
-        throw new ApplicationError({ status: 409, message: t('management_service.user_changed_review_the_new_data') });
+        throw new ApplicationError({ status: 409, message: t('management_user_conflict') });
       }
 
       if (context.accounts.loginNameTaken(input.username, player)) {
-        throw new ApplicationError({ status: 409, message: t('management_service.login_name_already_exists') });
+        throw new ApplicationError({ status: 409, message: t('login_name_already_exists') });
       }
 
       const profile = context.profiles.get(player);
@@ -492,7 +492,7 @@ const make = Effect.gen(function* () {
     const user = player === undefined ? actor : context.accounts.get(player);
 
     if (!user) {
-      throw new ApplicationError({ status: 404, message: t('management_service.user_not_found') });
+      throw new ApplicationError({ status: 404, message: t('user_not_found_error') });
     }
     const [month, day, year] = context.profiles.get(user.player_id).dob.split('/', 3);
 
@@ -522,11 +522,11 @@ const make = Effect.gen(function* () {
     const user = player === undefined ? actor : context.accounts.get(player);
 
     if (!user) {
-      throw new ApplicationError({ status: 404, message: t('management_service.user_not_found') });
+      throw new ApplicationError({ status: 404, message: t('user_not_found_error') });
     }
 
     if (image.length < 4 || image[0] !== 0xff || image[1] !== 0xd8 || image.at(-2) !== 0xff || image.at(-1) !== 0xd9) {
-      throw new ApplicationError({ status: 400, message: t('management_service.choose_a_jpg_or_png_image') });
+      throw new ApplicationError({ status: 400, message: t('management_avatar_format_invalid') });
     }
     repositories.filesRepository.write(avatarPath(user.player_id), image);
 
@@ -538,7 +538,7 @@ const make = Effect.gen(function* () {
     const user = player === undefined ? actor : context.accounts.get(player);
 
     if (!user) {
-      throw new ApplicationError({ status: 404, message: t('management_service.user_not_found') });
+      throw new ApplicationError({ status: 404, message: t('user_not_found_error') });
     }
     const path = avatarPath(user.player_id);
 
@@ -558,14 +558,14 @@ const make = Effect.gen(function* () {
       const target = context.accounts.get(player);
 
       if (!target) {
-        throw new ApplicationError({ status: 404, message: t('management_service.user_not_found') });
+        throw new ApplicationError({ status: 404, message: t('user_not_found_error') });
       }
       const fingerprint = fingerprintNow({ ...input, player });
       const prior = store.operation(actor.player_id, input.operation);
 
       if (prior) {
         if (prior.fingerprint !== fingerprint || prior.action !== 'profile') {
-          throw new ApplicationError({ status: 409, message: t('management_service.operation_changed') });
+          throw new ApplicationError({ status: 409, message: t('operation_changed') });
         }
 
         return recorded(prior);
@@ -574,16 +574,16 @@ const make = Effect.gen(function* () {
       if (context.world.active(player)) {
         throw new ApplicationError({
           status: 409,
-          message: t('management_service.leave_the_game_before_changing_your_profile'),
+          message: t('management_active_profile_edit_blocked'),
         });
       }
 
       if (target.revision !== input.revision) {
-        throw new ApplicationError({ status: 409, message: t('management_service.profile_changed_reload_the_page') });
+        throw new ApplicationError({ status: 409, message: t('management_profile_conflict') });
       }
 
       if (context.accounts.loginNameTaken(input.username, player)) {
-        throw new ApplicationError({ status: 409, message: t('management_service.email_address_already_in_use') });
+        throw new ApplicationError({ status: 409, message: t('management_email_conflict') });
       }
 
       const profile = context.profiles.get(player);
@@ -615,18 +615,18 @@ const make = Effect.gen(function* () {
       const actor = Effect.runSync(sessions.require(id, manage));
 
       if ((manage && actor.player_id === player) || (!manage && actor.player_id !== player)) {
-        throw new ApplicationError({ status: 403, message: t('management_service.own_settings_only') });
+        throw new ApplicationError({ status: 403, message: t('own_settings_only') });
       }
 
       if (!context.accounts.get(player)) {
-        throw new ApplicationError({ status: 404, message: t('management_service.user_not_found') });
+        throw new ApplicationError({ status: 404, message: t('user_not_found_error') });
       }
       const fingerprint = fingerprintNow({ player, input });
       const prior = store.operation(actor.player_id, input.operation);
 
       if (prior) {
         if (prior.action !== 'settings' || prior.fingerprint !== fingerprint) {
-          throw new ApplicationError({ status: 409, message: t('management_service.operation_changed') });
+          throw new ApplicationError({ status: 409, message: t('operation_changed') });
         }
 
         return recorded(prior);
@@ -651,7 +651,7 @@ const make = Effect.gen(function* () {
     const input = Schema.decodeUnknownSync(serverRequest)(raw);
 
     if (action === 'bots' && (!input.user || !input.command)) {
-      throw new ApplicationError({ status: 400, message: t('management_service.choose_a_user_and_a_bot_command') });
+      throw new ApplicationError({ status: 400, message: t('management_bot_command_required') });
     }
     const fingerprint = fingerprintNow({ action, input });
 
@@ -662,14 +662,14 @@ const make = Effect.gen(function* () {
 
       if (prior) {
         if (prior.action !== action || prior.fingerprint !== fingerprint) {
-          throw new ApplicationError({ status: 409, message: t('management_service.operation_changed') });
+          throw new ApplicationError({ status: 409, message: t('operation_changed') });
         }
 
         return { actor, prior };
       }
 
       if (action === 'bots' && input.user !== undefined && !context.world.active(input.user)) {
-        throw new ApplicationError({ status: 409, message: t('management_service.the_user_must_be_riding_now') });
+        throw new ApplicationError({ status: 409, message: t('management_active_rider_required') });
       }
       store.intent(actor.player_id, input.operation, action, fingerprint);
 
@@ -687,7 +687,7 @@ const make = Effect.gen(function* () {
     } catch (error) {
       // A known result: the operation did not run. A retry returns it and never dispatches.
       store.finishOperation(actor.player_id, input.operation, {
-        error: t('management_service.the_operation_did_not_run_confirm_your_password_and'),
+        error: t('management_confirmation_required'),
       });
 
       throw error;
@@ -705,7 +705,7 @@ const make = Effect.gen(function* () {
           if (input.user === undefined) {
             throw new ApplicationError({
               status: 400,
-              message: t('management_service.choose_a_user_and_a_bot_command'),
+              message: t('management_bot_command_required'),
             });
           }
           result = dispatch.bots(input.user, [input.command, input.argument].filter(Boolean).join(' '));
@@ -713,11 +713,11 @@ const make = Effect.gen(function* () {
         }
 
         default: {
-          throw new ApplicationError({ status: 400, message: t('management_service.unknown_server_operation') });
+          throw new ApplicationError({ status: 400, message: t('unknown_server_operation') });
         }
       }
     } catch {
-      result = { error: t('management_service.operation_failed') };
+      result = { error: t('operation_failed') };
     }
 
     store.finishOperation(actor.player_id, input.operation, result);
@@ -737,7 +737,7 @@ const make = Effect.gen(function* () {
 
     if (prior) {
       if (prior.action !== action || prior.fingerprint !== fingerprint) {
-        throw new ApplicationError({ status: 409, message: t('management_service.operation_changed') });
+        throw new ApplicationError({ status: 409, message: t('operation_changed') });
       }
 
       return recorded(prior);
@@ -746,7 +746,7 @@ const make = Effect.gen(function* () {
     const event = Effect.runSync(eventsService.read(String(eventId)));
 
     if (event.updateDate !== input.revision) {
-      throw new ApplicationError({ status: 409, message: t('management_service.event_changed_reload_and_review') });
+      throw new ApplicationError({ status: 409, message: t('management_event_conflict') });
     }
     const result = { id: eventId, action };
 
@@ -805,7 +805,7 @@ const make = Effect.gen(function* () {
 
       if (prior) {
         if (prior.action !== 'world-settings' || prior.fingerprint !== fingerprint) {
-          throw new ApplicationError({ status: 409, message: t('management_service.operation_changed') });
+          throw new ApplicationError({ status: 409, message: t('operation_changed') });
         }
 
         return recorded(prior);
@@ -816,13 +816,13 @@ const make = Effect.gen(function* () {
         const base = context.config.pelotons.find((value) => value.id === id);
 
         if (!base) {
-          throw new ApplicationError({ status: 404, message: t('management_service.unknown_peloton') });
+          throw new ApplicationError({ status: 404, message: t('unknown_peloton') });
         }
         Schema.decodeUnknownSync(configSchema)({ pelotons: [{ ...base, ...input.values, id }] });
       } else if (input.id.startsWith('blob:') && context.accounts.get(Number(input.id.slice(5)))) {
         Schema.decodeUnknownSync(configSchema)({ soloBlob: { ...context.config.soloBlob, ...input.values } });
       } else {
-        throw new ApplicationError({ status: 400, message: t('management_service.unknown_world_settings') });
+        throw new ApplicationError({ status: 400, message: t('unknown_world_settings') });
       }
       context.settings.saveWorld(input.id, input.values, input.revision);
 

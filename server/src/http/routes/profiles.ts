@@ -161,7 +161,7 @@ export function profileRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
       const current = runtime.effects.runSync(AccountsService).get(user.player_id);
 
       if (!current?.enabled || current.auth_version !== user.auth_version || current.revision !== user.revision) {
-        throw new HTTPException(409, { message: t('profiles.user_changed_reload_and_retry') });
+        throw new HTTPException(409, { message: t('profiles_user_conflict') });
       }
       yield* profilesService.save(user.player_id, profile);
 
@@ -190,7 +190,7 @@ export function profileRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
       const current = runtime.effects.runSync(AccountsService).get(user.player_id);
 
       if (!current?.enabled || current.auth_version !== user.auth_version || current.revision !== user.revision) {
-        throw new HTTPException(409, { message: t('profiles.user_changed_reload_and_retry') });
+        throw new HTTPException(409, { message: t('profiles_user_conflict') });
       }
       yield* profilesService.save(user.player_id, profile);
 

@@ -137,9 +137,7 @@ function checkpointSource(path: string) {
     )(db.prepare('PRAGMA wal_checkpoint(TRUNCATE)').get());
 
     if (result.busy !== 0 || result.log !== result.checkpointed) {
-      throw new ConfigError(
-        t('storage.could_not_be_checkpointed_stop_other_processes_and_retry', { value1: basename(path) }),
-      );
+      throw new ConfigError(t('storage_checkpoint_failed', { value1: basename(path) }));
     }
   } finally {
     db.close();
@@ -148,7 +146,7 @@ function checkpointSource(path: string) {
   const wal = `${path}-wal`;
 
   if (existsSync(wal) && statSync(wal).size > 0) {
-    throw new ConfigError(t('storage.has_unapplied_wal_changes_open_it_with_sqlite_and', { value1: basename(path) }));
+    throw new ConfigError(t('storage_wal_changes_pending', { value1: basename(path) }));
   }
 }
 
@@ -233,7 +231,7 @@ function credentialsKey(storage: string) {
   const key = readFileSync(file);
 
   if (key.length !== 32) {
-    throw new ConfigError(t('storage.invalid_credentials_key_restore_credentials_key_bin'));
+    throw new ConfigError(t('storage_credentials_key_invalid'));
   }
 
   return key;
@@ -314,7 +312,7 @@ function importSettings(storage: string, db: DatabaseSync) {
     );
 
     if (version.user_version > 1) {
-      throw new ConfigError(t('storage.unsupported_settings_database_version'));
+      throw new ConfigError(t('unsupported_settings_database_version'));
     }
 
     const tables = new Set(
@@ -519,9 +517,7 @@ function canonicalizeFit(storage: string, db: DatabaseSync, report: Report, chec
     const journalFit = journal && journal.fit.length > 0 ? journal.fit : null;
 
     if (column && journalFit && !Buffer.from(column).equals(Buffer.from(journalFit))) {
-      throw new ConfigError(
-        t('storage.activity_has_two_different_fit_payloads_restore_it_before', { value1: activity.id }),
-      );
+      throw new ConfigError(t('storage_fit_payload_conflict', { value1: activity.id }));
     }
     const file = activity.player_id === null ? null : exportFile(storage, activity.player_id, activity.id);
     const exported = file ? readFileSync(file) : null;
@@ -594,7 +590,7 @@ function finishCompletions(db: DatabaseSync, report: Report) {
 
       if (!applied && !derived) {
         throw new ConfigError(
-          t('storage.activity_has_a_streak_journal_that_disagrees_with_rider', {
+          t('storage_streak_journal_mismatch', {
             value1: completion.activity_id,
             value2: completion.player_id,
           }),
@@ -642,11 +638,11 @@ function validate(source: string, destination: DatabaseSync, report: Report, che
   const integrity = destination.prepare('PRAGMA integrity_check').get();
 
   if (integrity?.integrity_check !== 'ok') {
-    throw new ConfigError(t('storage.migrated_database_failed_its_integrity_check'));
+    throw new ConfigError(t('storage_integrity_check_failed'));
   }
 
   if (destination.prepare('PRAGMA foreign_key_check').all().length > 0) {
-    throw new ConfigError(t('storage.migrated_database_has_broken_references'));
+    throw new ConfigError(t('storage_foreign_key_check_failed'));
   }
   const original = new DatabaseSync(source, { readOnly: true });
 
@@ -665,7 +661,7 @@ function validate(source: string, destination: DatabaseSync, report: Report, che
       const originalCount = optional && !exists ? 0 : count(original, sql);
 
       if (originalCount !== count(destination, sql)) {
-        throw new ConfigError(t('storage.migrated_rows_differ_from_the_source', { value1: table }));
+        throw new ConfigError(t('storage_source_rows_mismatch', { value1: table }));
       }
     }
 
@@ -676,19 +672,19 @@ function validate(source: string, destination: DatabaseSync, report: Report, che
         .map((row) => JSON.stringify(row));
 
     if (JSON.stringify(ids(original)) !== JSON.stringify(ids(destination))) {
-      throw new ConfigError(t('storage.migrated_identities_differ_from_the_source'));
+      throw new ConfigError(t('storage_identity_mismatch'));
     }
   } finally {
     original.close();
   }
 
   if (count(destination, 'SELECT count(*) AS n FROM rider_document') !== report.documents) {
-    throw new ConfigError(t('storage.migrated_rider_documents_are_incomplete'));
+    throw new ConfigError(t('storage_rider_documents_incomplete'));
   }
 
   for (const [table, rows] of Object.entries(report.settings)) {
     if (count(destination, `SELECT count(*) AS n FROM ${table}`) !== rows) {
-      throw new ConfigError(t('storage.migrated_rows_differ_from_settings_db', { value1: table }));
+      throw new ConfigError(t('storage_settings_rows_mismatch', { value1: table }));
     }
   }
 
@@ -696,20 +692,20 @@ function validate(source: string, destination: DatabaseSync, report: Report, che
     const id = Schema.decodeUnknownSync(Schema.Finite)(row.id);
 
     if (checksums.get(id) !== crypto.sha256(Schema.decodeUnknownSync(Schema.instanceOf(Uint8Array))(row.fit))) {
-      throw new ConfigError(t('storage.migrated_fit_payload_of_activity_differs_from_its_source', { value1: id }));
+      throw new ConfigError(t('storage_fit_payload_mismatch', { value1: id }));
     }
     checksums.delete(id);
   }
 
   if (checksums.size > 0) {
-    throw new ConfigError(t('storage.a_migrated_fit_payload_is_missing'));
+    throw new ConfigError(t('storage_fit_payload_missing'));
   }
 
   for (const row of destination.prepare('SELECT payload FROM activity_completion').all()) {
     if (
       fromBinary(ActivitySchema, Schema.decodeUnknownSync(Schema.instanceOf(Uint8Array))(row.payload)).fit.length > 0
     ) {
-      throw new ConfigError(t('storage.a_migrated_completion_still_holds_a_fit_payload'));
+      throw new ConfigError(t('storage_completion_payload_retained'));
     }
   }
 }
@@ -750,8 +746,8 @@ export function resolvePendingMigration(storage: string) {
   }
 
   throw new ConfigError(
-    t('storage.interrupted_storage_migration_matches_neither_the_source_nor_the', { value1: StorageFile.Database }) +
-      t('storage.restore_from_and_start_again', { value1: StorageFile.Database, value2: manifest.backup }),
+    t('storage_migration_recovery_conflict', { value1: StorageFile.Database }) +
+      t('storage_restore_hint', { value1: StorageFile.Database, value2: manifest.backup }),
   );
 }
 
@@ -868,7 +864,7 @@ export function migrateStorage(storage: string, reached: (step: MigrationStep) =
   reached('imported');
 
   if (existsSync(`${temporary}-wal`) || existsSync(`${temporary}-journal`)) {
-    throw new ConfigError(t('storage.the_migrated_database_still_needs_a_journal_file'));
+    throw new ConfigError(t('storage_journal_retained'));
   }
   syncFile(temporary);
   reached('flushed');

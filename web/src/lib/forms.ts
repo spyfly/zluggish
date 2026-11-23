@@ -21,13 +21,13 @@ export function validation(form: GameForm, draft: Record<string, string | boolea
     const value = draft[field.name];
 
     if (field.required && !value) {
-      errors[field.name] = [t('forms.this_field_is_required')];
+      errors[field.name] = [t('validation_required')];
     } else if (field.maxLength && String(value).length > field.maxLength) {
-      errors[field.name] = [t('forms.use_at_most_characters', { value1: field.maxLength })];
+      errors[field.name] = [t('validation_max_length', { value1: field.maxLength })];
     } else if (field.pattern && value && !new RegExp(field.pattern).test(String(value))) {
-      errors[field.name] = [t('forms.enter_a_valid_value')];
+      errors[field.name] = [t('validation_invalid_value')];
     } else if (field.matches && value !== draft[field.matches]) {
-      errors[field.name] = [t('forms.passwords_did_not_match')];
+      errors[field.name] = [t('validation_password_mismatch')];
     }
   }
 

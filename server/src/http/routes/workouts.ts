@@ -92,8 +92,6 @@ export function workoutRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
     }),
   );
   app.get('/api/assetcms/*', (c) =>
-    c.json(
-      c.req.path.endsWith('/partner_name_map.json/download') ? { intervalsicu: t('workouts.intervals_icu') } : null,
-    ),
+    c.json(c.req.path.endsWith('/partner_name_map.json/download') ? { intervalsicu: t('intervals_icu') } : null),
   );
 }

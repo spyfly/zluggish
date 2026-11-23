@@ -85,7 +85,7 @@ export class GarminRepository {
 
   garminClient(store: TokenStore | null, domain: string) {
     if (!['garmin.com', 'garmin.cn'].includes(domain)) {
-      throw new Error(t('garmin_repository.unsupported_garmin_domain'));
+      throw new Error(t('unsupported_garmin_domain'));
     }
 
     return new GarminClient({
@@ -101,7 +101,7 @@ export class GarminRepository {
     const tokens = client.getTokens();
 
     if (!tokens) {
-      throw new Error(t('garmin_repository.missing_garmin_authorization'));
+      throw new Error(t('missing_garmin_authorization'));
     }
     await store.save(tokens);
   }

@@ -198,7 +198,7 @@ async function readAt(handle: FileHandle, position: number, length: number) {
   const { bytesRead } = await handle.read(buffer, 0, length, position);
 
   if (bytesRead !== length) {
-    throw new Error(t('apk_repository.the_archive_ends_early'));
+    throw new Error(t('archive_truncated'));
   }
 
   return buffer;
@@ -208,7 +208,7 @@ function zip64Number(bytes: Buffer, offset: number) {
   const number = Number(bytes.readBigUInt64LE(offset));
 
   if (!Number.isSafeInteger(number)) {
-    throw new TypeError(t('apk_repository.the_zip64_archive_has_an_invalid_size_or_offset'));
+    throw new TypeError(t('apk_zip64_bounds_invalid'));
   }
 
   return number;
@@ -218,7 +218,7 @@ async function zip64Directory(handle: FileHandle, end: number) {
   const locator = await readAt(handle, end - 20, 20);
 
   if (locator.readUInt32LE(0) !== 0x07_06_4b_50 || locator.readUInt32LE(4) !== 0 || locator.readUInt32LE(16) !== 1) {
-    throw new Error(t('apk_repository.the_zip64_locator_is_invalid_or_spans_multiple_disks'));
+    throw new Error(t('apk_zip64_locator_invalid'));
   }
 
   const position = zip64Number(locator, 8);
@@ -230,7 +230,7 @@ async function zip64Directory(handle: FileHandle, end: number) {
     record.readUInt32LE(20) !== 0 ||
     position + 12 + zip64Number(record, 4) !== end - 20
   ) {
-    throw new Error(t('apk_repository.the_zip64_end_record_is_invalid'));
+    throw new Error(t('apk_zip64_end_record_invalid'));
   }
 
   return {
@@ -252,7 +252,7 @@ function zipEntrySizes(
 
   if (fields.includes(0xff_ff_ff_ff)) {
     if (!allowZip64) {
-      throw new Error(t('apk_repository.zip64_archives_are_not_supported'));
+      throw new Error(t('apk_zip64_unsupported'));
     }
 
     let field = extraStart;
@@ -276,7 +276,7 @@ function zipEntrySizes(
             return value;
           }
           if (next + 8 > field) {
-            throw new Error(t('apk_repository.the_zip64_entry_is_incomplete'));
+            throw new Error(t('apk_zip64_entry_truncated'));
           }
           const actual = zip64Number(directory, next);
           next += 8;
@@ -286,7 +286,7 @@ function zipEntrySizes(
       }
     }
 
-    throw new Error(t('apk_repository.the_zip64_entry_is_missing_its_extended_sizes'));
+    throw new Error(t('apk_zip64_entry_sizes_missing'));
   }
 
   return fields;
@@ -306,7 +306,7 @@ async function centralDirectory(handle: FileHandle, allowZip64 = false) {
   }
 
   if (at === -1) {
-    throw new Error(t('apk_repository.the_file_is_not_a_zip_archive'));
+    throw new Error(t('apk_archive_invalid'));
   }
   let end = size - tailLength + at;
   let count = tail.readUInt16LE(at + 10);
@@ -315,14 +315,14 @@ async function centralDirectory(handle: FileHandle, allowZip64 = false) {
 
   if (count === 0xff_ff || length === 0xff_ff_ff_ff || offset === 0xff_ff_ff_ff) {
     if (!allowZip64 || end < 20) {
-      throw new Error(t('apk_repository.zip64_archives_are_not_supported'));
+      throw new Error(t('apk_zip64_unsupported'));
     }
 
     ({ count, length, offset, end } = await zip64Directory(handle, end));
   }
 
   if (offset > end || length > end - offset || length > 64 * 1024 * 1024 || count > length / 46) {
-    throw new Error(t('apk_repository.the_zip_directory_is_invalid_or_too_large'));
+    throw new Error(t('apk_archive_directory_invalid'));
   }
   const directory = await readAt(handle, offset, length);
   const entries: Array<ZipEntry> = [];
@@ -330,7 +330,7 @@ async function centralDirectory(handle: FileHandle, allowZip64 = false) {
 
   for (let index = 0; index < count; index++) {
     if (position + 46 > directory.length || directory.readUInt32LE(position) !== centralSignature) {
-      throw new Error(t('apk_repository.the_zip_directory_is_damaged'));
+      throw new Error(t('apk_archive_directory_corrupt'));
     }
     const nameLength = directory.readUInt16LE(position + 28);
     const extraLength = directory.readUInt16LE(position + 30);
@@ -339,7 +339,7 @@ async function centralDirectory(handle: FileHandle, allowZip64 = false) {
     const next = extraStart + extraLength + commentLength;
 
     if (next > directory.length) {
-      throw new Error(t('apk_repository.the_zip_directory_is_damaged'));
+      throw new Error(t('apk_archive_directory_corrupt'));
     }
 
     const nameBytes = Buffer.from(directory.subarray(position + 46, extraStart));
@@ -377,7 +377,7 @@ async function dataOffset(handle: FileHandle, entry: ZipEntry) {
   const header = await readAt(handle, entry.localOffset, 30);
 
   if (header.readUInt32LE(0) !== localSignature) {
-    throw new Error(t('apk_repository.the_zip_entry_is_damaged', { value1: entry.name }));
+    throw new Error(t('apk_archive_entry_corrupt', { value1: entry.name }));
   }
 
   return entry.localOffset + 30 + header.readUInt16LE(26) + header.readUInt16LE(28);
@@ -394,7 +394,7 @@ async function readEntry(handle: FileHandle, entry: ZipEntry, maxOutputLength?: 
     return inflateRawSync(raw, { maxOutputLength });
   }
 
-  throw new Error(t('apk_repository.the_zip_entry_uses_an_unsupported_compression_method', { value1: entry.name }));
+  throw new Error(t('apk_compression_unsupported', { value1: entry.name }));
 }
 
 /** A reader for Android's binary XML, enough for the manifest's package, version and minimum SDK. */
@@ -563,11 +563,11 @@ export class ApkRepository {
       const entry = entries.find((candidate) => candidate.name === 'AndroidManifest.xml');
 
       if (!entry) {
-        throw new Error(t('apk_repository.the_apk_has_no_manifest'));
+        throw new Error(t('apk_manifest_missing'));
       }
       const manifestLimit = 4 * 1024 ** 2;
       if (entry.size > manifestLimit || entry.compressedSize > manifestLimit) {
-        throw new Error(t('apk_repository.the_apk_manifest_is_too_large'));
+        throw new Error(t('apk_manifest_size_limit'));
       }
       const elements = readBinaryXml(await readEntry(handle, entry, manifestLimit));
       const root = elements.find((element) => element.name === 'manifest');
@@ -629,7 +629,7 @@ export class ApkRepository {
     const [expansion] = expansions;
 
     if (expansions.length !== 1 || !expansion) {
-      throw new Error(t('apk_repository.choose_an_apkm_bundle_with_one_main_zwift_obb'));
+      throw new Error(t('apk_expansion_file_required'));
     }
 
     await this.extractBundleEntry(path, handle, expansion, output, limit, signal, progress);
@@ -657,7 +657,7 @@ export class ApkRepository {
       (entry.method !== 0 && entry.method !== 8) ||
       (entry.flags & 1) !== 0
     ) {
-      throw new Error(t('apk_repository.the_apkm_entry_is_invalid_or_unsupported', { value1: entry.name }));
+      throw new Error(t('apk_entry_unsupported', { value1: entry.name }));
     }
 
     let extracted = 0;
@@ -667,10 +667,7 @@ export class ApkRepository {
         extracted += chunk.length;
         crc = crc32(chunk, crc);
         progress?.(Math.min(1, extracted / entry.size));
-        next(
-          extracted > entry.size ? new Error(t('apk_repository.the_apkm_entry_exceeds_its_declared_size')) : null,
-          chunk,
-        );
+        next(extracted > entry.size ? new Error(t('apk_entry_size_mismatch')) : null, chunk);
       },
     });
     const source = createReadStream(path, { start, end: start + entry.compressedSize - 1 });
@@ -683,7 +680,7 @@ export class ApkRepository {
     }
 
     if (extracted !== entry.size || crc !== entry.crc) {
-      throw new Error(t('apk_repository.the_apkm_entry_is_incomplete_or_corrupt', { value1: entry.name }));
+      throw new Error(t('apk_entry_corrupt', { value1: entry.name }));
     }
   }
 
@@ -692,7 +689,7 @@ export class ApkRepository {
     const entries = await centralDirectory(handle, true);
     const apks = entries.filter((entry) => /^[\w.-]+\.apk$/.test(entry.name));
     if (apks.length === 0 || apks.length > 100 || new Set(apks.map((entry) => entry.name)).size !== apks.length) {
-      throw new Error(t('apk_repository.the_bundle_must_contain_one_base_zwift_apk_and'));
+      throw new Error(t('apk_bundle_structure_invalid'));
     }
 
     await mkdir(folder, { recursive: true });
@@ -704,7 +701,7 @@ export class ApkRepository {
       await this.extractBundleEntry(input, handle, entry, path, 512 * 1024 ** 2, signal);
       const manifest = await this.manifestWithSplit(path);
       if (manifest.packageName !== zwiftPackage || manifest.versionCode !== versionCode || splits.has(manifest.split)) {
-        throw new Error(t('apk_repository.the_apkm_mixes_zwift_versions_or_contains_conflicting_split'));
+        throw new Error(t('apk_bundle_version_conflict'));
       }
       splits.add(manifest.split);
       if (!manifest.split) {
@@ -713,7 +710,7 @@ export class ApkRepository {
     }
 
     if (!base) {
-      throw new Error(t('apk_repository.the_bundle_is_missing_the_base_zwift_apk'));
+      throw new Error(t('apk_base_apk_missing'));
     }
 
     return { base, parts: apks.map((entry) => resolve(folder, entry.name)) };
@@ -725,7 +722,7 @@ export class ApkRepository {
     const original = await readFile(manifestPath, 'utf8');
     const originalPackage = /<manifest\s[^>]*?\bpackage=(["'])([^"']+)\1/.exec(original)?.[2];
     if (originalPackage !== zwiftPackage) {
-      throw new Error(t('apk_repository.the_decoded_apk_is_not_the_original_zwift_app'));
+      throw new Error(t('apk_application_mismatch'));
     }
 
     const appTag = /<application\b[^>]*>/;
@@ -789,7 +786,7 @@ export class ApkRepository {
 
     const [launcher] = launchers;
     if (!launcher || launchers.size !== 1 || !/<\/application\s*>/.test(manifest)) {
-      throw new Error(t('apk_repository.could_not_identify_the_zwift_launcher_activity'));
+      throw new Error(t('apk_launcher_activity_missing'));
     }
     const obb = `main.${versionCode}.${standaloneZwiftPackage}.obb`;
     manifest = manifest.replace(/<\/application\s*>/, () =>
@@ -810,7 +807,7 @@ export class ApkRepository {
 
     const res = await this.resourceFolder(folder);
     if (!res) {
-      throw new Error(t('apk_repository.the_decoded_zwift_apk_has_no_res_values_public'));
+      throw new Error(t('apk_zwift_public_resources_missing'));
     }
     const publicPath = resolve(res, 'values', 'public.xml');
     const publicXml = await readFile(publicPath, 'utf8');
@@ -860,7 +857,7 @@ export class ApkRepository {
 
     const helpers = await readClass('vending/expansion/downloader/Helpers.smali');
     if (!helpers) {
-      throw new Error(t('apk_repository.could_not_find_the_zwift_downloader_expansion_filename_helper'));
+      throw new Error(t('apk_expansion_filename_helper_missing'));
     }
     const lookup =
       /(^\.method [^\n]*\bgetExpansionAPKFileName\(ZI\)Ljava\/lang\/String;[^\n]*\n[\s\S]*?^\.end method)/m;
@@ -868,7 +865,7 @@ export class ApkRepository {
       method.replace('".com.zwift.zwiftgame.obb"', () => `".${standaloneZwiftPackage}.obb"`),
     );
     if (updated === helpers.source) {
-      throw new Error(t('apk_repository.could_not_update_the_zwift_downloader_expansion_filename'));
+      throw new Error(t('apk_expansion_filename_patch_failed'));
     }
     await writeFile(helpers.path, updated);
 
@@ -890,7 +887,7 @@ export class ApkRepository {
           ].join('\n    '),
       );
       if (source === downloader.source) {
-        throw new Error(t('apk_repository.could_not_update_the_zwift_expansion_version_marker_path'));
+        throw new Error(t('apk_expansion_version_patch_failed'));
       }
       await writeFile(downloader.path, source);
     }
@@ -908,7 +905,7 @@ export class ApkRepository {
         ].join('\n    '),
       );
       if (source === unzip.source) {
-        throw new Error(t('apk_repository.could_not_update_the_zwift_expansion_unpacking_path'));
+        throw new Error(t('apk_expansion_path_patch_failed'));
       }
       await writeFile(unzip.path, source);
     }
@@ -966,7 +963,7 @@ export class ApkRepository {
       const limit = 1024 * 1024;
 
       if (!bundle || bundles.length !== 1 || bundle.size > limit || bundle.compressedSize > limit) {
-        throw new Error(t('apk_repository.the_expansion_file_needs_one_zwift_certificate_bundle'));
+        throw new Error(t('apk_expansion_certificate_required'));
       }
 
       const original = await readEntry(source, bundle, limit);
@@ -975,7 +972,7 @@ export class ApkRepository {
         .match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g);
 
       if (!certificates?.length) {
-        throw new Error(t('apk_repository.the_expansion_file_has_an_invalid_zwift_certificate_bundle'));
+        throw new Error(t('apk_expansion_certificate_invalid'));
       }
 
       // Keep the existing trust roots, omitting the descriptive text between PEM blocks to save space.
@@ -1034,7 +1031,7 @@ export class ApkRepository {
         const start = await dataOffset(source, entry);
 
         if (archiveSize !== undefined && start + entry.compressedSize > archiveSize) {
-          throw new Error(t('apk_repository.the_expansion_file_contains_a_truncated_entry'));
+          throw new Error(t('apk_expansion_entry_truncated'));
         }
 
         await add(
@@ -1106,14 +1103,14 @@ export class ApkRepository {
 
       const write = async (data: Uint8Array) => {
         if (archiveSize !== undefined && position + data.length > archiveSize) {
-          throw new Error(t('apk_repository.the_patched_expansion_file_does_not_fit_the_original'));
+          throw new Error(t('apk_expansion_patch_size_limit'));
         }
         if (position + data.length >= 0xff_ff_ff_ff) {
-          throw new Error(t('apk_repository.the_generated_zip_archive_exceeds_4_gib'));
+          throw new Error(t('apk_archive_size_limit'));
         }
         const { bytesWritten } = await target.write(data, 0, data.length, position);
         if (bytesWritten !== data.length) {
-          throw new Error(t('apk_repository.could_not_write_the_complete_zip_archive'));
+          throw new Error(t('apk_archive_write_failed'));
         }
         position += data.length;
         tick(data.length);
@@ -1210,7 +1207,7 @@ export class ApkRepository {
         const directoryStart = archiveSize - directory.length - eocd(0).length;
 
         if (directoryStart < position) {
-          throw new Error(t('apk_repository.the_patched_expansion_file_does_not_fit_the_original'));
+          throw new Error(t('apk_expansion_patch_size_limit'));
         }
         position = directoryStart;
       }
@@ -1293,7 +1290,7 @@ export class ApkRepository {
     const res = await this.resourceFolder(folder);
 
     if (!res) {
-      throw new Error(t('apk_repository.the_decoded_apk_has_no_res_values_public_xml'));
+      throw new Error(t('apk_public_resources_missing'));
     }
     const publicPath = resolve(res, 'values', 'public.xml');
     let publicXml = await readFile(publicPath, 'utf8');
@@ -1380,7 +1377,7 @@ export class ApkRepository {
     const count = new Transform({
       transform(chunk: Buffer, _encoding, next) {
         received += chunk.length;
-        next(received > limit ? new Error(t('apk_repository.the_upload_is_too_large')) : null, chunk);
+        next(received > limit ? new Error(t('apk_upload_size_limit')) : null, chunk);
       },
     });
 
@@ -1398,7 +1395,7 @@ export class ApkRepository {
   async appendUpload(path: string, chunk: string, offset: number) {
     const size = await this.size(path);
     if ((size ?? 0) !== offset) {
-      throw new Error(t('apk_repository.the_staged_upload_does_not_match_its_confirmed_size'));
+      throw new Error(t('apk_upload_size_mismatch'));
     }
 
     try {

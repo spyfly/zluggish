@@ -34,7 +34,7 @@ export function responseFields(body: JsonObject) {
 
 export class UnexpectedResponseError extends Error {
   constructor() {
-    super(t('api.the_server_sent_an_unexpected_response_reload_the_page'));
+    super(t('api_unexpected_response'));
   }
 }
 

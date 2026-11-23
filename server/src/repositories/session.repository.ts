@@ -64,7 +64,7 @@ export class CookieSession {
 
     if (response.status >= 300 && response.status < 400 && location) {
       if (redirects <= 0) {
-        throw new Error(t('session_repository.too_many_redirects'));
+        throw new Error(t('too_many_redirects'));
       }
       const next = new URL(location, target).href;
 

@@ -81,19 +81,19 @@
   } = $props();
 
   const worlds = new Map([
-    [2, t('Activities.richmond')],
-    [6, t('Activities.watopia')],
-    [7, t('Activities.london')],
-    [8, t('Activities.new_york')],
-    [9, t('Activities.innsbruck')],
-    [10, t('Activities.bologna')],
-    [11, t('Activities.yorkshire')],
-    [12, t('Activities.crit_city')],
-    [13, t('Activities.makuri_islands')],
-    [14, t('Activities.france')],
-    [15, t('Activities.paris')],
-    [16, t('Activities.gravel_mountain')],
-    [17, t('Activities.scotland')],
+    [2, t('richmond')],
+    [6, t('watopia')],
+    [7, t('london')],
+    [8, t('new_york')],
+    [9, t('innsbruck')],
+    [10, t('bologna')],
+    [11, t('yorkshire')],
+    [12, t('crit_city')],
+    [13, t('makuri_islands')],
+    [14, t('france')],
+    [15, t('paris')],
+    [16, t('gravel_mountain')],
+    [17, t('scotland')],
   ]);
 
   let activities = $state<Array<Summary> | null>(null);
@@ -142,7 +142,7 @@
           key,
           label: date
             ? date.toLocaleDateString([], { month: 'long', year: 'numeric' })
-            : t('Activities.without_a_start_date'),
+            : t('activities_detail_missing_start_date'),
           activities: [],
           distance: 0,
           time: 0,
@@ -159,7 +159,7 @@
   });
 
   const km = (m: number) =>
-    t('Activities.km', {
+    t('km', {
       value1: (m / 1000).toLocaleString([], { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
     });
 
@@ -173,8 +173,8 @@
     const minutes = Math.round(ms / 60_000);
 
     return minutes < 60
-      ? t('Activities.min', { value1: minutes })
-      : t('Activities.h_min', { value1: Math.floor(minutes / 60), value2: minutes % 60 });
+      ? t('min', { value1: minutes })
+      : t('h_min', { value1: Math.floor(minutes / 60), value2: minutes % 60 });
   };
 
   const speed = (a: Summary) =>
@@ -187,74 +187,60 @@
   };
 
   const pacing = (a: Summary, mps: number) =>
-    mps <= 0 ? '' : a.sport === 'running' ? pace(mps) : t('Activities.km_h', { value1: (mps * 3.6).toFixed(1) });
+    mps <= 0 ? '' : a.sport === 'running' ? pace(mps) : t('km_h', { value1: (mps * 3.6).toFixed(1) });
 
-  const world = (a: Summary) => worlds.get(a.world) ?? (a.world ? t('Activities.world', { value1: a.world }) : '');
-  const title = (a: Summary) => a.name.trim() || t('Activities.untitled_activity');
+  const world = (a: Summary) => worlds.get(a.world) ?? (a.world ? t('world', { value1: a.world }) : '');
+  const title = (a: Summary) => a.name.trim() || t('untitled_activity');
 
   /** Average and maximum side by side. A measure the activity did not record is left out. */
   const measures = (a: Detail) =>
     (
       [
         [
-          t('Activities.power'),
+          t('power'),
           a.sport === 'running' ? 0 : a.avgWatts,
           a.sport === 'running' ? 0 : a.maxWatts,
-          (v: number) => t('Activities.w', { value1: Math.round(v) }),
+          (v: number) => t('w', { value1: Math.round(v) }),
         ],
+        [t('heart_rate'), a.avgHeartRate, a.maxHeartRate, (v: number) => t('bpm', { value1: Math.round(v) })],
         [
-          t('Activities.heart_rate'),
-          a.avgHeartRate,
-          a.maxHeartRate,
-          (v: number) => t('Activities.bpm', { value1: Math.round(v) }),
-        ],
-        [
-          a.sport === 'running' ? t('Activities.cadence') : t('Activities.cadence'),
+          a.sport === 'running' ? t('cadence') : t('cadence'),
           a.avgCadence,
           a.maxCadence,
           (v: number) => `${Math.round(v)} ${a.sport === 'running' ? 'spm' : 'rpm'}`,
         ],
-        [
-          a.sport === 'running' ? t('Activities.pace') : t('Activities.speed'),
-          speed(a),
-          a.maxSpeed,
-          (v: number) => pacing(a, v),
-        ],
+        [a.sport === 'running' ? t('pace') : t('speed'), speed(a), a.maxSpeed, (v: number) => pacing(a, v)],
       ] as const
     ).filter(([, avg, max]) => avg > 0 || max > 0);
 
   const extras = (a: Detail) =>
     (
       [
-        [
-          t('Activities.normalized_power'),
-          a.normalizedPower,
-          t('Activities.w', { value1: Math.round(a.normalizedPower) }),
-        ],
-        [t('Activities.training_stress_score'), a.tss, `${Math.round(a.tss)}`],
-        [t('Activities.calories'), a.calories, t('Activities.kcal', { value1: Math.round(a.calories) })],
+        [t('normalized_power'), a.normalizedPower, t('w', { value1: Math.round(a.normalizedPower) })],
+        [t('training_stress_score'), a.tss, `${Math.round(a.tss)}`],
+        [t('calories'), a.calories, t('kcal', { value1: Math.round(a.calories) })],
       ] as const
     ).filter(([, value]) => value > 0);
 
   const services: Record<Provider, string> = {
-    strava: t('Activities.strava'),
-    freeStrava: t('Activities.strava'),
-    garmin: t('Activities.garmin_connect'),
-    runalyze: t('Activities.runalyze'),
-    intervals: t('Activities.intervals_icu'),
-    zwift: t('Activities.zwift'),
+    strava: t('strava'),
+    freeStrava: t('strava'),
+    garmin: t('garmin_connect'),
+    runalyze: t('runalyze'),
+    intervals: t('intervals_icu'),
+    zwift: t('zwift'),
   };
 
   /** Only the Strava session cookie can attach images; every other service takes the FIT file alone. */
   const contents = (provider: Provider, images: number) =>
     images === 0
-      ? t('Activities.fit_file')
+      ? t('fit_file')
       : provider === 'freeStrava'
-        ? t('Activities.fit_file_and', {
+        ? t('activities_upload_contents', {
             value1: images,
-            value2: images === 1 ? t('Activities.image_word') : t('Activities.images_word'),
+            value2: images === 1 ? t('activities_upload_image_singular') : t('activities_upload_image_plural'),
           })
-        : t('Activities.fit_file_only_no_images');
+        : t('activities_upload_fit_only');
 
   const inFlight = (u: Upload) => u.state === 'pending' || u.state === 'sending';
   const uploaded = (u: Upload) => u.state === 'sent' || u.state === 'ambiguous';
@@ -262,19 +248,19 @@
   function progress(u: Upload) {
     switch (u.state) {
       case 'pending':
-        return t('Activities.waiting');
+        return t('waiting');
       case 'sending':
-        return t('Activities.uploading');
+        return t('uploading');
       case 'sent':
-        return t('Activities.uploaded');
+        return t('uploaded');
       case 'ambiguous':
-        return t('Activities.result_unknown');
+        return t('result_unknown');
       case 'failed':
-        return u.error?.startsWith('strava_session') ? t('Activities.session_expired') : t('Activities.failed');
+        return u.error?.startsWith('strava_session') ? t('session_expired') : t('failed');
       case 'cancelled':
-        return t('Activities.cancelled');
+        return t('cancelled');
       default:
-        return t('Activities.not_uploaded');
+        return t('not_uploaded');
     }
   }
 
@@ -287,12 +273,11 @@
     };
 
     return [
-      names((u) => u.state === 'sent') && t('Activities.uploaded_to', { value1: names((u) => u.state === 'sent') }),
-      names(inFlight) && t('Activities.uploading_to', { value1: names(inFlight) }),
-      names((u) => u.state === 'failed') &&
-        t('Activities.upload_to_failed', { value1: names((u) => u.state === 'failed') }),
+      names((u) => u.state === 'sent') && t('uploaded_to', { value1: names((u) => u.state === 'sent') }),
+      names(inFlight) && t('uploading_to', { value1: names(inFlight) }),
+      names((u) => u.state === 'failed') && t('upload_to_failed', { value1: names((u) => u.state === 'failed') }),
       names((u) => u.state === 'ambiguous') &&
-        t('Activities.may_already_have_it', { value1: names((u) => u.state === 'ambiguous') }),
+        t('activities_upload_provider_duplicate_warning', { value1: names((u) => u.state === 'ambiguous') }),
     ]
       .filter(Boolean)
       .join(' ');
@@ -339,9 +324,9 @@
         }
       } catch (error) {
         failures.push(
-          t('Activities.provider_failure', {
+          t('provider_failure', {
             value1: services[provider],
-            value2: error instanceof Error ? error.message : t('Activities.the_upload_could_not_start'),
+            value2: error instanceof Error ? error.message : t('activities_upload_start_error'),
           }),
         );
       }
@@ -369,7 +354,7 @@
       hasMore = body.hasMore;
     } catch (error) {
       if (version === requestVersion) {
-        failure = error instanceof Error ? error.message : t('Activities.activities_could_not_be_loaded');
+        failure = error instanceof Error ? error.message : t('activities_list_load_error');
       }
     }
   }
@@ -394,7 +379,7 @@
         return;
       }
       detail = null;
-      failure = error instanceof Error ? error.message : t('Activities.the_activity_could_not_be_loaded');
+      failure = error instanceof Error ? error.message : t('activities_detail_load_error');
     }
   }
 
@@ -452,23 +437,23 @@
 
 {#snippet uploader(a: Detail)}
   <div class="inset upload">
-    <h3>{t('Activities.upload')}</h3>
+    <h3>{t('upload')}</h3>
     {#if !a.endDate}
-      <p class="muted">{t('Activities.finish_the_activity_in_the_game_to_upload_it')}</p>
+      <p class="muted">{t('activities_upload_unfinished_hint')}</p>
     {:else if uploads?.id !== a.id}
-      <p class="muted">{t('Activities.checking_your_connected_services')}</p>
+      <p class="muted">{t('activities_upload_loading_services')}</p>
     {:else if uploads.list.length === 0}
       <p class="muted">
-        {t('Activities.connect_a_service_in')}
-        <a href="/integrations" onclick={(e) => open(e, '/integrations')}>{t('Activities.integrations')}</a>
-        {t('Activities.to_upload_activities')}
+        {t('activities_upload_connect_service_prefix')}
+        <a href="/integrations" onclick={(e) => open(e, '/integrations')}>{t('integrations')}</a>
+        {t('activities_upload_connect_service_suffix')}
       </p>
     {:else}
       {@const list = uploads.list}
       <p class="muted" aria-live="polite">
         {summary(list) ||
-          t('Activities.send_this_activity_to_the_services_you_have_connected', {
-            value1: a.imageIds.length ? t('Activities.and_its_images') : '',
+          t('activities_upload_description', {
+            value1: a.imageIds.length ? t('activities_upload_images_suffix') : '',
           })}
       </p>
       <button
@@ -476,8 +461,7 @@
         class="toggle"
         aria-expanded={chooser}
         aria-controls="upload-chooser"
-        onclick={() => toggleChooser(list)}
-        >{chooser ? t('Activities.close') : t('Activities.upload_to_integrations')}</button
+        onclick={() => toggleChooser(list)}>{chooser ? t('close') : t('upload_to_integrations')}</button
       >
       {#if chooser}
         <form
@@ -489,7 +473,7 @@
           }}
         >
           <fieldset>
-            <legend class="visually-hidden">{t('Activities.services_to_upload_to')}</legend>
+            <legend class="visually-hidden">{t('activities_upload_services_label')}</legend>
             <ul class="plain services">
               {#each list as u (u.provider)}
                 <li class="service" class:sending={inFlight(u)} data-state={u.state ?? 'none'}>
@@ -508,20 +492,18 @@
           </fieldset>
           {#each list.filter((u) => chosen.includes(u.provider) && uploaded(u)) as u (u.provider)}
             <p class="caution">
-              {t('Activities.uploading_again_may_duplicate_it', {
+              {t('activities_upload_duplicate_warning', {
                 value1: services[u.provider],
                 value2:
-                  u.state === 'sent'
-                    ? t('Activities.already_has_this_activity')
-                    : t('Activities.may_already_have_this_activity'),
+                  u.state === 'sent' ? t('activities_upload_duplicate') : t('activities_upload_possible_duplicate'),
               })}
             </p>
           {/each}
           {#if list.some((u) => u.state === 'failed' && u.error?.startsWith('strava_session'))}
             <p class="caution">
-              {t('Activities.strava_did_not_accept_the_saved_session_replace_the')}
-              <a href="/integrations" onclick={(e) => open(e, '/integrations')}>{t('Activities.integrations')}</a>{t(
-                'Activities.then_try_again',
+              {t('activities_upload_session_rejected_prefix')}
+              <a href="/integrations" onclick={(e) => open(e, '/integrations')}>{t('integrations')}</a>{t(
+                'activities_upload_retry_suffix',
               )}
             </p>
           {/if}
@@ -529,14 +511,14 @@
           {#if chosen.length}
             <button class="primary" disabled={sending}
               >{sending
-                ? t('Activities.starting_upload')
+                ? t('starting_upload')
                 : chosen.length === 1
-                  ? t('Activities.upload_to', { value1: services[chosen[0]!] })
-                  : t('Activities.upload_to_services', { value1: chosen.length })}</button
+                  ? t('upload_to', { value1: services[chosen[0]!] })
+                  : t('upload_to_services', { value1: chosen.length })}</button
             >
           {/if}
           {#if a.imageIds.length && !list.some((u) => u.provider === 'freeStrava')}
-            <p class="muted note">{t('Activities.images_upload_only_to_strava_with_a_session_cookie')}</p>
+            <p class="muted note">{t('activities_upload_images_hint')}</p>
           {/if}
         </form>
       {/if}
@@ -547,10 +529,10 @@
 {#if failure}<p class="notice failed" role="alert">{failure}</p>{/if}
 
 {#if activities === null}
-  {#if !failure}<p class="delayed" role="status">{t('Activities.loading_activities')}</p>{/if}
+  {#if !failure}<p class="delayed" role="status">{t('loading_activities')}</p>{/if}
 {:else if activities.length === 0 && page === 0}
   <section class="panel narrow">
-    <p>{t('Activities.no_activities_yet')}</p>
+    <p>{t('activities_list_empty')}</p>
   </section>
 {:else}
   <div class="activities" class:open={selectedId !== null}>
@@ -564,7 +546,7 @@
               {month.activities.length === 1 ? 'activity' : 'activities'}, {km(month.distance)}, {hours(
                 month.time,
               )}{#if page > 0 || hasMore}
-                {t('Activities.on_this_page')}{/if}
+                {t('page_scope_hint')}{/if}
             </p>
           </div>
           <ul class="plain">
@@ -579,7 +561,7 @@
                 >
                   <span class="day" aria-hidden={date ? 'true' : undefined}
                     >{#if date}<small>{date.toLocaleDateString([], { weekday: 'short' })}</small
-                      >{date.getDate()}{:else}<small>{t('Activities.no_date')}</small>{/if}</span
+                      >{date.getDate()}{:else}<small>{t('no_date')}</small>{/if}</span
                   >
                   <span class="what">
                     <strong>{title(a)}</strong>
@@ -588,13 +570,15 @@
                           >{date.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })},
                         </span>{/if}{world(a)}{#if a.sport === 'running'}{world(a)
                           ? ', run'
-                          : t('Activities.run')}{/if}{#if !a.endDate}<span class="unfinished"
-                          >{t('Activities.not_finished', {
+                          : t('run')}{/if}{#if !a.endDate}<span class="unfinished"
+                          >{t('not_finished', {
                             value1: world(a) || a.sport === 'running' ? ', ' : '',
                           })}</span
                         >{/if}{#if a.images}<span class="camera"
                           ><span class="visually-hidden">, </span>{a.images}
-                          {a.images === 1 ? t('Activities.image_word') : t('Activities.images_word')}</span
+                          {a.images === 1
+                            ? t('activities_upload_image_singular')
+                            : t('activities_upload_image_plural')}</span
                         >{/if}</small
                     >
                   </span>
@@ -609,10 +593,10 @@
         </section>
       {/each}
       {#if page > 0 || hasMore}
-        <nav class="pagination" aria-label={t('Activities.activity_pages')}>
-          <button type="button" disabled={page === 0} onclick={() => page--}>{t('Activities.previous')}</button>
-          <span>{t('Activities.page', { value1: page + 1 })}</span>
-          <button type="button" disabled={!hasMore} onclick={() => page++}>{t('Activities.next')}</button>
+        <nav class="pagination" aria-label={t('activity_pages')}>
+          <button type="button" disabled={page === 0} onclick={() => page--}>{t('previous')}</button>
+          <span>{t('page', { value1: page + 1 })}</span>
+          <button type="button" disabled={!hasMore} onclick={() => page++}>{t('next')}</button>
         </nav>
       {/if}
     </div>
@@ -627,17 +611,16 @@
         aria-busy={loading}
       >
         {#if selectedId}
-          <a class="back" href="/activities" onclick={(e) => open(e, '/activities')}>{t('Activities.all_activities')}</a
-          >
+          <a class="back" href="/activities" onclick={(e) => open(e, '/activities')}>{t('all_activities')}</a>
         {/if}
         {#if loading}
           <div class="loading delayed" role="status">
             <span class="bar" aria-hidden="true"></span>
-            <p class="muted">{t('Activities.loading_activity')}</p>
+            <p class="muted">{t('loading_activity')}</p>
           </div>
         {/if}
         {#if !selectedId}
-          <p class="muted">{t('Activities.select_an_activity')}</p>
+          <p class="muted">{t('activities_detail_empty')}</p>
         {:else if detail}
           {@const date = started(detail)}
           <h2 id="activity-name">{title(detail)}</h2>
@@ -656,34 +639,30 @@
             {#key detail.id}<ActivityChart chart={detail.chart} running={detail.sport === 'running'} />{/key}
           {:else if detail.chartPending}
             <p class="pending" role="status">
-              {chartWaitExpired
-                ? t('Activities.this_is_taking_longer_than_expected_reopen_the_activity')
-                : t('Activities.preparing_the_route_and_elevation_profile')}
+              {chartWaitExpired ? t('activities_detail_timeout') : t('activities_detail_loading_route')}
             </p>
           {/if}
 
           <dl class="headline">
             <div>
-              <dt>{t('Activities.distance')}</dt>
+              <dt>{t('distance')}</dt>
               <dd>{km(detail.distanceInMeters)}</dd>
             </div>
             <div>
-              <dt>{t('Activities.moving_time')}</dt>
+              <dt>{t('moving_time')}</dt>
               <dd>{clock(detail.movingTimeInMs)}</dd>
             </div>
             <div>
-              <dt>{t('Activities.elevation_gain')}</dt>
-              <dd>{t('Activities.m', { value1: Math.round(detail.totalElevation) })}</dd>
+              <dt>{t('elevation_gain')}</dt>
+              <dd>{t('m', { value1: Math.round(detail.totalElevation) })}</dd>
             </div>
           </dl>
 
           {#if measures(detail).length}
             <table class="measures">
-              <caption class="visually-hidden">{t('Activities.averages_and_maximums')}</caption>
+              <caption class="visually-hidden">{t('averages_and_maximums')}</caption>
               <thead>
-                <tr
-                  ><td></td><th scope="col">{t('Activities.average')}</th><th scope="col">{t('Activities.max')}</th></tr
-                >
+                <tr><td></td><th scope="col">{t('average')}</th><th scope="col">{t('max')}</th></tr>
               </thead>
               <tbody>
                 {#each measures(detail) as [label, avg, max, format] (label)}
@@ -707,19 +686,17 @@
           {/if}
 
           <div class="inset">
-            <h3>{t('Activities.fit_file')}</h3>
+            <h3>{t('fit_file')}</h3>
             {#if detail.fit}
-              <a class="button primary" href="/api/me/activities/{detail.id}/fit" download
-                >{t('Activities.download_fit_file')}</a
-              >
+              <a class="button primary" href="/api/me/activities/{detail.id}/fit" download>{t('download_fit_file')}</a>
             {:else}
-              <p class="muted">{t('Activities.no_fit_file_was_saved')}</p>
+              <p class="muted">{t('activities_detail_missing_fit')}</p>
             {/if}
           </div>
 
           {#if detail.imageIds.length}
             <div class="inset">
-              <h3>{t('Activities.images')}</h3>
+              <h3>{t('images')}</h3>
               <ul class="plain images">
                 {#each detail.imageIds as image, index (image)}
                   <li>
@@ -731,9 +708,7 @@
                       />
                     </a>
                     <a class="download" href="/api/me/activities/{detail.id}/images/{image}?download" download
-                      >{t('Activities.download')}<span class="visually-hidden">
-                        {t('Activities.image', { value1: index + 1 })}</span
-                      ></a
+                      >{t('download')}<span class="visually-hidden"> {t('image', { value1: index + 1 })}</span></a
                     >
                   </li>
                 {/each}

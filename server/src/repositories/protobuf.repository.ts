@@ -90,7 +90,7 @@ export class ProtobufRows {
     const keys = values.keys().toArray();
 
     if (keys.length === 0) {
-      throw new Error(t('protobuf_repository.empty_database_record'));
+      throw new Error(t('empty_database_record'));
     }
 
     return this.executor.run(query.insertInto(table).values(Object.fromEntries(values))).lastInsertRowid;

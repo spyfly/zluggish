@@ -48,7 +48,7 @@ export class DiscordRepository {
             activities: count
               ? [
                   {
-                    name: t('discord_repository.rider_online', { value1: count, value2: count === 1 ? '' : 's' }),
+                    name: t('rider_online', { value1: count, value2: count === 1 ? '' : 's' }),
                     type: ActivityType.Playing,
                   },
                 ]

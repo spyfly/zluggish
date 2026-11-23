@@ -87,7 +87,7 @@ export function createWebApp(runtime: HttpRuntime) {
 
     if (androidChunk(c)) {
       if (Number(c.req.header('Content-Length')) > zwiftAndroidChunkSize) {
-        return c.json({ message: t('web_app.the_upload_chunk_is_too_large') }, 413);
+        return c.json({ message: t('web_app_upload_chunk_size_limit') }, 413);
       }
 
       // The service counts bytes while writing to disk, including requests without Content-Length.
@@ -137,7 +137,7 @@ export function createWebApp(runtime: HttpRuntime) {
 
     if (!['GET', 'HEAD'].includes(c.req.method)) {
       if (!sameOrigin(c.req.header('Origin'), c.req.url, publicUrl) || c.req.header('X-CSRF-Token') !== c.get('csrf')) {
-        throw new ApplicationError({ status: 403, message: t('web_app.reload_the_page_and_retry') });
+        throw new ApplicationError({ status: 403, message: t('web_app_reload_required') });
       }
 
       if (
@@ -150,7 +150,7 @@ export function createWebApp(runtime: HttpRuntime) {
               ? c.req.header('Content-Type') === 'image/jpeg'
               : c.req.header('Content-Type')?.startsWith('application/json'))
       ) {
-        throw new ApplicationError({ status: 400, message: t('web_app.json_required') });
+        throw new ApplicationError({ status: 400, message: t('json_required') });
       }
     }
 
@@ -169,7 +169,7 @@ export function createWebApp(runtime: HttpRuntime) {
       const limit = attempts.get(key) ?? { count: 0, until: now + 60_000 };
 
       if (limit.count >= 10 || attempts.size >= 10_000) {
-        return c.json({ message: t('web_app.try_again_shortly') }, 429);
+        return c.json({ message: t('web_app_retry_later') }, 429);
       }
       limit.count++;
       attempts.set(key, limit);
@@ -242,7 +242,7 @@ export function createWebApp(runtime: HttpRuntime) {
       const user = yield* managementService.signIn(input.username, input.password);
 
       if (!live()) {
-        throw new ApplicationError({ status: 401, message: t('web_app.session_changed') });
+        throw new ApplicationError({ status: 401, message: t('session_changed') });
       }
 
       return login(c, user);
@@ -327,7 +327,7 @@ export function createWebApp(runtime: HttpRuntime) {
       );
 
       if (!(yield* filesService.isFile(path))) {
-        throw new ApplicationError({ status: 404, message: t('web_app.no_photo') });
+        throw new ApplicationError({ status: 404, message: t('photo_missing') });
       }
 
       return yield* fileResponse(c, path, { 'Content-Type': 'image/jpeg' });
@@ -398,19 +398,19 @@ export function createWebApp(runtime: HttpRuntime) {
     if (status.mode === 'legacy') {
       throw new ApplicationError({
         status: 409,
-        message: t('web_app.replace_the_shared_zwift_certificate_before_setting_up_clients'),
+        message: t('web_app_shared_certificate_blocked'),
       });
     }
 
     if (!status.certificate || !material) {
-      throw new ApplicationError({ status: 409, message: t('web_app.this_server_has_no_certificate_to_install') });
+      throw new ApplicationError({ status: 409, message: t('web_app_certificate_unavailable') });
     }
 
     // A configured file may hold a chain. Take the first certificate only.
     const certificate = /-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/.exec(material.cert)?.[0];
 
     if (!certificate) {
-      throw new ApplicationError({ status: 409, message: t('web_app.this_server_has_no_certificate_to_install') });
+      throw new ApplicationError({ status: 409, message: t('web_app_certificate_unavailable') });
     }
 
     return { pem: certificate + '\n', certificate: status.certificate };
@@ -446,7 +446,7 @@ export function createWebApp(runtime: HttpRuntime) {
       const app = yield* Effect.promise(() => android.download());
 
       if (!app) {
-        throw new ApplicationError({ status: 404, message: t('web_app.there_is_no_zwift_app_for_this_server_yet') });
+        throw new ApplicationError({ status: 404, message: t('web_app_zwift_android_unavailable') });
       }
       runtime.world.lifecycle.log.info('android.download', 'A rider downloaded Zwift for Zluggish', {
         player: user.player_id,
@@ -490,7 +490,7 @@ export function createWebApp(runtime: HttpRuntime) {
       if (!body || offset === undefined) {
         throw new ApplicationError({
           status: 400,
-          message: t('web_app.the_upload_chunk_is_missing_its_body_or_offset'),
+          message: t('web_app_upload_chunk_invalid'),
         });
       }
 
@@ -539,7 +539,7 @@ export function createWebApp(runtime: HttpRuntime) {
 
   const setupAddress = Schema.String.check(
     Schema.isMaxLength(45),
-    satisfies((value: string) => value === '' || isIP(value) !== 0, t('web_app.expected_an_ip_address')),
+    satisfies((value: string) => value === '' || isIP(value) !== 0, t('web_app_ip_address_invalid')),
   );
 
   const setupPlatform = Schema.Literals(['windows', 'linux', 'macos']);
@@ -580,7 +580,7 @@ export function createWebApp(runtime: HttpRuntime) {
       const app = yield* companion.download();
 
       if (!app) {
-        throw new ApplicationError({ status: 404, message: t('web_app.there_is_no_companion_app_on_this_server_yet') });
+        throw new ApplicationError({ status: 404, message: t('web_app_companion_unavailable') });
       }
       runtime.world.lifecycle.log.info('companion.download', 'A rider downloaded the Zwift Companion app', {
         player: user.player_id,
@@ -743,7 +743,7 @@ export function createWebApp(runtime: HttpRuntime) {
       );
 
       if (!user) {
-        throw new ApplicationError({ status: 404, message: t('web_app.user_not_found') });
+        throw new ApplicationError({ status: 404, message: t('user_not_found_error') });
       }
 
       return c.json(yield* managementService.publicUser(user));
@@ -814,7 +814,7 @@ export function createWebApp(runtime: HttpRuntime) {
       const path = yield* managementService.avatarPath(id);
 
       if (!accounts.get(id) || !(yield* filesService.isFile(path))) {
-        throw new ApplicationError({ status: 404, message: t('web_app.no_photo') });
+        throw new ApplicationError({ status: 404, message: t('photo_missing') });
       }
 
       return yield* fileResponse(c, path, { 'Content-Type': 'image/jpeg' });
@@ -912,7 +912,7 @@ export function createWebApp(runtime: HttpRuntime) {
       const backup = yield* service.status(operation);
 
       if (!backup) {
-        throw new ApplicationError({ status: 404, message: t('web_app.backup_request_not_found') });
+        throw new ApplicationError({ status: 404, message: t('backup_request_not_found') });
       }
 
       return c.json(backup);
@@ -945,7 +945,7 @@ export function createWebApp(runtime: HttpRuntime) {
       const body = c.req.raw.body;
 
       if (!body) {
-        throw new ApplicationError({ status: 400, message: t('web_app.choose_an_apk_file_to_upload') });
+        throw new ApplicationError({ status: 400, message: t('web_app_upload_file_required') });
       }
 
       return c.json(yield* companion.upload(body), 202);
@@ -1005,7 +1005,7 @@ export function createWebApp(runtime: HttpRuntime) {
                 await runtime.world.simulation?.reload();
               },
               bots: (user, command) =>
-                runtime.world.simulation?.command(BigInt(user), command, true) ?? t('web_app.bots_are_not_running'),
+                runtime.world.simulation?.command(BigInt(user), command, true) ?? t('bots_unavailable'),
             },
           ),
         );
@@ -1102,13 +1102,13 @@ export function createWebApp(runtime: HttpRuntime) {
 
         return (yield* filesService.exists(index))
           ? c.html(yield* filesService.readText(index))
-          : c.text(t('web_app.build_the_web_app_before_starting'), 503);
+          : c.text(t('web_app_web_build_missing'), 503);
       }),
     );
   }
   app.onError((error, c) => {
     if (Schema.isSchemaError(error)) {
-      return c.json({ message: t('web_app.check_the_form_fields'), fieldErrors: fieldErrors(error) }, 400);
+      return c.json({ message: t('web_app_validation_error'), fieldErrors: fieldErrors(error) }, 400);
     }
 
     if (error instanceof HTTPException) {
@@ -1128,7 +1128,7 @@ export function createWebApp(runtime: HttpRuntime) {
         error,
       });
 
-      return c.json({ message: t('web_app.the_saved_credentials_cannot_be_read_enter_them_again') }, 409);
+      return c.json({ message: t('web_app_credentials_unreadable') }, 409);
     }
 
     runtime.world.lifecycle.log.error('web.failed', 'Web request failed unexpectedly', {
@@ -1137,7 +1137,7 @@ export function createWebApp(runtime: HttpRuntime) {
       error: error instanceof Error ? error : String(error),
     });
 
-    return c.json({ message: t('web_app.the_server_hit_an_unexpected_error_the_server_log') }, 500);
+    return c.json({ message: t('web_app_unexpected_error') }, 500);
   });
 
   return app;

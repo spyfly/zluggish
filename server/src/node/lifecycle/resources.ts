@@ -8,7 +8,7 @@ function releaseErrors(cause: Cause.Cause<unknown>) {
   return cause.reasons.map((reason) => {
     const error = Cause.isDieReason(reason) ? reason.defect : Cause.isFailReason(reason) ? reason.error : reason;
 
-    return error instanceof Error ? error : new Error(t('resources.resource_cleanup_failed'));
+    return error instanceof Error ? error : new Error(t('resource_cleanup_failed'));
   });
 }
 
@@ -27,7 +27,7 @@ export class Resources {
 
   defer(dispose: () => void | Promise<void>) {
     if (this.state.status !== 'open') {
-      throw new Error(t('resources.resource_owner_is_closing'));
+      throw new Error(t('resource_owner_closing'));
     }
     Effect.runSync(
       Scope.addFinalizer(
@@ -56,7 +56,7 @@ export class Resources {
         this.state = { status: 'closed' };
 
         if (Exit.isFailure(exit)) {
-          throw new AggregateError(releaseErrors(exit.cause), t('resources.resource_cleanup_failed'));
+          throw new AggregateError(releaseErrors(exit.cause), t('resource_cleanup_failed'));
         }
       });
 

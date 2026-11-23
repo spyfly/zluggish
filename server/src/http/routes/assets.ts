@@ -60,8 +60,8 @@ export function launcherAssetRoutes<E extends Env>(app: Hono<E>, runtime: Runtim
   appRoutes.get('/static/web/launcher/embed.html', (c) =>
     gamePage(c, {
       kind: 'message',
-      title: t('assets.loading_zwift_'),
-      message: t('assets.enjoying_zluggish_please_star_us_on_github_zluggish_com'),
+      title: t('loading_zwift_'),
+      message: t('assets_github_star_prompt'),
       csrf: '',
       version: '',
       forms: [],

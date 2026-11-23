@@ -212,7 +212,7 @@ const make = Effect.gen(function* () {
       const handler = handlers.get(claim.type);
 
       if (!handler) {
-        return yield* Effect.die(new Error(t('jobs_service.no_handler_for_this_job_type')));
+        return yield* Effect.die(new Error(t('jobs_handler_missing')));
       }
 
       yield* Effect.promise(() => execute(claim, handler));

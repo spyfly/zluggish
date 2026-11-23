@@ -32,9 +32,9 @@
   let failure = $state('');
 
   const sources = {
-    managed: t('ServerCertificate.generated_by_this_server'),
-    legacy: t('ServerCertificate.shared_zwift_certificate'),
-    custom: t('ServerCertificate.certificate_files_from_the_configuration'),
+    managed: t('generated_by_this_server'),
+    legacy: t('shared_zwift_certificate'),
+    custom: t('server_certificate_source_configured'),
   };
 
   const day = (iso: string) =>
@@ -64,7 +64,7 @@
       status = await api(tlsStatus, '/api/tls');
       onstatus?.(status);
     } catch (error) {
-      failure = error instanceof Error ? error.message : t('ServerCertificate.the_certificate_could_not_be_loaded');
+      failure = error instanceof Error ? error.message : t('server_certificate_load_error');
     }
   });
 
@@ -72,38 +72,38 @@
     const operation = crypto.randomUUID();
 
     confirm({
-      title: t('ServerCertificate.rotate_the_server_certificate'),
-      detail: t('ServerCertificate.the_new_certificate_takes_effect_at_once_zwift_stops'),
-      label: t('ServerCertificate.rotate_certificate'),
+      title: t('certificate_rotate_confirm'),
+      detail: t('server_certificate_rotation_warning'),
+      label: t('rotate_certificate'),
       destructive: true,
       confirm: async () => {
         status = await api(tlsStatus, '/api/manage/server/certificate', 'POST', { operation });
         onstatus?.(status);
-        done(t('ServerCertificate.certificate_rotated_every_device_needs_setup_again'));
+        done(t('server_certificate_rotation_success'));
       },
     });
   }
 </script>
 
 <section class="panel" aria-labelledby="certificate-title">
-  <h2 id="certificate-title">{t('ServerCertificate.game_certificate')}</h2>
+  <h2 id="certificate-title">{t('game_certificate')}</h2>
   {#if failure}<p class="failed" role="alert">{failure}</p>{/if}
   {#if status}
     <dl class="facts">
       <div>
-        <dt>{t('ServerCertificate.source')}</dt>
+        <dt>{t('source')}</dt>
         <dd>{sources[status.mode]}</dd>
       </div>
       {#if status.certificate}
         <div>
-          <dt>{t('ServerCertificate.created')}</dt>
+          <dt>{t('created')}</dt>
           <dd>
             <time datetime={status.certificate.notBefore}>{day(status.certificate.notBefore)}</time>
             <span class="muted">({relative(status.certificate.notBefore)})</span>
           </dd>
         </div>
         <div>
-          <dt>{t('ServerCertificate.expires')}</dt>
+          <dt>{t('expires')}</dt>
           <dd class:failed={expiresSoon}>
             <time datetime={status.certificate.notAfter}>{day(status.certificate.notAfter)}</time>
             <span class:muted={!expiresSoon}>({relative(status.certificate.notAfter)})</span>
@@ -113,17 +113,17 @@
     </dl>
 
     {#if status.certificate}
-      <Fingerprint label={t('ServerCertificate.fingerprint')} value={status.certificate.fingerprint256} />
+      <Fingerprint label={t('fingerprint')} value={status.certificate.fingerprint256} />
     {/if}
 
     {#if status.canRotate}
-      <p class="muted">{t('ServerCertificate.rotate_if_the_key_may_have_leaked_or_before')}</p>
-      <button class="danger" disabled={busy} onclick={rotate}>{t('ServerCertificate.rotate_certificate')}</button>
+      <p class="muted">{t('server_certificate_rotation_hint')}</p>
+      <button class="danger" disabled={busy} onclick={rotate}>{t('rotate_certificate')}</button>
     {:else}
-      <p class="muted">{t('ServerCertificate.to_change_it_replace_the_tls_certfile_and_tls')}</p>
+      <p class="muted">{t('server_certificate_source_configured_hint')}</p>
     {/if}
   {:else if !failure}
-    <p role="status">{t('ServerCertificate.loading')}</p>
+    <p role="status">{t('loading')}</p>
   {/if}
 </section>
 

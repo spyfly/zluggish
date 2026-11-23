@@ -26,16 +26,14 @@ export function legacyPlan(storage: string): LegacyPlan {
   const manifest = readManifest(storage);
 
   if (manifest?.state !== 'published') {
-    throw new ConfigError(t('legacy.no_published_storage_migration_nothing_to_clean'));
+    throw new ConfigError(t('legacy_migration_missing'));
   }
 
   const archived = manifest.backup.endsWith(archiveSuffix);
   const backupPath = archived ? manifest.backup : resolve(manifest.backup, 'backup-manifest.json');
 
   if (!existsSync(backupPath)) {
-    throw new ConfigError(
-      t('legacy.the_migration_backup_is_missing_keep_the_legacy_files', { value1: manifest.backup }),
-    );
+    throw new ConfigError(t('legacy_backup_missing', { value1: manifest.backup }));
   }
 
   const backup = Schema.decodeUnknownSync(Schema.Struct({ checksums: Schema.Record(Schema.String, Schema.String) }))(
@@ -61,11 +59,11 @@ export function legacyPlan(storage: string): LegacyPlan {
 
     const consider = (path: string, imported: boolean) => {
       if (!backedUp(path)) {
-        plan.kept.push({ path, reason: t('legacy.not_identical_to_the_migration_backup') });
+        plan.kept.push({ path, reason: t('legacy_backup_mismatch') });
       } else if (imported) {
         plan.removable.push({ path, bytes: statSync(path).size });
       } else {
-        plan.kept.push({ path, reason: t('legacy.not_in_the_database') });
+        plan.kept.push({ path, reason: t('legacy_database_record_missing') });
       }
     };
 
@@ -105,7 +103,7 @@ export function legacyPlan(storage: string): LegacyPlan {
       const root = resolve(storage, folder);
 
       if (!users.has(player)) {
-        plan.kept.push({ path: root, reason: t('legacy.no_account_for_this_rider_folder') });
+        plan.kept.push({ path: root, reason: t('legacy_rider_account_missing') });
         continue;
       }
 
@@ -144,7 +142,7 @@ export function legacyPlan(storage: string): LegacyPlan {
         if (merged) {
           plan.removable.push({ path: settings, bytes: statSync(settings).size });
         } else {
-          plan.kept.push({ path: settings, reason: t('legacy.rows_differ_from_the_database_resolve_them_first') });
+          plan.kept.push({ path: settings, reason: t('legacy_database_rows_mismatch') });
         }
       } finally {
         legacy.close();
