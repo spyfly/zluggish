@@ -1,4 +1,5 @@
 import { Schema } from 'effect';
+import { ApkRepository } from '#src/repositories/apk.repository';
 import { ManagementService } from '#src/services/management.service';
 import { TlsService } from '#src/services/tls.service';
 import { mediumWeb } from '#tests/medium/support';
@@ -7,7 +8,7 @@ import { responseStatus } from '#tests/support/html';
 import { runtimeFixture } from '#tests/support/runtime';
 import assert from 'node:assert/strict';
 import { X509Certificate } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -16,16 +17,17 @@ const legacyPem = '-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\
 
 /** A Companion APK that an earlier patch already pointed at a certificate in res/raw. */
 const patched = zip([
-  ['AndroidManifest.xml', binaryManifest('com.zwift.android.prod', '3.91.0', 2175, 28), true],
+  ['AndroidManifest.xml', binaryManifest('com.zluggish.companion', '3.91.0', 2175, 28), true],
   ['classes.dex', Buffer.alloc(2000, 1), true],
   ['resources.arsc', Buffer.alloc(800, 2), false],
   ['res/raw/cert-zwift-com.pem', Buffer.from(legacyPem), true],
   ['lib/arm64-v8a/libapp.so', Buffer.alloc(20_000, 3), false],
 ]);
 
-const unpatched = zip([
+const oldPackage = zip([
   ['AndroidManifest.xml', binaryManifest('com.zwift.android.prod', '3.92.0', 2180, 28), true],
   ['classes.dex', Buffer.alloc(2000, 1), true],
+  ['res/raw/cert-zwift-com.pem', Buffer.from(legacyPem), true],
 ]);
 
 const otherApp = zip([['AndroidManifest.xml', binaryManifest('com.example.other', '1.0', 1, 28), true]]);
@@ -99,6 +101,22 @@ await test('the administrator patches the Companion app and every rider download
 
   await f.effects.runPromise(tls.start());
   const first = await f.effects.runPromise(tls.status());
+  const companionFolder = resolve(f.config.storageDir, 'companion');
+  const appPath = resolve(companionFolder, 'zwift-companion.apk');
+  const previousMetadata = {
+    versionName: '3.92.0',
+    versionCode: 2180,
+    bytes: oldPackage.length,
+    createdAt: new Date().toISOString(),
+    certificate: first.certificate?.fingerprint256,
+    method: 'rekey',
+  };
+  mkdirSync(companionFolder, { recursive: true });
+  writeFileSync(appPath, oldPackage);
+  writeFileSync(resolve(companionFolder, 'companion.json'), JSON.stringify(previousMetadata));
+  assert.equal(companionStatus(await json(web.request('/api/companion'))).app, null);
+  assert.equal(await responseStatus(web.request('/api/companion/app')), 404);
+
   const wrong = await admin.request('/api/manage/companion/app', 'PUT', otherApp);
   assert.equal(wrong.status, 400);
   const wrongBody = await wrong.json();
@@ -134,13 +152,15 @@ await test('the administrator patches the Companion app and every rider download
   assert.equal(updated.app?.current, true);
   const again = await web.request('/api/companion/app');
   const rekeyed = Buffer.from(await again.arrayBuffer());
+  const manifest = await new ApkRepository().manifest(appPath);
+  assert.equal(manifest.packageName, 'com.zluggish.companion');
   assert.equal(
     new X509Certificate(contents(rekeyed, 'res/raw/cert-zwift-com.pem')).fingerprint256,
     second.certificate?.fingerprint256,
   );
 
-  // An app that was never patched needs the Java tools. The server never downloads them unasked: the upload waits.
-  const held = companionAdminStatus(await json(admin.request('/api/manage/companion/app', 'PUT', unpatched)));
+  // Prepatched apps with the old package still need rebuilding to make them install alongside the original.
+  const held = companionAdminStatus(await json(admin.request('/api/manage/companion/app', 'PUT', oldPackage)));
   assert.ok(held.activity);
   assert.ok(held.app);
   assert.equal(held.activity.state, 'waiting');

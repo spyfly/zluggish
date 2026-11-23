@@ -121,17 +121,12 @@
 
     <ol class="walk">
       <li>
-        <h2>Remove the Play Store version</h2>
-        <p>
-          Android updates an app only with one signed by the same key. If Zwift Companion came from the Play Store or
-          another site, uninstall it first.
-        </p>
-        <p class="hint">Skip this when you update an app you installed from this page.</p>
-      </li>
-      <li>
-        <h2>Download the app</h2>
+        <h2>Download Companion for Zluggish</h2>
         {#if status.app}
-          <p>Open this page on the phone, then download Companion patched for this server.</p>
+          <p>
+            You can keep the Play Store version installed. Open this page on your Android phone to download the copy for
+            this server.
+          </p>
           <a class="download" class:muted-action={!status.app.current} href="/api/companion/app" download
             >Download Companion {status.app.versionName}</a
           >
@@ -175,7 +170,7 @@
       </li>
       <li>
         <h2>Sign in</h2>
-        <p>Open Companion and sign in with your account on this server.</p>
+        <p>Open Companion with the Zluggish icon and sign in with your account on this server.</p>
       </li>
     </ol>
   </section>
