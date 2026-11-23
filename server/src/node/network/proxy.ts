@@ -1,3 +1,4 @@
+import { t } from '#src/i18n/index';
 import { request } from 'node:https';
 import { Resolver } from 'node:dns';
 import { Readable } from 'node:stream';
@@ -15,7 +16,7 @@ export async function fetchCdn(path: string): Promise<Response> {
         lookup(hostname, options, callback) {
           resolver.resolve4(hostname, (error, addresses) => {
             if (error || !addresses[0]) {
-              callback(error ?? new Error('No upstream address'), '', 4);
+              callback(error ?? new Error(t('upstream_address_missing')), '', 4);
 
               return;
             }
@@ -70,7 +71,7 @@ export async function fetchCdn(path: string): Promise<Response> {
       },
     );
 
-    req.setTimeout(30_000, () => req.destroy(new Error('CDN proxy timeout')));
+    req.setTimeout(30_000, () => req.destroy(new Error(t('cdn_proxy_timeout'))));
     req.once('error', fail);
     req.end();
   });

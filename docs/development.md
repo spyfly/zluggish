@@ -85,3 +85,42 @@ In tests, the fixture gives `f.effects`, the application runtime. Get a service 
 ESLint uses TypeScript-aware correctness rules, import checks and Unicorn conventions. The first configuration came from the `server/eslint.config.mjs` file of `immich-app/immich`. The vendored Oxlint rules record their source revision in [UPSTREAM.md](https://github.com/zluggish/zluggish/blob/main/server/tools/oxlint/anti-slop/UPSTREAM.md).
 
 The shared ESLint, Oxlint, Prettier and mise configuration is in `server/`.
+
+### Translations
+
+Runtime messages live in the root `i18n/en.json` catalog. There is one JSON
+file per language: a single flat object of message keys and translated strings,
+without nested sections. English is the only locale for now. Keep the existing
+message keys stable when editing copy.
+
+Add a flat, semantic `snake_case` key to the catalog and call
+`t('key')` through the existing translation helper. Name the purpose of the
+message, such as `activities_upload_duplicate_warning`, rather than copying
+the English sentence into the key. Use context where needed to distinguish
+messages; avoid dotted component namespaces and numbered variants. Reuse a key
+when both the meaning and text are shared. Use named placeholders for dynamic values, for
+example `t('key', { value1: count })` with `"{value1} riders"` in the catalog.
+TypeScript checks message keys; the translation check validates interpolation
+arguments. Svelte escapes the result as ordinary text. Keep complete sentences
+together where possible.
+
+The shared workspace package `@zluggish/i18n` exposes the JSON directly to the
+server, source rendering, and browser bundles. All translation helpers use the
+same flat catalog. Docker copies the catalog package into the
+runtime image. No generated translation files need to be maintained.
+
+To add a language, copy `i18n/en.json` to a new language file such as
+`i18n/sv.json` and translate the values. The check requires matching keys and
+placeholder names in every language. Locale selection is not implemented yet.
+
+Run `mise run i18n:check` (or `pnpm i18n:check`) from the repository root before
+committing. This validates missing and unused keys, duplicate JSON keys,
+interpolation arguments, and untranslated UI text. `mise run i18n:test` tests
+the checker and interpolation. GitHub Actions runs both tasks on pull requests
+and pushes to main.
+
+Protocol values, SQL, certificate identities, and executable setup-script syntax
+must remain literal. The source checker excludes common technical contexts;
+any other exception needs a specific file, exact value, and reason in
+`scripts/i18n-exemptions.json`. Stale exceptions fail the check. Documentation
+and the static marketing sites are maintained separately from runtime messages.

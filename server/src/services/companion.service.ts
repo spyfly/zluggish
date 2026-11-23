@@ -1,3 +1,4 @@
+import { t } from '#src/i18n/index';
 import { RuntimeContext } from '#src/context';
 import { ApplicationError } from '#src/errors';
 import type { ApkSigner, ApkUpload } from '#src/repositories/apk.repository';
@@ -69,7 +70,7 @@ export interface CompanionStatus {
     /** False when the server certificate changed since, and the app no longer connects until it is patched again. */
     readonly current: boolean;
   } | null;
-  readonly tlsMode: 'managed' | 'legacy' | 'custom' | 'disabled';
+  readonly tlsMode: 'managed' | 'legacy' | 'custom';
   readonly serverAddress: string;
 }
 
@@ -130,20 +131,23 @@ const make = Effect.gen(function* () {
     if (mode === 'legacy') {
       throw new ApplicationError({
         status: 409,
-        message: 'Replace the shared Zwift certificate before building the Companion app.',
+        message: t('companion_shared_certificate_blocked'),
       });
     }
 
-    if (mode === 'disabled' || !material) {
+    if (!material) {
       throw new ApplicationError({
         status: 409,
-        message: 'The Zwift API serves plain HTTP on this server, so there is no certificate for the app to trust.',
+        message: t('companion_certificate_unavailable'),
       });
     }
 
     const pem = /-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/.exec(material.cert)?.[0];
     if (!pem) {
-      throw new ApplicationError({ status: 409, message: 'The server certificate contains no PEM certificate.' });
+      throw new ApplicationError({
+        status: 409,
+        message: t('companion_certificate_pem_missing'),
+      });
     }
 
     return { pem: pem + '\n', fingerprint: crypto.certificateFacts(pem).fingerprint256 };
@@ -207,11 +211,14 @@ const make = Effect.gen(function* () {
 
   function begin(kind: CompanionActivity['kind'], steps: ReadonlyArray<CompanionStep>) {
     if (activity?.state === 'running') {
-      throw new ApplicationError({ status: 409, message: 'Wait for the current Companion job to finish.' });
+      throw new ApplicationError({
+        status: 409,
+        message: t('companion_job_busy'),
+      });
     }
     const step = steps[0];
     if (!step) {
-      throw new Error('A Companion job needs at least one step.');
+      throw new Error(t('companion_job_steps_required'));
     }
     abort = new AbortController();
     activity = {
@@ -266,7 +273,7 @@ const make = Effect.gen(function* () {
     const trusted = await apk.trustedCertificates(output);
 
     if (trusted.length === 0) {
-      throw new Error('The rebuilt app does not hold the server certificate.');
+      throw new Error(t('companion_build_certificate_verification_failed'));
     }
 
     return output;
@@ -275,7 +282,7 @@ const make = Effect.gen(function* () {
   async function publish(output: string, fingerprint: string, method: Published['method']) {
     const manifest = await apk.manifest(output);
     if (manifest.packageName !== standaloneCompanionPackage) {
-      throw new Error(`Expected the patched Companion app to use ${standaloneCompanionPackage}.`);
+      throw new Error(t('companion_patched_app_package_expected', { value1: standaloneCompanionPackage }));
     }
 
     advance('publish');
@@ -304,7 +311,7 @@ const make = Effect.gen(function* () {
     const upload = await apk.inspect(path);
 
     if (upload.kind === 'unknown') {
-      throw new ApplicationError({ status: 400, message: 'This is not an APK, APKS, XAPK or APKM file.' });
+      throw new ApplicationError({ status: 400, message: t('companion_file_type_unsupported') });
     }
 
     if (upload.kind === 'bundle') {
@@ -315,12 +322,18 @@ const make = Effect.gen(function* () {
     if (manifest.packageName !== originalCompanionPackage && manifest.packageName !== standaloneCompanionPackage) {
       throw new ApplicationError({
         status: 400,
-        message: `This APK is ${manifest.packageName || 'an unknown app'}, not Zwift Companion.`,
+        message: t('companion_apk_app_mismatch', {
+          value1: manifest.packageName || t('companion_unknown_app'),
+          value2: originalCompanionPackage,
+        }),
       });
     }
 
     if (manifest.minSdk < 24) {
-      throw new ApplicationError({ status: 400, message: 'This Companion version is too old. Upload a newer one.' });
+      throw new ApplicationError({
+        status: 400,
+        message: t('companion_version_unsupported'),
+      });
     }
 
     if (manifest.packageName === originalCompanionPackage) {
@@ -329,7 +342,7 @@ const make = Effect.gen(function* () {
     const rekey = await apk.trustedCertificates(path);
 
     if (rekey.length === 0) {
-      throw new ApplicationError({ status: 400, message: 'This patched Companion APK is missing its certificate.' });
+      throw new ApplicationError({ status: 400, message: t('companion_patched_certificate_missing') });
     }
 
     return { upload, rekey };
@@ -354,6 +367,33 @@ const make = Effect.gen(function* () {
   function start(job: { path: string; workspace: string; plan: Plan }) {
     const signal = begin('patch', stepsFor(job.plan));
     void patch(job.path, job.workspace, job.plan, signal);
+  }
+
+  function installTools() {
+    const signal = begin('toolchain', ['runtime', 'editor']);
+
+    void (async () => {
+      try {
+        await toolchain.install(signal, (step, fraction) => advance(step, fraction));
+        log.info('companion.toolchain_installed', 'Downloaded the Java tools for the Zwift Companion app', {
+          folder: toolchain.folder,
+        });
+        finish();
+
+        // The upload that needs the tools continues on its own.
+        const held = pending;
+        pending = null;
+
+        if (held) {
+          start(held);
+        }
+      } catch (error) {
+        log.warn('companion.toolchain_failed', 'Downloading the Java tools failed', {
+          error: error instanceof Error ? error : String(error),
+        });
+        finish(error instanceof Error ? error.message : String(error));
+      }
+    })();
   }
 
   async function discardPending() {
@@ -385,7 +425,7 @@ const make = Effect.gen(function* () {
       const tools = await toolchain.state();
 
       if (!tools.java || !tools.editor) {
-        throw new Error('The Java tools are no longer installed. Upload the app again.');
+        throw new Error(t('companion_toolchain_missing'));
       }
 
       let source = path;
@@ -399,11 +439,15 @@ const make = Effect.gen(function* () {
         const merged = await apk.manifest(source);
 
         if (merged.packageName !== originalCompanionPackage) {
-          throw new Error(`The bundle holds ${merged.packageName || 'an unknown app'}, not Zwift Companion.`);
+          throw new Error(
+            t('companion_bundle_app_mismatch', {
+              value1: merged.packageName || t('companion_unknown_app'),
+            }),
+          );
         }
 
         if (merged.minSdk < 24) {
-          throw new Error('This Companion version is too old. Upload a newer one.');
+          throw new Error(t('companion_version_unsupported'));
         }
       }
 
@@ -491,11 +535,14 @@ const make = Effect.gen(function* () {
         : null;
     }),
     /** Receive an upload and start patching it. Resolves once the file is checked; the job runs on. An upload that
-    needs the Java tools waits for them instead: the server never downloads them unasked.
+    needs the Java tools downloads them automatically when this system is supported.
     */
     upload: Effect.fn('CompanionService.upload')(function* (body: ReadableStream<Uint8Array>) {
       if (activity?.state === 'running') {
-        throw new ApplicationError({ status: 409, message: 'Wait for the current Companion job to finish.' });
+        throw new ApplicationError({
+          status: 409,
+          message: t('companion_job_busy'),
+        });
       }
       serverCertificate();
       yield* Effect.promise(discardPending);
@@ -515,7 +562,7 @@ const make = Effect.gen(function* () {
             ? error
             : new ApplicationError({
                 status: 400,
-                message: error instanceof Error ? error.message : 'The upload failed.',
+                message: error instanceof Error ? error.message : t('companion_upload_failed'),
               });
         }
       });
@@ -534,6 +581,10 @@ const make = Effect.gen(function* () {
           startedAt: new Date().toISOString(),
           finishedAt: null,
         };
+
+        if (tools.supported) {
+          installTools();
+        }
       } else {
         start({ path, workspace, plan });
       }
@@ -542,7 +593,10 @@ const make = Effect.gen(function* () {
     }),
     remove: Effect.fn('CompanionService.remove')(function* () {
       if (activity?.state === 'running') {
-        throw new ApplicationError({ status: 409, message: 'Wait for the current Companion job to finish.' });
+        throw new ApplicationError({
+          status: 409,
+          message: t('companion_job_busy'),
+        });
       }
       yield* Effect.promise(async () => {
         await files.removeAsync(appPath);
@@ -553,36 +607,16 @@ const make = Effect.gen(function* () {
       return yield* Effect.promise(adminStatus);
     }),
     installToolchain: Effect.fn('CompanionService.installToolchain')(function* () {
-      const signal = begin('toolchain', ['runtime', 'editor']);
-
-      void (async () => {
-        try {
-          await toolchain.install(signal, (step, fraction) => advance(step, fraction));
-          log.info('companion.toolchain_installed', 'Downloaded the Java tools for the Zwift Companion app', {
-            folder: toolchain.folder,
-          });
-          finish();
-
-          // The upload that asked for the tools continues on its own.
-          const held = pending;
-          pending = null;
-
-          if (held) {
-            start(held);
-          }
-        } catch (error) {
-          log.warn('companion.toolchain_failed', 'Downloading the Java tools failed', {
-            error: error instanceof Error ? error : String(error),
-          });
-          finish(error instanceof Error ? error.message : String(error));
-        }
-      })();
+      installTools();
 
       return yield* Effect.promise(adminStatus);
     }),
     discard: Effect.fn('CompanionService.discard')(function* () {
       if (activity?.state === 'running' && activity.kind !== 'toolchain') {
-        throw new ApplicationError({ status: 409, message: 'Wait for the current Companion job to finish.' });
+        throw new ApplicationError({
+          status: 409,
+          message: t('companion_job_busy'),
+        });
       }
       yield* Effect.promise(discardPending);
 
@@ -590,7 +624,10 @@ const make = Effect.gen(function* () {
     }),
     removeToolchain: Effect.fn('CompanionService.removeToolchain')(function* () {
       if (activity?.state === 'running') {
-        throw new ApplicationError({ status: 409, message: 'Wait for the current Companion job to finish.' });
+        throw new ApplicationError({
+          status: 409,
+          message: t('companion_job_busy'),
+        });
       }
       yield* Effect.promise(() => toolchain.remove());
       activity = null;
@@ -599,7 +636,7 @@ const make = Effect.gen(function* () {
       return yield* Effect.promise(adminStatus);
     }),
     cancel: Effect.fn('CompanionService.cancel')(function* () {
-      abort?.abort(new Error('Stopped by the administrator.'));
+      abort?.abort(new Error(t('companion_cancelled_by_admin')));
 
       return yield* Effect.promise(adminStatus);
     }),

@@ -12,5 +12,5 @@ export default defineConfig({
   },
   logging: { level: 'INFO', rideProgressIntervalSeconds: 60, metricsIntervalSeconds: 60 },
   server: { advertisedIp: '127.0.0.1' },
-  network: { host: '127.0.0.1', api: { port: 8787, useCert: false } },
+  network: { host: '127.0.0.1', api: { port: 8787, useCert: true } },
 });

@@ -1,4 +1,5 @@
 import { Schema } from 'effect';
+import { ToolchainRepository } from '#src/repositories/toolchain.repository';
 import { ApkRepository } from '#src/repositories/apk.repository';
 import { ManagementService } from '#src/services/management.service';
 import { TlsService } from '#src/services/tls.service';
@@ -28,6 +29,11 @@ const oldPackage = zip([
   ['AndroidManifest.xml', binaryManifest('com.zwift.android.prod', '3.92.0', 2180, 28), true],
   ['classes.dex', Buffer.alloc(2000, 1), true],
   ['res/raw/cert-zwift-com.pem', Buffer.from(legacyPem), true],
+]);
+
+const unpatched = zip([
+  ['AndroidManifest.xml', binaryManifest('com.zwift.android.prod', '3.92.0', 2180, 28), true],
+  ['classes.dex', Buffer.alloc(2000, 1), true],
 ]);
 
 const otherApp = zip([['AndroidManifest.xml', binaryManifest('com.example.other', '1.0', 1, 28), true]]);
@@ -72,7 +78,7 @@ async function json(request: Response | Promise<Response>) {
   return body;
 }
 
-async function settled(admin: ReturnType<typeof mediumWeb>, kind: 'patch' | 'rekey') {
+async function settled(admin: ReturnType<typeof mediumWeb>, kind: 'patch' | 'rekey' | 'toolchain') {
   for (let attempt = 0; attempt < 200; attempt++) {
     const status = companionAdminStatus(await json(admin.request('/api/manage/companion')));
 
@@ -159,19 +165,57 @@ await test('the administrator patches the Companion app and every rider download
     second.certificate?.fingerprint256,
   );
 
-  // Prepatched apps with the old package still need rebuilding to make them install alongside the original.
-  const held = companionAdminStatus(await json(admin.request('/api/manage/companion/app', 'PUT', oldPackage)));
+  // A rebuild automatically installs the tools. A failed download keeps the upload available for retry.
+  t.mock.method(ToolchainRepository.prototype, 'state', () =>
+    Promise.resolve({
+      java: null,
+      editor: false,
+      downloadBytes: 60_000_000,
+      supported: true,
+    }),
+  );
+  const install = t.mock.method(ToolchainRepository.prototype, 'install', () =>
+    Promise.reject(new Error('Download unavailable')),
+  );
+  assert.equal(await responseStatus(admin.request('/api/manage/companion/app', 'PUT', oldPackage)), 202);
+  const held = await settled(admin, 'toolchain');
   assert.ok(held.activity);
   assert.ok(held.app);
-  assert.equal(held.activity.state, 'waiting');
+  assert.equal(install.mock.callCount(), 1);
+  assert.equal(held.activity.state, 'failed');
+  assert.equal(held.activity.message, 'Download unavailable');
   assert.equal(held.pending, true);
-  assert.deepEqual(held.activity.steps, ['inspect', 'decode', 'patch', 'build', 'sign', 'publish']);
+  assert.deepEqual(held.activity.steps, ['runtime', 'editor']);
   assert.equal(held.app.versionName, '3.91.0', 'the published app stays');
   assert.equal(await responseStatus(web.request('/api/manage/companion/pending', 'DELETE', {})), 403);
 
   const discarded = companionAdminStatus(await json(admin.request('/api/manage/companion/pending', 'DELETE', {})));
   assert.equal(discarded.pending, false);
-  assert.equal(discarded.activity, null);
+  assert.equal(discarded.activity?.state, 'failed');
+
+  // Once installation succeeds, the original upload continues directly into rebuilding.
+  let installed = false;
+  install.mock.mockImplementation(() => {
+    installed = true;
+    return Promise.resolve();
+  });
+  t.mock.method(ToolchainRepository.prototype, 'state', () =>
+    Promise.resolve({
+      java: installed ? { source: 'managed' as const, command: 'java', version: '21' } : null,
+      editor: installed,
+      downloadBytes: installed ? 0 : 60_000_000,
+      supported: true,
+    }),
+  );
+  const rebuild = t.mock.method(ToolchainRepository.prototype, 'editor', () =>
+    Promise.reject(new Error('Reached the rebuild')),
+  );
+  assert.equal(await responseStatus(admin.request('/api/manage/companion/app', 'PUT', unpatched)), 202);
+  const resumed = await settled(admin, 'patch');
+  assert.equal(install.mock.callCount(), 2);
+  assert.equal(rebuild.mock.callCount(), 1);
+  assert.equal(resumed.pending, false);
+  assert.equal(resumed.activity?.message, 'Reached the rebuild');
 
   assert.equal(await responseStatus(admin.request('/api/manage/companion/app', 'DELETE', {})), 200);
   assert.equal(await responseStatus(web.request('/api/companion/app')), 404);

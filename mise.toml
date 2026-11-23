@@ -1,0 +1,11 @@
+[tools]
+node = '26'
+pnpm = '12.18.0'
+
+[tasks."i18n:check"]
+description = 'Check English catalogs, translation references, and user-facing strings'
+run = 'pnpm i18n:check'
+
+[tasks."i18n:test"]
+description = 'Test translation validation and interpolation'
+run = 'node --test scripts/i18n.spec.mjs'

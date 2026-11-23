@@ -47,12 +47,12 @@ for (const existing of [false, true]) {
 
       if (owner) {
         await page.getByLabel('Use an existing user').check();
-        await page.getByLabel('User', { exact: true }).selectOption(String(owner.player_id));
+        await page.getByLabel('User to make administrator', { exact: true }).selectOption(String(owner.player_id));
         assert.equal(await page.getByLabel('Login name', { exact: true }).count(), 0);
         await page.getByLabel('User’s password', { exact: true }).fill('wrong-password');
         await page.getByRole('button', { name: 'Complete setup' }).click();
         await page.getByRole('alert').waitFor();
-        await page.getByLabel('User', { exact: true }).waitFor();
+        await page.getByLabel('User to make administrator', { exact: true }).waitFor();
         await page.getByLabel('User’s password', { exact: true }).fill('test-password');
       } else {
         assert.equal(await page.getByLabel('Use an existing user').count(), 0);
@@ -64,11 +64,7 @@ for (const existing of [false, true]) {
       }
 
       await page.getByRole('button', { name: 'Complete setup' }).click();
-      await page
-        .getByText('No other users yet. Create a user so that somebody else can ride on this server.', {
-          exact: true,
-        })
-        .waitFor();
+      await page.getByText('No other users yet.', { exact: true }).waitFor();
       assert.equal(await page.locator('main[data-page="manage"]').count(), 1);
       await page.getByRole('button', { name: 'Create user' }).click();
       const create = page.locator('form').filter({ has: page.getByLabel('Confirm password', { exact: true }) });
@@ -81,8 +77,8 @@ for (const existing of [false, true]) {
       await page.getByText('Second Rider can now sign in.', { exact: true }).waitFor();
       assert.match(page.url(), /\/manage\/users\/\d+$/);
 
-      await page.getByRole('button', { name: 'End sessions', exact: true }).click();
-      await page.getByRole('alertdialog', { name: 'End all sessions of Second Rider?' }).waitFor();
+      await page.getByRole('button', { name: 'Sign out everywhere', exact: true }).click();
+      await page.getByRole('alertdialog', { name: 'Sign Second Rider out everywhere?' }).waitFor();
       await page.keyboard.press('Escape');
       assert.equal(await page.getByRole('alertdialog').count(), 0);
 

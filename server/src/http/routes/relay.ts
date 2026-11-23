@@ -1,3 +1,4 @@
+import { t } from '#src/i18n/index';
 import { RideCompletionService } from '#src/services/ride-completion.service';
 import { AccountsService } from '#src/services/auth.service';
 import { WorkoutsService } from '#src/services/workout.service';
@@ -429,7 +430,7 @@ export function relayRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
     for (const id of [2, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]) {
       const world = create(DropInWorldSchema, {
         id: 1n,
-        name: 'Public Watopia',
+        name: t('public_watopia'),
         courseId: BigInt(id),
         worldTime: worldTime(),
         realTime: BigInt(Math.floor(Date.now() / 1000)),
@@ -499,7 +500,7 @@ export function relayRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
         };
       }),
       mapId: 1,
-      name: 'Public Watopia',
+      name: t('public_watopia'),
       playerCount: runtime.world.online.size,
       worldId: realm,
     };

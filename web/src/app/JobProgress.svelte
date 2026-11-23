@@ -1,4 +1,5 @@
 <script lang="ts" generics="Step extends string">
+  import { t } from '../lib/i18n/index';
   import type { Snippet } from 'svelte';
   import { onDestroy } from 'svelte';
   import { megabytes } from './companion';
@@ -93,7 +94,7 @@
     const minutes = Math.floor(seconds / 60);
 
     return minutes >= 60
-      ? `${Math.floor(minutes / 60)} h ${minutes % 60} min`
+      ? t('h_min', { value1: Math.floor(minutes / 60), value2: minutes % 60 })
       : `${minutes}:${String(seconds % 60).padStart(2, '0')}`;
   }
 </script>
@@ -111,7 +112,7 @@
       {#if job.state === 'failed'}
         <p class="why" role="alert">{job.message ?? detail}</p>
       {:else if job.state === 'done'}
-        <p class="sub">{detail} It took {duration(elapsed)}.</p>
+        <p class="sub">{t('job_duration_summary', { value1: detail, value2: duration(elapsed) })}</p>
       {:else}
         <p class="sub">{detail}</p>
       {/if}
@@ -126,7 +127,7 @@
   <div
     class="rail"
     role="progressbar"
-    aria-label="Progress"
+    aria-label={t('progress')}
     aria-valuemin={0}
     aria-valuemax={100}
     aria-valuenow={Math.floor(overall * 100)}
@@ -146,26 +147,28 @@
   {#if job.state === 'running'}
     <dl class="stats">
       <div>
-        <dt>Elapsed</dt>
+        <dt>{t('elapsed')}</dt>
         <dd>{duration(elapsed)}</dd>
       </div>
       {#if upload}
         <div>
-          <dt>Sent</dt>
-          <dd>{megabytes(upload.sent)} <span class="of">of {megabytes(upload.size)}</span></dd>
+          <dt>{t('sent')}</dt>
+          <dd>
+            {megabytes(upload.sent)} <span class="of">{t('of', { value1: megabytes(upload.size) })}</span>
+          </dd>
         </div>
         <div>
-          <dt>Speed</dt>
+          <dt>{t('speed')}</dt>
           <dd>{upload.rate ? `${megabytes(upload.rate)}/s` : '…'}</dd>
         </div>
         <div>
-          <dt>Upload left</dt>
+          <dt>{t('upload_left')}</dt>
           <dd>{remaining === null ? '…' : duration(remaining)}</dd>
         </div>
       {:else}
         <div>
-          <dt>Step</dt>
-          <dd>{position + 1} <span class="of">of {job.steps.length}</span></dd>
+          <dt>{t('step')}</dt>
+          <dd>{position + 1} <span class="of">{t('of', { value1: job.steps.length })}</span></dd>
         </div>
       {/if}
     </dl>

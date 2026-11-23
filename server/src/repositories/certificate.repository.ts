@@ -1,3 +1,4 @@
+import { t } from '#src/i18n/index';
 import { CryptoRepository } from '#src/repositories/crypto.repository';
 import { AssetFiles } from '#src/repositories/files.repository';
 import { existsSync, readFileSync } from 'node:fs';
@@ -111,11 +112,13 @@ function subjectPublicKey(spki: Uint8Array) {
 }
 
 const certificatePem = (der: Uint8Array) =>
-  `-----BEGIN CERTIFICATE-----\n${(
-    Buffer.from(der)
-      .toString('base64')
-      .match(/.{1,64}/g) ?? []
-  ).join('\n')}\n-----END CERTIFICATE-----\n`;
+  t('begin_certificate_end_certificate', {
+    value1: (
+      Buffer.from(der)
+        .toString('base64')
+        .match(/.{1,64}/g) ?? []
+    ).join('\n'),
+  });
 
 export class CertificateRepository {
   constructor(
@@ -220,7 +223,7 @@ export class CertificateRepository {
     const cert = /-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----\n?/.exec(text)?.[0];
 
     if (!key || !cert || !this.crypto.certificateMatchesKey(cert, key)) {
-      throw new Error(`${path} does not hold a matching private key and certificate`);
+      throw new Error(t('certificate_key_pair_mismatch', { value1: path }));
     }
 
     return { cert, key };

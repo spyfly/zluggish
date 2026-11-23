@@ -10,7 +10,7 @@ export const companionStatus = z.object({
       current: z.boolean(),
     })
     .nullable(),
-  tlsMode: z.enum(['managed', 'legacy', 'custom', 'disabled']),
+  tlsMode: z.enum(['managed', 'legacy', 'custom']),
   serverAddress: z.string(),
 });
 

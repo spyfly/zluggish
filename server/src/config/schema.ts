@@ -1,3 +1,4 @@
+import { t } from '#src/i18n/index';
 import { FeatureMode, LogLevelInput, RiderPosition, StravaMethod } from '#src/enum';
 import { FiniteAbove, FiniteFrom, IntBetween, NonBlank, satisfies, Text, withDefault } from '#src/schema';
 import { Schema, SchemaGetter } from 'effect';
@@ -14,7 +15,7 @@ const advertisedIp = Schema.String.check(
     const family = isIP(value);
 
     return family !== 0 && !unspecifiedAddresses.check(value, family === 4 ? 'ipv4' : 'ipv6');
-  }, 'Expected a non-wildcard IP address'),
+  }, t('schema_wildcard_address_invalid')),
 );
 
 const listenerHost = Schema.String.check(
@@ -34,13 +35,13 @@ const listenerHost = Schema.String.check(
     const labels = (value.endsWith('.') ? value.slice(0, -1) : value).split('.');
 
     return labels.every((label) => /^[a-z\d_](?:[a-z\d_-]{0,61}[a-z\d_])?$/i.test(label));
-  }, 'Expected a non-empty IP address or hostname'),
+  }, t('schema_hostname_required')),
 );
 
 const httpUrl = Schema.String.check(
   satisfies(
     (value: string) => URL.canParse(value) && /^https?:$/.test(new URL(value).protocol),
-    'Expected an http(s) URL',
+    t('schema_http_url_invalid'),
   ),
 );
 
@@ -53,7 +54,7 @@ const NonNegativeInt = IntBetween(0);
 const port = IntBetween(1, 65_535);
 
 const seconds = NonNegativeInt.check(
-  satisfies((value: number) => value === 0 || value >= 10, 'Use 0 or at least 10 seconds'),
+  satisfies((value: number) => value === 0 || value >= 10, t('schema_interval_invalid')),
 );
 
 // Empty optional paths select built-in resources or disable the feature.
@@ -140,7 +141,7 @@ const logLevel = Schema.Enum(LogLevelInput).pipe(
 );
 
 const publicUrl = httpUrl.check(
-  satisfies((value: string) => new URL(value).pathname === '/', 'Expected an origin without a path'),
+  satisfies((value: string) => new URL(value).pathname === '/', t('schema_origin_invalid')),
 );
 
 export const configSchema = Schema.Struct({
@@ -211,7 +212,11 @@ export const configSchema = Schema.Struct({
     cdn: section({ host: optionalHost, port: port.pipe(withDefault(80)) }),
     tcp: section({ host: optionalHost, port: port.pipe(withDefault(3025)) }),
     udp: section({ host: optionalHost, port: port.pipe(withDefault(3024)) }),
-    api: section({ host: optionalHost, port: port.pipe(withDefault(443)), useCert: flag(true) }),
+    api: section({
+      host: optionalHost,
+      port: port.pipe(withDefault(443)),
+      useCert: Schema.Literal(true).pipe(withDefault(true)),
+    }),
   }),
   riderDefaults: riderSettingsSchema,
   storageDir: NonBlank.pipe(withDefault('../storage')),

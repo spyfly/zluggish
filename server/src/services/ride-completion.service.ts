@@ -1,3 +1,4 @@
+import { t } from '#src/i18n/index';
 import { Context, Effect, Layer, Schema } from 'effect';
 import type { Relay, RelayHistory } from '#src/world/state';
 import { RuntimeContext } from '#src/context';
@@ -51,11 +52,11 @@ const make = Effect.gen(function* () {
     const write = (ledger: Record<string, RelayHistory>) => {
       const db = context.accounts.db;
       if (db.isTransaction) {
-        throw new Error('Nonce reservation must commit before sending');
+        throw new Error(t('ride_completion_nonce_reservation_uncommitted'));
       }
       const mode = db.prepare('PRAGMA synchronous').get()?.synchronous;
       if (mode !== 0 && mode !== 1 && mode !== 2 && mode !== 3) {
-        throw new Error('Unknown database durability mode');
+        throw new Error(t('unknown_database_durability_mode'));
       }
       // Runtime HTTP writes normally use an asynchronous WAL flush. Relay sends
       // are synchronous: the reservation must survive power loss before send().
@@ -89,7 +90,10 @@ const make = Effect.gen(function* () {
     const history = ledger[digest];
     const oldKey = documents.get(player, 'encryption_key.bin');
     if (!history && (!fresh || (oldKey && Buffer.from(oldKey).equals(relay.key)))) {
-      throw new ApplicationError({ status: 409, message: 'Relay nonce history unavailable; login with a fresh key' });
+      throw new ApplicationError({
+        status: 409,
+        message: t('ride_completion_nonce_history_unavailable'),
+      });
     }
     relay.protect(history ?? { tcp: [], udp: [] }, (updated) => {
       const current = read();
@@ -107,7 +111,7 @@ const make = Effect.gen(function* () {
       const rider = context.accounts.get(player);
 
       if (!rider?.enabled || rider.auth_version !== version) {
-        throw new ApplicationError({ status: 401, message: 'Relay revoked.' });
+        throw new ApplicationError({ status: 401, message: t('ride_completion_relay_revoked') });
       }
       repositories.riderDocuments.put(player, 'encryption_key.bin', key);
       repositories.riderDocuments.put(player, 'relay-auth-version', String(version));
@@ -200,7 +204,7 @@ const make = Effect.gen(function* () {
 
     if (receipt && receipt.until > Date.now() && receipt.token === digest && receipt.activity === activity) {
       if (receipt.body !== body) {
-        throw new ApplicationError({ status: 409, message: 'Final save data changed.' });
+        throw new ApplicationError({ status: 409, message: t('final_save_data_changed') });
       }
 
       return { receipt: receipt.result };
@@ -209,7 +213,10 @@ const make = Effect.gen(function* () {
     const permission = permissionNow(player);
 
     if (!permission || permission.token !== digest || permission.activity !== activity) {
-      throw new ApplicationError({ status: 401, message: 'Ride completion permission expired.' });
+      throw new ApplicationError({
+        status: 401,
+        message: t('ride_completion_permission_expired'),
+      });
     }
 
     return { receipt: null };

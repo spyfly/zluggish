@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../lib/i18n/index';
   import { onMount } from 'svelte';
   import Fingerprint from '../components/Fingerprint.svelte';
   import type { Api } from '../lib/api';
@@ -26,8 +27,6 @@
     path === '/install/android-rooted' ? 'rooted' : path === '/install/ios' ? 'ios' : 'android',
   );
 
-  const names = { android: 'Android', rooted: 'Android, rooted', ios: 'iPhone and iPad' } as const;
-
   let status = $state<TlsStatus | null>(null);
   let failure = $state('');
 
@@ -50,10 +49,10 @@
       `${address} launcher.zwift.com`,
     ].join('\n'),
     certificate: [
-      `adb push ${file} ${data}/zluggish.crt`,
-      `adb shell "cat ${data}/zluggish.crt >> ${data}/cacert.pem"`,
+      t('adb_push_zluggish_crt', { value1: file, value2: data }),
+      t('phone_setup_rooted_android_append_certificate_command', { value1: data, value2: data }),
     ].join('\n'),
-    etcHosts: `${address} us-or-rly101.zwift.com secure.zwift.com cdn.zwift.com`,
+    etcHosts: t('phone_setup_rooted_android_hostnames', { value1: address }),
   });
 
   /** Browsers allow the clipboard only on HTTPS or localhost; elsewhere the lines are there to select. */
@@ -74,13 +73,13 @@
   const day = (iso: string) => new Date(iso).toLocaleDateString([], { year: 'numeric', month: 'long', day: 'numeric' });
 
   $effect(() => {
-    if (platform === 'android' && status && status.mode !== 'disabled') {
+    if (platform === 'android' && status) {
       api(zwiftAndroidStatus, '/api/install/android')
         .then((body) => {
           zwift = body;
         })
         .catch((error: unknown) => {
-          zwiftFailure = error instanceof Error ? error.message : 'Zwift for Android could not be loaded.';
+          zwiftFailure = error instanceof Error ? error.message : t('phone_setup_load_error');
         });
     }
   });
@@ -89,7 +88,7 @@
     try {
       status = await api(tlsStatus, '/api/tls');
     } catch (error) {
-      failure = error instanceof Error ? error.message : 'The certificate could not be loaded.';
+      failure = error instanceof Error ? error.message : t('phone_setup_certificate_load_error');
     }
   });
 </script>
@@ -99,170 +98,147 @@
     <code>{blocks[key]}</code>
     {#if canCopy}
       <button type="button" class="copy" onclick={() => copy(key)} aria-live="polite"
-        >{copied === key ? 'Copied' : 'Copy'}</button
+        >{copied === key ? t('copied') : t('copy')}</button
       >
     {/if}
   </div>
 {/snippet}
 
-{#snippet switcher()}
-  <p class="switch">
-    {platform === 'ios' ? names.ios : `Setting up ${names[platform]}`}.
-    <a href="/apps" onclick={(event) => go(event, '/apps')}>Choose another system</a>
-  </p>
-{/snippet}
-
 {#snippet manageLink()}
-  <a href="/manage/zwift-android" onclick={(event) => go(event, '/manage/zwift-android')}>Manage → Zwift for Android</a>
+  <a href="/manage/zwift-android" onclick={(event) => go(event, '/manage/zwift-android')}
+    >{t('manage_zwift_for_android')}</a
+  >
 {/snippet}
 
 {#if failure}<p class="notice failed" role="alert">{failure}</p>{/if}
 
 {#if platform === 'ios'}
   <section class="panel" aria-labelledby="install-ios">
-    {@render switcher()}
-    <h2 id="install-ios">Zwift on iPhone and iPad cannot use this server</h2>
-    <p class="lead">Zwift connects only to servers it trusts, and iOS gives no way to change that:</p>
-    <ul class="reasons">
-      <li>
-        <strong>Zwift keeps its own list of trusted servers.</strong> On a computer or a rooted Android device the setup
-        adds this server to that list. On iOS the list is sealed inside the app.
-      </li>
-      <li>
-        <strong>App Store apps are locked.</strong> Each copy is encrypted for the Apple ID that downloaded it, so it cannot
-        be changed to trust another server.
-      </li>
-      <li>
-        <strong>iOS runs only apps that Apple signed.</strong> Installing a changed app takes an Apple developer account,
-        and the free kind makes you reinstall it every 7 days.
-      </li>
-    </ul>
-    <p class="hint">Ride from a Windows, macOS or Linux computer instead.</p>
+    <h2 id="install-ios">{t('phone_setup_ios_unsupported')}</h2>
+    <p class="lead">{t('phone_setup_ios_description')}</p>
   </section>
 {:else if status === null}
-  {#if !failure}<p role="status">Loading…</p>{/if}
-{:else if status.mode === 'disabled'}
-  <section class="panel" aria-labelledby="install-plain">
-    {@render switcher()}
-    <h2 id="install-plain">Nothing to install</h2>
-    <p>This server talks to Zwift without a certificate. Ask the server administrator how to connect.</p>
-  </section>
+  {#if !failure}<p role="status">{t('loading')}</p>{/if}
 {:else if status.mode === 'legacy'}
   <section class="panel">
-    {@render switcher()}
-    <p>Ask the server administrator to replace the server certificate before setting up Zwift.</p>
+    <p>{t('phone_setup_certificate_shared_hint')}</p>
   </section>
 {:else if platform === 'android'}
-  <section class="panel" aria-label="Android setup steps">
-    {@render switcher()}
+  <section class="panel" aria-label={t('android_setup_steps')}>
     {#if zwift?.app && !zwift.app.current}
       <p class="risk" role="status">
-        The server certificate changed after Zwift for Zluggish was built, so it cannot connect yet.
-        {#if administrator}Build it again under {@render manageLink()}.{:else}Ask the server administrator to build it
-          again.{/if}
+        {t('phone_setup_app_stale_certificate_warning')}
+        {#if administrator}{t('build_it_again_under')} {@render manageLink()}.{:else}{t(
+            'phone_setup_app_rebuild_hint',
+          )}{/if}
       </p>
     {/if}
 
     <ol class="walk">
       <li>
-        <h2>Download Zwift for Zluggish</h2>
+        <h2>{t('download_zwift_for_zluggish')}</h2>
         {#if zwiftFailure}
           <p class="notice failed" role="alert">{zwiftFailure}</p>
         {:else if zwift === null}
-          <p role="status">Loading…</p>
+          <p role="status">{t('loading')}</p>
         {:else if zwift.app?.current}
           <p>
-            A copy of Zwift made for this server. It installs next to Zwift from Google Play, so you can keep both.
-            {#if !onAndroid}Open this page on your Android phone or tablet.{/if}
+            {t('phone_setup_app_coexistence_hint')}
+            {#if !onAndroid}{t('phone_setup_app_download_hint')}{/if}
           </p>
-          <a class="download" href="/api/install/android/app" download>Download Zwift {zwift.app.versionName}</a>
+          <a class="download" href="/api/install/android/app" download
+            >{t('download_zwift', { value1: zwift.app.versionName })}</a
+          >
           <p class="hint">
-            {megabytes(zwift.app.bytes)}, built on {day(zwift.app.createdAt)}. Use Wi-Fi, and keep twice that space
-            free.
+            {t('phone_setup_app_disk_space_hint', {
+              value1: megabytes(zwift.app.bytes),
+              value2: day(zwift.app.createdAt),
+            })}
           </p>
         {:else if !zwift.app}
           <p class="empty">
-            There is no Zwift for Android on this server yet.
-            {#if administrator}Upload it under {@render manageLink()}.{:else}Ask the server administrator to add it.{/if}
+            {t('phone_setup_app_unavailable')}
+            {#if administrator}{t('set_it_up_under')} {@render manageLink()}.{:else}{t(
+                'phone_setup_app_unavailable_hint',
+              )}{/if}
           </p>
         {/if}
       </li>
       <li>
-        <h2>Install it</h2>
+        <h2>{t('install_it')}</h2>
         <p>
-          Open the downloaded file. Android asks whether your browser may install apps: allow it, then select
-          <strong>Install</strong>.
+          {t('phone_setup_install_open_file_hint')}
+          <strong>{t('install')}</strong>.
         </p>
-        <p class="hint">Google Play Protect may warn about an unknown app. Select <strong>Install anyway</strong>.</p>
+        <p class="hint">
+          {t('phone_setup_install_play_protect_hint_prefix')} <strong>{t('install_anyway')}</strong>.
+        </p>
       </li>
       <li>
-        <h2>Send Zwift to this server</h2>
+        <h2>{t('phone_setup_description')}</h2>
         <p>
-          Install <a
-            href="https://github.com/x-falcon/Virtual-Hosts/releases/latest"
-            target="_blank"
-            rel="noopener noreferrer">Virtual Hosts</a
-          >, save these lines as <strong>hosts.txt</strong> on the device, and select the file in Virtual Hosts:
+          {t('install')}
+          <a href="https://github.com/x-falcon/Virtual-Hosts/releases/latest" target="_blank" rel="noopener noreferrer"
+            >{t('virtual_hosts')}</a
+          >{t('save_these_lines_as')} <strong>{t('hosts_txt')}</strong>
+          {t('phone_setup_hosts_select_file_suffix')}
         </p>
         {@render code('hosts')}
         <p class="hint">
-          Turn off <strong>Private DNS</strong> in the Android settings. If the server runs its own DNS, set it as the Wi-Fi
-          network’s DNS instead.
+          {t('turn_off')} <strong>{t('private_dns')}</strong>
+          {t('android_settings_hint')}
         </p>
       </li>
       <li>
-        <h2>Ride</h2>
+        <h2>{t('phone_setup_ride')}</h2>
         <p>
-          Turn on Virtual Hosts, open <strong>Zwift for Zluggish</strong> and sign in with your account on this server.
+          {t('phone_setup_hosts_enable_hint')} <strong>{t('zwift_for_zluggish')}</strong>
+          {t('phone_setup_install_sign_in_hint')}
         </p>
-        <p class="hint">
-          The first start unpacks the game files, which takes a few minutes. Turn Virtual Hosts off before you open
-          Zwift from Google Play.
-        </p>
+        <p class="hint">{t('phone_setup_install_first_launch_hint')}</p>
       </li>
     </ol>
   </section>
 {:else if status.certificate}
-  <section class="panel" aria-label="Rooted Android setup steps">
-    {@render switcher()}
+  <section class="panel" aria-label={t('rooted_android_setup_steps')}>
     <ol class="walk">
       <li>
-        <h2>Start Zwift once</h2>
-        <p>Install Zwift and start it once, so that it downloads its extra files. Then close it.</p>
-        <p class="hint">The file Zwift trusts servers from, cacert.pem, exists only after this first start.</p>
+        <h2>{t('start_zwift_once')}</h2>
+        <p>{t('phone_setup_rooted_android_initialize_hint')}</p>
       </li>
       <li>
-        <h2>Add the certificate</h2>
+        <h2>{t('certificate_install_title')}</h2>
         <p>
-          Download the certificate and add it to the end of <strong class="path">{data}/cacert.pem</strong>. With
-          <code class="inline">adb</code> as root:
+          {t('certificate_append_hint')}
+          <strong class="path">{t('cacert_pem', { value1: data })}</strong>{t('with')}
+          <code class="inline">{t('adb')}</code>
+          {t('as_root')}
         </p>
-        <a class="download" href="/api/tls/certificate" download>Download certificate</a>
+        <a class="download" href="/api/tls/certificate" download>{t('download_certificate')}</a>
         {@render code('certificate')}
-        <p class="hint">Keep the owner and permissions of cacert.pem as they are.</p>
+        <p class="hint">{t('phone_setup_rooted_android_permissions_hint')}</p>
       </li>
       <li>
-        <h2>Send Zwift to this server</h2>
-        <p>Add this line to the end of <strong>/etc/hosts</strong> on the device:</p>
+        <h2>{t('phone_setup_description')}</h2>
+        <p>{t('append_this_line_to')} <strong>{t('etc_hosts')}</strong>:</p>
         {@render code('etcHosts')}
         <p class="hint">
-          Without an editor on the device, copy the file over with <code class="inline">adb pull /etc/hosts</code>, edit
-          it, and put it back with <code class="inline">adb push hosts /etc/hosts</code>. A router that can change DNS
-          records works too.
+          {t('phone_setup_rooted_android_edit_hosts_hint')}
+          <code class="inline">{t('adb_pull_etc_hosts')}</code>
+          {t('and')} <code class="inline">{t('phone_setup_rooted_android_push_hosts_command')}</code>.
         </p>
       </li>
       <li>
-        <h2>Ride</h2>
-        <p>Start Zwift and sign in with your account on this server.</p>
+        <h2>{t('phone_setup_ride')}</h2>
+        <p>{t('phone_setup_rooted_android_launch_hint')}</p>
       </li>
     </ol>
   </section>
 
   <section class="panel" aria-labelledby="install-rooted-certificate">
-    <h2 id="install-rooted-certificate">Check the certificate</h2>
-    <p>The downloaded file should have this fingerprint.</p>
+    <h2 id="install-rooted-certificate">{t('certificate_verify_title')}</h2>
     <div class="prints">
-      <Fingerprint label="SHA-256 fingerprint" value={status.certificate.fingerprint256} />
+      <Fingerprint label={t('fingerprint')} value={status.certificate.fingerprint256} />
     </div>
   </section>
 {/if}
@@ -303,30 +279,6 @@
     border-radius: 0 8px 8px 0;
     background: rgb(255 90 70 / 0.12);
     color: var(--alarm);
-  }
-
-  .switch {
-    margin: -0.25rem 0 1.25rem;
-    color: var(--muted);
-    font-size: 0.875rem;
-  }
-  .switch a {
-    color: var(--muted);
-    text-decoration-thickness: 1px;
-  }
-  .switch a:hover {
-    color: var(--text);
-  }
-
-  .reasons {
-    margin: 0;
-    padding-left: 1.2rem;
-  }
-  .reasons li {
-    margin: 0 0 0.75rem;
-  }
-  .reasons li::marker {
-    color: var(--muted);
   }
 
   .walk {

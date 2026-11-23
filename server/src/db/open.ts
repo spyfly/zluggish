@@ -1,3 +1,4 @@
+import { t } from '#src/i18n/index';
 import { Schema } from 'effect';
 import { removeLegacyAccountFields } from '#src/db/account-upgrade';
 import { ConfigError } from '#src/config/index';
@@ -54,7 +55,7 @@ Incompatible schema/hash/folder evidence requires explicit account migration.
 */
 export function openDatabase(storage: string): DatabaseSync {
   if (existsSync(resolve(storage, StorageFile.RestoreMarker))) {
-    throw new ConfigError('A storage restore did not finish; run storage restore again while the server is stopped');
+    throw new ConfigError(t('storage_open_restore_incomplete'));
   }
 
   resolvePendingMigration(storage);
@@ -82,7 +83,7 @@ export function openDatabase(storage: string): DatabaseSync {
       );
 
       if (version !== undefined && version > SCHEMA_VERSION) {
-        throw new ConfigError('The database is newer than this release; use a newer release');
+        throw new ConfigError(t('storage_open_database_version_unsupported'));
       }
 
       if (
@@ -95,13 +96,13 @@ export function openDatabase(storage: string): DatabaseSync {
           .get() ||
         !inspection.prepare("SELECT 1 FROM sqlite_master WHERE name='account_state'").get()
       ) {
-        throw new ConfigError('Account database upgrade required; run accounts migrate while stopped');
+        throw new ConfigError(t('storage_open_accounts_migration_required'));
       }
     } finally {
       inspection.close();
     }
   } else if (existsSync(storage) && readdirSync(storage).some((name) => /^\d+$/.test(name))) {
-    throw new ConfigError('Legacy rider folders require accounts migrate; refusing to create new identities');
+    throw new ConfigError(t('storage_open_legacy_migration_required'));
   }
 
   if (legacyVersion === 4 || (!fresh && existingPath !== path)) {

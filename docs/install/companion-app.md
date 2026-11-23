@@ -28,12 +28,14 @@ Do this once as the administrator, and again for a new Companion version.
    server certificate first.
 2. Get the Companion APK:
    - An app already patched for zoffline, such as a
-     [zoffline-companion release](https://github.com/fatsbrown/zoffline-companion/releases/latest).
-   - The app from the Play Store, as an `.apk`, or as an `.apks`, `.xapk` or `.apkm` bundle of split APKs.
+     [zoffline-companion release](https://github.com/fatsbrown/zoffline-companion/releases/latest). The server only
+     swaps in its own certificate. This takes seconds and needs nothing else.
+   - The app from the Play Store, as an `.apk`, or as an `.apks`, `.xapk` or `.apkm` bundle of split APKs. The server
+     rebuilds its resources, which needs the Java tools. See below.
    - A Zluggish Companion APK that already uses `com.zluggish.companion`. The server swaps in its own certificate
      in seconds without the Java tools.
-3. In the web app, open **Manage → Companion** and drop the file on **Upload Zwift Companion**. The server
-   rebuilds Play Store and zoffline copies with the Java tools.
+3. In the web app, open **Manage → Companion** and drop the file on **Upload Companion**. The server rebuilds Play Store
+   and zoffline copies with the Java tools.
 
 The server signs the app with its own key, kept in `storage/companion/signer.pem`. Android installs an update only
 when it carries the same signature, so keep backups of storage: with a new key, every rider uninstalls once. Backups
@@ -47,8 +49,9 @@ available. Android installs the new build separately, so riders sign in again.
 
 ### Java tools
 
-When an upload needs the Java tools, select **Download Java tools and continue** or **Discard upload**. You can
-also download them ahead of time under **Manage → Companion → Java tools**. The server downloads:
+Only an app straight from the Play Store needs them. When you upload such an app, the server automatically installs
+the tools and continues patching. **Manage → Companion → Java tools** shows the download size. If installation fails,
+you can retry the download or discard the upload. The server downloads:
 
 - An [Eclipse Temurin](https://adoptium.net) Java 21 runtime, about 50 MB. If the server already has Java 11 or later
   on its `PATH`, it uses that instead.

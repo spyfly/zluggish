@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../lib/i18n/index';
   import type { z } from 'zod';
   import { onMount } from 'svelte';
   import { companionStatus } from './companion';
@@ -37,59 +38,63 @@
   const systems = $derived<Array<Row>>([
     {
       to: '/install/windows',
-      name: 'Windows',
-      detail: 'Zwift installed from zwift.com',
-      tag: mark('windows', 'This computer'),
+      name: t('windows'),
+      detail: t('apps_desktop_description'),
+      tag: mark('windows', t('this_computer')),
     },
     {
       to: '/install/macos',
-      name: 'macOS',
-      detail: 'Zwift installed from zwift.com',
-      tag: mark('macos', 'This computer'),
+      name: t('macos'),
+      detail: t('apps_desktop_description'),
+      tag: mark('macos', t('this_computer')),
     },
     {
       to: '/install/linux',
-      name: 'Linux',
-      detail: 'Zwift in Wine, Lutris, Bottles or Steam',
-      tag: mark('linux', 'This computer'),
+      name: t('linux'),
+      detail: t('apps_linux_description'),
+      tag: mark('linux', t('this_computer')),
     },
     {
       to: '/install/android',
-      name: 'Android',
+      name: t('android'),
       detail: !android?.app
-        ? 'Not added to this server yet'
+        ? t('not_added_yet')
         : android.app.current
-          ? `Zwift ${android.app.versionName} for this server`
-          : `Zwift ${android.app.versionName}, made for an old certificate`,
-      tag: mark('android', 'This device'),
-      unavailable: tls?.mode === 'disabled',
+          ? t('apps_zwift', { value1: android.app.versionName })
+          : t('zwift_needs_a_rebuild', { value1: android.app.versionName }),
+      tag: mark('android', t('this_device')),
     },
-    { to: '/install/android-rooted', name: 'Android, rooted', detail: 'Certificate and hosts file added by hand' },
+    { to: '/install/android-rooted', name: t('android_rooted'), detail: t('manual_setup_with_adb') },
     {
       to: '/install/ios',
-      name: 'iPhone and iPad',
-      detail: 'Not supported',
-      tag: mark('ios', 'This device'),
+      name: t('iphone_and_ipad'),
+      detail: t('not_supported'),
+      tag: mark('ios', t('this_device')),
       unavailable: true,
+    },
+    {
+      to: '/install/manual',
+      name: t('manual_setup'),
+      detail: t('apps_manual_description'),
     },
   ]);
 
   const phones = $derived<Array<Row>>([
     {
       to: '/companion/android',
-      name: 'Android',
+      name: t('android'),
       detail: !companion?.app
-        ? 'Not added to this server yet'
+        ? t('not_added_yet')
         : companion.app.current
-          ? `Companion ${companion.app.versionName} for this server`
-          : `Companion ${companion.app.versionName}, made for an old certificate`,
-      tag: mark('android', 'This phone'),
+          ? t('companion', { value1: companion.app.versionName })
+          : t('companion_needs_an_update', { value1: companion.app.versionName }),
+      tag: mark('android', t('this_phone')),
     },
     {
       to: '/companion/ios',
-      name: 'iPhone and iPad',
-      detail: 'Not supported',
-      tag: mark('ios', 'This phone'),
+      name: t('iphone_and_ipad'),
+      detail: t('not_supported'),
+      tag: mark('ios', t('this_phone')),
       unavailable: true,
     },
   ]);
@@ -120,13 +125,13 @@
     if (certificate.status === 'fulfilled') {
       tls = certificate.value;
     } else {
-      tlsFailure = reason(certificate.reason, 'The setup could not be loaded.');
+      tlsFailure = reason(certificate.reason, t('apps_setup_load_error'));
     }
 
     if (app.status === 'fulfilled') {
       companion = app.value;
     } else {
-      companionFailure = reason(app.reason, 'The Companion app could not be loaded.');
+      companionFailure = reason(app.reason, t('apps_companion_load_error'));
     }
 
     loaded = true;
@@ -157,7 +162,7 @@
 {/snippet}
 
 {#if !loaded}
-  <p role="status">Loading…</p>
+  <p role="status">{t('loading')}</p>
 {:else}
   <div class="apps">
     <section class="product zwift" aria-labelledby="apps-zwift">
@@ -168,27 +173,21 @@
           <path class="body" d="M24 30v6M16 37.5h16" />
         </svg>
         <div>
-          <h2 id="apps-zwift">Zwift</h2>
-          <p class="where">On the device you ride with</p>
+          <h2 id="apps-zwift">{t('apps_zwift_title')}</h2>
+          <p class="where">{t('apps_zwift_device_hint')}</p>
         </div>
       </header>
 
       {#if tlsFailure}
         <p class="failed" role="alert">{tlsFailure}</p>
-      {:else if tls?.mode === 'disabled'}
-        <p class="lead">
-          This server talks to Zwift without a certificate, so there is nothing to install. Ask the server administrator
-          how to connect.
-        </p>
       {:else if tls?.mode === 'legacy'}
-        <p class="lead">Ask the server administrator to replace the server certificate before setting up Zwift.</p>
+        <p class="lead">{t('apps_certificate_shared_hint')}</p>
       {:else if tls}
-        <p class="lead">
-          Zwift only talks to a server it trusts. The setup makes your device trust this server and sends Zwift here
-          instead of to Zwift's own servers.
-        </p>
+        <p class="lead">{t('apps_description')}</p>
         {#if featured}
-          <a class="setup" href={featured.to} onclick={(event) => go(event, featured.to)}>Set up {featured.name}</a>
+          <a class="setup" href={featured.to} onclick={(event) => go(event, featured.to)}
+            >{t('set_up', { value1: featured.name })}</a
+          >
           <p class="featured-detail">{featured.detail}</p>
           <button
             type="button"
@@ -197,8 +196,7 @@
             aria-controls="apps-other-systems"
             onclick={() => (others = !others)}
           >
-            Other systems
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+            {t('other_systems')} <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
           </button>
           <div id="apps-other-systems" hidden={!others}>
             {@render rows(systems.filter((row) => row !== featured))}
@@ -217,26 +215,24 @@
           <path class="body" d="M21.5 35.5h5" />
         </svg>
         <div>
-          <h2 id="apps-companion">Zwift Companion</h2>
-          <p class="where">On your phone, next to the bike</p>
+          <h2 id="apps-companion">{t('zwift_companion')}</h2>
+          <p class="where">{t('apps_companion_device_hint')}</p>
         </div>
       </header>
 
       {#if companionFailure}
         <p class="failed" role="alert">{companionFailure}</p>
       {:else}
-        <p class="lead">
-          Companion only talks to a server it trusts. This server gives you a copy of the app that does.
-        </p>
+        <p class="lead">{t('apps_companion_description')}</p>
         {@render rows(phones)}
         {#if companion && !companion.app}
           <p class="hint">
             {#if administrator}
-              Upload the app under <a href="/manage/companion" onclick={(event) => go(event, '/manage/companion')}
-                >Manage → Companion</a
+              {t('app_upload_hint_prefix')}
+              <a href="/manage/companion" onclick={(event) => go(event, '/manage/companion')}>{t('manage_companion')}</a
               >.
             {:else}
-              Ask the server administrator to add it.
+              {t('apps_app_unavailable_hint')}
             {/if}
           </p>
         {/if}

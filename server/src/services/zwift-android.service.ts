@@ -1,3 +1,4 @@
+import { t } from '#src/i18n/index';
 import { RuntimeContext } from '#src/context';
 import { ApplicationError } from '#src/errors';
 import type { ApkSigner } from '#src/repositories/apk.repository';
@@ -75,7 +76,7 @@ export interface ZwiftAndroidAdminStatus extends ZwiftAndroidStatus {
   /** The last upload, kept unchanged so the app can be built again after a certificate change. */
   readonly original: { readonly name: string; readonly bytes: number; readonly uploadedAt: string } | null;
   readonly tools: { readonly ready: boolean; readonly downloadBytes: number; readonly supported: boolean };
-  readonly tlsMode: 'managed' | 'legacy' | 'custom' | 'disabled';
+  readonly tlsMode: 'managed' | 'legacy' | 'custom';
   /** Free space on the storage disk, or null when the system does not report it. */
   readonly disk: { readonly free: number | null; readonly recommended: number };
   readonly uploadLimit: number;
@@ -91,7 +92,7 @@ interface Upload {
   readonly workspace: string;
 }
 
-const message = (error: unknown) => (error instanceof Error ? error.message : 'The Zwift app could not be built.');
+const message = (error: unknown) => (error instanceof Error ? error.message : t('zwift_android_build_failed'));
 
 const make = Effect.gen(function* () {
   const { config, world } = yield* RuntimeContext;
@@ -149,14 +150,14 @@ const make = Effect.gen(function* () {
     if (tls.mode() === 'legacy') {
       throw new ApplicationError({
         status: 409,
-        message: 'Replace the shared Zwift certificate before building Zwift for Android.',
+        message: t('zwift_android_shared_certificate_blocked'),
       });
     }
 
     if (!pem) {
       throw new ApplicationError({
         status: 409,
-        message: 'The Zwift API serves plain HTTP on this server, so there is no certificate for Zwift to trust.',
+        message: t('zwift_android_certificate_unavailable'),
       });
     }
 
@@ -279,13 +280,19 @@ const make = Effect.gen(function* () {
 
   function requireIdle() {
     if (!idle()) {
-      throw new ApplicationError({ status: 409, message: 'Wait for the current Zwift upload or build to finish.' });
+      throw new ApplicationError({
+        status: 409,
+        message: t('zwift_android_build_busy'),
+      });
     }
   }
 
   function current(owner: string, id: string) {
     if (!upload || upload.owner !== owner || upload.id !== id) {
-      throw new ApplicationError({ status: 404, message: 'The upload has expired or was cancelled.' });
+      throw new ApplicationError({
+        status: 404,
+        message: t('zwift_android_upload_expired'),
+      });
     }
 
     return upload;
@@ -341,7 +348,7 @@ const make = Effect.gen(function* () {
   function begin(kind: ZwiftAndroidActivity['kind'], steps: ReadonlyArray<ZwiftAndroidStep>) {
     const [step] = steps;
     if (!step) {
-      throw new Error('A Zwift build needs at least one step.');
+      throw new Error(t('zwift_android_build_steps_required'));
     }
     abort = new AbortController();
     activity = {
@@ -413,7 +420,7 @@ const make = Effect.gen(function* () {
     const splits = resolve(directory, 'splits');
     const { base, parts } = await apk.extractZwiftApks(source, splits, versionCode, signal);
     if (base.manifest.minSdk < 26) {
-      throw new Error('This Zwift version is too old. Upload one for Android 8.0 or later.');
+      throw new Error(t('zwift_android_version_unsupported'));
     }
 
     const tools = await toolchain.state();
@@ -441,7 +448,7 @@ const make = Effect.gen(function* () {
     await toolchain.editor(['b', '-i', decoded, '-o', rebuilt, '-f'], options);
     const renamed = await apk.manifest(rebuilt);
     if (renamed.packageName !== standaloneZwiftPackage || renamed.versionCode !== versionCode) {
-      throw new Error('The rebuilt app has an unexpected application ID or version.');
+      throw new Error(t('zwift_android_build_identity_mismatch'));
     }
 
     const output = resolve(directory, 'signed.apk');
@@ -475,7 +482,7 @@ const make = Effect.gen(function* () {
       await build(input, directory, signal);
       finish();
     } catch (error) {
-      const reason = signal.aborted ? 'Stopped by the administrator.' : message(error);
+      const reason = signal.aborted ? t('zwift_android_cancelled_by_admin') : message(error);
       log.warn('android.build_failed', 'Could not build Zwift for Zluggish', { error: reason });
       finish(reason);
     } finally {
@@ -488,7 +495,10 @@ const make = Effect.gen(function* () {
   async function startRebuild() {
     const saved = await original();
     if (!saved) {
-      throw new ApplicationError({ status: 404, message: 'There is no saved upload to build from.' });
+      throw new ApplicationError({
+        status: 404,
+        message: t('zwift_android_upload_missing'),
+      });
     }
     requireIdle();
     const signal = begin('rebuild', await stepsFor());
@@ -526,10 +536,13 @@ const make = Effect.gen(function* () {
     /** Start a chunked upload. The browser sends the file in pieces so that one dropped request costs little. */
     async begin(owner: string, name: string, size: number) {
       if (!/\.apkm$/i.test(name)) {
-        throw new ApplicationError({ status: 400, message: 'Choose a Zwift APKM bundle with the expansion file.' });
+        throw new ApplicationError({
+          status: 400,
+          message: t('zwift_android_expansion_file_required'),
+        });
       }
       if (!Number.isSafeInteger(size) || size < 1 || size > zwiftAndroidUploadLimit) {
-        throw new ApplicationError({ status: 400, message: 'The file is larger than 10 GB.' });
+        throw new ApplicationError({ status: 400, message: t('zwift_android_upload_size_limit') });
       }
       serverCertificate();
       // The upload alone must fit; the page warns about the room the build needs on top of it.
@@ -537,11 +550,17 @@ const make = Effect.gen(function* () {
       if (free !== null && free < size) {
         throw new ApplicationError({
           status: 409,
-          message: `The server has ${Math.floor(free / 1e8) / 10} GB free, too little for this ${Math.ceil(size / 1e8) / 10} GB upload.`,
+          message: t('zwift_android_upload_disk_space_insufficient', {
+            value1: Math.floor(free / 1e8) / 10,
+            value2: Math.ceil(size / 1e8) / 10,
+          }),
         });
       }
       if (activity?.state === 'running' || writing) {
-        throw new ApplicationError({ status: 409, message: 'Wait for the current Zwift upload or build to finish.' });
+        throw new ApplicationError({
+          status: 409,
+          message: t('zwift_android_build_busy'),
+        });
       }
 
       writing = true;
@@ -564,7 +583,10 @@ const make = Effect.gen(function* () {
     async cancel(owner: string, id: string) {
       const session = current(owner, id);
       if (writing) {
-        throw new ApplicationError({ status: 409, message: 'The upload cannot be cancelled right now.' });
+        throw new ApplicationError({
+          status: 409,
+          message: t('zwift_android_upload_cancellation_blocked'),
+        });
       }
       clearTimeout(expiry);
       upload = undefined;
@@ -573,7 +595,10 @@ const make = Effect.gen(function* () {
     async chunk(owner: string, id: string, offset: number, body: ReadableStream<Uint8Array>) {
       const session = current(owner, id);
       if (!Number.isSafeInteger(offset) || offset < 0 || offset > session.offset || writing) {
-        throw new ApplicationError({ status: 409, message: 'The upload offset has changed. Retry the chunk.' });
+        throw new ApplicationError({
+          status: 409,
+          message: t('zwift_android_upload_offset_conflict'),
+        });
       }
       if (offset < session.offset) {
         return sessionStatus(session);
@@ -585,7 +610,7 @@ const make = Effect.gen(function* () {
         const expected = Math.min(zwiftAndroidChunkSize, session.size - offset);
         const bytes = await apk.receive(body, file, expected);
         if (bytes !== expected) {
-          throw new Error('The upload chunk is incomplete.');
+          throw new Error(t('zwift_android_upload_chunk_incomplete'));
         }
         await apk.appendUpload(resolve(session.workspace, 'upload'), file, offset);
         session.offset += bytes;
@@ -630,7 +655,7 @@ const make = Effect.gen(function* () {
       return adminStatus();
     },
     stop() {
-      abort?.abort(new Error('Stopped by the administrator.'));
+      abort?.abort(new Error(t('zwift_android_cancelled_by_admin')));
 
       return adminStatus();
     },

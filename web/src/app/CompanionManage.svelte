@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from '../lib/i18n/index';
   import { onDestroy, onMount } from 'svelte';
   import { z } from 'zod';
   import type { CompanionAdminStatus, CompanionStep } from './companion';
@@ -7,6 +8,7 @@
 
   let {
     api,
+    navigate,
     csrf,
   }: {
     api: <Schema extends z.ZodType>(
@@ -15,6 +17,7 @@
       method?: string,
       data?: Record<string, never>,
     ) => Promise<z.output<Schema>>;
+    navigate: (path: string) => Promise<void>;
     /** The current CSRF token, for the upload that bypasses the JSON helper to report progress. */
     csrf: () => string;
   } = $props();
@@ -43,16 +46,16 @@
   const tools = $derived(admin ? !!admin.toolchain.java && admin.toolchain.editor : false);
 
   const labels: Record<CompanionStep, string> = {
-    upload: 'Uploading',
-    runtime: 'Downloading Java',
-    editor: 'Downloading APKEditor',
-    inspect: 'Checking the file',
-    merge: 'Merging the split APKs',
-    decode: 'Unpacking the resources',
-    patch: 'Pointing the app at this server',
-    build: 'Rebuilding the app',
-    sign: 'Signing the app',
-    publish: 'Publishing',
+    upload: t('companion_build_uploading'),
+    runtime: t('downloading_java'),
+    editor: t('downloading_apkeditor'),
+    inspect: t('file_validation_progress'),
+    merge: t('apk_merge_progress'),
+    decode: t('resources_unpack_progress'),
+    patch: t('companion_build_build_retargeting'),
+    build: t('app_rebuild_progress'),
+    sign: t('app_sign_progress'),
+    publish: t('publishing'),
   };
 
   /** Rough shares of the whole job, for the width of each stretch of the bar. Rebuilding the app dominates. */
@@ -122,21 +125,23 @@
 
     switch (job.state) {
       case 'waiting':
-        return 'Waiting for the Java tools';
+        return t('companion_build_toolchain_pending');
       case 'done':
-        return tools ? 'The Java tools are ready' : `Published Companion ${admin?.app?.versionName ?? ''}`;
+        return tools
+          ? t('companion_build_toolchain_ready')
+          : t('published_companion', { value1: admin?.app?.versionName ?? '' });
       case 'failed':
-        return tools ? 'The download stopped' : 'The patch stopped';
+        return tools ? t('download_stopped') : t('patch_stopped');
       default:
         if (upload) {
-          return `Uploading ${upload.name}`;
+          return t('companion_build_upload_progress', { value1: upload.name });
         }
 
         return tools
-          ? 'Downloading the Java tools'
+          ? t('java_tools_download_progress')
           : job.kind === 'rekey'
-            ? 'Adding the new certificate'
-            : 'Patching Companion for this server';
+            ? t('certificate_install_progress')
+            : t('companion_build_build_progress');
     }
   });
 
@@ -149,13 +154,13 @@
 
     switch (job.state) {
       case 'waiting':
-        return 'The upload is saved. It continues once the server has the Java tools.';
+        return t('companion_build_toolchain_resume_hint');
       case 'done':
-        return tools ? 'The server can rebuild apps from the Play Store or zoffline.' : 'Riders can download it now.';
+        return tools ? t('ready_to_rebuild_apps') : t('companion_build_build_ready_hint');
       case 'failed':
-        return tools ? 'The download failed.' : 'The patch failed.';
+        return tools ? t('download_error') : t('patch_error');
       default:
-        return upload ? 'Keep this page open until the upload finishes.' : `${labels[job.step]}…`;
+        return upload ? t('companion_build_upload_keep_open_hint') : `${labels[job.step]}…`;
     }
   });
 
@@ -163,7 +168,7 @@
     try {
       admin = await api(companionAdminStatus, '/api/manage/companion');
     } catch (error) {
-      failure = error instanceof Error ? error.message : 'The Companion app could not be loaded.';
+      failure = error instanceof Error ? error.message : t('companion_build_load_error');
     }
   }
 
@@ -192,7 +197,7 @@
       admin = await work();
       notice = done;
     } catch (error) {
-      failure = error instanceof Error ? error.message : 'The request failed.';
+      failure = error instanceof Error ? error.message : t('request_error');
     } finally {
       working = false;
     }
@@ -226,13 +231,13 @@
     notice = '';
 
     if (!/\.(apk|apks|xapk|apkm)$/i.test(file.name)) {
-      uploadError = 'Choose an APK, APKS, XAPK or APKM file.';
+      uploadError = t('companion_build_upload_file_required');
 
       return;
     }
 
     if (admin && file.size > admin.uploadLimit) {
-      uploadError = `The file is larger than ${megabytes(admin.uploadLimit)}.`;
+      uploadError = t('companion_build_upload_size_error', { value1: megabytes(admin.uploadLimit) });
 
       return;
     }
@@ -255,14 +260,15 @@
       if (xhr.status === 202) {
         void refresh();
       } else {
-        uploadError = failureMessage.safeParse(xhr.response).data?.message ?? `The upload failed (${xhr.status}).`;
+        uploadError =
+          failureMessage.safeParse(xhr.response).data?.message ?? t('upload_error_detail', { value1: xhr.status });
       }
     };
 
     xhr.onerror = () => {
       upload = null;
       request = null;
-      uploadError = 'The upload stopped. Check the connection to the server and try again.';
+      uploadError = t('companion_build_upload_interrupted');
     };
 
     xhr.onabort = () => {
@@ -285,6 +291,11 @@
     }
   }
 
+  function go(event: MouseEvent, to: string) {
+    event.preventDefault();
+    void navigate(to);
+  }
+
   onMount(refresh);
 
   onDestroy(() => {
@@ -298,17 +309,21 @@
 {#if failure}<p class="notice failed" role="alert">{failure}</p>{/if}
 
 {#if admin === null}
-  {#if !failure}<p role="status">Loading…</p>{/if}
+  {#if !failure}<p role="status">{t('loading')}</p>{/if}
 {:else}
   <section class="panel" aria-labelledby="companion-app">
-    <h2 id="companion-app">The app on this server</h2>
+    <h2 id="companion-app">{t('companion_for_android')}</h2>
+    <p class="lead">
+      {t('companion_build_description')}
+      <a href="/apps" onclick={(event) => go(event, '/apps')}>{t('apps')}</a>.
+    </p>
 
     {#if !certificateReady}
       <p class="stale">
         {#if admin.tlsMode === 'legacy'}
-          Replace the server certificate before building the Companion app.
+          {t('companion_build_certificate_shared_warning')}
         {:else}
-          The Zwift API serves plain HTTP on this server, so there is no certificate for the app to trust.
+          {t('companion_build_certificate_missing')}
         {/if}
       </p>
     {/if}
@@ -316,65 +331,61 @@
     {#if admin.app}
       <dl class="facts">
         <div>
-          <dt>Version</dt>
+          <dt>{t('version')}</dt>
           <dd>{admin.app.versionName}</dd>
         </div>
         <div>
-          <dt>Size</dt>
+          <dt>{t('size')}</dt>
           <dd>{megabytes(admin.app.bytes)}</dd>
         </div>
         <div>
-          <dt>Patched</dt>
+          <dt>{t('patched')}</dt>
           <dd>{day(admin.app.createdAt)}</dd>
         </div>
         <div>
-          <dt>Certificate</dt>
-          <dd class:alarm={!admin.app.current}>{admin.app.current ? 'Current' : 'Outdated'}</dd>
+          <dt>{t('certificate')}</dt>
+          <dd class:alarm={!admin.app.current}>
+            {admin.app.current ? t('current') : t('outdated')}
+          </dd>
         </div>
       </dl>
-    {:else}
-      <p class="lead">No app yet. Riders see the download under <strong>Apps</strong> once you upload one.</p>
     {/if}
 
     {#if job}
       <JobProgress id="companion-job" {job} {labels} {weights} {headline} {detail} {upload}>
         {#if upload}
-          <button type="button" onclick={() => request?.abort()}>Stop upload</button>
+          <button type="button" onclick={() => request?.abort()}>{t('stop_upload')}</button>
         {:else if job.state === 'running'}
           {#if job.kind === 'toolchain' && admin.pending}
-            <p class="hint">Your upload continues once they are ready.</p>
+            <p class="hint">{t('companion_build_upload_resume_hint')}</p>
           {/if}
           <button
             type="button"
             disabled={working}
             onclick={() => act(() => api(companionAdminStatus, '/api/manage/companion/cancel', 'POST', {}))}
-            >Stop</button
+            >{t('stop')}</button
           >
-          <p class="hint">You can leave this page. The job continues on the server.</p>
+          <p class="hint">{t('companion_build_build_background_hint')}</p>
         {:else if admin.pending}
           {#if admin.toolchain.supported}
             <p class="ask">
-              The server needs Java to give this app the Zluggish app ID and icon. It downloads
-              {admin.toolchain.java ? 'APKEditor' : 'a Java runtime from Eclipse Temurin and APKEditor'}, about
-              {megabytes(admin.toolchain.downloadBytes)}, and checks each file against a pinned checksum.
+              {t('companion_build_build_automatic_rebuild_hint', {
+                value1: admin.toolchain.java ? 'APKEditor' : t('java_and_apkeditor'),
+                value2: megabytes(admin.toolchain.downloadBytes),
+              })}
             </p>
             <button type="button" class="primary" disabled={working} onclick={installTools}
-              >Download Java tools and continue</button
+              >{t('companion_build_toolchain_download_action')}</button
             >
           {:else}
-            <p class="ask">
-              The server needs Java to give this app the Zluggish app ID and icon. No Java runtime is published for this
-              server's system: install Java 11 or later on the server, then upload the app again.
-            </p>
+            <p class="ask">{t('companion_build_build_manual_rebuild_hint')}</p>
           {/if}
           <button
             type="button"
             disabled={working}
             onclick={() =>
-              act(
-                () => api(companionAdminStatus, '/api/manage/companion/pending', 'DELETE', {}),
-                'Discarded the upload.',
-              )}>Discard upload</button
+              act(() => api(companionAdminStatus, '/api/manage/companion/pending', 'DELETE', {}), 'Upload discarded.')}
+            >{t('discard_upload')}</button
           >
         {/if}
       </JobProgress>
@@ -406,15 +417,14 @@
           }}
         />
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0-5 5m5-5 5 5M5 20h14" /></svg>
-        <span class="title">{admin.app ? 'Upload a newer version' : 'Upload Zwift Companion'}</span>
+        <span class="title">{admin.app ? t('upload_a_newer_companion') : t('upload_companion')}</span>
         <span class="detail"
-          >Drop the file here or choose it. APK, APKS, XAPK or APKM, up to {megabytes(admin.uploadLimit)}.</span
+          >{t('companion_build_upload_dropzone', {
+            value1: megabytes(admin.uploadLimit),
+          })}</span
         >
       </label>
-      <p class="hint">
-        Play Store and zoffline builds need the Java tools to get the Zluggish app ID and icon. A Companion APK
-        previously built with the Zluggish app ID only needs a certificate swap.
-      </p>
+      <p class="hint">{t('companion_build_upload_toolchain_hint')}</p>
     {/if}
     {#if uploadError}<p class="notice failed" role="alert">{uploadError}</p>{/if}
 
@@ -422,48 +432,41 @@
       <button
         type="button"
         disabled={working || busy}
-        onclick={() =>
-          act(
-            () => api(companionAdminStatus, '/api/manage/companion/app', 'DELETE', {}),
-            'Removed the app from this server.',
-          )}>Remove the app</button
+        onclick={() => act(() => api(companionAdminStatus, '/api/manage/companion/app', 'DELETE', {}), 'App removed.')}
+        >{t('app_remove_action')}</button
       >
     {/if}
     {#if notice}<p class="hint" role="status">{notice}</p>{/if}
   </section>
 
   <section class="panel" aria-labelledby="companion-tools">
-    <h2 id="companion-tools">Java tools</h2>
+    <h2 id="companion-tools">{t('java_tools')}</h2>
     {#if tools && admin.toolchain.java}
       <p>
-        Ready to rebuild apps from the Play Store, with
-        {admin.toolchain.java.source === 'system'
-          ? `the Java ${admin.toolchain.java.version} installed on the server`
-          : `Java ${admin.toolchain.java.version}`}.
+        {t('ready_using', {
+          value1:
+            admin.toolchain.java.source === 'system'
+              ? t('server_java_version', { value1: admin.toolchain.java.version })
+              : t('java', { value1: admin.toolchain.java.version }),
+        })}
       </p>
-      <p class="hint">Downloaded files are in {admin.toolchain.folder}.</p>
+      <p class="hint">{t('stored_in', { value1: admin.toolchain.folder })}</p>
       <button
         type="button"
         disabled={working || busy}
         onclick={() =>
-          act(
-            () => api(companionAdminStatus, '/api/manage/companion/toolchain', 'DELETE', {}),
-            'Removed the Java tools.',
-          )}>Remove Java tools</button
+          act(() => api(companionAdminStatus, '/api/manage/companion/toolchain', 'DELETE', {}), 'Java tools removed.')}
+        >{t('remove_java_tools')}</button
       >
     {:else if !admin.toolchain.supported}
-      <p>
-        No Java runtime is published for this server's system. Install Java 11 or later on the server to rebuild apps
-        from the Play Store or zoffline.
-      </p>
+      <p>{t('companion_build_toolchain_install_hint')}</p>
     {:else}
       <p>
-        Needed to rebuild Play Store and zoffline apps. The server downloads
-        {admin.toolchain.java ? 'APKEditor' : 'a Java runtime from Eclipse Temurin and APKEditor'}, about
-        {megabytes(admin.toolchain.downloadBytes)}, and checks each file against a pinned checksum.
+        {t('java_tools_installed_automatically', {
+          size: megabytes(admin.toolchain.downloadBytes),
+        })}
       </p>
-      <p class="hint">They are kept in {admin.toolchain.folder}, outside storage and backups.</p>
-      <button type="button" disabled={working || busy} onclick={installTools}>Download Java tools</button>
+      <p class="hint">{t('stored_in_outside_backups', { value1: admin.toolchain.folder })}</p>
     {/if}
   </section>
 {/if}
@@ -479,7 +482,10 @@
     backdrop-filter: blur(8px);
   }
   .lead {
-    margin-top: 0;
+    margin: 0 0 1.25rem;
+  }
+  .lead a {
+    color: inherit;
   }
   .hint {
     margin: 0.4rem 0 0;

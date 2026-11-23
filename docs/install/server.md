@@ -43,14 +43,14 @@ This setup uses the `storage` directory in the repository root.
 
 ## First-time setup
 
-In order to set up a new server, you must authenticate yourself as the administrator by entering the setup key. The docker output for the first-time zluggish server is something like
+Find the setup key in the server logs:
 
 ```text
 zluggish-1  | ============================================================
 zluggish-1  | Zluggish first-time setup
 zluggish-1  | Open: http://127.0.0.1:8080/setup
-zluggish-1  | Setup key: 0QZR-DVH3-9VES-E7PW-NS6C-CX2N-PWXQ-GA2R-MTR5-R122-REFP-PJF9-5XFG
-zluggish-1  | This key works until setup is complete or the server stops.
+zluggish-1  | Setup key: XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX
+zluggish-1  | Valid until setup is complete or the server stops.
 zluggish-1  | ============================================================
 ```
 
@@ -60,15 +60,10 @@ Keep the setup key private, don't share it with anybody
 
 :::
 
-Now open the setup address in a browser. The default address is `http://<server-ip>:8080/setup`.
-
-Then paste the key into **Setup key**.
-
-Enter a name, a login name and a password for the new user.
-
-Select **Complete setup**.
-
-This account is now the initial administrator.
+1. Open `http://<server-ip>:8080/setup`.
+2. Paste the key into **Setup key** and select **Check key**.
+3. Enter a name, login name and password.
+4. Select **Complete setup**. This account becomes the first administrator.
 
 ## Next steps
 
