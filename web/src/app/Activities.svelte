@@ -1,6 +1,9 @@
 <script lang="ts">
   import { t } from '../lib/i18n/index';
   import ActivityChart from './ActivityChart.svelte';
+  import { tick } from 'svelte';
+  import { slide } from 'svelte/transition';
+  import { ignored } from '../lib/api';
   import { z } from 'zod';
   import type { Api } from '../lib/api';
 
@@ -109,6 +112,14 @@
 
   let page = $state(0);
   let showList = $state(false);
+
+  /** One row at a time asks before it deletes; the rest of the list stays as it is. */
+  let confirming = $state<string | null>(null);
+  let deleting = $state(false);
+  let deleteFailure = $state('');
+  let leaving = $state<string | null>(null);
+  let announcement = $state('');
+  let log = $state<HTMLElement>();
 
   const ordered = $derived(
     [...(activities ?? [])].sort((a, b) => (started(b)?.getTime() ?? -Infinity) - (started(a)?.getTime() ?? -Infinity)),
@@ -425,6 +436,79 @@
     }
   });
 
+  async function ask(id: string) {
+    confirming = id;
+    deleteFailure = '';
+    await tick();
+    log?.querySelector<HTMLElement>(`[data-keep="${id}"]`)?.focus();
+  }
+
+  async function keep(id: string) {
+    confirming = null;
+    deleteFailure = '';
+    await tick();
+    log?.querySelector<HTMLElement>(`[data-remove="${id}"]`)?.focus();
+  }
+
+  function escape(event: KeyboardEvent, id: string) {
+    if (event.key === 'Escape' && !deleting) {
+      void keep(id);
+    }
+  }
+
+  async function remove(a: Summary) {
+    deleting = true;
+    deleteFailure = '';
+
+    try {
+      await api(ignored, `/api/me/activities/${a.id}`, 'DELETE');
+    } catch (error) {
+      deleting = false;
+      deleteFailure = error instanceof Error && error.message ? error.message : t('activity_delete_error');
+
+      return;
+    }
+
+    // Focus moves to the row that takes this one's place, so the keyboard stays in the list.
+    const index = ordered.findIndex((item) => item.id === a.id);
+    const next = ordered[index + 1] ?? ordered[index - 1];
+
+    leaving = a.id;
+    deleting = false;
+    confirming = null;
+    activities = (activities ?? []).filter((item) => item.id !== a.id);
+    announcement = t('activity_deleted', { value1: title(a) });
+
+    if (detail?.id === a.id) {
+      detail = null;
+    }
+
+    if (uploads?.id === a.id) {
+      uploads = null;
+    }
+
+    if (selectedId === a.id) {
+      go('/activities');
+    }
+
+    await tick();
+    (next ? log?.querySelector<HTMLElement>(`[data-activity="${next.id}"]`) : log)?.focus();
+
+    // The next page moves up by one; an emptied last page steps back.
+    if (activities.length === 0 && page > 0) {
+      page--;
+    } else {
+      void loadList(page);
+    }
+  }
+
+  /** Only the deleted row folds away; rows that leave because the page changed go at once. */
+  function fold(node: Element, { id }: { id: string }) {
+    const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    return id === leaving && !still ? slide(node, { duration: 220 }) : { duration: 0 };
+  }
+
   function open(event: MouseEvent, href: string) {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
       return;
@@ -527,6 +611,7 @@
 {/snippet}
 
 {#if failure}<p class="notice failed" role="alert">{failure}</p>{/if}
+<p class="visually-hidden" role="status">{announcement}</p>
 
 {#if activities === null}
   {#if !failure}<p class="delayed" role="status">{t('loading_activities')}</p>{/if}
@@ -536,7 +621,7 @@
   </section>
 {:else}
   <div class="activities" class:open={selectedId !== null}>
-    <div class="log">
+    <div class="log" bind:this={log} tabindex="-1">
       {#each months as month (month.key)}
         <section class="month" aria-labelledby="month-{month.key}">
           <div class="month-head">
@@ -552,41 +637,91 @@
           <ul class="plain">
             {#each month.activities as a (a.id)}
               {@const date = started(a)}
-              <li>
-                <a
-                  class="activity"
-                  href="/activities/{a.id}"
-                  aria-current={selectedId === a.id ? 'page' : undefined}
-                  onclick={(e) => open(e, `/activities/${a.id}`)}
-                >
-                  <span class="day" aria-hidden={date ? 'true' : undefined}
-                    >{#if date}<small>{date.toLocaleDateString([], { weekday: 'short' })}</small
-                      >{date.getDate()}{:else}<small>{t('no_date')}</small>{/if}</span
+              <li class="row" out:fold={{ id: a.id }}>
+                {#if confirming === a.id}
+                  <div
+                    class="confirm"
+                    role="group"
+                    aria-labelledby="delete-{a.id} delete-name-{a.id}"
+                    aria-describedby="delete-detail-{a.id}"
                   >
-                  <span class="what">
-                    <strong>{title(a)}</strong>
-                    <small
-                      >{#if date}<span class="visually-hidden"
-                          >{date.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })},
-                        </span>{/if}{world(a)}{#if a.sport === 'running'}{world(a)
-                          ? ', run'
-                          : t('run')}{/if}{#if !a.endDate}<span class="unfinished"
-                          >{t('not_finished', {
-                            value1: world(a) || a.sport === 'running' ? ', ' : '',
-                          })}</span
-                        >{/if}{#if a.images}<span class="camera"
-                          ><span class="visually-hidden">, </span>{a.images}
-                          {a.images === 1
-                            ? t('activities_upload_image_singular')
-                            : t('activities_upload_image_plural')}</span
-                        >{/if}</small
+                    <span class="day" aria-hidden="true"
+                      >{#if date}<small>{date.toLocaleDateString([], { weekday: 'short' })}</small
+                        >{date.getDate()}{:else}<small>{t('no_date')}</small>{/if}</span
                     >
-                  </span>
-                  <span class="how">
-                    <strong>{km(a.distanceInMeters)}</strong>
-                    <small>{clock(a.movingTimeInMs)}</small>
-                  </span>
-                </a>
+                    <span class="what">
+                      <strong id="delete-{a.id}">{t('activity_delete_question')}</strong>
+                      <small class="name" id="delete-name-{a.id}">{title(a)}</small>
+                      <small id="delete-detail-{a.id}">{t('activity_delete_detail')}</small>
+                    </span>
+                    <span class="choices">
+                      <button
+                        type="button"
+                        data-keep={a.id}
+                        disabled={deleting}
+                        onclick={() => void keep(a.id)}
+                        onkeydown={(e) => escape(e, a.id)}>{t('keep')}</button
+                      >
+                      <button
+                        type="button"
+                        class="danger"
+                        disabled={deleting}
+                        onclick={() => void remove(a)}
+                        onkeydown={(e) => escape(e, a.id)}>{deleting ? t('deleting') : t('delete')}</button
+                      >
+                    </span>
+                    {#if deleteFailure}<p class="error" role="alert">{deleteFailure}</p>{/if}
+                  </div>
+                {:else}
+                  <a
+                    class="activity"
+                    data-activity={a.id}
+                    href="/activities/{a.id}"
+                    aria-current={selectedId === a.id ? 'page' : undefined}
+                    onclick={(e) => open(e, `/activities/${a.id}`)}
+                  >
+                    <span class="day" aria-hidden={date ? 'true' : undefined}
+                      >{#if date}<small>{date.toLocaleDateString([], { weekday: 'short' })}</small
+                        >{date.getDate()}{:else}<small>{t('no_date')}</small>{/if}</span
+                    >
+                    <span class="what">
+                      <strong>{title(a)}</strong>
+                      <small
+                        >{#if date}<span class="visually-hidden"
+                            >{date.toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })},
+                          </span>{/if}{world(a)}{#if a.sport === 'running'}{world(a)
+                            ? ', run'
+                            : t('run')}{/if}{#if !a.endDate}<span class="unfinished"
+                            >{t('not_finished', {
+                              value1: world(a) || a.sport === 'running' ? ', ' : '',
+                            })}</span
+                          >{/if}{#if a.images}<span class="camera"
+                            ><span class="visually-hidden">, </span>{a.images}
+                            {a.images === 1
+                              ? t('activities_upload_image_singular')
+                              : t('activities_upload_image_plural')}</span
+                          >{/if}</small
+                      >
+                    </span>
+                    <span class="how">
+                      <strong>{km(a.distanceInMeters)}</strong>
+                      <small>{clock(a.movingTimeInMs)}</small>
+                    </span>
+                  </a>
+                  <button
+                    type="button"
+                    class="remove"
+                    data-remove={a.id}
+                    aria-label={t('activity_delete_named', { value1: title(a) })}
+                    title={t('delete')}
+                    disabled={confirming !== null && deleting}
+                    onclick={() => void ask(a.id)}
+                  >
+                    <svg viewBox="0 0 20 20" aria-hidden="true"
+                      ><path d="M3.5 5.5h13M8 5.5V3.5h4v2M5 5.5l.8 11h8.4l.8-11M8.5 8.5v5.5M11.5 8.5v5.5" /></svg
+                    >
+                  </button>
+                {/if}
               </li>
             {/each}
           </ul>
@@ -820,6 +955,9 @@
       opacity: 0.6;
       animation: none;
     }
+    .confirm {
+      animation: none;
+    }
   }
 
   .panel {
@@ -957,6 +1095,114 @@
     text-align: right;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
+  }
+
+  /* The delete control sits in the gutter beside its row, out of the way until the row is pointed at. */
+  .row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 2.25rem;
+    align-items: center;
+    gap: 0.3rem;
+  }
+  .log:focus {
+    outline: none;
+  }
+  .remove {
+    display: grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: none;
+    color: var(--muted);
+    opacity: 0;
+    transition:
+      opacity 120ms,
+      color 120ms;
+  }
+  .row:hover .remove,
+  .remove:focus-visible {
+    opacity: 1;
+  }
+  .remove:hover {
+    color: var(--alarm);
+    background: rgb(255 90 70 / 0.14);
+  }
+  .remove svg {
+    width: 1.15rem;
+    height: 1.15rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  @media (hover: none) {
+    .remove {
+      opacity: 0.75;
+    }
+  }
+
+  /* Asking turns the row itself into the question, so the activity being deleted stays in view. */
+  .confirm {
+    display: grid;
+    grid-template-columns: 2.75rem minmax(0, 1fr);
+    align-items: start;
+    gap: 0.6rem 0.85rem;
+    padding: 0.55rem 0.85rem 0.55rem 0.6rem;
+    border: 2px solid rgb(255 179 166 / 0.75);
+    border-radius: 12px;
+    background: rgb(78 40 40 / 0.9);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    animation: arm 180ms ease-out;
+  }
+  @keyframes arm {
+    from {
+      border-color: transparent;
+      background: var(--glass);
+    }
+  }
+  .confirm small {
+    display: block;
+    color: var(--muted);
+    font-size: 0.8125rem;
+  }
+  .confirm .day {
+    padding-top: 0.1rem;
+  }
+  .confirm .name {
+    color: var(--text);
+  }
+  .confirm .what small:last-child {
+    margin-top: 0.3rem;
+    white-space: normal;
+  }
+  .choices {
+    grid-column: 2;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+  }
+  .choices button {
+    margin: 0;
+    padding: 0.45rem 0.9rem;
+    font-size: 0.8125rem;
+  }
+  button.danger {
+    border-color: rgb(255 179 166 / 0.75);
+    color: var(--alarm);
+  }
+  button.danger:hover {
+    background: rgb(255 90 70 / 0.14);
+  }
+  .confirm .error {
+    grid-column: 2;
+    margin: 0;
+    font-size: 0.875rem;
   }
 
   .back {
