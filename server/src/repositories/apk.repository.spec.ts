@@ -372,7 +372,7 @@ await test('gives the standalone Zwift build its own package and starts setup be
   assert.match(readFileSync(resolve(resources, 'package.json'), 'utf8'), /"package_name":"com\.zluggish\.zwift"/);
 });
 
-await test('updates the Zwift expansion basename and the installer lookup for the renamed app', async () => {
+await test('uses the renamed app for Zwift expansion, private storage, and installer lookups', async () => {
   using space = workspace();
   const folder = resolve(space.folder, 'smali/classes2/com/zwift/zwiftgame/vending/expansion/downloader');
   const helper = resolve(folder, 'Helpers.smali');
@@ -398,10 +398,23 @@ await test('updates the Zwift expansion basename and the installer lookup for th
 
     invoke-virtual {v3, v4}, Landroid/content/pm/PackageManager;->getInstallerPackageName(Ljava/lang/String;)Ljava/lang/String;`,
   );
+  const downloaderFolder = resolve(dirname(main), 'downloader');
+  const downloader = resolve(downloaderFolder, 'ZwiftDownloaderActivity.smali');
+  const unzip = resolve(downloaderFolder, 'ZwiftDownloaderActivity$AsyncUnzipTask.smali');
+  mkdirSync(downloaderFolder);
+  writeFileSync(downloader, '    const-string v0, "/data/data/com.zwift.zwiftgame/dataES/Misc/v169052.txt"\n');
+  writeFileSync(unzip, '    const-string v5, "/data/data/com.zwift.zwiftgame/"\n');
 
   await repository.configureZwiftPackageLookups(space.folder);
 
   assert.match(readFileSync(main, 'utf8'), /const-string v4, "com\.zluggish\.zwift"/);
+  const marker = readFileSync(downloader, 'utf8');
+  assert.match(marker, /invoke-virtual \{p0\}, Landroid\/content\/Context;->getDataDir\(\)/);
+  assert.match(marker, /const-string v1, "\/dataES\/Misc\/v169052\.txt"/);
+  const extraction = readFileSync(unzip, 'utf8');
+  assert.match(extraction, /invoke-virtual \{v5\}, Landroid\/content\/Context;->getDataDir\(\)/);
+  assert.match(extraction, /const-string v6, "\/"/);
+  assert.doesNotMatch(marker + extraction, /\/data\/data\/com\.zwift\.zwiftgame/);
 
   const result = readFileSync(helper, 'utf8');
   assert.match(result, /getExpansionAPKFileName[^\n]*\s+const-string p1, "\.com\.zluggish\.zwift\.obb"/);

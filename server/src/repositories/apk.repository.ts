@@ -901,7 +901,7 @@ export class ApkRepository {
     }
   }
 
-  /** Update the original package literals Zwift uses for expansion and installer lookups. */
+  /** Update the original package lookups Zwift uses to find, unpack, and start the game. */
   async configureZwiftPackageLookups(folder: string) {
     const smali = resolve(folder, 'smali');
     const entries = await readdir(smali, { withFileTypes: true });
@@ -934,6 +934,47 @@ export class ApkRepository {
       throw new Error('Could not update the Zwift downloader expansion filename.');
     }
     await writeFile(helpers.path, updated);
+
+    // Zwift 1.126 hardcodes the private data directory in the unpacker and its version marker.
+    const downloader = await readClass('downloader/ZwiftDownloaderActivity.smali');
+    const unzip = await readClass('downloader/ZwiftDownloaderActivity$AsyncUnzipTask.smali');
+    if (downloader && downloader.source.includes('/data/data/com.zwift.zwiftgame/')) {
+      const source = downloader.source.replace(
+        /const-string(?:\/jumbo)? v0, "\/data\/data\/com\.zwift\.zwiftgame(\/dataES\/Misc\/v\d+\.txt)"/,
+        (_, marker: string) =>
+          [
+            'invoke-virtual {p0}, Landroid/content/Context;->getDataDir()Ljava/io/File;',
+            'move-result-object v0',
+            'invoke-virtual {v0}, Ljava/io/File;->getAbsolutePath()Ljava/lang/String;',
+            'move-result-object v0',
+            `const-string v1, "${marker}"`,
+            'invoke-virtual {v0, v1}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;',
+            'move-result-object v0',
+          ].join('\n    '),
+      );
+      if (source === downloader.source) {
+        throw new Error('Could not update the Zwift expansion version marker path.');
+      }
+      await writeFile(downloader.path, source);
+    }
+    if (unzip && unzip.source.includes('/data/data/com.zwift.zwiftgame/')) {
+      const source = unzip.source.replace(/const-string(?:\/jumbo)? v5, "\/data\/data\/com\.zwift\.zwiftgame\/"/, () =>
+        [
+          'iget-object v5, v1, Lcom/zwift/zwiftgame/downloader/ZwiftDownloaderActivity$AsyncUnzipTask;->mContext:Landroid/content/Context;',
+          'invoke-virtual {v5}, Landroid/content/Context;->getDataDir()Ljava/io/File;',
+          'move-result-object v5',
+          'invoke-virtual {v5}, Ljava/io/File;->getAbsolutePath()Ljava/lang/String;',
+          'move-result-object v5',
+          'const-string v6, "/"',
+          'invoke-virtual {v5, v6}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;',
+          'move-result-object v5',
+        ].join('\n    '),
+      );
+      if (source === unzip.source) {
+        throw new Error('Could not update the Zwift expansion unpacking path.');
+      }
+      await writeFile(unzip.path, source);
+    }
 
     // Android can throw when Zwift asks for the installer of a package which isn't installed.
     const main = await readClass('ZwiftMainActivity.smali');
