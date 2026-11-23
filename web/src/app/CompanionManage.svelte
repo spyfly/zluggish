@@ -7,6 +7,7 @@
 
   let {
     api,
+    navigate,
     csrf,
   }: {
     api: <Schema extends z.ZodType>(
@@ -15,6 +16,7 @@
       method?: string,
       data?: Record<string, never>,
     ) => Promise<z.output<Schema>>;
+    navigate: (path: string) => Promise<void>;
     /** The current CSRF token, for the upload that bypasses the JSON helper to report progress. */
     csrf: () => string;
   } = $props();
@@ -149,9 +151,9 @@
 
     switch (job.state) {
       case 'waiting':
-        return 'The upload is saved. It continues once the server has the Java tools.';
+        return 'Continues once the Java tools are ready.';
       case 'done':
-        return tools ? 'The server can rebuild apps from the Play Store.' : 'Riders can download it now.';
+        return tools ? 'Ready to rebuild apps.' : 'Riders can download it now.';
       case 'failed':
         return tools ? 'The download failed.' : 'The patch failed.';
       default:
@@ -262,7 +264,7 @@
     xhr.onerror = () => {
       upload = null;
       request = null;
-      uploadError = 'The upload stopped. Check the connection to the server and try again.';
+      uploadError = 'The upload stopped. Check the connection and try again.';
     };
 
     xhr.onabort = () => {
@@ -285,6 +287,11 @@
     }
   }
 
+  function go(event: MouseEvent, to: string) {
+    event.preventDefault();
+    void navigate(to);
+  }
+
   onMount(refresh);
 
   onDestroy(() => {
@@ -301,14 +308,18 @@
   {#if !failure}<p role="status">Loading…</p>{/if}
 {:else}
   <section class="panel" aria-labelledby="companion-app">
-    <h2 id="companion-app">The app on this server</h2>
+    <h2 id="companion-app">Companion for Android</h2>
+    <p class="lead">
+      Upload Zwift Companion and the server patches it to trust this server. Riders download it under
+      <a href="/apps" onclick={(event) => go(event, '/apps')}>Apps</a>.
+    </p>
 
     {#if !certificateReady}
       <p class="stale">
         {#if admin.tlsMode === 'legacy'}
-          Replace the server certificate before building the Companion app.
+          Replace the shared certificate before building Companion for Android.
         {:else}
-          The Zwift API serves plain HTTP on this server, so there is no certificate for the app to trust.
+          This server has no certificate for Companion to trust.
         {/if}
       </p>
     {/if}
@@ -332,8 +343,6 @@
           <dd class:alarm={!admin.app.current}>{admin.app.current ? 'Current' : 'Outdated'}</dd>
         </div>
       </dl>
-    {:else}
-      <p class="lead">No app yet. Riders see the download under <strong>Apps</strong> once you upload one.</p>
     {/if}
 
     {#if job}
@@ -350,31 +359,29 @@
             onclick={() => act(() => api(companionAdminStatus, '/api/manage/companion/cancel', 'POST', {}))}
             >Stop</button
           >
-          <p class="hint">You can leave this page. The job continues on the server.</p>
+          <p class="hint">The job continues if you leave this page.</p>
         {:else if admin.pending}
           {#if admin.toolchain.supported}
             <p class="ask">
-              The app comes straight from the Play Store, so the server rebuilds it with Java. It downloads
-              {admin.toolchain.java ? 'APKEditor' : 'a Java runtime from Eclipse Temurin and APKEditor'}, about
-              {megabytes(admin.toolchain.downloadBytes)}, and checks each file against a pinned checksum.
+              This app needs a rebuild with Java. The server downloads {admin.toolchain.java
+                ? 'APKEditor'
+                : 'Java and APKEditor'}
+              ({megabytes(admin.toolchain.downloadBytes)}).
             </p>
             <button type="button" class="primary" disabled={working} onclick={installTools}
               >Download Java tools and continue</button
             >
           {:else}
             <p class="ask">
-              The app comes straight from the Play Store, so the server rebuilds it with Java. No Java runtime is
-              published for this server's system: install Java 11 or later on the server, then upload the app again.
+              This app needs a rebuild with Java. Install Java 11 or later on the server, then upload again.
             </p>
           {/if}
           <button
             type="button"
             disabled={working}
             onclick={() =>
-              act(
-                () => api(companionAdminStatus, '/api/manage/companion/pending', 'DELETE', {}),
-                'Discarded the upload.',
-              )}>Discard upload</button
+              act(() => api(companionAdminStatus, '/api/manage/companion/pending', 'DELETE', {}), 'Upload discarded.')}
+            >Discard upload</button
           >
         {/if}
       </JobProgress>
@@ -406,15 +413,10 @@
           }}
         />
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0-5 5m5-5 5 5M5 20h14" /></svg>
-        <span class="title">{admin.app ? 'Upload a newer version' : 'Upload Zwift Companion'}</span>
-        <span class="detail"
-          >Drop the file here or choose it. APK, APKS, XAPK or APKM, up to {megabytes(admin.uploadLimit)}.</span
+        <span class="title">{admin.app ? 'Upload a newer Companion' : 'Upload Companion'}</span>
+        <span class="detail">Drop or choose an APK, APKS, XAPK or APKM file, up to {megabytes(admin.uploadLimit)}.</span
         >
       </label>
-      <p class="hint">
-        An app already patched for zoffline, such as a zoffline-companion release, gets this server's certificate in
-        seconds. An app from the Play Store is rebuilt with Java, which the server asks before it downloads.
-      </p>
     {/if}
     {#if uploadError}<p class="notice failed" role="alert">{uploadError}</p>{/if}
 
@@ -422,11 +424,8 @@
       <button
         type="button"
         disabled={working || busy}
-        onclick={() =>
-          act(
-            () => api(companionAdminStatus, '/api/manage/companion/app', 'DELETE', {}),
-            'Removed the app from this server.',
-          )}>Remove the app</button
+        onclick={() => act(() => api(companionAdminStatus, '/api/manage/companion/app', 'DELETE', {}), 'App removed.')}
+        >Remove the app</button
       >
     {/if}
     {#if notice}<p class="hint" role="status">{notice}</p>{/if}
@@ -436,33 +435,26 @@
     <h2 id="companion-tools">Java tools</h2>
     {#if tools && admin.toolchain.java}
       <p>
-        Ready to rebuild apps from the Play Store, with
-        {admin.toolchain.java.source === 'system'
-          ? `the Java ${admin.toolchain.java.version} installed on the server`
+        Ready, using {admin.toolchain.java.source === 'system'
+          ? `the server's Java ${admin.toolchain.java.version}`
           : `Java ${admin.toolchain.java.version}`}.
       </p>
-      <p class="hint">Downloaded files are in {admin.toolchain.folder}.</p>
+      <p class="hint">Stored in {admin.toolchain.folder}.</p>
       <button
         type="button"
         disabled={working || busy}
         onclick={() =>
-          act(
-            () => api(companionAdminStatus, '/api/manage/companion/toolchain', 'DELETE', {}),
-            'Removed the Java tools.',
-          )}>Remove Java tools</button
+          act(() => api(companionAdminStatus, '/api/manage/companion/toolchain', 'DELETE', {}), 'Java tools removed.')}
+        >Remove Java tools</button
       >
     {:else if !admin.toolchain.supported}
-      <p>
-        No Java runtime is published for this server's system. Install Java 11 or later on the server to rebuild apps
-        from the Play Store.
-      </p>
+      <p>Install Java 11 or later on the server to rebuild apps that need it.</p>
     {:else}
       <p>
-        Only needed for an app straight from the Play Store. The server downloads
-        {admin.toolchain.java ? 'APKEditor' : 'a Java runtime from Eclipse Temurin and APKEditor'}, about
-        {megabytes(admin.toolchain.downloadBytes)}, and checks each file against a pinned checksum.
+        Some apps need a rebuild with Java. This downloads {admin.toolchain.java ? 'APKEditor' : 'Java and APKEditor'}
+        ({megabytes(admin.toolchain.downloadBytes)}).
       </p>
-      <p class="hint">They are kept in {admin.toolchain.folder}, outside storage and backups.</p>
+      <p class="hint">Stored in {admin.toolchain.folder}, outside backups.</p>
       <button type="button" disabled={working || busy} onclick={installTools}>Download Java tools</button>
     {/if}
   </section>
@@ -479,7 +471,10 @@
     backdrop-filter: blur(8px);
   }
   .lead {
-    margin-top: 0;
+    margin: 0 0 1.25rem;
+  }
+  .lead a {
+    color: inherit;
   }
   .hint {
     margin: 0.4rem 0 0;

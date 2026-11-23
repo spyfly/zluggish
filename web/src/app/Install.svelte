@@ -91,27 +91,22 @@
 {#if failure}<p class="notice failed" role="alert">{failure}</p>{/if}
 {#if status === null}
   {#if !failure}<p role="status">Loading…</p>{/if}
-{:else if status.mode === 'disabled'}
-  <section class="panel" aria-labelledby="install-plain">
-    <h2 id="install-plain">Nothing to install</h2>
-    <p>This server talks to Zwift without a certificate. Ask the server administrator how to connect.</p>
-  </section>
 {:else if status.mode === 'legacy'}
   <section class="panel">
-    <p>Ask the server administrator to replace the server certificate before setting up Zwift.</p>
+    <p>Ask the server administrator to replace the shared certificate first.</p>
   </section>
 {/if}
 
 {#if status && installable && status.certificate && platform}
   <section class="panel" aria-label={`${platform.name} setup steps`}>
     <p class="switch">
-      Setting up {platform.name}.
+      {platform.name} ·
       <a
         href="/apps"
         onclick={(event) => {
           event.preventDefault();
           void navigate('/apps');
-        }}>Choose another system</a
+        }}>Other systems</a
       >
     </p>
     <ol class="walk">
@@ -131,12 +126,10 @@
             aria-describedby="install-address-hint"
           />
           <p id="install-address-hint" class="hint" class:failed={!!addressError}>
-            {addressError || 'The script adds this address to the hosts file for the Zwift server names.'}
+            {addressError || 'Added to the hosts file for the Zwift server names.'}
           </p>
         {:else}
-          <p class="hint">
-            The script leaves the hosts file alone. Point Zwift at the server some other way, such as DNS.
-          </p>
+          <p class="hint">The hosts file is left alone. Use DNS or similar instead.</p>
         {/if}
 
         {#if addressError}
@@ -146,18 +139,15 @@
         {/if}
       </li>
       <li>
-        <h2>Run it</h2>
+        <h2>Run the setup script</h2>
         {#if platform.id === 'windows'}
-          <p>Open the downloaded <strong>.bat</strong> file. Windows asks for administrator rights. Allow it.</p>
+          <p>Open the downloaded <strong>.bat</strong> file and allow administrator rights.</p>
           <p class="hint">
-            If Windows SmartScreen stops the file, select <strong>More info</strong>, then
-            <strong>Run anyway</strong>.
+            If SmartScreen blocks it, select <strong>More info</strong>, then <strong>Run anyway</strong>.
           </p>
         {:else}
           <p>
-            {platform.id === 'macos'
-              ? 'Open Terminal and run the downloaded file:'
-              : 'In a terminal, run the downloaded file:'}
+            {platform.id === 'macos' ? 'In Terminal, run:' : 'In a terminal, run:'}
           </p>
           <div class="command">
             <code>{command}</code>
@@ -167,8 +157,8 @@
           </div>
           <p class="hint">
             {platform.id === 'macos'
-              ? 'It asks for your password through sudo, then macOS asks once more before it trusts the certificate. If the file was saved under another name, use that name.'
-              : 'It asks for your password through sudo. If it does not find Zwift, run it again with the Zwift folder as the last argument.'}
+              ? 'Enter your password when asked, then approve the certificate.'
+              : 'Enter your password when asked. If Zwift is not found, add the Zwift folder as the last argument.'}
           </p>
         {/if}
       </li>
@@ -181,34 +171,25 @@
               ? 'quit Zwift if it is open, then '
               : ''}start Zwift and sign in.
         </p>
-        <p class="hint">
-          Run the script again after a Zwift update and after the administrator rotates the certificate. It also removes
-          the old shared Zwift certificate from the computer.
-        </p>
+        <p class="hint">Run it again after a Zwift update or a certificate rotation.</p>
       </li>
     </ol>
   </section>
 
   <section class="panel" aria-labelledby="install-certificate">
     <h2 id="install-certificate">Check the certificate</h2>
-    <p>
-      The script prints the thumbprint it installs.{platform.id === 'windows'
-        ? " Windows shows it as Thumbprint in the certificate's details."
-        : platform.id === 'macos'
-          ? ' Keychain Access shows it as the SHA-1 fingerprint.'
-          : ''} It should match this one.
-    </p>
+    <p>The thumbprint the script prints should match.</p>
     <div class="prints">
       <Fingerprint label="Thumbprint (SHA-1)" value={status.certificate.thumbprint} />
-      <Fingerprint label="SHA-256 fingerprint" value={status.certificate.fingerprint256} />
+      <Fingerprint label="Fingerprint (SHA-256)" value={status.certificate.fingerprint256} />
     </div>
     <p class="muted">Valid until {day(status.certificate.notAfter)}.</p>
     <p class="manual">
       {#if platform.id === 'windows'}
-        To install it by hand, download the certificate as <a href="/api/tls/certificate?format=der" download>.cer</a>
-        for the Windows certificate store and as <a href="/api/tls/certificate" download>.crt</a> for Zwift's cacert.pem.
+        Manual install: <a href="/api/tls/certificate?format=der" download>.cer</a> for the Windows certificate store,
+        <a href="/api/tls/certificate" download>.crt</a> for Zwift's cacert.pem.
       {:else}
-        To install it by hand, download the certificate as <a href="/api/tls/certificate" download>.crt (PEM)</a>.
+        Manual install: <a href="/api/tls/certificate" download>.crt (PEM)</a>.
       {/if}
     </p>
   </section>

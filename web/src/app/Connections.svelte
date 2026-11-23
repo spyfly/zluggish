@@ -453,7 +453,7 @@
 
 <section class="integrations" aria-labelledby="integrations-title">
   <h2 id="integrations-title">Integrations</h2>
-  <p class="lead">Send finished rides to the apps you train with, and bring planned workouts into Zwift.</p>
+  <p class="lead">Upload rides and import planned workouts.</p>
   {#if message && where === 'integration' && (!open || !connections)}<p
       class="notice"
       class:failed
@@ -505,7 +505,6 @@
         </p>{/if}
 
       {#if open === 'strava'}
-        <p class="muted">Upload finished rides to Strava, through your own API application or a browser session.</p>
         <label for="strava-method">Upload method</label>
         <select id="strava-method" bind:value={stravaMethod} disabled={busy} onchange={saveMethod}>
           <option value="paid">Strava API application</option>
@@ -513,37 +512,26 @@
         </select>
         {#if stravaMethod === 'paid'}
           {@render credentials('strava')}
-          <p class="muted">Set your Strava API application's callback domain to this website's hostname.</p>
+          <p class="muted">Set the API application's callback domain to this site's hostname.</p>
           <div class="actions">
             <button disabled={busy || !connections.strava.saved} onclick={() => authorize('strava')}>Authorize</button>
             {@render disconnectButton('strava')}
           </div>
         {:else}
           <details class="cookie-help">
-            <summary>How to get your Strava session cookie</summary>
+            <summary>How to get the cookie</summary>
             <p class="muted">In Chrome or Edge:</p>
             <ol>
               <li>Open <a href="https://www.strava.com" target="_blank" rel="noreferrer">Strava</a> and sign in.</li>
               <li>
-                Open Developer Tools with <kbd>⌘⌥I</kbd> on Mac or <kbd>Ctrl+Shift+I</kbd> on Windows/Linux.
-              </li>
-              <li>Select <strong>Application</strong>. If hidden, look under <strong>»</strong>.</li>
-              <li>
-                In the sidebar, expand <strong>Storage → Cookies</strong> and select
-                <strong>https://www.strava.com</strong>.
+                Open Developer Tools (<kbd>⌘⌥I</kbd> or <kbd>Ctrl+Shift+I</kbd>) and select
+                <strong>Application</strong>.
               </li>
               <li>
-                Find <code>_strava4_session</code> and copy its entire <strong>Value</strong>, without the cookie name
-                or quotes.
+                Under <strong>Storage → Cookies → https://www.strava.com</strong>, find <code>_strava4_session</code>.
               </li>
-              <li>
-                Paste the value below and click <strong>Save session cookie</strong>. We'll test it automatically.
-              </li>
+              <li>Copy its <strong>Value</strong> and paste it below.</li>
             </ol>
-            <p class="muted">
-              Treat the cookie like a password. Don't share it or paste it into chat. If the session test later fails,
-              repeat these steps to replace it.
-            </p>
           </details>
           <form
             onsubmit={(event) => {
@@ -563,9 +551,7 @@
               password
               required
               maxlength={10000}
-              hint={connections.strava.cookie
-                ? 'A session cookie is saved. Paste a new one to replace it.'
-                : 'Copy it from your browser while signed in to Strava. Treat it like a password.'}
+              hint={connections.strava.cookie ? 'Saved. Paste a new one to replace it.' : 'Treat it like a password.'}
             />
             <button disabled={busy}>{cookieStatus === 'checking' ? 'Testing session…' : 'Save session cookie'}</button>
           </form>
@@ -579,20 +565,13 @@
             >
               {#if cookieStatus === 'valid'}
                 <span class="cookie-check" aria-hidden="true">✓</span>
-                <span
-                  ><strong>Strava session verified</strong><br />Your cookie works. Finished rides can upload to Strava.</span
-                >
+                <span><strong>Strava session verified</strong></span>
               {:else if cookieStatus === 'checking'}
                 <span>Checking your session with Strava…</span>
               {:else if cookieStatus === 'invalid'}
-                <span
-                  ><strong>Session expired or invalid</strong><br />Copy a fresh cookie from Strava and save it again.</span
-                >
+                <span><strong>Session expired or invalid</strong><br />Save a fresh cookie.</span>
               {:else if cookieStatus === 'error'}
-                <span
-                  ><strong>Couldn't verify your session</strong><br />Your cookie is saved. Try Test session again when
-                  Strava is reachable.</span
-                >
+                <span><strong>Couldn't reach Strava</strong><br />The cookie is saved. Test again later.</span>
               {:else}
                 <span>Cookie saved. Use Test session to confirm it works with Strava.</span>
               {/if}
@@ -607,7 +586,6 @@
         {/if}
         {@render storedList('strava')}
       {:else if open === 'garmin'}
-        <p class="muted">Upload finished rides to Garmin Connect.</p>
         {@render credentials('garmin')}
         {#if mfa}<TextField id="garmin-code" label="Verification code" bind:value={code} maxlength={32} />{/if}
         <div class="actions">
@@ -618,10 +596,7 @@
         </div>
         {@render storedList('garmin')}
       {:else if open === 'intervals'}
-        <p class="muted">
-          Upload finished rides and bring your planned cycling workouts into Zwift. Find the athlete ID and API key
-          under Developer Settings on Intervals.icu.
-        </p>
+        <p class="muted">Find the athlete ID and API key under Developer Settings on Intervals.icu.</p>
         {@render credentials('intervals')}
         <div class="actions">
           <button disabled={busy || !connections.intervals.saved} onclick={() => sync('intervals')}
@@ -630,9 +605,7 @@
           {@render disconnectButton('intervals')}
         </div>
       {:else}
-        <p class="muted">
-          Import workouts you export from TrainingPeaks as .zwo files. The server reads them from this folder.
-        </p>
+        <p class="muted">The server folder holding .zwo files exported from TrainingPeaks.</p>
         <form
           onsubmit={(event) => {
             event.preventDefault();
@@ -672,7 +645,7 @@
       >Retry failed uploads</button
     >
     {#if jobs.some((job) => job.state === 'ambiguous')}
-      <p class="muted">The provider may already have activities whose upload result is unknown.</p>
+      <p class="muted">Some uploads got no reply. Retrying may create duplicates, so check the provider first.</p>
       <label class="check"
         ><input type="checkbox" bind:checked={confirmUnknown} /> I checked the provider and want to upload them again</label
       >

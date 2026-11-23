@@ -75,7 +75,7 @@ export interface ZwiftAndroidAdminStatus extends ZwiftAndroidStatus {
   /** The last upload, kept unchanged so the app can be built again after a certificate change. */
   readonly original: { readonly name: string; readonly bytes: number; readonly uploadedAt: string } | null;
   readonly tools: { readonly ready: boolean; readonly downloadBytes: number; readonly supported: boolean };
-  readonly tlsMode: 'managed' | 'legacy' | 'custom' | 'disabled';
+  readonly tlsMode: 'managed' | 'legacy' | 'custom';
   /** Free space on the storage disk, or null when the system does not report it. */
   readonly disk: { readonly free: number | null; readonly recommended: number };
   readonly uploadLimit: number;
@@ -156,7 +156,7 @@ const make = Effect.gen(function* () {
     if (!pem) {
       throw new ApplicationError({
         status: 409,
-        message: 'The Zwift API serves plain HTTP on this server, so there is no certificate for Zwift to trust.',
+        message: 'The server certificate is not ready. Restart the server and try again.',
       });
     }
 

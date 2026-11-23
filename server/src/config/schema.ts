@@ -211,7 +211,11 @@ export const configSchema = Schema.Struct({
     cdn: section({ host: optionalHost, port: port.pipe(withDefault(80)) }),
     tcp: section({ host: optionalHost, port: port.pipe(withDefault(3025)) }),
     udp: section({ host: optionalHost, port: port.pipe(withDefault(3024)) }),
-    api: section({ host: optionalHost, port: port.pipe(withDefault(443)), useCert: flag(true) }),
+    api: section({
+      host: optionalHost,
+      port: port.pipe(withDefault(443)),
+      useCert: Schema.Literal(true).pipe(withDefault(true)),
+    }),
   }),
   riderDefaults: riderSettingsSchema,
   storageDir: NonBlank.pipe(withDefault('../storage')),

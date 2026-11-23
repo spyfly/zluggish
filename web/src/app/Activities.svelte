@@ -266,8 +266,7 @@
       names((u) => u.state === 'sent') && `Uploaded to ${names((u) => u.state === 'sent')}.`,
       names(inFlight) && `Uploading to ${names(inFlight)}…`,
       names((u) => u.state === 'failed') && `Upload to ${names((u) => u.state === 'failed')} failed.`,
-      names((u) => u.state === 'ambiguous') &&
-        `${names((u) => u.state === 'ambiguous')} may already have it; the last upload ended without an answer.`,
+      names((u) => u.state === 'ambiguous') && `${names((u) => u.state === 'ambiguous')} may already have it.`,
     ]
       .filter(Boolean)
       .join(' ');
@@ -431,9 +430,8 @@
       <p class="muted">Checking your connected services…</p>
     {:else if uploads.list.length === 0}
       <p class="muted">
-        Connect Strava, Garmin or Intervals.icu in <a href="/integrations" onclick={(e) => open(e, '/integrations')}
-          >Integrations</a
-        > to send activities there.
+        Connect a service in <a href="/integrations" onclick={(e) => open(e, '/integrations')}>Integrations</a> to upload
+        activities.
       </p>
     {:else}
       {@const list = uploads.list}
@@ -478,8 +476,8 @@
           {#each list.filter((u) => chosen.includes(u.provider) && uploaded(u)) as u (u.provider)}
             <p class="caution">
               {services[u.provider]}
-              {u.state === 'sent' ? 'already has this activity' : 'may already have this activity'}. Uploading again can
-              create a duplicate there.
+              {u.state === 'sent' ? 'already has this activity' : 'may already have this activity'}. Uploading again may
+              duplicate it.
             </p>
           {/each}
           {#if list.some((u) => u.state === 'failed' && u.error?.startsWith('strava_session'))}
@@ -501,9 +499,7 @@
             >
           {/if}
           {#if a.imageIds.length && !list.some((u) => u.provider === 'freeStrava')}
-            <p class="muted note">
-              Images go only to Strava when it is connected with a session cookie. Other services get the FIT file.
-            </p>
+            <p class="muted note">Images upload only to Strava with a session cookie.</p>
           {/if}
         </form>
       {/if}
@@ -517,7 +513,7 @@
   {#if !failure}<p class="delayed" role="status">Loading activities…</p>{/if}
 {:else if activities.length === 0 && page === 0}
   <section class="panel narrow">
-    <p>No activities yet. Activities you finish in the game appear here, with their FIT files and images.</p>
+    <p>No activities yet.</p>
   </section>
 {:else}
   <div class="activities" class:open={selectedId !== null}>
@@ -601,7 +597,7 @@
           </div>
         {/if}
         {#if !selectedId}
-          <p class="muted">Choose an activity to see its route, stats, FIT file and images.</p>
+          <p class="muted">Select an activity.</p>
         {:else if detail}
           {@const date = started(detail)}
           <h2 id="activity-name">{title(detail)}</h2>
@@ -621,8 +617,8 @@
           {:else if detail.chartPending}
             <p class="pending" role="status">
               {chartWaitExpired
-                ? 'The route and elevation profile are taking longer than expected. Reopen this activity to try again.'
-                : 'Preparing the route and elevation profile from the FIT file…'}
+                ? 'This is taking longer than expected. Reopen the activity to try again.'
+                : 'Preparing the route and elevation profile…'}
             </p>
           {/if}
 
@@ -671,10 +667,9 @@
           <div class="inset">
             <h3>FIT file</h3>
             {#if detail.fit}
-              <p class="muted">The recording from the game, for Strava, Garmin Connect or any training app.</p>
               <a class="button primary" href="/api/me/activities/{detail.id}/fit" download>Download FIT file</a>
             {:else}
-              <p class="muted">The game saved no FIT file for this activity.</p>
+              <p class="muted">No FIT file was saved.</p>
             {/if}
           </div>
 

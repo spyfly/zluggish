@@ -69,7 +69,7 @@ export interface CompanionStatus {
     /** False when the server certificate changed since, and the app no longer connects until it is patched again. */
     readonly current: boolean;
   } | null;
-  readonly tlsMode: 'managed' | 'legacy' | 'custom' | 'disabled';
+  readonly tlsMode: 'managed' | 'legacy' | 'custom';
   readonly serverAddress: string;
 }
 
@@ -134,10 +134,10 @@ const make = Effect.gen(function* () {
       });
     }
 
-    if (mode === 'disabled' || !material) {
+    if (!material) {
       throw new ApplicationError({
         status: 409,
-        message: 'The Zwift API serves plain HTTP on this server, so there is no certificate for the app to trust.',
+        message: 'The server certificate is not ready. Restart the server and try again.',
       });
     }
 

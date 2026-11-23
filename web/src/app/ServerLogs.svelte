@@ -38,7 +38,7 @@
 </div>
 <div id="server-log-output" hidden={!open}>
   {#if open}
-    <p>Recent entries from this server process, newest first.</p>
+    <p>Newest first.</p>
     {#if loading}<p role="status">Loading logs…</p>{/if}
     {#if errorMessage}<p role="alert">{errorMessage}</p>{/if}
     {#if entries.length}

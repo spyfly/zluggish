@@ -141,8 +141,8 @@ export async function run(argv: Array<string>, output: (message: string) => void
           await accounts.changePassword(playerId, password, values.admin ?? false);
           output(
             values.admin
-              ? 'Account recovered and enabled with the administrator role; previous tokens revoked'
-              : 'Account recovered; enabled state and role preserved; previous tokens revoked',
+              ? 'Password set. Account enabled as administrator and signed out everywhere.'
+              : 'Password set. Account signed out everywhere.',
           );
         } finally {
           accounts.close();

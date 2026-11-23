@@ -47,7 +47,7 @@ export const gamePage = Effect.fn('game.page')(function* (c: Context, page: Game
       ? {
           ...shown,
           warning:
-            'This server uses the shared Zwift certificate, whose private key is public. Others on your network could read your Zwift traffic, password included. Ask the server administrator to set up a server certificate.',
+            'This server uses the shared Zwift certificate, whose private key is public. Others on your network can read your Zwift traffic, including your password. Ask the server administrator to replace it.',
         }
       : shown;
 

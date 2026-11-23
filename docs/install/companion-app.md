@@ -30,7 +30,7 @@ Do this once as the administrator, and again for a new Companion version.
      swaps in its own certificate. This takes seconds and needs nothing else.
    - The app from the Play Store, as an `.apk`, or as an `.apks`, `.xapk` or `.apkm` bundle of split APKs. The server
      rebuilds its resources, which needs the Java tools. See below.
-3. In the web app, open **Manage → Companion** and drop the file on **Upload Zwift Companion**.
+3. In the web app, open **Manage → Companion** and drop the file on **Upload Companion**.
 
 The server signs the app with its own key, kept in `storage/companion/signer.pem`. Android installs an update only
 when it carries the same signature, so keep backups of storage: with a new key, every rider uninstalls once. Backups

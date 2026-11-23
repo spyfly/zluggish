@@ -70,8 +70,8 @@
 
 {#snippet switcher(name: string)}
   <p class="switch">
-    {name}.
-    <a href="/apps" onclick={(event) => go(event, '/apps')}>Choose another phone</a>
+    {name} ·
+    <a href="/apps" onclick={(event) => go(event, '/apps')}>Other systems</a>
   </p>
 {/snippet}
 
@@ -86,70 +86,45 @@
 {:else if platform === 'ios'}
   <section class="panel" aria-labelledby="companion-ios">
     {@render switcher('iPhone and iPad')}
-    <h2 id="companion-ios">Companion on iPhone and iPad cannot use this server</h2>
-    <p class="lead">
-      Companion connects only to servers it trusts. On Android this server hands out a copy of the app that trusts it.
-      Apple does not allow that on iOS:
-    </p>
-    <ul class="reasons">
-      <li>
-        <strong>App Store apps are locked.</strong> Each copy is encrypted for the Apple ID that downloaded it, so it cannot
-        be changed to trust another server.
-      </li>
-      <li>
-        <strong>iOS runs only apps that Apple signed.</strong> Installing a changed app takes an Apple developer account,
-        and the free kind makes you reinstall it every 7 days.
-      </li>
-      <li>
-        <strong>An added certificate is not enough.</strong> iOS fully trusts only certificates that can vouch for other
-        sites. This server's certificate deliberately cannot, so it is never a risk to the rest of your phone.
-      </li>
-    </ul>
-    <p class="hint">Use Companion on an Android phone or tablet instead. Zwift itself rides fine from a computer.</p>
+    <h2 id="companion-ios">Not supported on iPhone and iPad</h2>
+    <p class="lead">iOS does not allow a patched Companion. Use an Android phone or tablet instead.</p>
   </section>
 {:else if platform === 'android'}
   <section class="panel" aria-label="Android setup steps">
-    {@render switcher('Setting up Android')}
+    {@render switcher('Android')}
 
     {#if status.app && !status.app.current}
       <p class="stale" role="status">
-        The server certificate changed after this app was made, so it cannot connect yet.
-        {#if administrator}Upload the app again under {@render manageLink()}.{:else}Ask the server administrator to
-          update it.{/if}
+        This app was made for an old certificate and cannot connect.
+        {#if administrator}Update it under {@render manageLink()}.{:else}Ask the server administrator to update it.{/if}
       </p>
     {/if}
 
     <ol class="walk">
       <li>
         <h2>Remove the Play Store version</h2>
-        <p>
-          Android updates an app only with one signed by the same key. If Zwift Companion came from the Play Store or
-          another site, uninstall it first.
-        </p>
-        <p class="hint">Skip this when you update an app you installed from this page.</p>
+        <p>Uninstall Zwift Companion if it came from the Play Store or another site.</p>
+        <p class="hint">Skip this when updating an app downloaded here.</p>
       </li>
       <li>
         <h2>Download the app</h2>
         {#if status.app}
-          <p>Open this page on the phone, then download Companion patched for this server.</p>
+          <p>Download it on the phone.</p>
           <a class="download" class:muted-action={!status.app.current} href="/api/companion/app" download
             >Download Companion {status.app.versionName}</a
           >
           <p class="hint">{megabytes(status.app.bytes)}, patched on {day(status.app.createdAt)}.</p>
         {:else}
           <p class="empty">
-            There is no app on this server yet.
-            {#if administrator}Upload one under {@render manageLink()}.{:else}Ask the server administrator to add it.{/if}
+            Not added yet.
+            {#if administrator}Upload it under {@render manageLink()}.{:else}Ask the server administrator to add it.{/if}
           </p>
         {/if}
       </li>
       <li>
         <h2>Install it</h2>
-        <p>
-          Open the downloaded file. Android asks whether your browser may install apps: allow it, then select
-          <strong>Install</strong>.
-        </p>
-        <p class="hint">Google Play Protect may warn about an unknown app. Select <strong>Install anyway</strong>.</p>
+        <p>Open the downloaded file, allow your browser to install apps, then select <strong>Install</strong>.</p>
+        <p class="hint">If Play Protect warns, select <strong>Install anyway</strong>.</p>
       </li>
       <li>
         <h2>Send Companion to this server</h2>
@@ -158,7 +133,7 @@
             href="https://github.com/x-falcon/Virtual-Hosts/releases/latest"
             target="_blank"
             rel="noopener noreferrer">Virtual Hosts</a
-          >, save these lines as <strong>hosts.txt</strong> on the phone, and select the file in Virtual Hosts:
+          >, save these lines as <strong>hosts.txt</strong> and select the file in Virtual Hosts:
         </p>
         <div class="command">
           <code>{hosts}</code>
@@ -169,13 +144,13 @@
           {/if}
         </div>
         <p class="hint">
-          Turn off <strong>Private DNS</strong> in the Android settings. Leave cdn.zwift.com out: Companion loads its images
-          from Zwift. If the server runs its own DNS, set it as the Wi-Fi network's DNS instead.
+          Turn off <strong>Private DNS</strong> in Android settings. While Virtual Hosts is on, every Companion on the phone
+          connects here.
         </p>
       </li>
       <li>
         <h2>Sign in</h2>
-        <p>Open Companion and sign in with your account on this server.</p>
+        <p>Open Companion and sign in with your Zluggish account.</p>
       </li>
     </ol>
   </section>
@@ -230,17 +205,6 @@
   }
   .switch a:hover {
     color: var(--text);
-  }
-
-  .reasons {
-    margin: 0;
-    padding-left: 1.2rem;
-  }
-  .reasons li {
-    margin: 0 0 0.75rem;
-  }
-  .reasons li::marker {
-    color: var(--muted);
   }
 
   .walk {

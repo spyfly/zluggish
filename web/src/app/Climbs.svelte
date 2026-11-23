@@ -70,10 +70,7 @@
 {:else if climbs.length === 0}
   <section class="panel narrow">
     <h2>No climb portals ridden yet</h2>
-    <p>
-      Pick a climb under Climb in the launcher before you start riding. Once you reach the top, it shows up here with
-      your time.
-    </p>
+    <p>Choose a climb under <strong>Climb</strong> in the launcher, then ride to the top.</p>
   </section>
 {:else}
   <section class="climbs" aria-label="Climb portals">

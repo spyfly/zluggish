@@ -153,8 +153,7 @@
       <dd>{zwiftVersion || 'Unknown'}</dd>
     </dl>
     <p class="star">
-      Enjoying Zluggish? Please
-      <a href="https://zluggish.com" target="_blank" rel="noopener noreferrer">star us on GitHub</a>.
+      <a href="https://github.com/zluggish/zluggish" target="_blank" rel="noopener noreferrer">Source on GitHub</a>
     </p>
   </div>
 </dialog>

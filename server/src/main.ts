@@ -110,9 +110,10 @@ const serve = Effect.fn('server.start')(function* () {
   const tls = owner.runtime.effects.runSync(TlsService);
   const material = tls.material();
 
-  if (material) {
-    listener.tls = material;
+  if (!material) {
+    throw new ConfigError('The Zwift API requires a TLS certificate.');
   }
+  listener.tls = material;
 
   const server = yield* listening(() => startHttp(app, listener), closeHttp);
 
@@ -181,9 +182,9 @@ const serve = Effect.fn('server.start')(function* () {
     },
   });
 
-  console.log(
-    'Use Zluggish only on a network that you trust. Other devices on the network can read the passwords that riders type.',
-  );
+  if (tls.mode() === 'legacy') {
+    console.log('Zwift traffic, passwords included, can be read on this network. Use a trusted network only.');
+  }
 
   if (web) {
     const bind = webConfig.host ?? config.network.host;
@@ -200,7 +201,7 @@ const serve = Effect.fn('server.start')(function* () {
 
     if (setupKey) {
       console.log(
-        `============================================================\nZluggish first-time setup\nOpen: ${address}/setup\nSetup key: ${setupKey}\nThis key works until setup is complete or the server stops.\n============================================================`,
+        `============================================================\nZluggish first-time setup\nOpen: ${address}/setup\nSetup key: ${setupKey}\nValid until setup is complete or the server stops.\n============================================================`,
       );
     }
   }

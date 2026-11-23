@@ -638,18 +638,18 @@
       return;
     }
     const who = name(selected);
-    const progress = selected.connected ? ` ${who} is riding now and can lose unsaved ride progress.` : '';
+    const progress = selected.connected ? ` ${who} is riding now and may lose unsaved progress.` : '';
 
     const choices = {
       disable: {
         title: `Disable ${who}?`,
-        detail: `${who} cannot sign in until you enable the account again. A ride in progress can still be saved for up to four hours.`,
+        detail: `${who} cannot sign in. A ride in progress can still be saved for four hours.`,
         label: 'Disable',
         destructive: true,
       },
       enable: {
         title: `Enable ${who}?`,
-        detail: `${who} can sign in again. Old sessions stay ended.`,
+        detail: `${who} can sign in again.`,
         label: 'Enable',
         destructive: false,
       },
@@ -657,25 +657,25 @@
         selected.role === 'administrator'
           ? {
               title: `Remove the administrator role from ${who}?`,
-              detail: `${who} can no longer open Manage. All sessions of ${who} end.${progress}`,
+              detail: `${who} loses access to Manage and is signed out everywhere.${progress}`,
               label: 'Remove administrator',
               destructive: true,
             }
           : {
               title: `Give the administrator role to ${who}?`,
-              detail: `${who} can manage users and the server. All sessions of ${who} end.${progress}`,
+              detail: `${who} can manage users and the server, and is signed out everywhere.${progress}`,
               label: 'Make administrator',
               destructive: false,
             },
       'revoke-sessions': {
-        title: `End all sessions of ${who}?`,
-        detail: `${who} must sign in again everywhere. This also stops a ride in progress.${progress}`,
-        label: 'End sessions',
+        title: `Sign ${who} out everywhere?`,
+        detail: `This also stops a ride in progress.${progress}`,
+        label: 'Sign out everywhere',
         destructive: true,
       },
       password: {
         title: `Set a new password for ${who}?`,
-        detail: `All sessions of ${who} end.${progress}`,
+        detail: `${who} is signed out everywhere.${progress}`,
         label: 'Set password',
         destructive: false,
       },
@@ -713,11 +713,11 @@
 
     const messages = {
       disable: result.completion_deadline
-        ? 'Disabled. The current ride can be saved for up to four hours. A server restart ends this permission.'
+        ? 'Disabled. The current ride can be saved for four hours, unless the server restarts.'
         : 'Disabled.',
       enable: 'Enabled.',
       role: result.role === 'administrator' ? 'Administrator role given.' : 'Administrator role removed.',
-      'revoke-sessions': 'Sessions ended.',
+      'revoke-sessions': 'Signed out everywhere.',
       password: 'Password set.',
     } satisfies Record<UserAction, string>;
 
@@ -790,11 +790,7 @@
   async function regenerate() {
     regenerating = false;
     await api(ignored, '/api/me/power-curves', 'POST', { confirm: true, create: rebuild });
-    done(
-      rebuild
-        ? 'Regenerating power curves. They fill in as each saved activity is processed.'
-        : 'Power curves deleted. They fill in again as you ride.',
-    );
+    done(rebuild ? 'Regenerating power curves.' : 'Power curves deleted. They fill in again as you ride.');
   }
 
   function focusFirst(node: HTMLElement) {
@@ -991,7 +987,7 @@
     {:else if !user}
       {#if path === '/setup' && complete}
         <section class="panel narrow">
-          <p>Setup is complete. Sign in with your login name and password.</p>
+          <p>Setup complete.</p>
           <button class="primary" onclick={() => navigate('/sign-in')}>Go to sign-in</button>
         </section>
       {:else}
@@ -1003,9 +999,7 @@
           }}
         >
           {#if !complete}
-            <p class="lead">
-              Create the first administrator for this server. Find the setup key in the server console.
-            </p>
+            <p class="lead">Create the first administrator.</p>
             {#if keyAccepted}
               <div class="accepted" role="status">
                 <span><span class="tick" aria-hidden="true">✓</span> Setup key accepted</span>
@@ -1036,7 +1030,7 @@
                 required
                 maxlength={200}
                 autocomplete="off"
-                hint="Case, spaces and hyphens do not matter."
+                hint="Find it in the server console."
                 errors={errors('sign-in', 'key')}
               />
             {/if}
@@ -1060,15 +1054,11 @@
           {/if}
           {#if !complete && keyAccepted && mode === 'existing'}
             <div class="setup-picker">
-              <label for="setup-user">User</label>
-              <p id="setup-user-hint" class="muted">
-                Choose a user already on this server to make them the first administrator.
-              </p>
+              <label for="setup-user">User to make administrator</label>
               <select
                 id="setup-user"
                 bind:value={setupUserId}
                 required
-                aria-describedby="setup-user-hint"
                 onchange={() => {
                   password = '';
                 }}
@@ -1085,12 +1075,10 @@
                 {/each}
               </select>
               {#if setupUsers.some((r) => !r.has_password)}
-                <p class="muted">
-                  Users without passwords need a password set with the server CLI before they can be used for setup.
-                </p>
+                <p class="muted">Users without a password need one set with the server CLI first.</p>
               {/if}
               {#if !setupUsers.some((r) => r.enabled && r.has_password)}
-                <p class="muted">No users are available for setup. Create a new user to continue.</p>
+                <p class="muted">No eligible users. Create a new user instead.</p>
               {/if}
             </div>
           {/if}
@@ -1138,7 +1126,7 @@
     {:else if manage && administrator}
       <div>
         {#if path === '/manage/companion'}
-          <CompanionManage {api} csrf={() => csrf} />
+          <CompanionManage {api} {navigate} csrf={() => csrf} />
         {:else if path === '/manage/zwift-android'}
           <ZwiftAndroidManage {api} {navigate} csrf={() => csrf} />
         {:else if path === '/manage/server'}
@@ -1156,9 +1144,7 @@
 
           <section class="panel">
             <h2>Backups</h2>
-            <p class="muted">
-              Backups are saved in storage/backups. The server keeps the 10 most recent nightly backups.
-            </p>
+            <p class="muted">Saved nightly in storage/backups. The 10 most recent are kept.</p>
             <button disabled={busy || backingUp} onclick={() => void createBackup()}>Create backup</button>
             {#if backupMessage}<p role="status">{backupMessage}</p>{/if}
           </section>
@@ -1190,7 +1176,7 @@
             >
               <h2>Bots</h2>
               {#if connected.length === 0}
-                <p class="muted">Bot commands act around a user who is riding now. Nobody is riding.</p>
+                <p class="muted">Nobody is riding. Bot commands need a rider.</p>
               {:else}
                 <label for="bot-user">User</label>
                 <select id="bot-user" bind:value={botUser} required>
@@ -1224,7 +1210,7 @@
           <section class="panel">
             <h2>World settings</h2>
             {#if worldSettings.length === 0}
-              <p class="muted">No world settings are stored yet. Users create them with blob and peloton commands.</p>
+              <p class="muted">No world settings yet. Riders create them with blob and peloton commands.</p>
             {:else}
               <div class="pills" role="group" aria-label="World settings">
                 {#each worldSettings as item (item.id)}<button
@@ -1381,9 +1367,6 @@
               void run(create, 'create');
             }}
           >
-            <p class="muted lead">
-              The user signs in with this login name and password. New users have no administrator role.
-            </p>
             <div class="pair">
               <TextField
                 id="new-first"
@@ -1500,9 +1483,7 @@
                   }}
                 >
                   <h2>{selected.has_password ? 'Password' : 'Set a password'}</h2>
-                  {#if !selected.has_password}<p class="muted">
-                      This user cannot sign in until a password is set.
-                    </p>{/if}
+                  {#if !selected.has_password}<p class="muted">Needed to sign in.</p>{/if}
                   <TextField
                     id="target-password"
                     label="New password"
@@ -1539,7 +1520,7 @@
                     <div>
                       <h3>Sign-in</h3>
                       <p class="muted">
-                        {selected.enabled ? 'This user can sign in.' : 'Disabled. This user cannot sign in.'}
+                        {selected.enabled ? 'Enabled' : 'Disabled'}
                       </p>
                     </div>
                     {#if selected.enabled}<button class="danger" disabled={busy} onclick={() => ask('disable')}
@@ -1550,9 +1531,7 @@
                     <div>
                       <h3>Role</h3>
                       <p class="muted">
-                        {selected.role === 'administrator'
-                          ? 'Administrator. Can manage users and the server.'
-                          : 'User. Rides and manages their own account.'}
+                        {selected.role === 'administrator' ? 'Administrator' : 'User'}
                       </p>
                     </div>
                     <button class:danger={selected.role === 'administrator'} disabled={busy} onclick={() => ask('role')}
@@ -1562,9 +1541,11 @@
                   <li>
                     <div>
                       <h3>Sessions</h3>
-                      <p class="muted">Signs the user out everywhere, also in the game.</p>
+                      <p class="muted">Including in the game</p>
                     </div>
-                    <button class="danger" disabled={busy} onclick={() => ask('revoke-sessions')}>End sessions</button>
+                    <button class="danger" disabled={busy} onclick={() => ask('revoke-sessions')}
+                      >Sign out everywhere</button
+                    >
                   </li>
                 </ul>
               </section>
@@ -1589,7 +1570,7 @@
             <button class="primary" disabled={busy} onclick={() => navigate('/manage/users/new')}>Create user</button>
           </div>
           {#if users.length <= 1}
-            <p class="empty">No other users yet. Create a user so that somebody else can ride on this server.</p>
+            <p class="empty">No other users yet.</p>
           {/if}
           {#if filtered.length === 0 && users.length > 1}
             <p class="empty">No users match. Clear the search.</p>
@@ -1658,18 +1639,12 @@
               ><input type="checkbox" bind:checked={ghosts} disabled={busy} onchange={saveGhosts} /> Ride with ghosts</label
             >
             <p class="muted">
-              Every ride you finish is kept as a ghost of that route. The next time you ride the same route, your
-              earlier efforts appear on the road beside you, so you can race your past self. Type <kbd>.regroup</kbd> in
-              chat to bring them back to you.
+              Saved rides appear beside you on the same route. Type <kbd>.regroup</kbd> in chat to bring them back.
             </p>
           </section>
           <section class="panel narrow curves" aria-labelledby="curves-title">
             <h2 id="curves-title">Power curves</h2>
-            <p class="muted">
-              Zwift shows your best power for every duration, from short sprints to long climbs, worked out from the
-              activities saved on this server. If those numbers look wrong, for example after importing old activities,
-              regenerate them.
-            </p>
+            <p class="muted">Regenerate if your best power looks wrong, such as after importing old activities.</p>
             <button
               type="button"
               bind:this={regenerateButton}
@@ -1878,10 +1853,9 @@
       <h2 id="curves-dialog-title">Regenerate power curves?</h2>
       <p id="curves-dialog-detail">
         {#if rebuild}
-          Your current power curves are deleted and rebuilt from your saved activities. Rebuilding takes some time: the
-          curves fill in gradually as each activity is processed.
+          Your power curves are rebuilt from saved activities. They fill in gradually.
         {:else}
-          Your current power curves are deleted and stay empty until your next ride.
+          Your power curves are deleted and stay empty until your next ride.
         {/if}
       </p>
       <label class="check"><input type="checkbox" bind:checked={rebuild} /> Rebuild from my saved activities</label>

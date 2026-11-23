@@ -35,27 +35,24 @@
 
   let filenames = $state<Array<string>>([]);
 
-  const exportDetails = new Map(
+  const exportDetails = new Map<string, { title: string; description?: string }>(
     Object.entries({
       'profile.bin': {
         title: 'Rider profile and progress',
-        description: 'Your rider details, avatar and equipped gear, XP, Drops, and lifetime activity totals.',
+        description: 'Rider details, avatar, gear, XP, Drops and lifetime totals.',
       },
       'achievements.bin': {
         title: 'Achievements',
-        description: 'Your earned achievement badges and completion records.',
       },
       'user_storage.bin': {
         title: 'Game settings and bike upgrades',
-        description: 'Your in-game preferences, garage selections, bike customizations, and bike upgrade progress.',
+        description: 'In-game preferences, garage, bike customizations and upgrades.',
       },
       'streaks.bin': {
         title: 'Riding streaks',
-        description: 'Your current and best riding streaks, with their distance, elevation, and calorie totals.',
       },
       'economy_config.txt': {
         title: 'Level and reward rules',
-        description: 'The cycling and running level tables, including XP thresholds, Drops rewards, and unlocks.',
       },
     }),
   );
@@ -119,7 +116,6 @@
 </script>
 
 {#if path === '/profile-data'}
-  <p>Choose how to import your profile data.</p>
   <nav class="import-options" aria-label="Import source">
     <a
       href="/profile-data/local"
@@ -129,7 +125,7 @@
       }}
     >
       <span class="option-title">Import from local files</span>
-      <span class="option-description">Upload user data from files on your computer.</span>
+      <span class="option-description">Profile files from your computer</span>
     </a>
     <a
       href="/zwift"
@@ -139,7 +135,7 @@
       }}
     >
       <span class="option-title">Import from Zwift</span>
-      <span class="option-description">Connect to Zwift and download your user data.</span>
+      <span class="option-description">Download from your Zwift account</span>
     </a>
   </nav>
 {:else if path === '/profile-data/local' || path === '/zwift'}
@@ -157,15 +153,11 @@
 {#if path === '/profile-data'}
   <section class="panel">
     <h2>Export your user data</h2>
-    <p>Download individual files to back up your data or transfer it to another Zluggish server using Import.</p>
-    <p class="export-help">
-      For all available profile data, download every file. The .bin files are binary data; economy_config.txt contains
-      JSON.
-    </p>
+    <p>Download every file to back up your data or move it to another Zluggish server.</p>
     {#each filenames as filename (filename)}
       <div class="export-file">
         <h3>{exportDetails.get(filename)?.title ?? filename}</h3>
-        {#if exportDetails.get(filename)}<p>{exportDetails.get(filename)?.description}</p>{/if}
+        {#if exportDetails.get(filename)?.description}<p>{exportDetails.get(filename)?.description}</p>{/if}
         <a href={`/api/me/export/${encodeURIComponent(filename)}`} download={filename}>Download {filename}</a>
       </div>
     {:else}
@@ -287,9 +279,6 @@
 {/if}
 
 <style>
-  .export-help {
-    color: var(--muted);
-  }
   .export-file {
     padding: 1rem 0;
     border-top: 1px solid var(--line);

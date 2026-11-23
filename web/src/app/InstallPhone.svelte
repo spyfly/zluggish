@@ -74,7 +74,7 @@
   const day = (iso: string) => new Date(iso).toLocaleDateString([], { year: 'numeric', month: 'long', day: 'numeric' });
 
   $effect(() => {
-    if (platform === 'android' && status && status.mode !== 'disabled') {
+    if (platform === 'android' && status) {
       api(zwiftAndroidStatus, '/api/install/android')
         .then((body) => {
           zwift = body;
@@ -107,8 +107,8 @@
 
 {#snippet switcher()}
   <p class="switch">
-    {platform === 'ios' ? names.ios : `Setting up ${names[platform]}`}.
-    <a href="/apps" onclick={(event) => go(event, '/apps')}>Choose another system</a>
+    {names[platform]} ·
+    <a href="/apps" onclick={(event) => go(event, '/apps')}>Other systems</a>
   </p>
 {/snippet}
 
@@ -121,45 +121,24 @@
 {#if platform === 'ios'}
   <section class="panel" aria-labelledby="install-ios">
     {@render switcher()}
-    <h2 id="install-ios">Zwift on iPhone and iPad cannot use this server</h2>
-    <p class="lead">Zwift connects only to servers it trusts, and iOS gives no way to change that:</p>
-    <ul class="reasons">
-      <li>
-        <strong>Zwift keeps its own list of trusted servers.</strong> On a computer or a rooted Android device the setup
-        adds this server to that list. On iOS the list is sealed inside the app.
-      </li>
-      <li>
-        <strong>App Store apps are locked.</strong> Each copy is encrypted for the Apple ID that downloaded it, so it cannot
-        be changed to trust another server.
-      </li>
-      <li>
-        <strong>iOS runs only apps that Apple signed.</strong> Installing a changed app takes an Apple developer account,
-        and the free kind makes you reinstall it every 7 days.
-      </li>
-    </ul>
-    <p class="hint">Ride from a Windows, macOS or Linux computer instead.</p>
+    <h2 id="install-ios">Not supported on iPhone and iPad</h2>
+    <p class="lead">iOS does not allow a patched Zwift. Ride from a computer or an Android device instead.</p>
   </section>
 {:else if status === null}
   {#if !failure}<p role="status">Loading…</p>{/if}
-{:else if status.mode === 'disabled'}
-  <section class="panel" aria-labelledby="install-plain">
-    {@render switcher()}
-    <h2 id="install-plain">Nothing to install</h2>
-    <p>This server talks to Zwift without a certificate. Ask the server administrator how to connect.</p>
-  </section>
 {:else if status.mode === 'legacy'}
   <section class="panel">
     {@render switcher()}
-    <p>Ask the server administrator to replace the server certificate before setting up Zwift.</p>
+    <p>Ask the server administrator to replace the shared certificate first.</p>
   </section>
 {:else if platform === 'android'}
   <section class="panel" aria-label="Android setup steps">
     {@render switcher()}
     {#if zwift?.app && !zwift.app.current}
       <p class="risk" role="status">
-        The server certificate changed after Zwift for Zluggish was built, so it cannot connect yet.
-        {#if administrator}Build it again under {@render manageLink()}.{:else}Ask the server administrator to build it
-          again.{/if}
+        This app was built for an old certificate and cannot connect.
+        {#if administrator}Build it again under {@render manageLink()}.{:else}Ask the server administrator to rebuild
+          it.{/if}
       </p>
     {/if}
 
@@ -172,28 +151,24 @@
           <p role="status">Loading…</p>
         {:else if zwift.app?.current}
           <p>
-            A copy of Zwift made for this server. It installs next to Zwift from Google Play, so you can keep both.
-            {#if !onAndroid}Open this page on your Android phone or tablet.{/if}
+            Installs next to Zwift from Google Play.
+            {#if !onAndroid}Download it on the Android device.{/if}
           </p>
           <a class="download" href="/api/install/android/app" download>Download Zwift {zwift.app.versionName}</a>
           <p class="hint">
-            {megabytes(zwift.app.bytes)}, built on {day(zwift.app.createdAt)}. Use Wi-Fi, and keep twice that space
-            free.
+            {megabytes(zwift.app.bytes)}, built {day(zwift.app.createdAt)}. Needs twice that space free.
           </p>
         {:else if !zwift.app}
           <p class="empty">
-            There is no Zwift for Android on this server yet.
+            Not added yet.
             {#if administrator}Upload it under {@render manageLink()}.{:else}Ask the server administrator to add it.{/if}
           </p>
         {/if}
       </li>
       <li>
         <h2>Install it</h2>
-        <p>
-          Open the downloaded file. Android asks whether your browser may install apps: allow it, then select
-          <strong>Install</strong>.
-        </p>
-        <p class="hint">Google Play Protect may warn about an unknown app. Select <strong>Install anyway</strong>.</p>
+        <p>Open the downloaded file, allow your browser to install apps, then select <strong>Install</strong>.</p>
+        <p class="hint">If Play Protect warns, select <strong>Install anyway</strong>.</p>
       </li>
       <li>
         <h2>Send Zwift to this server</h2>
@@ -202,23 +177,17 @@
             href="https://github.com/x-falcon/Virtual-Hosts/releases/latest"
             target="_blank"
             rel="noopener noreferrer">Virtual Hosts</a
-          >, save these lines as <strong>hosts.txt</strong> on the device, and select the file in Virtual Hosts:
+          >, save these lines as <strong>hosts.txt</strong> and select the file in Virtual Hosts:
         </p>
         {@render code('hosts')}
         <p class="hint">
-          Turn off <strong>Private DNS</strong> in the Android settings. If the server runs its own DNS, set it as the Wi-Fi
-          network’s DNS instead.
+          Turn off <strong>Private DNS</strong> in Android settings.
         </p>
       </li>
       <li>
         <h2>Ride</h2>
-        <p>
-          Turn on Virtual Hosts, open <strong>Zwift for Zluggish</strong> and sign in with your account on this server.
-        </p>
-        <p class="hint">
-          The first start unpacks the game files, which takes a few minutes. Turn Virtual Hosts off before you open
-          Zwift from Google Play.
-        </p>
+        <p>Turn on Virtual Hosts, open <strong>Zwift for Zluggish</strong> and sign in with your Zluggish account.</p>
+        <p class="hint">The first start takes a few minutes. Turn Virtual Hosts off to use Zwift from Google Play.</p>
       </li>
     </ol>
   </section>
@@ -228,41 +197,38 @@
     <ol class="walk">
       <li>
         <h2>Start Zwift once</h2>
-        <p>Install Zwift and start it once, so that it downloads its extra files. Then close it.</p>
-        <p class="hint">The file Zwift trusts servers from, cacert.pem, exists only after this first start.</p>
+        <p>Install Zwift, start it once so it creates cacert.pem, then close it.</p>
       </li>
       <li>
         <h2>Add the certificate</h2>
         <p>
-          Download the certificate and add it to the end of <strong class="path">{data}/cacert.pem</strong>. With
+          Append the certificate to <strong class="path">{data}/cacert.pem</strong>. With
           <code class="inline">adb</code> as root:
         </p>
         <a class="download" href="/api/tls/certificate" download>Download certificate</a>
         {@render code('certificate')}
-        <p class="hint">Keep the owner and permissions of cacert.pem as they are.</p>
+        <p class="hint">Keep the file's owner and permissions.</p>
       </li>
       <li>
         <h2>Send Zwift to this server</h2>
-        <p>Add this line to the end of <strong>/etc/hosts</strong> on the device:</p>
+        <p>Append this line to <strong>/etc/hosts</strong>:</p>
         {@render code('etcHosts')}
         <p class="hint">
-          Without an editor on the device, copy the file over with <code class="inline">adb pull /etc/hosts</code>, edit
-          it, and put it back with <code class="inline">adb push hosts /etc/hosts</code>. A router that can change DNS
-          records works too.
+          Or edit it on a computer with <code class="inline">adb pull /etc/hosts</code> and
+          <code class="inline">adb push hosts /etc/hosts</code>.
         </p>
       </li>
       <li>
         <h2>Ride</h2>
-        <p>Start Zwift and sign in with your account on this server.</p>
+        <p>Start Zwift and sign in with your Zluggish account.</p>
       </li>
     </ol>
   </section>
 
   <section class="panel" aria-labelledby="install-rooted-certificate">
     <h2 id="install-rooted-certificate">Check the certificate</h2>
-    <p>The downloaded file should have this fingerprint.</p>
     <div class="prints">
-      <Fingerprint label="SHA-256 fingerprint" value={status.certificate.fingerprint256} />
+      <Fingerprint label="Fingerprint" value={status.certificate.fingerprint256} />
     </div>
   </section>
 {/if}
@@ -316,17 +282,6 @@
   }
   .switch a:hover {
     color: var(--text);
-  }
-
-  .reasons {
-    margin: 0;
-    padding-left: 1.2rem;
-  }
-  .reasons li {
-    margin: 0 0 0.75rem;
-  }
-  .reasons li::marker {
-    color: var(--muted);
   }
 
   .walk {

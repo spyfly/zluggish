@@ -350,23 +350,20 @@
   <section class="panel" aria-labelledby="zwift-android-app">
     <h2 id="zwift-android-app">Zwift for Android</h2>
     <p class="lead">
-      Upload Zwift once and the server adds its certificate, then publishes
-      <strong>Zwift for Zluggish</strong>, a copy that installs next to the original. Riders download it under
+      Upload Zwift and the server patches it to trust this server. Riders download it under
       <a href="/apps" onclick={(event) => go(event, '/apps')}>Apps</a>.
     </p>
 
     {#if !certificateReady}
       <p class="stale">
         {#if admin.tlsMode === 'legacy'}
-          Replace the server certificate before building Zwift for Android.
+          Replace the shared certificate before building Zwift for Android.
         {:else}
-          The Zwift API serves plain HTTP on this server, so there is no certificate for Zwift to trust.
+          This server has no certificate for Zwift to trust.
         {/if}
       </p>
     {:else if admin.app && !admin.app.current && admin.activity?.state !== 'running'}
-      <p class="stale">
-        The server certificate changed after this app was built, so riders cannot download it until it is built again.
-      </p>
+      <p class="stale">The certificate changed since this build. Build again so riders can download it.</p>
     {/if}
 
     {#if admin.app}
@@ -400,24 +397,21 @@
             disabled={working}
             onclick={() => act(() => api(zwiftAndroidAdminStatus, `${endpoint}/stop`, 'POST', {}))}>Stop build</button
           >
-          <p class="hint">You can leave this page. The build continues on the server.</p>
+          <p class="hint">The build continues if you leave this page.</p>
         {/if}
       </JobProgress>
     {/if}
 
     {#if !busy}
       <ol class="fetch">
-        <li>
-          Open <a href={apkMirror} target="_blank" rel="noopener noreferrer">Zwift on APKMirror</a> and select the newest
-          version.
-        </li>
-        <li>Download the variant marked <strong>BUNDLE 1 OBB</strong>: an .apkm file of about 4 GB.</li>
+        <li>Open <a href={apkMirror} target="_blank" rel="noopener noreferrer">Zwift on APKMirror</a>.</li>
+        <li>Download the <strong>BUNDLE 1 OBB</strong> variant, a large .apkm file.</li>
         <li>Drop it below.</li>
       </ol>
       {#if lowSpace && admin.disk.free !== null}
         <p class="stale" role="status">
-          The server has {megabytes(admin.disk.free)} free. Building Zwift takes about
-          {megabytes(admin.disk.recommended)}, so free up space on the server before you upload.
+          Only {megabytes(admin.disk.free)} free on the server. A build needs about
+          {megabytes(admin.disk.recommended)}.
         </p>
       {/if}
       <label
@@ -446,18 +440,13 @@
         />
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0-5 5m5-5 5 5M5 20h14" /></svg>
         <span class="title">{admin.app ? 'Upload a newer Zwift' : 'Upload Zwift'}</span>
-        <span class="detail">Drop the .apkm file here or choose it, up to {megabytes(admin.uploadLimit)}.</span>
+        <span class="detail">Drop or choose the .apkm file, up to {megabytes(admin.uploadLimit)}.</span>
       </label>
       {#if !admin.tools.ready && admin.tools.supported}
-        <p class="hint">
-          The first build also downloads Java and APKEditor, about {megabytes(admin.tools.downloadBytes)}.
-        </p>
+        <p class="hint">The first build downloads Java and APKEditor ({megabytes(admin.tools.downloadBytes)}).</p>
       {/if}
       {#if !admin.tools.ready && !admin.tools.supported}
-        <p class="stale">
-          No Java runtime is published for this server’s system. Install Java 11 or later on the server before you
-          upload.
-        </p>
+        <p class="stale">Install Java 11 or later on the server before you upload.</p>
       {/if}
     {/if}
     {#if uploadError}<p class="notice failed" role="alert">{uploadError}</p>{/if}
@@ -471,12 +460,9 @@
           <span class="name">{admin.original.name}</span>
           <span class="meta">{megabytes(admin.original.bytes)}, uploaded {day(admin.original.uploadedAt)}</span>
         </p>
-        <p class="hint">
-          The server keeps the last upload, so it can build the app again after the certificate changes. It does that on
-          its own when you rotate the certificate.
-        </p>
+        <p class="hint">Kept to rebuild the app automatically when the certificate rotates.</p>
       {:else}
-        <p class="hint">No upload is saved. Upload Zwift again to build the app for a new certificate.</p>
+        <p class="hint">No upload saved. A new certificate needs a fresh upload.</p>
       {/if}
       <div class="actions">
         {#if admin.original}
@@ -492,11 +478,8 @@
           <button
             type="button"
             disabled={working || busy}
-            onclick={() =>
-              act(
-                () => api(zwiftAndroidAdminStatus, `${endpoint}/app`, 'DELETE', {}),
-                'Removed Zwift for Zluggish from this server.',
-              )}>Remove the app</button
+            onclick={() => act(() => api(zwiftAndroidAdminStatus, `${endpoint}/app`, 'DELETE', {}), 'App removed.')}
+            >Remove the app</button
           >
         {/if}
       </div>

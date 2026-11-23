@@ -11,9 +11,8 @@ import { resolve } from 'node:path';
 - `managed`: the server generated its own key, kept in storage.
 - `legacy`: a configured or stored copy of the old shared Zwift certificate. Its private key is public.
 - `custom`: the files named by `tls.certFile` and `tls.keyFile`.
-- `disabled`: the API listener serves plain HTTP (`network.api.useCert` is false).
 */
-export type TlsMode = 'managed' | 'legacy' | 'custom' | 'disabled';
+export type TlsMode = 'managed' | 'legacy' | 'custom';
 
 interface TlsState {
   readonly source: Exclude<TlsMode, 'legacy'>;
@@ -56,10 +55,6 @@ const make = Effect.gen(function* () {
   const listeners = new Set<(material: CertificateMaterial) => void>();
 
   function initial(): TlsState {
-    if (!config.network.api.useCert) {
-      return { source: 'disabled', material: null };
-    }
-
     if (config.tls.certFile) {
       return { source: 'custom', material: certificates.readFiles(config.tls.certFile, config.tls.keyFile) };
     }
@@ -150,7 +145,7 @@ const make = Effect.gen(function* () {
   }
 
   return {
-    /** The current key and certificate, or null when the API listener serves plain HTTP. */
+    /** The current key and certificate, or null before first-start generation completes. */
     material: () => material,
     mode,
     status: Effect.fn('TlsService.status')(function* () {
@@ -178,10 +173,7 @@ const make = Effect.gen(function* () {
       if (source !== 'managed') {
         throw new ApplicationError({
           status: 409,
-          message:
-            source === 'custom'
-              ? 'This server uses the certificate files from its configuration. Replace those files to change it.'
-              : 'The Zwift API serves plain HTTP on this server, so it has no certificate.',
+          message: 'This server uses the certificate files from its configuration. Replace those files to change it.',
         });
       }
 

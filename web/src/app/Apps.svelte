@@ -57,14 +57,13 @@
       to: '/install/android',
       name: 'Android',
       detail: !android?.app
-        ? 'Not added to this server yet'
+        ? 'Not added yet'
         : android.app.current
-          ? `Zwift ${android.app.versionName} for this server`
-          : `Zwift ${android.app.versionName}, made for an old certificate`,
+          ? `Zwift ${android.app.versionName}`
+          : `Zwift ${android.app.versionName}, needs a rebuild`,
       tag: mark('android', 'This device'),
-      unavailable: tls?.mode === 'disabled',
     },
-    { to: '/install/android-rooted', name: 'Android, rooted', detail: 'Certificate and hosts file added by hand' },
+    { to: '/install/android-rooted', name: 'Android, rooted', detail: 'Manual setup with adb' },
     {
       to: '/install/ios',
       name: 'iPhone and iPad',
@@ -79,10 +78,10 @@
       to: '/companion/android',
       name: 'Android',
       detail: !companion?.app
-        ? 'Not added to this server yet'
+        ? 'Not added yet'
         : companion.app.current
-          ? `Companion ${companion.app.versionName} for this server`
-          : `Companion ${companion.app.versionName}, made for an old certificate`,
+          ? `Companion ${companion.app.versionName}`
+          : `Companion ${companion.app.versionName}, needs an update`,
       tag: mark('android', 'This phone'),
     },
     {
@@ -175,18 +174,10 @@
 
       {#if tlsFailure}
         <p class="failed" role="alert">{tlsFailure}</p>
-      {:else if tls?.mode === 'disabled'}
-        <p class="lead">
-          This server talks to Zwift without a certificate, so there is nothing to install. Ask the server administrator
-          how to connect.
-        </p>
       {:else if tls?.mode === 'legacy'}
-        <p class="lead">Ask the server administrator to replace the server certificate before setting up Zwift.</p>
+        <p class="lead">Ask the server administrator to replace the shared certificate first.</p>
       {:else if tls}
-        <p class="lead">
-          Zwift only talks to a server it trusts. The setup makes your device trust this server and sends Zwift here
-          instead of to Zwift's own servers.
-        </p>
+        <p class="lead">Connect Zwift to this server instead of Zwift's own.</p>
         {#if featured}
           <a class="setup" href={featured.to} onclick={(event) => go(event, featured.to)}>Set up {featured.name}</a>
           <p class="featured-detail">{featured.detail}</p>
@@ -225,9 +216,7 @@
       {#if companionFailure}
         <p class="failed" role="alert">{companionFailure}</p>
       {:else}
-        <p class="lead">
-          Companion only talks to a server it trusts. This server gives you a copy of the app that does.
-        </p>
+        <p class="lead">A Companion app patched for this server.</p>
         {@render rows(phones)}
         {#if companion && !companion.app}
           <p class="hint">
