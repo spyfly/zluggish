@@ -1,5 +1,6 @@
 <script lang="ts">
   import { t } from '../lib/i18n/index';
+  import SlowLoading from '../components/SlowLoading.svelte';
   let { load }: { load: () => Promise<{ entries: Array<string> }> } = $props();
 
   let open = $state(false);
@@ -40,7 +41,7 @@
 <div id="server-log-output" hidden={!open}>
   {#if open}
     <p>{t('newest_first')}</p>
-    {#if loading}<p role="status">{t('loading_logs')}</p>{/if}
+    {#if loading}<SlowLoading />{/if}
     {#if errorMessage}<p role="alert">{errorMessage}</p>{/if}
     {#if entries.length}
       <!-- svelte-ignore a11y_no_noninteractive_tabindex (the scroll region needs keyboard focus) -->

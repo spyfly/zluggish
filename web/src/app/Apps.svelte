@@ -1,5 +1,6 @@
 <script lang="ts">
   import { t } from '../lib/i18n/index';
+  import SlowLoading from '../components/SlowLoading.svelte';
   import type { z } from 'zod';
   import { onMount } from 'svelte';
   import { companionStatus } from './companion';
@@ -162,7 +163,7 @@
 {/snippet}
 
 {#if !loaded}
-  <p role="status">{t('loading')}</p>
+  <SlowLoading />
 {:else}
   <div class="apps">
     <section class="product zwift" aria-labelledby="apps-zwift">

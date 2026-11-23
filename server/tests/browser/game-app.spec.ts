@@ -79,6 +79,114 @@ async function signIn(page: Page, origin: string, id: number, password = 'test-p
   await page.waitForURL('**/user/**');
 }
 
+await test('web app resumes startup after the server reconnects', async (t) => {
+  const f = await browserFixture(t);
+  const page = await f.browser.newPage();
+  await page.route('**/health', (route) => route.fulfill({ status: 503, body: 'Unavailable' }));
+  await page.route('**/api/setup', (route) => route.abort());
+  await page.goto(`${f.webOrigin}/sign-in`);
+  await page.getByText(/^Server connection lost\.\.\.retrying in \d+s$/).waitFor();
+  assert.equal(
+    await page.getByText('Unable to connect to the server. Please try again once the connection is restored.').count(),
+    0,
+  );
+  await page.unroute('**/api/setup');
+  await page.unroute('**/health');
+  await page.getByRole('button', { name: 'Retry now' }).click();
+  await page.getByText('Server connection lost', { exact: false }).waitFor({ state: 'hidden' });
+  await page.getByText('Loading...', { exact: true }).waitFor({ state: 'hidden' });
+  await page.locator('form').first().waitFor();
+});
+
+await test('refreshing a signed-in page does not show the sign-in heading while loading', async (t) => {
+  const f = await browserFixture(t);
+  const page = await f.browser.newPage();
+  page.setDefaultTimeout(7000);
+  const rider = await f.accounts.create('Refresh Rider', 'test-password', 'refresh');
+  await webSignIn(page, f, rider);
+  await page.goto(`${f.webOrigin}/manage/companion`);
+  await page.getByRole('heading', { name: 'Companion for Android', exact: true }).waitFor();
+
+  let release!: () => void;
+  let started!: () => void;
+  const paused = new Promise<void>((resolve) => (release = resolve));
+  const requested = new Promise<void>((resolve) => (started = resolve));
+  await page.route('**/api/setup', async (route) => {
+    started();
+    await paused;
+    await route.continue();
+  });
+  try {
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await requested;
+    assert.equal(await page.locator('.bar').isVisible(), false);
+    assert.equal(await page.locator('p[role="status"]').count(), 0);
+    assert.equal(await page.getByRole('heading', { name: 'Sign in', exact: true }).count(), 0);
+    await page.getByText('This is taking longer than expected. The server may still be starting.').waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Reload this page' }).isVisible(), true);
+  } finally {
+    release();
+  }
+  await page.getByRole('heading', { name: 'Companion for Android', exact: true }).waitFor();
+});
+
+await test('companion page stays quiet briefly and offers help if its status is slow', async (t) => {
+  const f = await browserFixture(t);
+  const page = await f.browser.newPage();
+  page.setDefaultTimeout(7000);
+  const rider = await f.accounts.create('Companion Rider', 'test-password', 'companion');
+  await webSignIn(page, f, rider);
+  let release!: () => void;
+  let started!: () => void;
+  const paused = new Promise<void>((resolve) => (release = resolve));
+  const requested = new Promise<void>((resolve) => (started = resolve));
+  await page.route('**/api/manage/companion', async (route) => {
+    started();
+    await paused;
+    await route.continue();
+  });
+  try {
+    await page.goto(`${f.webOrigin}/manage/companion`, { waitUntil: 'domcontentloaded' });
+    await requested;
+    assert.equal(await page.getByText('Loading…', { exact: true }).isVisible(), false);
+    await page.getByText('This is taking longer than expected. The server may still be starting.').waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Reload this page' }).isVisible(), true);
+  } finally {
+    release();
+  }
+  await page.getByRole('heading', { name: 'Companion for Android' }).waitFor();
+});
+
+await test('android management stays quiet during a short load and explains a slow one', async (t) => {
+  const f = await browserFixture(t);
+  const page = await f.browser.newPage();
+  page.setDefaultTimeout(7000);
+  const rider = await f.accounts.create('Android Rider', 'test-password', 'android');
+  await webSignIn(page, f, rider);
+  let release!: () => void;
+  let started!: () => void;
+  const paused = new Promise<void>((resolve) => (release = resolve));
+  const requested = new Promise<void>((resolve) => (started = resolve));
+  await page.route('**/api/install/android', async (route) => {
+    started();
+    await paused;
+    await route.continue();
+  });
+  try {
+    await page.goto(`${f.webOrigin}/manage/android`, { waitUntil: 'domcontentloaded' });
+    await requested;
+    assert.equal(await page.getByText('Loading…', { exact: true }).isVisible(), false);
+    await page.getByText('This is taking longer than expected. The server may still be starting.').waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Reload this page' }).isVisible(), true);
+  } finally {
+    release();
+  }
+  await page
+    .getByRole('link', { name: /Zwift for Android/ })
+    .first()
+    .waitFor();
+});
+
 for (const javaScriptEnabled of [true, false]) {
   await test(`web-created rider, protected login and native POST with JavaScript ${javaScriptEnabled}`, async (t) => {
     const f = await browserFixture(t);

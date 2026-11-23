@@ -1,5 +1,6 @@
 <script lang="ts">
   import { t } from '../lib/i18n/index';
+  import SlowLoading from '../components/SlowLoading.svelte';
   import ActivityChart from './ActivityChart.svelte';
   import { tick } from 'svelte';
   import { slide } from 'svelte/transition';
@@ -655,7 +656,7 @@
 <p class="visually-hidden" role="status">{announcement}</p>
 
 {#if activities === null}
-  {#if !failure}<p class="delayed" role="status">{t('loading_activities')}</p>{/if}
+  {#if !failure}<SlowLoading />{/if}
 {:else if activities.length === 0 && page === 0}
   <section class="panel narrow">
     <p>{t('activities_list_empty')}</p>
@@ -736,10 +737,7 @@
           <a class="back" href="/activities" onclick={(e) => open(e, '/activities')}>{t('all_activities')}</a>
         {/if}
         {#if loading}
-          <div class="loading delayed" role="status">
-            <span class="bar" aria-hidden="true"></span>
-            <p class="muted">{t('loading_activity')}</p>
-          </div>
+          <div class="loading"><SlowLoading /></div>
         {/if}
         {#if !selectedId}
           <p class="muted">{t('activities_detail_empty')}</p>
@@ -871,14 +869,6 @@
       opacity: 0.45;
       transition: opacity 200ms 400ms;
     }
-    .detail .stale .loading p {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      overflow: hidden;
-      clip: rect(0 0 0 0);
-      white-space: nowrap;
-    }
   }
   /* On a phone, an open activity takes the screen; the list is one link away. */
   @media (max-width: 61.99rem) {
@@ -891,25 +881,11 @@
     }
   }
 
-  /* Fast loads show nothing; a slow one says so after a moment. */
-  .delayed {
-    animation: reveal 150ms ease-out 400ms both;
-  }
-  @keyframes reveal {
-    from {
-      opacity: 0;
-      visibility: hidden;
-    }
-  }
-
   .detail .panel {
     position: relative;
   }
   .detail .panel > * {
     transition: opacity 100ms;
-  }
-  .loading p {
-    margin: 0;
   }
   .bar {
     position: absolute;
@@ -938,9 +914,6 @@
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .delayed {
-      animation-duration: 1ms;
-    }
     .bar::after {
       width: 100%;
       opacity: 0.6;

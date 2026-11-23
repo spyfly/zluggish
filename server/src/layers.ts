@@ -25,6 +25,7 @@ import { JobsService } from '#src/services/jobs.service';
 import { ImportsService } from '#src/services/profile-import.service';
 import { DurabilityService } from '#src/services/durability.service';
 import { BackupService } from '#src/services/backup.service';
+import { AppReleasesService } from '#src/services/app-releases.service';
 import { CompanionService } from '#src/services/companion.service';
 import { ZwiftAndroidService } from '#src/services/zwift-android.service';
 import { TlsService } from '#src/services/tls.service';
@@ -73,6 +74,7 @@ const featuresLayer = Layer.mergeAll(
   BackupService.layer,
   CompanionService.layer,
   ZwiftAndroidService.layer,
+  AppReleasesService.layer,
   ConnectionsService.layer,
   IntegrationsService.layer,
   EventsService.layer,
@@ -110,6 +112,7 @@ export type AppServices =
   | DurabilityService
   | RetentionService
   | BackupService
+  | AppReleasesService
   | CompanionService
   | ZwiftAndroidService
   | TlsService

@@ -3,10 +3,12 @@ import { RuntimeContext } from '#src/context';
 import { ApplicationError } from '#src/errors';
 import type { ApkSigner } from '#src/repositories/apk.repository';
 import { ApkRepository, standaloneZwiftPackage } from '#src/repositories/apk.repository';
+import { AppReleaseRepository, releaseSources } from '#src/repositories/app-release.repository';
 import { CertificateRepository } from '#src/repositories/certificate.repository';
 import { CryptoRepository } from '#src/repositories/crypto.repository';
 import { AssetFiles } from '#src/repositories/files.repository';
 import { ToolchainRepository } from '#src/repositories/toolchain.repository';
+import { BuildLog } from '#src/repositories/build-log.repository';
 import { TlsService } from '#src/services/tls.service';
 import { Context, Effect, Layer, Schema } from 'effect';
 import { dirname, resolve } from 'node:path';
@@ -24,6 +26,7 @@ export const zwiftAndroidRecommendedSpace = 10_000_000_000;
 const originalId = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
 
 export type ZwiftAndroidStep =
+  | 'download'
   | 'extract'
   | 'certificate'
   | 'inspect'
@@ -37,8 +40,9 @@ export type ZwiftAndroidStep =
   | 'publish';
 
 export interface ZwiftAndroidActivity {
-  /** `upload`: the build started when an upload finished; `rebuild`: it started from the saved upload. */
-  readonly kind: 'upload' | 'rebuild';
+  /** `upload`: the build started when an upload finished; `rebuild`: it started from the saved upload;
+  `download`: the server fetched the latest release from APKPure first. */
+  readonly kind: 'upload' | 'rebuild' | 'download';
   readonly state: 'running' | 'done' | 'failed';
   readonly steps: ReadonlyArray<ZwiftAndroidStep>;
   readonly step: ZwiftAndroidStep;
@@ -98,8 +102,10 @@ const make = Effect.gen(function* () {
   const { config, world } = yield* RuntimeContext;
   const tls = yield* TlsService;
   const log = world.lifecycle.log;
+  const job = new BuildLog(log, 'android', 'Zwift for Android');
   const apk = new ApkRepository();
   const files = new AssetFiles();
+  const releases = new AppReleaseRepository();
   const crypto = new CryptoRepository();
   const certificates = new CertificateRepository();
   const folder = resolve(config.storageDir, 'zwift-android');
@@ -199,7 +205,7 @@ const make = Effect.gen(function* () {
   }
 
   /** Keep the finished upload as the one original, replacing any before it. */
-  async function keepOriginal(session: Upload) {
+  async function keepOriginal(session: Pick<Upload, 'id' | 'name' | 'workspace'>) {
     const retained = resolve(originalsFolder, session.id);
 
     try {
@@ -351,6 +357,7 @@ const make = Effect.gen(function* () {
       throw new Error(t('zwift_android_build_steps_required'));
     }
     abort = new AbortController();
+    job.started(kind, steps);
     activity = {
       kind,
       state: 'running',
@@ -366,9 +373,11 @@ const make = Effect.gen(function* () {
   }
 
   function advance(step: ZwiftAndroidStep, progress: number | null = null) {
-    if (activity) {
-      activity = { ...activity, step, progress };
+    if (!activity) {
+      return;
     }
+    job.step(step);
+    activity = { ...activity, step, progress };
   }
 
   /** Progress for one step, stored only once a whole percent has passed. */
@@ -398,20 +407,33 @@ const make = Effect.gen(function* () {
       finishedAt: new Date().toISOString(),
     };
     abort = null;
+    job.finished(failure);
   }
 
   /** Turn an APKM into one APK named Zwift for Zluggish, with the patched expansion file inside. */
   async function build(source: string, directory: string, signal: AbortSignal) {
     const { pem, fingerprint: trusted } = serverCertificate();
     const startedAt = performance.now();
+    const size = async (path: string) => (await apk.size(path)) ?? 0;
+    job.info('build_source', 'Building Zwift for Android from the upload', {
+      source,
+      bytes: await size(source),
+      certificate: trusted,
+    });
 
     const obb = resolve(directory, 'original.obb');
     const filename = await apk.extractZwiftObb(source, obb, zwiftObbLimit, signal, meter('extract'));
     const versionCode = Number(filename.split('.', 2)[1]);
+    job.info('obb_extracted', 'Extracted the expansion file from the upload', {
+      file: filename,
+      versionCode,
+      bytes: await size(obb),
+    });
     signal.throwIfAborted();
 
     const expansion = resolve(directory, 'patched.obb');
     await apk.patchZwiftObb(obb, expansion, pem, meter('certificate'));
+    job.info('obb_patched', 'Added the server certificate to the expansion file', { bytes: await size(expansion) });
     await files.removeAsync(obb);
     signal.throwIfAborted();
 
@@ -419,40 +441,71 @@ const make = Effect.gen(function* () {
     advance('inspect');
     const splits = resolve(directory, 'splits');
     const { base, parts } = await apk.extractZwiftApks(source, splits, versionCode, signal);
+    job.info('apks_extracted', 'Read the app from the upload', {
+      package: base.manifest.packageName,
+      versionName: base.manifest.versionName,
+      versionCode: base.manifest.versionCode,
+      minSdk: base.manifest.minSdk,
+      splits: parts.length,
+    });
     if (base.manifest.minSdk < 26) {
       throw new Error(t('zwift_android_version_unsupported'));
     }
 
-    const tools = await toolchain.state();
+    let tools = await toolchain.state();
     if (!tools.java || !tools.editor) {
-      log.info('android.installing_tools', 'Downloading the Java tools for the Zwift build');
+      job.info('installing_tools', 'Downloading the Java tools for the Zwift build', {
+        java: tools.java?.version ?? null,
+        editor: tools.editor,
+        downloadBytes: tools.downloadBytes,
+        folder: toolchain.folder,
+      });
       await toolchain.install(signal, (step, fraction) => advance(step, fraction));
+      tools = await toolchain.state();
     }
+    job.info('tools', 'Using these Java tools', {
+      java: tools.java?.version ?? null,
+      javaSource: tools.java?.source ?? null,
+      javaCommand: tools.java?.command ?? null,
+      editor: tools.editor,
+    });
 
     advance('merge');
     const options = { cwd: directory, signal };
+    const editor = (args: ReadonlyArray<string>) => job.tool('APKEditor', args, () => toolchain.editor(args, options));
     let merged = base.path;
     if (parts.length > 1) {
       merged = resolve(directory, 'merged.apk');
-      await toolchain.editor(['m', '-i', splits, '-o', merged, '-f'], options);
+      await editor(['m', '-i', splits, '-o', merged, '-f']);
+      job.info('merged', 'Merged the split APKs', { parts: parts.length, bytes: await size(merged) });
+    } else {
+      job.info('merge_skipped', 'The upload holds one APK, so there is nothing to merge', {});
     }
 
     advance('decode');
     const decoded = resolve(directory, 'decoded');
-    await toolchain.editor(['d', '-comment-level', 'off', '-i', merged, '-o', decoded, '-f'], options);
+    await editor(['d', '-comment-level', 'off', '-i', merged, '-o', decoded, '-f']);
     advance('rename');
     await apk.configureDecodedZwift(decoded, versionCode);
     await apk.configureZwiftPackageLookups(decoded);
+    job.info('renamed', 'Renamed the decoded app to Zwift for Zluggish', { package: standaloneZwiftPackage });
     advance('build');
     const rebuilt = resolve(directory, 'renamed.apk');
-    await toolchain.editor(['b', '-i', decoded, '-o', rebuilt, '-f'], options);
+    await editor(['b', '-i', decoded, '-o', rebuilt, '-f']);
     const renamed = await apk.manifest(rebuilt);
+    job.info('rebuilt', 'Rebuilt the app', {
+      package: renamed.packageName,
+      versionName: renamed.versionName,
+      versionCode: renamed.versionCode,
+      bytes: await size(rebuilt),
+    });
     if (renamed.packageName !== standaloneZwiftPackage || renamed.versionCode !== versionCode) {
       throw new Error(t('zwift_android_build_identity_mismatch'));
     }
 
     const output = resolve(directory, 'signed.apk');
     await apk.signStandaloneZwift(rebuilt, output, expansion, await signer(), meter('sign'));
+    job.info('signed', 'Signed the app with the expansion file inside', { bytes: await size(output) });
     signal.throwIfAborted();
 
     advance('publish');
@@ -504,6 +557,54 @@ const make = Effect.gen(function* () {
     const signal = begin('rebuild', await stepsFor());
     log.info('android.rebuild_started', 'Building Zwift for Zluggish from the saved upload', { upload: saved.name });
     void run(() => Promise.resolve(resolve(originalsFolder, saved.id, 'upload')), signal);
+  }
+
+  /** Fetch the latest release from APKPure into a new saved upload, then build it like an upload. */
+  async function startDownload() {
+    requireIdle();
+    serverCertificate();
+    const signal = begin('download', ['download', ...(await stepsFor())]);
+
+    void run(async () => {
+      const release = await releases.apkpure(releaseSources.zwift.packageName, signal);
+
+      if (!release) {
+        throw new Error(t('app_release_unavailable', { value1: 'APKPure' }));
+      }
+      job.info('download_started', 'Downloading Zwift from APKPure', {
+        version: release.versionName,
+        versionCode: release.versionCode,
+        bytes: release.bytes,
+        file: release.filename,
+      });
+      const free = await files.freeBytesAsync(config.storageDir);
+
+      if (release.bytes !== null && free !== null && free < release.bytes) {
+        throw new Error(
+          t('zwift_android_upload_disk_space_insufficient', {
+            value1: Math.floor(free / 1e8) / 10,
+            value2: Math.ceil(release.bytes / 1e8) / 10,
+          }),
+        );
+      }
+      const session = { id: crypto.randomUUID(), name: release.filename, workspace: await workspace() };
+
+      try {
+        const bytes = await releases.download(
+          release.url,
+          resolve(session.workspace, 'upload'),
+          zwiftAndroidUploadLimit,
+          signal,
+          meter('download'),
+        );
+        job.info('downloaded', 'Downloaded Zwift from APKPure', { bytes });
+      } catch (error) {
+        await apk.removeTree(session.workspace).catch(reportCleanupFailure);
+        throw error;
+      }
+
+      return keepOriginal(session);
+    }, signal);
   }
 
   // After a certificate change, the published app no longer connects: build it again for the new certificate.
@@ -646,6 +747,12 @@ const make = Effect.gen(function* () {
       }
 
       return sessionStatus(session);
+    },
+    /** Download the latest release from APKPure and build it. */
+    async fetchLatest() {
+      await startDownload();
+
+      return adminStatus();
     },
     /** Build the app again from the saved original, as after a certificate change. */
     async rebuild() {

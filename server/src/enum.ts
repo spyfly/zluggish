@@ -234,6 +234,7 @@ export const JobType = {
   Retention: 'retention',
   StorageBackup: 'storage_backup',
   CompletionDeliveries: 'completion_deliveries',
+  AppReleaseCheck: 'app_release_check',
 } as const;
 
 export type JobType = (typeof JobType)[keyof typeof JobType];

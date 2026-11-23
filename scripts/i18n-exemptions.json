@@ -458,5 +458,30 @@
     "file": "server/src/migrations/activity-folders.ts",
     "value": "NOT NULL",
     "reason": "SQL syntax; must remain literal."
+  },
+  {
+    "file": "server/src/repositories/apk.repository.ts",
+    "value": " android:label=\"Companion for Zluggish\" android:icon=\"{value1}\" android:roundIcon=\"{value2}\"{value3}",
+    "reason": "Android manifest or Dalvik bytecode syntax with fixed application branding."
+  },
+  {
+    "file": "server/src/services/companion.service.ts",
+    "value": "Zwift Companion",
+    "reason": "App name in server log messages, which are not translated."
+  },
+  {
+    "file": "server/src/services/zwift-android.service.ts",
+    "value": "Zwift for Android",
+    "reason": "App name in server log messages, which are not translated."
+  },
+  {
+    "file": "server/src/repositories/app-release.repository.ts",
+    "value": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36",
+    "reason": "HTTP User-Agent header for release downloads."
+  },
+  {
+    "file": "server/src/repositories/app-release.repository.ts",
+    "value": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "reason": "HTTP Accept header for release downloads."
   }
 ]

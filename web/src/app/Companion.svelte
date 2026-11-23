@@ -1,5 +1,6 @@
 <script lang="ts">
   import { t } from '../lib/i18n/index';
+  import SlowLoading from '../components/SlowLoading.svelte';
   import type { z } from 'zod';
   import { onMount } from 'svelte';
   import type { CompanionStatus } from './companion';
@@ -76,7 +77,7 @@
 {#if failure}<p class="notice failed" role="alert">{failure}</p>{/if}
 
 {#if status === null}
-  {#if !failure}<p role="status">{t('loading')}</p>{/if}
+  {#if !failure}<SlowLoading />{/if}
 {:else if platform === 'ios'}
   <section class="panel" aria-labelledby="companion-ios">
     <h2 id="companion-ios">{t('companion_ios_unsupported')}</h2>

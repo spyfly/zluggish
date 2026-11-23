@@ -1345,14 +1345,19 @@ export class ApkRepository {
         ),
       );
 
+    // The launcher shows a launcher activity's own label before the app's, so both carry the Zluggish name and icon.
     const icon = `@drawable/${androidLauncherIcon}`;
-    const withIcon = (tag: string) =>
+    const withBranding = (tag: string) =>
       tag
-        .replaceAll(/\s+android:(?:icon|roundIcon)=(["'])[^"']*\1/g, '')
-        .replace(/\s*(\/?>)$/, (_, end: string) => ` android:icon="${icon}" android:roundIcon="${icon}"${end}`);
+        .replaceAll(/\s+android:(?:label|icon|roundIcon)=(["'])[^"']*\1/g, '')
+        .replace(
+          /\s*(\/?>)$/,
+          (_, end: string) =>
+            ` android:label="Companion for Zluggish" android:icon="${icon}" android:roundIcon="${icon}"${end}`,
+        );
 
     manifest = manifest
-      .replace(/<application\b[^>]*>/, (tag) => withIcon(tag))
+      .replace(/<application\b[^>]*>/, (tag) => withBranding(tag))
       .replaceAll(
         /(<(activity(?:-alias)?)\b[^>]*(?<!\/)>)([\s\S]*?<\/\2\s*>)/g,
         (component, tag: string, _kind, body: string) => {
@@ -1363,11 +1368,13 @@ export class ApkRepository {
 
           const filters = body.replaceAll(/<intent-filter\b[^>]*>[\s\S]*?<\/intent-filter\s*>/g, (filter) =>
             launcherCategory.test(filter)
-              ? filter.replace(/^(<intent-filter\b[^>]*)\s+android:icon=(["'])[^"']*\2/, '$1')
+              ? filter.replace(/^<intent-filter\b[^>]*>/, (open) =>
+                  open.replaceAll(/\s+android:(?:label|icon)=(["'])[^"']*\1/g, ''),
+                )
               : filter,
           );
 
-          return withIcon(tag) + filters;
+          return withBranding(tag) + filters;
         },
       );
 
@@ -1546,6 +1553,11 @@ export class ApkRepository {
     }
     await mkdir(dirname(destination), { recursive: true });
     await rename(workspace, destination);
+  }
+
+  /** Copy a file, such as an upload kept beside the job that reads it. */
+  async copy(from: string, to: string) {
+    await copyFile(from, to);
   }
 
   /** Move a finished file into place, replacing what is there; copies when the folders are on different disks. */

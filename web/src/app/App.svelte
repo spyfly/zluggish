@@ -1,7 +1,8 @@
 <script lang="ts">
   import { t } from '../lib/i18n/index';
   import { onMount } from 'svelte';
-  import { requestJson, ConnectionError } from '../lib/connection';
+  import { requestJson, ConnectionError, connection } from '../lib/connection';
+  import { get } from 'svelte/store';
   import ProfileData from './ProfileData.svelte';
   import Connections from './Connections.svelte';
   import Activities from './Activities.svelte';
@@ -18,6 +19,7 @@
   import Companion from './Companion.svelte';
   import CompanionManage from './CompanionManage.svelte';
   import ZwiftAndroidManage from './ZwiftAndroidManage.svelte';
+  import AndroidAppsManage from './AndroidAppsManage.svelte';
   import ServerCertificate from './ServerCertificate.svelte';
   import { tlsStatus } from './tls';
   import { decode, ignored, responseFields } from '../lib/api';
@@ -64,6 +66,7 @@
   let users = $state<Array<User>>([]);
   let complete = $state(true);
   let loading = $state(true);
+  let slowLoading = $state(false);
   let busy = $state(false);
   let message = $state('');
   let failed = $state(false);
@@ -168,7 +171,15 @@
   const setup = $derived(
     apps ? undefined : setups.get(path === '/install' || path === '/companion' ? `${path}/${here}` : path),
   );
-  const crumb = $derived(setup ? { href: '/apps', label: t('apps') } : undefined);
+  /** The patched Android apps are managed one at a time, under a page that shows whether each is ready. */
+  const androidApps = ['/manage/android', '/manage/zwift-android', '/manage/companion'];
+  const crumb = $derived(
+    setup
+      ? { href: '/apps', label: t('apps') }
+      : path === '/manage/zwift-android' || path === '/manage/companion'
+        ? { href: '/manage/android', label: t('android_apps') }
+        : undefined,
+  );
 
   const administrator = $derived(user?.role === 'administrator');
   const selectedId = $derived(Number(/^\/manage\/users\/(\d+)$/.exec(path)?.[1] ?? 0));
@@ -211,39 +222,43 @@
   const pages = $derived(Math.max(1, Math.ceil(filtered.length / pageSize)));
 
   const title = $derived(
-    !user
-      ? complete
-        ? t('sign_in')
-        : t('first_administrator')
-      : path === '/manage/server'
-        ? t('server')
-        : path === '/manage/companion'
-          ? t('companion_app')
-          : path === '/manage/zwift-android'
-            ? t('zwift_for_android')
-            : path === '/manage/users/new'
-              ? t('create_user')
-              : selected
-                ? label(selected)
-                : manage
-                  ? t('users')
-                  : path === '/activities' || path.startsWith('/activities/')
-                    ? t('activities')
-                    : path === '/profile-data/local'
-                      ? t('import_local_files')
-                      : path === '/profile-data'
-                        ? 'Import / Export'
-                        : path === '/zwift'
-                          ? t('zwift_connection')
-                          : path === '/integrations'
-                            ? t('integrations')
-                            : path === '/settings'
-                              ? t('settings')
-                              : path === '/climbs'
-                                ? t('climbs')
-                                : apps
-                                  ? t('apps')
-                                  : (setup ?? t('profile')),
+    loading
+      ? t('loading')
+      : !user
+        ? complete
+          ? t('sign_in')
+          : t('first_administrator')
+        : path === '/manage/server'
+          ? t('server')
+          : path === '/manage/android'
+            ? t('android_apps')
+            : path === '/manage/companion'
+              ? t('companion_for_android')
+              : path === '/manage/zwift-android'
+                ? t('zwift_for_android')
+                : path === '/manage/users/new'
+                  ? t('create_user')
+                  : selected
+                    ? label(selected)
+                    : manage
+                      ? t('users')
+                      : path === '/activities' || path.startsWith('/activities/')
+                        ? t('activities')
+                        : path === '/profile-data/local'
+                          ? t('import_local_files')
+                          : path === '/profile-data'
+                            ? 'Import / Export'
+                            : path === '/zwift'
+                              ? t('zwift_connection')
+                              : path === '/integrations'
+                                ? t('integrations')
+                                : path === '/settings'
+                                  ? t('settings')
+                                  : path === '/climbs'
+                                    ? t('climbs')
+                                    : apps
+                                      ? t('apps')
+                                      : (setup ?? t('profile')),
   );
 
   const initials = (r: User) => `${r.first_name.charAt(0)}${r.last_name.charAt(0)}`.toUpperCase();
@@ -340,7 +355,7 @@
     });
   }
 
-  async function run(work: () => Promise<void>, scope = '') {
+  async function run(work: () => Promise<void>, scope = '', suppressConnectionError = false) {
     if (busy) {
       return;
     }
@@ -354,7 +369,12 @@
       await work();
     } catch (error) {
       failed = true;
-      message = error instanceof Error ? error.message : t('request_failed');
+      message =
+        suppressConnectionError && error instanceof ConnectionError
+          ? ''
+          : error instanceof Error
+            ? error.message
+            : t('request_failed');
     } finally {
       busy = false;
       // Keep route-dependent mutations and loads serial. Only the latest requested
@@ -839,50 +859,78 @@
   }
 
   onMount(() => {
+    const slowTimer = window.setTimeout(() => {
+      slowLoading = true;
+    }, 4000);
     const pop = () => {
       void navigate(location.pathname);
     };
 
     window.addEventListener('popstate', pop);
-    void run(async () => {
-      const setup = await api(setupResponse, '/api/setup');
-      complete = setup.complete;
-      version = setup.version;
-      zwiftVersion = setup.zwiftVersion;
+    let retryStartup = false;
+    let alive = true;
+    const start = async () => {
+      retryStartup = false;
+      loading = true;
+      await run(
+        async () => {
+          try {
+            const setup = await api(setupResponse, '/api/setup');
+            complete = setup.complete;
+            version = setup.version;
+            zwiftVersion = setup.zwiftVersion;
 
-      if (!complete) {
-        go('/setup');
+            if (!complete) {
+              go('/setup');
 
-        return;
-      }
+              return;
+            }
 
-      try {
-        user = (await api(signedInResponse, '/api/me')).user;
-      } catch (error) {
-        if (error instanceof ConnectionError) {
-          throw error;
-        }
+            try {
+              user = (await api(signedInResponse, '/api/me')).user;
+            } catch (error) {
+              if (error instanceof ConnectionError) {
+                throw error;
+              }
 
-        if (!['/sign-in', '/setup'].includes(path)) {
-          go('/sign-in');
-        }
+              if (!['/sign-in', '/setup'].includes(path)) {
+                go('/sign-in');
+              }
 
-        return;
-      }
+              return;
+            }
 
-      if (['/sign-in', '/setup'].includes(path)) {
-        go('/');
-      }
+            if (['/sign-in', '/setup'].includes(path)) {
+              go('/');
+            }
 
-      if (manage && !administrator) {
-        go('/');
-      }
-      await enter();
-    }).finally(() => {
-      loading = false;
+            if (manage && !administrator) {
+              go('/');
+            }
+            await enter();
+          } catch (error) {
+            if (error instanceof ConnectionError) retryStartup = true;
+            throw error;
+          }
+        },
+        '',
+        true,
+      );
+      if (!alive) return;
+      loading = retryStartup;
+      if (retryStartup && !get(connection).unavailable) void start();
+    };
+    const unsubscribe = connection.subscribe((state) => {
+      if (alive && retryStartup && !state.unavailable && !busy) void start();
     });
+    void start();
 
-    return () => window.removeEventListener('popstate', pop);
+    return () => {
+      alive = false;
+      clearTimeout(slowTimer);
+      unsubscribe();
+      window.removeEventListener('popstate', pop);
+    };
   });
 </script>
 
@@ -931,16 +979,8 @@
       {@render link('/apps', 'Apps', apps || installing || companion)}
       {#if administrator}
         <p class="group">{t('manage')}</p>
-        {@render link(
-          '/manage',
-          'Users',
-          manage && !['/manage/server', '/manage/companion', '/manage/zwift-android'].includes(path),
-        )}
-        <div class="subgroup" role="group" aria-labelledby="menu-android-apps">
-          <p class="group" id="menu-android-apps">{t('android_apps')}</p>
-          {@render link('/manage/zwift-android', 'Zwift', path === '/manage/zwift-android')}
-          {@render link('/manage/companion', 'Companion', path === '/manage/companion')}
-        </div>
+        {@render link('/manage', 'Users', manage && path !== '/manage/server' && !androidApps.includes(path))}
+        {@render link('/manage/android', t('android_apps'), androidApps.includes(path))}
         {@render link('/manage/server', 'Server', path === '/manage/server')}
       {/if}
     </nav>
@@ -948,15 +988,21 @@
   {/if}
 {/snippet}
 
-<svelte:head><title>{t('document_title', { value1: title })}</title></svelte:head>
+<svelte:head><title>{loading ? t('zluggish') : t('document_title', { value1: title })}</title></svelte:head>
 
-<div class="app">
+{#if loading && slowLoading && !$connection.unavailable}
+  <div class="slow-loading" role="status">
+    <p>{t('loading_taking_longer')}</p>
+    <button type="button" onclick={() => location.reload()}>{t('reload_this_page')}</button>
+  </div>
+{/if}
+<div class="app" class:initializing={loading && !$connection.unavailable}>
   <Layout
     {title}
-    heading={!user && title !== 'Profile' && title !== 'Activities'}
+    heading={!loading && !user && title !== 'Profile' && title !== 'Activities'}
     page={manage ? 'manage' : 'account'}
-    {back}
-    {crumb}
+    back={loading ? undefined : back}
+    crumb={loading ? undefined : crumb}
     onback={() => {
       const to = back ?? crumb;
       if (to) void navigate(to.href);
@@ -981,7 +1027,7 @@
     {/if}
     {#if message && !changing}<p class="notice" class:failed role={failed ? 'alert' : 'status'}>{message}</p>{/if}
 
-    {#if loading}<p role="status">{t('loading')}</p>
+    {#if loading}<span class="loading-status" role="status">{t('loading')}</span>
     {:else if !user}
       {#if path === '/setup' && complete}
         <section class="panel narrow">
@@ -1123,7 +1169,9 @@
       {/if}
     {:else if manage && administrator}
       <div>
-        {#if path === '/manage/companion'}
+        {#if path === '/manage/android'}
+          <AndroidAppsManage {api} {navigate} />
+        {:else if path === '/manage/companion'}
           <CompanionManage {api} {navigate} csrf={() => csrf} />
         {:else if path === '/manage/zwift-android'}
           <ZwiftAndroidManage {api} {navigate} csrf={() => csrf} />
@@ -1912,6 +1960,26 @@
 {/if}
 
 <style>
+  .initializing {
+    visibility: hidden;
+  }
+  .slow-loading {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    gap: 1rem;
+    padding: 1.5rem;
+    text-align: center;
+  }
+  .loading-status {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
   .me {
     display: flex;
     align-items: center;
@@ -1954,10 +2022,6 @@
     margin: 1.25rem 0 0.3rem 1.75rem;
     color: var(--muted);
     font-size: 0.8125rem;
-  }
-  /* A gap after the patched apps, so that Server reads as its own page rather than one of them. */
-  .subgroup {
-    margin-bottom: 1rem;
   }
   button.sign-out {
     margin-top: auto;
