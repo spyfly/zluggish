@@ -205,8 +205,9 @@ const make = Effect.gen(function* () {
     }
 
     const decoded = resolve(directory, 'decoded');
-    await toolchain.editor(['d', '-dex', '-i', original, '-o', decoded, '-f'], options);
+    await toolchain.editor(['d', '-comment-level', 'off', '-i', original, '-o', decoded, '-f'], options);
     await apk.configureDecodedZwift(decoded, versionCode);
+    await apk.configureZwiftPackageLookups(decoded);
     const rebuilt = resolve(directory, 'renamed.apk');
     await toolchain.editor(['b', '-i', decoded, '-o', rebuilt, '-f'], options);
     const renamed = await apk.manifest(rebuilt);

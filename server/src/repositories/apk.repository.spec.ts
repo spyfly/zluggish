@@ -6,7 +6,7 @@ import { createHash, createPublicKey, verify } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { open } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { test } from 'node:test';
 import { binaryManifest, contents, listEntries, u32, zip } from '#tests/support/apk';
 
@@ -333,11 +333,15 @@ await test('gives the standalone Zwift build its own package and starts setup be
   const resources = resolve(space.folder, 'resources/package_1');
   mkdirSync(resources, { recursive: true });
   writeFileSync(resolve(resources, 'package.json'), '{"package_name":"com.zwift.zwiftgame"}');
+  const values = resolve(resources, 'res/values');
+  mkdirSync(values, { recursive: true });
+  const publicXml = resolve(values, 'public.xml');
+  writeFileSync(publicXml, '<resources><public id="0x7f010001" type="drawable" name="original" /></resources>');
   writeFileSync(
     manifest,
     `<manifest package="com.zwift.zwiftgame">
   <permission android:name="com.zwift.zwiftgame.PRIVATE" />
-  <application android:name=".App" android:label="@string/app_name">
+  <application android:name=".App" android:label="@string/app_name" android:icon="@mipmap/original" android:roundIcon="@mipmap/round">
     <provider android:name=".Files" android:authorities="com.zwift.zwiftgame.files" />
     <activity android:name=".Game" android:exported="true">
       <intent-filter>
@@ -354,6 +358,10 @@ await test('gives the standalone Zwift build its own package and starts setup be
   const result = readFileSync(manifest, 'utf8');
   assert.match(result, /package="com\.zluggish\.zwift"/);
   assert.match(result, /android:label="Zwift for Zluggish"/);
+  assert.match(result, /android:icon="@drawable\/zluggish_launcher"/);
+  assert.match(result, /android:roundIcon="@drawable\/zluggish_launcher"/);
+  assert.match(readFileSync(publicXml, 'utf8'), /id="0x7f010002" type="drawable" name="zluggish_launcher"/);
+  assert.match(readFileSync(resolve(resources, 'res/drawable/zluggish_launcher.xml'), 'utf8'), /fillColor="#FF6200"/);
   assert.match(result, /android:name="com\.zluggish\.zwift\.PRIVATE"/);
   assert.match(result, /android:name="com\.zwift\.zwiftgame\.App"/);
   assert.match(result, /android:authorities="com\.zluggish\.zwift\.files"/);
@@ -362,6 +370,43 @@ await test('gives the standalone Zwift build its own package and starts setup be
   assert.match(result, /android:name="zluggish\.expansion" android:value="main\.169052\.com\.zluggish\.zwift\.obb"/);
   assert.equal(result.matchAll(/android\.intent\.category\.LAUNCHER/g).toArray().length, 1);
   assert.match(readFileSync(resolve(resources, 'package.json'), 'utf8'), /"package_name":"com\.zluggish\.zwift"/);
+});
+
+await test('updates the Zwift expansion basename and the installer lookup for the renamed app', async () => {
+  using space = workspace();
+  const folder = resolve(space.folder, 'smali/classes2/com/zwift/zwiftgame/vending/expansion/downloader');
+  const helper = resolve(folder, 'Helpers.smali');
+  mkdirSync(folder, { recursive: true });
+  writeFileSync(
+    helper,
+    `.field public static final PACKAGE_NAME:Ljava/lang/String; = "com.zwift.zwiftgame"
+.method public static getExpansionAPKFileName(ZI)Ljava/lang/String;
+    const-string p1, ".com.zwift.zwiftgame.obb"
+    return-object p1
+.end method
+.method public static unrelated()Ljava/lang/String;
+    const-string v0, ".com.zwift.zwiftgame.obb"
+    return-object v0
+.end method`,
+  );
+
+  const main = resolve(space.folder, 'smali/classes/com/zwift/zwiftgame/ZwiftMainActivity.smali');
+  mkdirSync(dirname(main), { recursive: true });
+  writeFileSync(
+    main,
+    `    const-string v4, "com.zwift.zwiftgame"
+
+    invoke-virtual {v3, v4}, Landroid/content/pm/PackageManager;->getInstallerPackageName(Ljava/lang/String;)Ljava/lang/String;`,
+  );
+
+  await repository.configureZwiftPackageLookups(space.folder);
+
+  assert.match(readFileSync(main, 'utf8'), /const-string v4, "com\.zluggish\.zwift"/);
+
+  const result = readFileSync(helper, 'utf8');
+  assert.match(result, /getExpansionAPKFileName[^\n]*\s+const-string p1, "\.com\.zluggish\.zwift\.obb"/);
+  assert.match(result, /const-string v0, "\.com\.zwift\.zwiftgame\.obb"/);
+  assert.match(result, /PACKAGE_NAME:Ljava\/lang\/String; = "com\.zwift\.zwiftgame"/);
 });
 
 await test('signs a standalone APK with the original dex, bootstrap dex and a stored OBB', async () => {

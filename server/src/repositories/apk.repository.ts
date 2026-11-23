@@ -63,6 +63,7 @@ export type ApkUpload = { kind: 'apk' } | { kind: 'bundle'; apks: ReadonlyArray<
 
 const zwiftPackage = 'com.zwift.zwiftgame';
 export const standaloneZwiftPackage = 'com.zluggish.zwift';
+const zwiftLauncherIcon = 'zluggish_launcher';
 const zwiftSetupActivity = `${standaloneZwiftPackage}.bootstrap.SetupActivity`;
 const zwiftExpansionAsset = 'assets/zluggish/expansion.obb';
 
@@ -129,6 +130,44 @@ function renameZwiftIdentifier(name: string) {
   return name === zwiftPackage || name.startsWith(`${zwiftPackage}.`)
     ? standaloneZwiftPackage + name.slice(zwiftPackage.length)
     : name;
+}
+
+/** Declare a resource at the next free entry ID without shifting any existing IDs. */
+function declareAndroidResource(publicXml: string, type: string, name: string) {
+  if (
+    new RegExp(`<public[^>]*type="${type}"[^>]*name="${name}"|<public[^>]*name="${name}"[^>]*type="${type}"`).test(
+      publicXml,
+    )
+  ) {
+    return publicXml;
+  }
+
+  const ids = publicXml
+    .matchAll(/<public\b[^>]*>/g)
+    .map((match) => ({
+      type: /type="([^"]+)"/.exec(match[0])?.[1],
+      id: Number.parseInt(/id="0x([\da-f]+)"/i.exec(match[0])?.[1] ?? '0', 16),
+    }))
+    .toArray();
+
+  const sameType = ids
+    .values()
+    .filter((entry) => entry.type === type)
+    .map((entry) => entry.id)
+    .toArray();
+
+  const packageId = (ids[0]?.id ?? 0x7f_00_00_00) & 0xff_00_00_00;
+
+  const id =
+    sameType.length > 0
+      ? Math.max(...sameType) + 1
+      : packageId | ((Math.max(0, ...ids.map((entry) => (entry.id >>> 16) & 0xff)) + 1) << 16);
+
+  return publicXml.replace(
+    /<\/resources>\s*$/,
+    () =>
+      `  <public id="0x${(id >>> 0).toString(16).padStart(8, '0')}" type="${type}" name="${name}" />\n</resources>\n`,
+  );
 }
 
 function newZipEntry(name: string, method: number, size: number, compressedSize: number, crc: number) {
@@ -780,9 +819,13 @@ export class ApkRepository {
         ),
       )
       .replace(appTag, (tag) => {
-        const withoutLabel = tag.replace(/\s+android:label=(["'])[^"']*\1/, '');
+        const originalBrandingRemoved = tag.replaceAll(/\s+android:(?:label|icon|roundIcon)=(["'])[^"']*\1/g, '');
+        const icon = `@drawable/${zwiftLauncherIcon}`;
 
-        return withoutLabel.replace('>', ' android:label="Zwift for Zluggish">');
+        return originalBrandingRemoved.replace(
+          '>',
+          () => ` android:label="Zwift for Zluggish" android:icon="${icon}" android:roundIcon="${icon}">`,
+        );
       });
 
     const launchers = new Set<string>();
@@ -828,6 +871,19 @@ export class ApkRepository {
     );
     await writeFile(manifestPath, manifest);
 
+    const res = await this.resourceFolder(folder);
+    if (!res) {
+      throw new Error('The decoded Zwift APK has no res/values/public.xml.');
+    }
+    const publicPath = resolve(res, 'values', 'public.xml');
+    const publicXml = await readFile(publicPath, 'utf8');
+    await mkdir(resolve(res, 'drawable'), { recursive: true });
+    await copyFile(
+      resolve(packageRoot(), '../assets/android/zluggish-launcher.xml'),
+      resolve(res, 'drawable', `${zwiftLauncherIcon}.xml`),
+    );
+    await writeFile(publicPath, declareAndroidResource(publicXml, 'drawable', zwiftLauncherIcon));
+
     const resources = resolve(folder, 'resources');
     for (const entry of await readdir(resources, { withFileTypes: true })) {
       if (!entry.isDirectory() || !/^package_\d+$/.test(entry.name)) {
@@ -842,6 +898,56 @@ export class ApkRepository {
       if (updated !== originalResources) {
         await writeFile(packagePath, updated);
       }
+    }
+  }
+
+  /** Update the original package literals Zwift uses for expansion and installer lookups. */
+  async configureZwiftPackageLookups(folder: string) {
+    const smali = resolve(folder, 'smali');
+    const entries = await readdir(smali, { withFileTypes: true });
+    const classes = entries.filter((dex) => dex.isDirectory());
+    const readClass = async (name: string) => {
+      for (const dex of classes) {
+        const path = resolve(smali, dex.name, 'com/zwift/zwiftgame', name);
+        try {
+          return { path, source: await readFile(path, 'utf8') };
+        } catch (error) {
+          if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) {
+            throw error;
+          }
+        }
+      }
+
+      return null;
+    };
+
+    const helpers = await readClass('vending/expansion/downloader/Helpers.smali');
+    if (!helpers) {
+      throw new Error('Could not find the Zwift downloader expansion filename helper.');
+    }
+    const lookup =
+      /(^\.method [^\n]*\bgetExpansionAPKFileName\(ZI\)Ljava\/lang\/String;[^\n]*\n[\s\S]*?^\.end method)/m;
+    const updated = helpers.source.replace(lookup, (method) =>
+      method.replace('".com.zwift.zwiftgame.obb"', () => `".${standaloneZwiftPackage}.obb"`),
+    );
+    if (updated === helpers.source) {
+      throw new Error('Could not update the Zwift downloader expansion filename.');
+    }
+    await writeFile(helpers.path, updated);
+
+    // Android can throw when Zwift asks for the installer of a package which isn't installed.
+    const main = await readClass('ZwiftMainActivity.smali');
+    if (!main) {
+      return;
+    }
+    const installerLookup =
+      /(const-string(?:\/jumbo)?\s+[pv]\d+,\s*)"com\.zwift\.zwiftgame"(?=\s+invoke-virtual[^\n]*PackageManager;->getInstallerPackageName\()/g;
+    const activity = main.source.replaceAll(
+      installerLookup,
+      (_, instruction: string) => `${instruction}"${standaloneZwiftPackage}"`,
+    );
+    if (activity !== main.source) {
+      await writeFile(main.path, activity);
     }
   }
 
@@ -1171,49 +1277,10 @@ export class ApkRepository {
     const config = /android:networkSecurityConfig="@xml\/([\w.]+)"/.exec(manifest)?.[1];
     const configName = config ?? 'zluggish_network_security_config';
 
-    const declared = (type: string, name: string) =>
-      new RegExp(`<public[^>]*type="${type}"[^>]*name="${name}"|<public[^>]*name="${name}"[^>]*type="${type}"`).test(
-        publicXml,
-      );
-
-    /** Declare a new resource with the next free ID of its type, or of a new type after the last one. */
-    const declare = (type: string, name: string) => {
-      if (declared(type, name)) {
-        return;
-      }
-
-      const ids = publicXml
-        .matchAll(/<public\b[^>]*>/g)
-        .map((match) => ({
-          type: /type="([^"]+)"/.exec(match[0])?.[1],
-          id: Number.parseInt(/id="0x([\da-f]+)"/i.exec(match[0])?.[1] ?? '0', 16),
-        }))
-        .toArray();
-
-      const sameType = ids
-        .values()
-        .filter((entry) => entry.type === type)
-        .map((entry) => entry.id)
-        .toArray();
-
-      const packageId = (ids[0]?.id ?? 0x7f_00_00_00) & 0xff_00_00_00;
-
-      const id =
-        sameType.length > 0
-          ? Math.max(...sameType) + 1
-          : packageId | ((Math.max(0, ...ids.map((entry) => (entry.id >>> 16) & 0xff)) + 1) << 16);
-
-      publicXml = publicXml.replace(
-        /<\/resources>\s*$/,
-        () =>
-          `  <public id="0x${(id >>> 0).toString(16).padStart(8, '0')}" type="${type}" name="${name}" />\n</resources>\n`,
-      );
-    };
-
-    declare('raw', rawName);
+    publicXml = declareAndroidResource(publicXml, 'raw', rawName);
 
     if (!config) {
-      declare('xml', configName);
+      publicXml = declareAndroidResource(publicXml, 'xml', configName);
       manifest = manifest.replace(
         /<application\b/,
         () => `<application android:networkSecurityConfig="@xml/${configName}"`,
