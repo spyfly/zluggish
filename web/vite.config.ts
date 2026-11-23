@@ -6,7 +6,7 @@ import { z } from 'zod';
 
 const catalogSchema = z.record(z.string(), z.string());
 
-function sourceFiles(directory: URL): string[] {
+function sourceFiles(directory: URL): Array<string> {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = new URL(entry.name, directory);
 
@@ -18,7 +18,7 @@ function sourceFiles(directory: URL): string[] {
   });
 }
 
-function usedMessages(directories: string[]): Set<string> {
+function usedMessages(directories: Array<string>): Set<string> {
   const used = new Set<string>();
 
   for (const directory of directories) {
