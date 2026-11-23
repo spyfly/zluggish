@@ -151,7 +151,7 @@
       case 'waiting':
         return 'The upload is saved. It continues once the server has the Java tools.';
       case 'done':
-        return tools ? 'The server can rebuild apps from the Play Store.' : 'Riders can download it now.';
+        return tools ? 'The server can rebuild apps from the Play Store or zoffline.' : 'Riders can download it now.';
       case 'failed':
         return tools ? 'The download failed.' : 'The patch failed.';
       default:
@@ -354,7 +354,7 @@
         {:else if admin.pending}
           {#if admin.toolchain.supported}
             <p class="ask">
-              The app comes straight from the Play Store, so the server rebuilds it with Java. It downloads
+              The server needs Java to give this app the Zluggish app ID and icon. It downloads
               {admin.toolchain.java ? 'APKEditor' : 'a Java runtime from Eclipse Temurin and APKEditor'}, about
               {megabytes(admin.toolchain.downloadBytes)}, and checks each file against a pinned checksum.
             </p>
@@ -363,8 +363,8 @@
             >
           {:else}
             <p class="ask">
-              The app comes straight from the Play Store, so the server rebuilds it with Java. No Java runtime is
-              published for this server's system: install Java 11 or later on the server, then upload the app again.
+              The server needs Java to give this app the Zluggish app ID and icon. No Java runtime is published for this
+              server's system: install Java 11 or later on the server, then upload the app again.
             </p>
           {/if}
           <button
@@ -412,8 +412,8 @@
         >
       </label>
       <p class="hint">
-        An app already patched for zoffline, such as a zoffline-companion release, gets this server's certificate in
-        seconds. An app from the Play Store is rebuilt with Java, which the server asks before it downloads.
+        Play Store and zoffline builds need the Java tools to get the Zluggish app ID and icon. A Companion APK
+        previously built with the Zluggish app ID only needs a certificate swap.
       </p>
     {/if}
     {#if uploadError}<p class="notice failed" role="alert">{uploadError}</p>{/if}
@@ -454,11 +454,11 @@
     {:else if !admin.toolchain.supported}
       <p>
         No Java runtime is published for this server's system. Install Java 11 or later on the server to rebuild apps
-        from the Play Store.
+        from the Play Store or zoffline.
       </p>
     {:else}
       <p>
-        Only needed for an app straight from the Play Store. The server downloads
+        Needed to rebuild Play Store and zoffline apps. The server downloads
         {admin.toolchain.java ? 'APKEditor' : 'a Java runtime from Eclipse Temurin and APKEditor'}, about
         {megabytes(admin.toolchain.downloadBytes)}, and checks each file against a pinned checksum.
       </p>

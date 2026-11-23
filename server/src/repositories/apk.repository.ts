@@ -65,9 +65,12 @@ export type ApkUpload = { kind: 'apk' } | { kind: 'bundle'; apks: ReadonlyArray<
 
 const zwiftPackage = 'com.zwift.zwiftgame';
 export const standaloneZwiftPackage = 'com.zluggish.zwift';
-const zwiftLauncherIcon = 'zluggish_launcher';
+const androidLauncherIcon = 'zluggish_launcher';
 const zwiftSetupActivity = `${standaloneZwiftPackage}.bootstrap.SetupActivity`;
 const zwiftExpansionAsset = 'assets/zluggish/expansion.obb';
+
+export const originalCompanionPackage = 'com.zwift.android.prod';
+export const standaloneCompanionPackage = 'com.zluggish.companion';
 
 const eocdSignature = 0x06_05_4b_50;
 const centralSignature = 0x02_01_4b_50;
@@ -753,7 +756,7 @@ export class ApkRepository {
       )
       .replace(appTag, (tag) => {
         const originalBrandingRemoved = tag.replaceAll(/\s+android:(?:label|icon|roundIcon)=(["'])[^"']*\1/g, '');
-        const icon = `@drawable/${zwiftLauncherIcon}`;
+        const icon = `@drawable/${androidLauncherIcon}`;
 
         return originalBrandingRemoved.replace(
           '>',
@@ -813,9 +816,9 @@ export class ApkRepository {
     await mkdir(resolve(res, 'drawable'), { recursive: true });
     await copyFile(
       resolve(packageRoot(), '../assets/android/zluggish-launcher.xml'),
-      resolve(res, 'drawable', `${zwiftLauncherIcon}.xml`),
+      resolve(res, 'drawable', `${androidLauncherIcon}.xml`),
     );
-    await writeFile(publicPath, declareAndroidResource(publicXml, 'drawable', zwiftLauncherIcon));
+    await writeFile(publicPath, declareAndroidResource(publicXml, 'drawable', androidLauncherIcon));
 
     const resources = resolve(folder, 'resources');
     for (const entry of await readdir(resources, { withFileTypes: true })) {
@@ -1278,25 +1281,96 @@ export class ApkRepository {
   }
 
   /**
-  Point an APK that a resource tool decoded to XML at the server certificate: the certificate becomes a raw
-  resource, and the network security config trusts it and the system's authorities, without pins.
+  Give a decoded Zwift Companion APK a separate Android identity and the Zluggish launcher icon. Add the server
+  certificate as a raw resource and trust it alongside the system's authorities.
 
   `folder` is the decoded APK: AndroidManifest.xml as text and a res folder with values/public.xml.
   */
   async patchDecoded(folder: string, certificatePem: string, rawName: string) {
     const manifestPath = resolve(folder, 'AndroidManifest.xml');
     let manifest = await readFile(manifestPath, 'utf8');
+    const manifestPackage = /(<manifest\b[^>]*?\s+package=)(["'])([^"']+)\2/;
+
+    const sourcePackage = manifestPackage.exec(manifest)?.[3];
+    if (sourcePackage !== originalCompanionPackage && sourcePackage !== standaloneCompanionPackage) {
+      throw new Error('The decoded APK is not Zwift Companion.');
+    }
+
+    const identifiers = new Map([[originalCompanionPackage, standaloneCompanionPackage]]);
+    const renameIdentifier = (name: string) => {
+      if (!name.startsWith(`${originalCompanionPackage}.`)) {
+        return name;
+      }
+      const renamed = standaloneCompanionPackage + name.slice(originalCompanionPackage.length);
+      identifiers.set(name, renamed);
+
+      return renamed;
+    };
+
+    manifest = manifest
+      .replace(manifestPackage, (_, start: string) => `${start}"${standaloneCompanionPackage}"`)
+      // Relative class names still point at the original Java classes.
+      .replaceAll(/<(?:application|activity(?:-alias)?|provider|receiver|service|instrumentation)\b[^>]*>/g, (tag) =>
+        tag.replaceAll(
+          /\bandroid:(name|targetActivity|parentActivityName|backupAgent|appComponentFactory|manageSpaceActivity|zygotePreloadName)=(["'])([^"']+)\2/g,
+          (attribute, key: string, quote: string, name: string) => {
+            if (name.includes('.') && !name.startsWith('.')) {
+              return attribute;
+            }
+            const className = name.startsWith('.') ? name : `.${name}`;
+
+            return `android:${key}=${quote}${sourcePackage}${className}${quote}`;
+          },
+        ),
+      )
+      .replaceAll(
+        /\bandroid:(authorities|permission|readPermission|writePermission)=(["'])([^"']+)\2/g,
+        (_, key: string, quote: string, value: string) =>
+          `android:${key}=${quote}${value
+            .split(';')
+            .map((name) => renameIdentifier(name))
+            .join(';')}${quote}`,
+      )
+      .replaceAll(/<(?:permission(?:-group|-tree)?|uses-permission(?:-sdk-23)?|action)\b[^>]*>/g, (tag) =>
+        tag.replace(
+          /\bandroid:name=(["'])([^"']+)\1/,
+          (_, quote: string, name: string) => `android:name=${quote}${renameIdentifier(name)}${quote}`,
+        ),
+      );
+
+    const icon = `@drawable/${androidLauncherIcon}`;
+    const withIcon = (tag: string) =>
+      tag
+        .replaceAll(/\s+android:(?:icon|roundIcon)=(["'])[^"']*\1/g, '')
+        .replace(/\s*(\/?>)$/, (_, end: string) => ` android:icon="${icon}" android:roundIcon="${icon}"${end}`);
+
+    manifest = manifest
+      .replace(/<application\b[^>]*>/, (tag) => withIcon(tag))
+      .replaceAll(
+        /(<(activity(?:-alias)?)\b[^>]*(?<!\/)>)([\s\S]*?<\/\2\s*>)/g,
+        (component, tag: string, _kind, body: string) =>
+          /<category\b[^>]*android:name=(["'])android\.intent\.category\.LAUNCHER\1/.test(body)
+            ? withIcon(tag) + body
+            : component,
+      );
+
     const res = await this.resourceFolder(folder);
 
     if (!res) {
       throw new Error('The decoded APK has no res/values/public.xml');
     }
     const publicPath = resolve(res, 'values', 'public.xml');
-    let publicXml = await readFile(publicPath, 'utf8');
+    const originalPublicXml = await readFile(publicPath, 'utf8');
+    let publicXml = originalPublicXml.replace(
+      /(<resources\b[^>]*?\s+package=)(["'])([^"']+)\2/,
+      (attribute, start: string, quote: string, name: string) =>
+        name === originalCompanionPackage ? `${start}${quote}${standaloneCompanionPackage}${quote}` : attribute,
+    );
     const config = /android:networkSecurityConfig="@xml\/([\w.]+)"/.exec(manifest)?.[1];
     const configName = config ?? 'zluggish_network_security_config';
 
     publicXml = declareAndroidResource(publicXml, 'raw', rawName);
+    publicXml = declareAndroidResource(publicXml, 'drawable', androidLauncherIcon);
 
     if (!config) {
       publicXml = declareAndroidResource(publicXml, 'xml', configName);
@@ -1308,6 +1382,11 @@ export class ApkRepository {
 
     await mkdir(resolve(res, 'raw'), { recursive: true });
     await mkdir(resolve(res, 'xml'), { recursive: true });
+    await mkdir(resolve(res, 'drawable'), { recursive: true });
+    await copyFile(
+      resolve(packageRoot(), '../assets/android/zluggish-launcher.xml'),
+      resolve(res, 'drawable', `${androidLauncherIcon}.xml`),
+    );
     await writeFile(resolve(res, 'raw', `${rawName}.pem`), certificatePem);
     await writeFile(
       resolve(res, 'xml', `${configName}.xml`),
@@ -1326,6 +1405,47 @@ export class ApkRepository {
     );
     await writeFile(publicPath, publicXml);
     await writeFile(manifestPath, manifest);
+
+    const packagePath = resolve(res, '../package.json');
+    const resourcePackage = await readFile(packagePath, 'utf8').catch(() => null);
+
+    if (resourcePackage !== null) {
+      await writeFile(
+        packagePath,
+        resourcePackage.replace(
+          /("package_name"\s*:\s*)"com\.zwift\.android\.prod"/,
+          (_, key: string) => `${key}"${standaloneCompanionPackage}"`,
+        ),
+      );
+    }
+
+    // Update package literals used for resource lookups and internal intent actions. Keep class names and store URLs.
+    const smali = resolve(folder, 'smali');
+    const decodedEntries = await readdir(folder);
+    if (decodedEntries.includes('smali')) {
+      for (const entry of await readdir(smali, { withFileTypes: true, recursive: true })) {
+        if (!entry.isFile() || !entry.name.endsWith('.smali')) {
+          continue;
+        }
+        const path = resolve(entry.parentPath, entry.name);
+        const source = await readFile(path, 'utf8');
+        const updated = source.replaceAll(
+          /^([ \t]*const-string(?:\/jumbo)?[ \t]+\w+,[ \t]*")([^"\r\n]+)"/gm,
+          (_, start: string, value: string) =>
+            start +
+            (identifiers.get(value) ??
+              value.replace(
+                /^android\.resource:\/\/com\.zwift\.android\.prod\//,
+                () => `android.resource://${standaloneCompanionPackage}/`,
+              )) +
+            '"',
+        );
+
+        if (updated !== source) {
+          await writeFile(path, updated);
+        }
+      }
+    }
 
     // The fitness view that the zoffline Companion patch also turns on, when the app still ships the flag.
     const remoteConfig = resolve(res, 'xml', 'remote_config_defaults.xml');
