@@ -1,7 +1,20 @@
+import { packageRoot } from '#src/config/load';
 import { CryptoRepository } from '#src/repositories/crypto.repository';
 import { createReadStream, createWriteStream } from 'node:fs';
 import type { FileHandle } from 'node:fs/promises';
-import { copyFile, mkdir, mkdtemp, open, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import {
+  copyFile,
+  mkdir,
+  mkdtemp,
+  open,
+  readdir,
+  readFile,
+  rename,
+  rm,
+  stat,
+  truncate,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { Readable, Transform } from 'node:stream';
@@ -42,10 +55,19 @@ export interface ApkSigner {
 export interface RewriteOptions {
   readonly drop?: (name: string) => boolean;
   readonly replace?: ReadonlyMap<string, Uint8Array>;
+  readonly store?: ReadonlyMap<string, string>;
+  /** Called with the share of the work done, from 0 to 1, as the archive is written and signed. */
+  readonly progress?: ((fraction: number) => void) | undefined;
 }
 
 /** What an uploaded file holds: one APK, or a bundle of split APKs (.apks, .xapk or .apkm). */
 export type ApkUpload = { kind: 'apk' } | { kind: 'bundle'; apks: ReadonlyArray<string> } | { kind: 'unknown' };
+
+const zwiftPackage = 'com.zwift.zwiftgame';
+export const standaloneZwiftPackage = 'com.zluggish.zwift';
+const zwiftLauncherIcon = 'zluggish_launcher';
+const zwiftSetupActivity = `${standaloneZwiftPackage}.bootstrap.SetupActivity`;
+const zwiftExpansionAsset = 'assets/zluggish/expansion.obb';
 
 const eocdSignature = 0x06_05_4b_50;
 const centralSignature = 0x02_01_4b_50;
@@ -98,6 +120,78 @@ const prefixed = (...parts: Array<Uint8Array>) => {
 export const isJarSignature = (name: string) =>
   name === 'META-INF/MANIFEST.MF' || /^META-INF\/[^/]+\.(?:SF|RSA|DSA|EC)$/i.test(name);
 
+function qualifyZwiftClass(name: string) {
+  if (name.startsWith('.')) {
+    return zwiftPackage + name;
+  }
+
+  return name.includes('.') ? name : `${zwiftPackage}.${name}`;
+}
+
+function renameZwiftIdentifier(name: string) {
+  return name === zwiftPackage || name.startsWith(`${zwiftPackage}.`)
+    ? standaloneZwiftPackage + name.slice(zwiftPackage.length)
+    : name;
+}
+
+/** Declare a resource at the next free entry ID without shifting any existing IDs. */
+function declareAndroidResource(publicXml: string, type: string, name: string) {
+  if (
+    new RegExp(`<public[^>]*type="${type}"[^>]*name="${name}"|<public[^>]*name="${name}"[^>]*type="${type}"`).test(
+      publicXml,
+    )
+  ) {
+    return publicXml;
+  }
+
+  const ids = publicXml
+    .matchAll(/<public\b[^>]*>/g)
+    .map((match) => ({
+      type: /type="([^"]+)"/.exec(match[0])?.[1],
+      id: Number.parseInt(/id="0x([\da-f]+)"/i.exec(match[0])?.[1] ?? '0', 16),
+    }))
+    .toArray();
+
+  const sameType = ids
+    .values()
+    .filter((entry) => entry.type === type)
+    .map((entry) => entry.id)
+    .toArray();
+
+  const packageId = (ids[0]?.id ?? 0x7f_00_00_00) & 0xff_00_00_00;
+
+  const id =
+    sameType.length > 0
+      ? Math.max(...sameType) + 1
+      : packageId | ((Math.max(0, ...ids.map((entry) => (entry.id >>> 16) & 0xff)) + 1) << 16);
+
+  return publicXml.replace(
+    /<\/resources>\s*$/,
+    () =>
+      `  <public id="0x${(id >>> 0).toString(16).padStart(8, '0')}" type="${type}" name="${name}" />\n</resources>\n`,
+  );
+}
+
+function newZipEntry(name: string, method: number, size: number, compressedSize: number, crc: number) {
+  const now = new Date();
+
+  return {
+    name,
+    nameBytes: Buffer.from(name),
+    versionMadeBy: 20,
+    versionNeeded: 20,
+    flags: 0x08_00,
+    method,
+    time: (now.getHours() << 11) | (now.getMinutes() << 5) | Math.floor(now.getSeconds() / 2),
+    date: ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate(),
+    crc,
+    compressedSize,
+    size,
+    internalAttributes: 0,
+    externalAttributes: 0,
+  };
+}
+
 async function readAt(handle: FileHandle, position: number, length: number) {
   const buffer = Buffer.alloc(length);
   const { bytesRead } = await handle.read(buffer, 0, length, position);
@@ -109,7 +203,95 @@ async function readAt(handle: FileHandle, position: number, length: number) {
   return buffer;
 }
 
-async function centralDirectory(handle: FileHandle) {
+function zip64Number(bytes: Buffer, offset: number) {
+  const number = Number(bytes.readBigUInt64LE(offset));
+
+  if (!Number.isSafeInteger(number)) {
+    throw new TypeError('The ZIP64 archive has an invalid size or offset');
+  }
+
+  return number;
+}
+
+async function zip64Directory(handle: FileHandle, end: number) {
+  const locator = await readAt(handle, end - 20, 20);
+
+  if (locator.readUInt32LE(0) !== 0x07_06_4b_50 || locator.readUInt32LE(4) !== 0 || locator.readUInt32LE(16) !== 1) {
+    throw new Error('The ZIP64 locator is invalid or spans multiple disks');
+  }
+
+  const position = zip64Number(locator, 8);
+  const record = await readAt(handle, position, 56);
+
+  if (
+    record.readUInt32LE(0) !== 0x06_06_4b_50 ||
+    record.readUInt32LE(16) !== 0 ||
+    record.readUInt32LE(20) !== 0 ||
+    position + 12 + zip64Number(record, 4) !== end - 20
+  ) {
+    throw new Error('The ZIP64 end record is invalid');
+  }
+
+  return {
+    count: zip64Number(record, 32),
+    length: zip64Number(record, 40),
+    offset: zip64Number(record, 48),
+    end: position,
+  };
+}
+
+function zipEntrySizes(
+  directory: Buffer,
+  position: number,
+  extraStart: number,
+  extraLength: number,
+  allowZip64: boolean,
+) {
+  const fields = [24, 20, 42].map((offset) => directory.readUInt32LE(position + offset));
+
+  if (fields.includes(0xff_ff_ff_ff)) {
+    if (!allowZip64) {
+      throw new Error('Zip64 archives are not supported');
+    }
+
+    let field = extraStart;
+    const end = extraStart + extraLength;
+
+    while (field + 4 <= end) {
+      const id = directory.readUInt16LE(field);
+      const size = directory.readUInt16LE(field + 2);
+      const start = field + 4;
+      field = start + size;
+
+      if (field > end) {
+        break;
+      }
+
+      if (id === 1) {
+        let next = start;
+
+        return fields.map((value) => {
+          if (value !== 0xff_ff_ff_ff) {
+            return value;
+          }
+          if (next + 8 > field) {
+            throw new Error('The ZIP64 entry is incomplete');
+          }
+          const actual = zip64Number(directory, next);
+          next += 8;
+
+          return actual;
+        });
+      }
+    }
+
+    throw new Error('The ZIP64 entry is missing its extended sizes');
+  }
+
+  return fields;
+}
+
+async function centralDirectory(handle: FileHandle, allowZip64 = false) {
   const { size } = await handle.stat();
   const tailLength = Math.min(size, 65_557);
   const tail = await readAt(handle, size - tailLength, tailLength);
@@ -125,26 +307,48 @@ async function centralDirectory(handle: FileHandle) {
   if (at === -1) {
     throw new Error('The file is not a zip archive');
   }
-  const count = tail.readUInt16LE(at + 10);
-  const length = tail.readUInt32LE(at + 12);
-  const offset = tail.readUInt32LE(at + 16);
+  let end = size - tailLength + at;
+  let count = tail.readUInt16LE(at + 10);
+  let length = tail.readUInt32LE(at + 12);
+  let offset = tail.readUInt32LE(at + 16);
 
   if (count === 0xff_ff || length === 0xff_ff_ff_ff || offset === 0xff_ff_ff_ff) {
-    throw new Error('Zip64 archives are not supported');
+    if (!allowZip64 || end < 20) {
+      throw new Error('Zip64 archives are not supported');
+    }
+
+    ({ count, length, offset, end } = await zip64Directory(handle, end));
   }
 
+  if (offset > end || length > end - offset || length > 64 * 1024 * 1024 || count > length / 46) {
+    throw new Error('The zip directory is invalid or too large');
+  }
   const directory = await readAt(handle, offset, length);
   const entries: Array<ZipEntry> = [];
   let position = 0;
 
   for (let index = 0; index < count; index++) {
-    if (directory.readUInt32LE(position) !== centralSignature) {
+    if (position + 46 > directory.length || directory.readUInt32LE(position) !== centralSignature) {
       throw new Error('The zip directory is damaged');
     }
     const nameLength = directory.readUInt16LE(position + 28);
     const extraLength = directory.readUInt16LE(position + 30);
     const commentLength = directory.readUInt16LE(position + 32);
-    const nameBytes = Buffer.from(directory.subarray(position + 46, position + 46 + nameLength));
+    const extraStart = position + 46 + nameLength;
+    const next = extraStart + extraLength + commentLength;
+
+    if (next > directory.length) {
+      throw new Error('The zip directory is damaged');
+    }
+
+    const nameBytes = Buffer.from(directory.subarray(position + 46, extraStart));
+    const [size = 0, compressedSize = 0, localOffset = 0] = zipEntrySizes(
+      directory,
+      position,
+      extraStart,
+      extraLength,
+      allowZip64,
+    );
 
     entries.push({
       name: nameBytes.toString('utf8'),
@@ -156,13 +360,13 @@ async function centralDirectory(handle: FileHandle) {
       time: directory.readUInt16LE(position + 12),
       date: directory.readUInt16LE(position + 14),
       crc: directory.readUInt32LE(position + 16),
-      compressedSize: directory.readUInt32LE(position + 20),
-      size: directory.readUInt32LE(position + 24),
+      compressedSize,
+      size,
       internalAttributes: directory.readUInt16LE(position + 36),
       externalAttributes: directory.readUInt32LE(position + 38),
-      localOffset: directory.readUInt32LE(position + 42),
+      localOffset,
     });
-    position += 46 + nameLength + extraLength + commentLength;
+    position = next;
   }
 
   return entries;
@@ -178,7 +382,7 @@ async function dataOffset(handle: FileHandle, entry: ZipEntry) {
   return entry.localOffset + 30 + header.readUInt16LE(26) + header.readUInt16LE(28);
 }
 
-async function readEntry(handle: FileHandle, entry: ZipEntry) {
+async function readEntry(handle: FileHandle, entry: ZipEntry, maxOutputLength?: number) {
   const raw = await readAt(handle, await dataOffset(handle, entry), entry.compressedSize);
 
   if (entry.method === 0) {
@@ -186,7 +390,7 @@ async function readEntry(handle: FileHandle, entry: ZipEntry) {
   }
 
   if (entry.method === 8) {
-    return inflateRawSync(raw);
+    return inflateRawSync(raw, { maxOutputLength });
   }
 
   throw new Error(`The zip entry ${entry.name} uses an unsupported compression method`);
@@ -345,6 +549,12 @@ export class ApkRepository {
   }
 
   async manifest(path: string): Promise<ApkManifest> {
+    const { packageName, versionName, versionCode, minSdk } = await this.manifestWithSplit(path);
+
+    return { packageName, versionName, versionCode, minSdk };
+  }
+
+  private async manifestWithSplit(path: string) {
     const handle = await open(path, 'r');
 
     try {
@@ -354,7 +564,11 @@ export class ApkRepository {
       if (!entry) {
         throw new Error('The APK has no manifest');
       }
-      const elements = readBinaryXml(await readEntry(handle, entry));
+      const manifestLimit = 4 * 1024 ** 2;
+      if (entry.size > manifestLimit || entry.compressedSize > manifestLimit) {
+        throw new Error('The APK manifest is too large');
+      }
+      const elements = readBinaryXml(await readEntry(handle, entry, manifestLimit));
       const root = elements.find((element) => element.name === 'manifest');
       const sdk = elements.find((element) => element.name === 'uses-sdk');
       const versionCode = root?.attributes.get(attributeIds.versionCode) ?? root?.attributes.get('versionCode');
@@ -363,6 +577,7 @@ export class ApkRepository {
 
       return {
         packageName: String(root?.attributes.get('package') ?? ''),
+        split: String(root?.attributes.get('split') ?? ''),
         versionName: String(versionName ?? ''),
         versionCode: Number(versionCode ?? 0),
         minSdk: Number(minSdk) || 1,
@@ -397,6 +612,377 @@ export class ApkRepository {
     }
   }
 
+  /** Extract one Zwift expansion from an APKM without extracting its APKs or trusting archive paths. */
+  async extractZwiftObb(
+    path: string,
+    output: string,
+    limit: number,
+    signal: AbortSignal,
+    progress?: (fraction: number) => void,
+  ) {
+    await using handle = await open(path, 'r');
+    const entries = await centralDirectory(handle, true);
+    const expansions = entries.filter((entry) =>
+      /(?:^|\/)main\.\d{1,12}\.com\.zwift\.zwiftgame\.obb$/.test(entry.name),
+    );
+    const [expansion] = expansions;
+
+    if (expansions.length !== 1 || !expansion) {
+      throw new Error('Choose an APKM bundle with one main Zwift OBB. On APKMirror, select BUNDLE 1 OBB.');
+    }
+
+    await this.extractBundleEntry(path, handle, expansion, output, limit, signal, progress);
+
+    return expansion.name.slice(expansion.name.lastIndexOf('/') + 1);
+  }
+
+  private async extractBundleEntry(
+    path: string,
+    handle: FileHandle,
+    entry: ZipEntry,
+    output: string,
+    limit: number,
+    signal: AbortSignal,
+    progress?: (fraction: number) => void,
+  ) {
+    const start = await dataOffset(handle, entry);
+    const { size } = await handle.stat();
+
+    if (
+      entry.size === 0 ||
+      entry.size > limit ||
+      entry.compressedSize === 0 ||
+      start + entry.compressedSize > size ||
+      (entry.method !== 0 && entry.method !== 8) ||
+      (entry.flags & 1) !== 0
+    ) {
+      throw new Error(`The APKM entry ${entry.name} is invalid or unsupported.`);
+    }
+
+    let extracted = 0;
+    let crc = 0;
+    const count = new Transform({
+      transform(chunk: Buffer, _encoding, next) {
+        extracted += chunk.length;
+        crc = crc32(chunk, crc);
+        progress?.(Math.min(1, extracted / entry.size));
+        next(extracted > entry.size ? new Error('The APKM entry exceeds its declared size.') : null, chunk);
+      },
+    });
+    const source = createReadStream(path, { start, end: start + entry.compressedSize - 1 });
+    const target = createWriteStream(output, { flags: 'wx', mode: 0o600 });
+
+    if (entry.method === 8) {
+      await pipeline(source, createInflateRaw(), count, target, { signal });
+    } else {
+      await pipeline(source, count, target, { signal });
+    }
+
+    if (extracted !== entry.size || crc !== entry.crc) {
+      throw new Error(`The APKM entry ${entry.name} is incomplete or corrupt.`);
+    }
+  }
+
+  async extractZwiftApks(input: string, folder: string, versionCode: number, signal: AbortSignal) {
+    await using handle = await open(input, 'r');
+    const entries = await centralDirectory(handle, true);
+    const apks = entries.filter((entry) => /^[\w.-]+\.apk$/.test(entry.name));
+    if (apks.length === 0 || apks.length > 100 || new Set(apks.map((entry) => entry.name)).size !== apks.length) {
+      throw new Error('The bundle must contain one base Zwift APK and uniquely named splits.');
+    }
+
+    await mkdir(folder, { recursive: true });
+    const splits = new Set<string>();
+    let base: { path: string; manifest: ApkManifest } | undefined;
+
+    for (const entry of apks) {
+      const path = resolve(folder, entry.name);
+      await this.extractBundleEntry(input, handle, entry, path, 512 * 1024 ** 2, signal);
+      const manifest = await this.manifestWithSplit(path);
+      if (manifest.packageName !== zwiftPackage || manifest.versionCode !== versionCode || splits.has(manifest.split)) {
+        throw new Error('The APKM mixes Zwift versions or contains conflicting split APKs.');
+      }
+      splits.add(manifest.split);
+      if (!manifest.split) {
+        base = { path, manifest };
+      }
+    }
+
+    if (!base) {
+      throw new Error('The bundle is missing the base Zwift APK.');
+    }
+
+    return { base, parts: apks.map((entry) => resolve(folder, entry.name)) };
+  }
+
+  /** Keep Java class names intact while giving the installed application and its providers a separate identity. */
+  async configureDecodedZwift(folder: string, versionCode: number) {
+    const manifestPath = resolve(folder, 'AndroidManifest.xml');
+    const original = await readFile(manifestPath, 'utf8');
+    const originalPackage = /<manifest\s[^>]*?\bpackage=(["'])([^"']+)\1/.exec(original)?.[2];
+    if (originalPackage !== zwiftPackage) {
+      throw new Error('The decoded APK is not the original Zwift app.');
+    }
+
+    const appTag = /<application\b[^>]*>/;
+    let manifest = original
+      .replace(
+        /(<manifest\s[^>]*?\bpackage=)(["'])([^"']+)\2/,
+        (_, start: string) => `${start}"${standaloneZwiftPackage}"`,
+      )
+      .replaceAll(/<(?:application|activity(?:-alias)?|provider|receiver|service|instrumentation)\b[^>]*>/g, (tag) =>
+        tag.replaceAll(
+          /\bandroid:(name|targetActivity|parentActivityName|backupAgent|appComponentFactory|manageSpaceActivity|zygotePreloadName)=(["'])([^"']+)\2/g,
+          (_, attribute: string, quote: string, name: string) =>
+            `android:${attribute}=${quote}${qualifyZwiftClass(name)}${quote}`,
+        ),
+      )
+      .replaceAll(
+        /\bandroid:(authorities|permission|readPermission|writePermission|targetPackage)=(["'])([^"']+)\2/g,
+        (_, attribute: string, quote: string, value: string) =>
+          `android:${attribute}=${quote}${value
+            .split(';')
+            .map((part) => renameZwiftIdentifier(part))
+            .join(';')}${quote}`,
+      )
+      .replaceAll(/<(?:permission(?:-group|-tree)?|uses-permission(?:-sdk-23)?)\b[^>]*>/g, (tag) =>
+        tag.replace(
+          /\bandroid:name=(["'])([^"']+)\1/,
+          (_, quote: string, name: string) => `android:name=${quote}${renameZwiftIdentifier(name)}${quote}`,
+        ),
+      )
+      .replace(appTag, (tag) => {
+        const originalBrandingRemoved = tag.replaceAll(/\s+android:(?:label|icon|roundIcon)=(["'])[^"']*\1/g, '');
+        const icon = `@drawable/${zwiftLauncherIcon}`;
+
+        return originalBrandingRemoved.replace(
+          '>',
+          () => ` android:label="Zwift for Zluggish" android:icon="${icon}" android:roundIcon="${icon}">`,
+        );
+      });
+
+    const launchers = new Set<string>();
+    const launcherCategory = /<category\s+android:name=(["'])android\.intent\.category\.LAUNCHER\1\s*\/>/;
+    manifest = manifest.replaceAll(
+      /(<(activity(?:-alias)?)\b[^>]*[^/>]>)([\s\S]*?)(<\/\2\s*>)/g,
+      (_component, tag: string, _kind: string, body: string, close: string) => {
+        const redirected = body.replaceAll(/<intent-filter\b[^>]*>[\s\S]*?<\/intent-filter>/g, (filter) => {
+          if (!/android:name=(["'])android\.intent\.action\.MAIN\1/.test(filter) || !launcherCategory.test(filter)) {
+            return filter;
+          }
+
+          const activity = /\bandroid:name=(["'])([\w.$]+)\1/.exec(tag)?.[2];
+          if (activity) {
+            launchers.add(activity);
+          }
+
+          return filter.replace(launcherCategory, '');
+        });
+
+        return tag + redirected + close;
+      },
+    );
+
+    const [launcher] = launchers;
+    if (!launcher || launchers.size !== 1 || !/<\/application\s*>/.test(manifest)) {
+      throw new Error('Could not identify the Zwift launcher activity.');
+    }
+    const obb = `main.${versionCode}.${standaloneZwiftPackage}.obb`;
+    manifest = manifest.replace(/<\/application\s*>/, () =>
+      [
+        `  <activity android:name="${zwiftSetupActivity}" android:exported="true" android:launchMode="singleTop"`,
+        '            android:configChanges="keyboardHidden|orientation|screenSize">',
+        `    <meta-data android:name="zluggish.expansion" android:value="${obb}" />`,
+        `    <meta-data android:name="zluggish.launcher" android:value="${launcher}" />`,
+        '    <intent-filter>',
+        '      <action android:name="android.intent.action.MAIN" />',
+        '      <category android:name="android.intent.category.LAUNCHER" />',
+        '    </intent-filter>',
+        '  </activity>',
+        '</application>',
+      ].join('\n'),
+    );
+    await writeFile(manifestPath, manifest);
+
+    const res = await this.resourceFolder(folder);
+    if (!res) {
+      throw new Error('The decoded Zwift APK has no res/values/public.xml.');
+    }
+    const publicPath = resolve(res, 'values', 'public.xml');
+    const publicXml = await readFile(publicPath, 'utf8');
+    await mkdir(resolve(res, 'drawable'), { recursive: true });
+    await copyFile(
+      resolve(packageRoot(), '../assets/android/zluggish-launcher.xml'),
+      resolve(res, 'drawable', `${zwiftLauncherIcon}.xml`),
+    );
+    await writeFile(publicPath, declareAndroidResource(publicXml, 'drawable', zwiftLauncherIcon));
+
+    const resources = resolve(folder, 'resources');
+    for (const entry of await readdir(resources, { withFileTypes: true })) {
+      if (!entry.isDirectory() || !/^package_\d+$/.test(entry.name)) {
+        continue;
+      }
+      const packagePath = resolve(resources, entry.name, 'package.json');
+      const originalResources = await readFile(packagePath, 'utf8');
+      const updated = originalResources.replace(
+        /("package_name"\s*:\s*)"com\.zwift\.zwiftgame"/,
+        (_, key: string) => `${key}"${standaloneZwiftPackage}"`,
+      );
+      if (updated !== originalResources) {
+        await writeFile(packagePath, updated);
+      }
+    }
+  }
+
+  /** Update the original package lookups Zwift uses to find, unpack, and start the game. */
+  async configureZwiftPackageLookups(folder: string) {
+    const smali = resolve(folder, 'smali');
+    const entries = await readdir(smali, { withFileTypes: true });
+    const classes = entries.filter((dex) => dex.isDirectory());
+    const readClass = async (name: string) => {
+      for (const dex of classes) {
+        const path = resolve(smali, dex.name, 'com/zwift/zwiftgame', name);
+        try {
+          return { path, source: await readFile(path, 'utf8') };
+        } catch (error) {
+          if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) {
+            throw error;
+          }
+        }
+      }
+
+      return null;
+    };
+
+    const helpers = await readClass('vending/expansion/downloader/Helpers.smali');
+    if (!helpers) {
+      throw new Error('Could not find the Zwift downloader expansion filename helper.');
+    }
+    const lookup =
+      /(^\.method [^\n]*\bgetExpansionAPKFileName\(ZI\)Ljava\/lang\/String;[^\n]*\n[\s\S]*?^\.end method)/m;
+    const updated = helpers.source.replace(lookup, (method) =>
+      method.replace('".com.zwift.zwiftgame.obb"', () => `".${standaloneZwiftPackage}.obb"`),
+    );
+    if (updated === helpers.source) {
+      throw new Error('Could not update the Zwift downloader expansion filename.');
+    }
+    await writeFile(helpers.path, updated);
+
+    // Zwift 1.126 hardcodes the private data directory in the unpacker and its version marker.
+    const downloader = await readClass('downloader/ZwiftDownloaderActivity.smali');
+    const unzip = await readClass('downloader/ZwiftDownloaderActivity$AsyncUnzipTask.smali');
+    if (downloader && downloader.source.includes('/data/data/com.zwift.zwiftgame/')) {
+      const source = downloader.source.replace(
+        /const-string(?:\/jumbo)? v0, "\/data\/data\/com\.zwift\.zwiftgame(\/dataES\/Misc\/v\d+\.txt)"/,
+        (_, marker: string) =>
+          [
+            'invoke-virtual {p0}, Landroid/content/Context;->getDataDir()Ljava/io/File;',
+            'move-result-object v0',
+            'invoke-virtual {v0}, Ljava/io/File;->getAbsolutePath()Ljava/lang/String;',
+            'move-result-object v0',
+            `const-string v1, "${marker}"`,
+            'invoke-virtual {v0, v1}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;',
+            'move-result-object v0',
+          ].join('\n    '),
+      );
+      if (source === downloader.source) {
+        throw new Error('Could not update the Zwift expansion version marker path.');
+      }
+      await writeFile(downloader.path, source);
+    }
+    if (unzip && unzip.source.includes('/data/data/com.zwift.zwiftgame/')) {
+      const source = unzip.source.replace(/const-string(?:\/jumbo)? v5, "\/data\/data\/com\.zwift\.zwiftgame\/"/, () =>
+        [
+          'iget-object v5, v1, Lcom/zwift/zwiftgame/downloader/ZwiftDownloaderActivity$AsyncUnzipTask;->mContext:Landroid/content/Context;',
+          'invoke-virtual {v5}, Landroid/content/Context;->getDataDir()Ljava/io/File;',
+          'move-result-object v5',
+          'invoke-virtual {v5}, Ljava/io/File;->getAbsolutePath()Ljava/lang/String;',
+          'move-result-object v5',
+          'const-string v6, "/"',
+          'invoke-virtual {v5, v6}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;',
+          'move-result-object v5',
+        ].join('\n    '),
+      );
+      if (source === unzip.source) {
+        throw new Error('Could not update the Zwift expansion unpacking path.');
+      }
+      await writeFile(unzip.path, source);
+    }
+
+    // Android can throw when Zwift asks for the installer of a package which isn't installed.
+    const main = await readClass('ZwiftMainActivity.smali');
+    if (!main) {
+      return;
+    }
+    const installerLookup =
+      /(const-string(?:\/jumbo)?\s+[pv]\d+,\s*)"com\.zwift\.zwiftgame"(?=\s+invoke-virtual[^\n]*PackageManager;->getInstallerPackageName\()/g;
+    const activity = main.source.replaceAll(
+      installerLookup,
+      (_, instruction: string) => `${instruction}"${standaloneZwiftPackage}"`,
+    );
+    if (activity !== main.source) {
+      await writeFile(main.path, activity);
+    }
+  }
+
+  async signStandaloneZwift(
+    input: string,
+    output: string,
+    obb: string,
+    signer: ApkSigner,
+    progress?: (fraction: number) => void,
+  ) {
+    await using handle = await open(input, 'r');
+    const entries = await centralDirectory(handle);
+    const dex = entries
+      .values()
+      .map((entry) => /^classes(\d*)\.dex$/.exec(entry.name))
+      .filter((match) => match !== null)
+      .map((match) => Number(match[1] || 1))
+      .toArray();
+    const next = Math.max(1, ...dex) + 1;
+    const bootstrap = await readFile(resolve(packageRoot(), '../assets/android/zwift-setup.dex'));
+
+    await this.rewrite(input, output, signer, {
+      replace: new Map([[`classes${next}.dex`, bootstrap]]),
+      store: new Map([[zwiftExpansionAsset, obb]]),
+      progress,
+    });
+  }
+
+  /** Zwift checks the Play Store expansion file's size before unpacking its assets. */
+  async patchZwiftObb(input: string, output: string, pem: string, progress?: (fraction: number) => void) {
+    const name = 'dataES/cacert.pem';
+    const source = await open(input, 'r');
+
+    try {
+      const entries = await centralDirectory(source);
+      const bundles = entries.filter((entry) => entry.name === name);
+      const [bundle] = bundles;
+      const limit = 1024 * 1024;
+
+      if (!bundle || bundles.length !== 1 || bundle.size > limit || bundle.compressedSize > limit) {
+        throw new Error('The expansion file needs one Zwift certificate bundle.');
+      }
+
+      const original = await readEntry(source, bundle, limit);
+      const certificates = original
+        .toString('ascii')
+        .match(/-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/g);
+
+      if (!certificates?.length) {
+        throw new Error('The expansion file has an invalid Zwift certificate bundle.');
+      }
+
+      // Keep the existing trust roots, omitting the descriptive text between PEM blocks to save space.
+      const updated = Buffer.from([...new Set([...certificates, pem.trim()])].join('\n') + '\n', 'ascii');
+      const { size } = await source.stat();
+      await this.rewriteArchive(input, output, { replace: new Map([[name, updated]]), progress }, null, size);
+    } finally {
+      await source.close();
+    }
+  }
+
   /**
   Write a copy of the APK with entries dropped or replaced, then sign it with APK Signature Scheme v2.
 
@@ -406,23 +992,136 @@ export class ApkRepository {
   or above, where v2 alone is enough.
   */
   async rewrite(input: string, output: string, signer: ApkSigner, options: RewriteOptions = {}) {
-    const source = await open(input, 'r');
+    await this.rewriteArchive(input, output, options, signer);
+  }
+
+  private async rewriteArchive(
+    input: string,
+    output: string,
+    options: RewriteOptions,
+    signer: ApkSigner | null,
+    archiveSize?: number,
+  ) {
+    await using source = await open(input, 'r');
+    const entries = await centralDirectory(source);
+    const replace = options.replace ?? new Map<string, Uint8Array>();
+    const tick = await this.progressMeter(input, options, signer !== null);
+
+    await this.writeArchive(output, signer, archiveSize, tick, async (add) => {
+      for (const entry of entries) {
+        if (
+          replace.has(entry.name) ||
+          options.store?.has(entry.name) ||
+          options.drop?.(entry.name) ||
+          (signer && isJarSignature(entry.name))
+        ) {
+          continue;
+        }
+
+        const mustStore =
+          signer && (entry.name === 'resources.arsc' || (entry.name.startsWith('lib/') && entry.name.endsWith('.so')));
+
+        if (entry.method !== 0 && mustStore) {
+          const data = await readEntry(source, entry);
+          await add({ ...entry, method: 0, compressedSize: data.length }, data);
+          continue;
+        }
+
+        const start = await dataOffset(source, entry);
+
+        if (archiveSize !== undefined && start + entry.compressedSize > archiveSize) {
+          throw new Error('The expansion file contains a truncated entry.');
+        }
+
+        await add(
+          entry,
+          entry.compressedSize === 0
+            ? new Uint8Array()
+            : createReadStream(input, { start, end: start + entry.compressedSize - 1, highWaterMark: chunkSize }),
+        );
+      }
+
+      for (const [name, data] of replace) {
+        const compressed = deflateRawSync(data, { level: 9 });
+        await add(newZipEntry(name, 8, data.length, compressed.length, crc32(data)), compressed);
+      }
+      for (const [name, path] of options.store ?? []) {
+        const { size } = await stat(path);
+        let crc = 0;
+        const source: AsyncIterable<Uint8Array> = createReadStream(path, { highWaterMark: chunkSize });
+        for await (const bytes of source) {
+          crc = crc32(bytes, crc);
+          tick(bytes.length);
+        }
+        await add(newZipEntry(name, 0, size, size, crc), createReadStream(path, { highWaterMark: chunkSize }));
+      }
+    });
+  }
+
+  /**
+  Count the bytes a rewrite reads and writes against an estimate of the whole: the copy of each entry, a checksum pass
+  over each stored file, and, when signing, the digest pass over everything written.
+  */
+  private async progressMeter(input: string, options: RewriteOptions, signing: boolean) {
+    const report = options.progress;
+
+    if (!report) {
+      return () => {};
+    }
+
+    let stored = 0;
+    for (const path of options.store?.values() ?? []) {
+      const { size } = await stat(path);
+      stored += size;
+    }
+    const { size } = await stat(input);
+    const written = size + stored;
+    const work = Math.max(1, written * (signing ? 2 : 1) + stored);
+    let done = 0;
+
+    return (bytes: number) => {
+      done += bytes;
+      report(Math.min(1, done / work));
+    };
+  }
+
+  private async writeArchive(
+    output: string,
+    signer: ApkSigner | null,
+    archiveSize: number | undefined,
+    tick: (bytes: number) => void,
+    populate: (
+      add: (entry: Omit<ZipEntry, 'localOffset'>, data: AsyncIterable<Uint8Array> | Uint8Array) => Promise<void>,
+    ) => Promise<void>,
+  ) {
     const target = await open(output, 'wx+', 0o600);
 
     try {
-      const entries = await centralDirectory(source);
-      const replace = options.replace ?? new Map<string, Uint8Array>();
       const central: Array<Buffer> = [];
       let position = 0;
 
       const write = async (data: Uint8Array) => {
-        await target.write(data, 0, data.length, position);
+        if (archiveSize !== undefined && position + data.length > archiveSize) {
+          throw new Error('The patched expansion file does not fit the original download size.');
+        }
+        if (position + data.length >= 0xff_ff_ff_ff) {
+          throw new Error('The generated ZIP archive exceeds 4 GiB.');
+        }
+        const { bytesWritten } = await target.write(data, 0, data.length, position);
+        if (bytesWritten !== data.length) {
+          throw new Error('Could not write the complete ZIP archive.');
+        }
         position += data.length;
+        tick(data.length);
       };
 
       const add = async (entry: Omit<ZipEntry, 'localOffset'>, data: AsyncIterable<Uint8Array> | Uint8Array) => {
         const alignment =
-          entry.method === 0 ? (entry.name.startsWith('lib/') && entry.name.endsWith('.so') ? pageAlignment : 4) : 0;
+          signer && entry.method === 0
+            ? entry.name.startsWith('lib/') && entry.name.endsWith('.so')
+              ? pageAlignment
+              : 4
+            : 0;
 
         const headerEnd = position + 30 + entry.nameBytes.length;
         let extra = Buffer.alloc(0);
@@ -486,56 +1185,9 @@ export class ApkRepository {
         );
       };
 
-      for (const entry of entries) {
-        if (replace.has(entry.name) || options.drop?.(entry.name) || isJarSignature(entry.name)) {
-          continue;
-        }
-
-        const mustStore =
-          entry.name === 'resources.arsc' || (entry.name.startsWith('lib/') && entry.name.endsWith('.so'));
-
-        if (entry.method !== 0 && mustStore) {
-          const data = await readEntry(source, entry);
-          await add({ ...entry, method: 0, compressedSize: data.length }, data);
-          continue;
-        }
-
-        const start = await dataOffset(source, entry);
-
-        await add(
-          entry,
-          entry.compressedSize === 0
-            ? new Uint8Array()
-            : createReadStream(input, { start, end: start + entry.compressedSize - 1, highWaterMark: chunkSize }),
-        );
-      }
-
-      for (const [name, data] of replace) {
-        const compressed = deflateRawSync(data, { level: 9 });
-        const now = new Date();
-
-        await add(
-          {
-            name,
-            nameBytes: Buffer.from(name, 'utf8'),
-            versionMadeBy: 20,
-            versionNeeded: 20,
-            flags: 0x08_00,
-            method: 8,
-            time: (now.getHours() << 11) | (now.getMinutes() << 5) | Math.floor(now.getSeconds() / 2),
-            date: ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate(),
-            crc: crc32(data),
-            compressedSize: compressed.length,
-            size: data.length,
-            internalAttributes: 0,
-            externalAttributes: 0,
-          },
-          compressed,
-        );
-      }
+      await populate(add);
 
       const directory = Buffer.concat(central);
-      const entriesEnd = position;
 
       const eocd = (offset: number) =>
         Buffer.concat([
@@ -549,22 +1201,38 @@ export class ApkRepository {
           u16(0),
         ]);
 
-      // The digest covers the EOCD as if the directory started where the signing block will.
-      const digest = await this.digest(target, entriesEnd, [directory, eocd(entriesEnd)]);
-      const block = this.signingBlock(digest, signer);
+      if (archiveSize !== undefined) {
+        // Place any padding before the directory so ZIP readers still find the end record at EOF.
+        const directoryStart = archiveSize - directory.length - eocd(0).length;
 
-      await write(block);
+        if (directoryStart < position) {
+          throw new Error('The patched expansion file does not fit the original download size.');
+        }
+        position = directoryStart;
+      }
+
+      if (signer) {
+        // The digest covers the EOCD as if the directory started where the signing block will.
+        const digest = await this.digest(target, position, [directory, eocd(position)], tick);
+        await write(this.signingBlock(digest, signer));
+      }
+
+      const directoryStart = position;
       await write(directory);
-      await write(eocd(entriesEnd + block.length));
+      await write(eocd(directoryStart));
       await target.sync();
     } finally {
       await target.close();
-      await source.close();
     }
   }
 
   /** The CHUNKED_SHA256 digest of the zip entries (read from the file) and the given trailing sections. */
-  private async digest(handle: FileHandle, entriesLength: number, sections: ReadonlyArray<Buffer>) {
+  private async digest(
+    handle: FileHandle,
+    entriesLength: number,
+    sections: ReadonlyArray<Buffer>,
+    tick: (bytes: number) => void,
+  ) {
     const chunks: Array<Buffer> = [];
 
     const chunk = (bytes: Uint8Array) => {
@@ -572,7 +1240,9 @@ export class ApkRepository {
     };
 
     for (let offset = 0; offset < entriesLength; offset += chunkSize) {
-      chunk(await readAt(handle, offset, Math.min(chunkSize, entriesLength - offset)));
+      const length = Math.min(chunkSize, entriesLength - offset);
+      chunk(await readAt(handle, offset, length));
+      tick(length);
     }
 
     for (const section of sections) {
@@ -626,49 +1296,10 @@ export class ApkRepository {
     const config = /android:networkSecurityConfig="@xml\/([\w.]+)"/.exec(manifest)?.[1];
     const configName = config ?? 'zluggish_network_security_config';
 
-    const declared = (type: string, name: string) =>
-      new RegExp(`<public[^>]*type="${type}"[^>]*name="${name}"|<public[^>]*name="${name}"[^>]*type="${type}"`).test(
-        publicXml,
-      );
-
-    /** Declare a new resource with the next free ID of its type, or of a new type after the last one. */
-    const declare = (type: string, name: string) => {
-      if (declared(type, name)) {
-        return;
-      }
-
-      const ids = publicXml
-        .matchAll(/<public\b[^>]*>/g)
-        .map((match) => ({
-          type: /type="([^"]+)"/.exec(match[0])?.[1],
-          id: Number.parseInt(/id="0x([\da-f]+)"/i.exec(match[0])?.[1] ?? '0', 16),
-        }))
-        .toArray();
-
-      const sameType = ids
-        .values()
-        .filter((entry) => entry.type === type)
-        .map((entry) => entry.id)
-        .toArray();
-
-      const packageId = (ids[0]?.id ?? 0x7f_00_00_00) & 0xff_00_00_00;
-
-      const id =
-        sameType.length > 0
-          ? Math.max(...sameType) + 1
-          : packageId | ((Math.max(0, ...ids.map((entry) => (entry.id >>> 16) & 0xff)) + 1) << 16);
-
-      publicXml = publicXml.replace(
-        /<\/resources>\s*$/,
-        () =>
-          `  <public id="0x${(id >>> 0).toString(16).padStart(8, '0')}" type="${type}" name="${name}" />\n</resources>\n`,
-      );
-    };
-
-    declare('raw', rawName);
+    publicXml = declareAndroidResource(publicXml, 'raw', rawName);
 
     if (!config) {
-      declare('xml', configName);
+      publicXml = declareAndroidResource(publicXml, 'xml', configName);
       manifest = manifest.replace(
         /<application\b/,
         () => `<application android:networkSecurityConfig="@xml/${configName}"`,
@@ -724,7 +1355,13 @@ export class ApkRepository {
     return null;
   }
 
-  async workspace() {
+  async workspace(storage?: string) {
+    if (storage) {
+      await mkdir(storage, { recursive: true });
+
+      return mkdtemp(join(storage, 'upload-'));
+    }
+
     return mkdtemp(join(tmpdir(), 'zluggish-companion-'));
   }
 
@@ -752,6 +1389,31 @@ export class ApkRepository {
     }
 
     return received;
+  }
+
+  async appendUpload(path: string, chunk: string, offset: number) {
+    const size = await this.size(path);
+    if ((size ?? 0) !== offset) {
+      throw new Error('The staged upload does not match its confirmed size.');
+    }
+
+    try {
+      await pipeline(createReadStream(chunk), createWriteStream(path, { flags: 'a', mode: 0o600 }));
+    } catch (error) {
+      await truncate(path, offset);
+      throw error;
+    }
+  }
+
+  async retainUpload(workspace: string, destination: string) {
+    const source = await open(resolve(workspace, 'upload'), 'r+');
+    try {
+      await source.sync();
+    } finally {
+      await source.close();
+    }
+    await mkdir(dirname(destination), { recursive: true });
+    await rename(workspace, destination);
   }
 
   /** Move a finished file into place, replacing what is there; copies when the folders are on different disks. */

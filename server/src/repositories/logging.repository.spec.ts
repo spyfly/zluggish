@@ -69,8 +69,8 @@ await test('safe serialization and sink failure containment', () => {
   });
   assert.doesNotMatch(lines[0]!, /sensitive-/);
   assert.match(lines[0]!, /^1970-01-01T00:00:00.000Z ERROR activity.save_failed Save failed next /);
-  assert.match(lines[0]!, /"playerId":"42"/);
-  assert.match(lines[0]!, /"circular":\{"self":"\[truncated\]"\}/);
+  assert.match(lines[0]!, /playerId=42/);
+  assert.match(lines[0]!, /circular\.self=\[truncated\]/);
   assert.doesNotThrow(() =>
     new LoggingRepository({
       sink: () => {
@@ -92,8 +92,8 @@ await test('errors keep their message, stack and cause', () => {
 
   new LoggingRepository({ sink }).error('web.failed', 'Failed', { error });
   const [line, ...trace] = lines[0]!.split('\n');
-  assert.match(line!, /"message":"outer failure"/);
-  assert.doesNotMatch(line!, /"stack"/);
+  assert.match(line!, /error\.message='outer failure'/);
+  assert.doesNotMatch(line!, /error\.stack=/);
   assert.match(trace[0]!, /^Error: outer failure$/);
   assert.match(trace[1]!, /^\s+at /);
   assert.ok(trace.some((frame) => frame.includes('[cause]: TypeError: inner failure')));
@@ -113,12 +113,12 @@ await test('children share configuration and retain their own context', () => {
   child.warn('import.warning', 'Hidden');
   child.error('import.failed', 'Failed', { playerId: 42 });
   assert.equal(lines.length, 1);
-  assert.match(lines[0]!, /\{"component":"import","playerId":42\}$/);
+  assert.match(lines[0]!, /component=import playerId=42$/);
   repository.configure({ level: 'INFO' });
   child.info('import.finished', 'Finished');
   repository.info('server.ready', 'Ready');
   assert.equal(lines.length, 3);
-  assert.match(lines[2]!, /server.ready Ready \{\}$/);
+  assert.match(lines[2]!, /server.ready Ready$/);
 });
 
 await test('recent entries are bounded, shared with children, and respect the configured level', () => {
@@ -133,8 +133,8 @@ await test('recent entries are bounded, shared with children, and respect the co
   child.warn('test.warning', 'Newest');
   const entries = log.recentEntries();
   assert.equal(entries.length, 200);
-  assert.match(entries[0]!, /test.warning Newest \{"component":"test"\}$/);
-  assert.match(entries.at(-1)!, /test.entry Entry 1 \{\}$/);
+  assert.match(entries[0]!, /test.warning Newest component=test$/);
+  assert.match(entries.at(-1)!, /test.entry Entry 1$/);
   assert.deepEqual(child.recentEntries(), entries);
 
   const error = Object.assign(new Error('Failure'), { password: 'secret-value' });

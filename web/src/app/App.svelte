@@ -16,6 +16,7 @@
   import InstallPhone from './InstallPhone.svelte';
   import Companion from './Companion.svelte';
   import CompanionManage from './CompanionManage.svelte';
+  import ZwiftAndroidManage from './ZwiftAndroidManage.svelte';
   import ServerCertificate from './ServerCertificate.svelte';
   import { tlsStatus } from './tls';
   import { decode, ignored, responseFields } from '../lib/api';
@@ -199,47 +200,49 @@
         ? 'Server'
         : path === '/manage/companion'
           ? 'Companion app'
-          : path === '/manage/users/new'
-            ? 'Create user'
-            : selected
-              ? label(selected)
-              : manage
-                ? 'Users'
-                : path === '/activities' || path.startsWith('/activities/')
-                  ? 'Activities'
-                  : path === '/profile-data/local'
-                    ? 'Import local files'
-                    : path === '/profile-data'
-                      ? 'Import / Export'
-                      : path === '/zwift'
-                        ? 'Zwift connection'
-                        : path === '/integrations'
-                          ? 'Integrations'
-                          : path === '/settings'
-                            ? 'Settings'
-                            : path === '/climbs'
-                              ? 'Climbs'
-                              : apps
-                                ? 'Apps'
-                                : path === '/install/windows'
-                                  ? 'Windows setup'
-                                  : path === '/install/macos'
-                                    ? 'macOS setup'
-                                    : path === '/install/linux'
-                                      ? 'Linux setup'
-                                      : path === '/install/android'
-                                        ? 'Android setup'
-                                        : path === '/install/android-rooted'
-                                          ? 'Rooted Android setup'
-                                          : path === '/install/ios'
-                                            ? 'iPhone and iPad'
-                                            : installing
-                                              ? 'Install'
-                                              : path === '/companion/android'
-                                                ? 'Android setup'
-                                                : companion
-                                                  ? 'Companion'
-                                                  : 'Profile',
+          : path === '/manage/zwift-android'
+            ? 'Zwift for Android'
+            : path === '/manage/users/new'
+              ? 'Create user'
+              : selected
+                ? label(selected)
+                : manage
+                  ? 'Users'
+                  : path === '/activities' || path.startsWith('/activities/')
+                    ? 'Activities'
+                    : path === '/profile-data/local'
+                      ? 'Import local files'
+                      : path === '/profile-data'
+                        ? 'Import / Export'
+                        : path === '/zwift'
+                          ? 'Zwift connection'
+                          : path === '/integrations'
+                            ? 'Integrations'
+                            : path === '/settings'
+                              ? 'Settings'
+                              : path === '/climbs'
+                                ? 'Climbs'
+                                : apps
+                                  ? 'Apps'
+                                  : path === '/install/windows'
+                                    ? 'Windows setup'
+                                    : path === '/install/macos'
+                                      ? 'macOS setup'
+                                      : path === '/install/linux'
+                                        ? 'Linux setup'
+                                        : path === '/install/android'
+                                          ? 'Android setup'
+                                          : path === '/install/android-rooted'
+                                            ? 'Rooted Android setup'
+                                            : path === '/install/ios'
+                                              ? 'iPhone and iPad'
+                                              : installing
+                                                ? 'Install'
+                                                : path === '/companion/android'
+                                                  ? 'Android setup'
+                                                  : companion
+                                                    ? 'Companion'
+                                                    : 'Profile',
   );
 
   const initials = (r: User) => `${r.first_name.charAt(0)}${r.last_name.charAt(0)}`.toUpperCase();
@@ -936,9 +939,17 @@
       {@render link('/apps', 'Apps', apps || installing || companion)}
       {#if administrator}
         <p class="group">Manage</p>
-        {@render link('/manage', 'Users', manage && path !== '/manage/server' && path !== '/manage/companion')}
+        {@render link(
+          '/manage',
+          'Users',
+          manage && !['/manage/server', '/manage/companion', '/manage/zwift-android'].includes(path),
+        )}
+        <div class="subgroup" role="group" aria-labelledby="menu-android-apps">
+          <p class="group" id="menu-android-apps">Android apps</p>
+          {@render link('/manage/companion', 'Companion', path === '/manage/companion')}
+          {@render link('/manage/zwift-android', 'Zwift', path === '/manage/zwift-android')}
+        </div>
         {@render link('/manage/server', 'Server', path === '/manage/server')}
-        {@render link('/manage/companion', 'Companion', path === '/manage/companion')}
       {/if}
     </nav>
     <button class="sign-out" disabled={busy} onclick={() => run(signOut)}>Sign out</button>
@@ -1126,6 +1137,8 @@
       <div>
         {#if path === '/manage/companion'}
           <CompanionManage {api} {navigate} csrf={() => csrf} />
+        {:else if path === '/manage/zwift-android'}
+          <ZwiftAndroidManage {api} {navigate} csrf={() => csrf} />
         {:else if path === '/manage/server'}
           <ServerCertificate
             {api}
@@ -1630,7 +1643,7 @@
       {:else if apps}
         <Apps {api} {navigate} {administrator} />
       {:else if installingPhone}
-        <InstallPhone {api} {path} {navigate} />
+        <InstallPhone {api} {path} {navigate} {administrator} />
       {:else if installing}
         <Install {api} {path} {navigate} />
       {:else if companion}
@@ -1952,6 +1965,10 @@
     margin: 1.25rem 0 0.3rem 1.75rem;
     color: var(--muted);
     font-size: 0.8125rem;
+  }
+  /* A gap after the patched apps, so that Server reads as its own page rather than one of them. */
+  .subgroup {
+    margin-bottom: 1rem;
   }
   button.sign-out {
     margin-top: auto;

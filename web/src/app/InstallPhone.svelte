@@ -2,18 +2,24 @@
   import { onMount } from 'svelte';
   import Fingerprint from '../components/Fingerprint.svelte';
   import type { Api } from '../lib/api';
+  import { megabytes } from './companion';
+  import { detect } from './device';
   import { tlsStatus } from './tls';
   import type { TlsStatus } from './tls';
+  import { zwiftAndroidStatus } from './zwift-android';
+  import type { ZwiftAndroidStatus } from './zwift-android';
 
   let {
     api,
     path,
     navigate,
+    administrator,
   }: {
     api: Api;
     /** `/install/android`, `/install/android-rooted` or `/install/ios`. */
     path: string;
     navigate: (path: string) => Promise<void>;
+    administrator: boolean;
   } = $props();
 
   const platform = $derived(
@@ -35,10 +41,19 @@
       : `zluggish-zwift-${(status?.certificate?.thumbprint ?? '').slice(0, 8).toLowerCase()}.crt`,
   );
 
+  let zwift = $state<ZwiftAndroidStatus | null>(null);
+  let zwiftFailure = $state('');
+  const onAndroid = detect() === 'android';
+
   const data = '/data/data/com.zwift.zwiftgame/dataES';
 
   const blocks = $derived({
-    hosts: [`${address} us-or-rly101.zwift.com`, `${address} secure.zwift.com`, `${address} cdn.zwift.com`].join('\n'),
+    hosts: [
+      `${address} us-or-rly101.zwift.com`,
+      `${address} secure.zwift.com`,
+      `${address} cdn.zwift.com`,
+      `${address} launcher.zwift.com`,
+    ].join('\n'),
     certificate: [
       `adb push ${file} ${data}/zluggish.crt`,
       `adb shell "cat ${data}/zluggish.crt >> ${data}/cacert.pem"`,
@@ -60,6 +75,20 @@
     event.preventDefault();
     void navigate(to);
   }
+
+  const day = (iso: string) => new Date(iso).toLocaleDateString([], { year: 'numeric', month: 'long', day: 'numeric' });
+
+  $effect(() => {
+    if (platform === 'android' && status && status.mode !== 'disabled') {
+      api(zwiftAndroidStatus, '/api/install/android')
+        .then((body) => {
+          zwift = body;
+        })
+        .catch((error: unknown) => {
+          zwiftFailure = error instanceof Error ? error.message : 'Zwift for Android could not be loaded.';
+        });
+    }
+  });
 
   onMount(async () => {
     try {
@@ -86,6 +115,10 @@
     {platform === 'ios' ? names.ios : `Setting up ${names[platform]}`}.
     <a href="/apps" onclick={(event) => go(event, '/apps')}>Choose another system</a>
   </p>
+{/snippet}
+
+{#snippet manageLink()}
+  <a href="/manage/zwift-android" onclick={(event) => go(event, '/manage/zwift-android')}>Manage → Zwift for Android</a>
 {/snippet}
 
 {#if failure}<p class="notice failed" role="alert">{failure}</p>{/if}
@@ -119,66 +152,79 @@
     <h2 id="install-plain">Nothing to install</h2>
     <p>This server talks to Zwift without a certificate. Ask the server administrator how to connect.</p>
   </section>
-{:else if platform === 'android' && !legacy}
-  <section class="panel" aria-labelledby="install-android-blocked">
-    {@render switcher()}
-    <h2 id="install-android-blocked">Zwift on Android needs root for this server</h2>
-    <p class="lead">
-      Without root, the only way to change Zwift on Android is ZofflineObb. It patches Zwift to trust the shared Zwift
-      certificate, and this server uses its own certificate instead, which keeps your traffic private.
-    </p>
-    <p>
-      On a rooted device, <a href="/install/android-rooted" onclick={(event) => go(event, '/install/android-rooted')}
-        >set up Android, rooted</a
-      >. Otherwise ride from a Windows, macOS or Linux computer.
-    </p>
-  </section>
 {:else if platform === 'android'}
   <section class="panel" aria-label="Android setup steps">
     {@render switcher()}
-    <p class="risk">
-      This only works because the server still uses the shared Zwift certificate, whose private key is public. Others on
-      your network could read your Zwift traffic, your password included.
-    </p>
+    {#if legacy}
+      <p class="risk">
+        This server uses the shared Zwift certificate, whose private key is public. Others on your network could read
+        your Zwift traffic, your password included.
+      </p>
+    {/if}
+    {#if zwift?.app && !zwift.app.current}
+      <p class="risk" role="status">
+        The server certificate changed after Zwift for Zluggish was built, so it cannot connect yet.
+        {#if administrator}Build it again under {@render manageLink()}.{:else}Ask the server administrator to build it
+          again.{/if}
+      </p>
+    {/if}
+
     <ol class="walk">
       <li>
-        <h2>Install the apps</h2>
+        <h2>Download Zwift for Zluggish</h2>
+        {#if zwiftFailure}
+          <p class="notice failed" role="alert">{zwiftFailure}</p>
+        {:else if zwift === null}
+          <p role="status">Loading…</p>
+        {:else if zwift.app?.current}
+          <p>
+            A copy of Zwift made for this server. It installs next to Zwift from Google Play, so you can keep both.
+            {#if !onAndroid}Open this page on your Android phone or tablet.{/if}
+          </p>
+          <a class="download" href="/api/install/android/app" download>Download Zwift {zwift.app.versionName}</a>
+          <p class="hint">
+            {megabytes(zwift.app.bytes)}, built on {day(zwift.app.createdAt)}. Use Wi-Fi, and keep twice that space
+            free.
+          </p>
+        {:else if !zwift.app}
+          <p class="empty">
+            There is no Zwift for Android on this server yet.
+            {#if administrator}Upload it under {@render manageLink()}.{:else}Ask the server administrator to add it.{/if}
+          </p>
+        {/if}
+      </li>
+      <li>
+        <h2>Install it</h2>
         <p>
-          Install <strong>ZofflineObb.apk</strong> from
-          <a
-            href="https://github.com/fatsbrown/ZofflineObbAndroid/releases/latest"
-            target="_blank"
-            rel="noopener noreferrer">ZofflineObbAndroid</a
-          >
-          and <strong>app-Github-release.apk</strong> from
-          <a href="https://github.com/x-falcon/Virtual-Hosts/releases/latest" target="_blank" rel="noopener noreferrer"
-            >Virtual Hosts</a
-          >.
+          Open the downloaded file. Android asks whether your browser may install apps: allow it, then select
+          <strong>Install</strong>.
         </p>
+        <p class="hint">Google Play Protect may warn about an unknown app. Select <strong>Install anyway</strong>.</p>
       </li>
       <li>
         <h2>Send Zwift to this server</h2>
-        <p>Save these lines as <strong>hosts.txt</strong> on the device, then select the file in Virtual Hosts:</p>
+        <p>
+          Install <a
+            href="https://github.com/x-falcon/Virtual-Hosts/releases/latest"
+            target="_blank"
+            rel="noopener noreferrer">Virtual Hosts</a
+          >, save these lines as <strong>hosts.txt</strong> on the device, and select the file in Virtual Hosts:
+        </p>
         {@render code('hosts')}
         <p class="hint">
           Turn off <strong>Private DNS</strong> in the Android settings. If the server runs its own DNS, set it as the Wi-Fi
-          network's DNS instead.
-        </p>
-      </li>
-      <li>
-        <h2>Patch Zwift</h2>
-        <p>
-          Install or update Zwift from Google Play, but do not start it. Open ZofflineObb and run it. Allow access to
-          all files and installs from unknown sources, then wait until the patch is complete.
-        </p>
-        <p class="hint">
-          It takes 5 to 10 minutes. If Zwift was started before, clear its data first under Settings → Apps → Zwift.
-          Patch again after every Zwift update.
+          network’s DNS instead.
         </p>
       </li>
       <li>
         <h2>Ride</h2>
-        <p>Turn on Virtual Hosts, start Zwift and sign in with your account on this server.</p>
+        <p>
+          Turn on Virtual Hosts, open <strong>Zwift for Zluggish</strong> and sign in with your account on this server.
+        </p>
+        <p class="hint">
+          The first start unpacks the game files, which takes a few minutes. Turn Virtual Hosts off before you open
+          Zwift from Google Play.
+        </p>
       </li>
     </ol>
   </section>
@@ -251,6 +297,12 @@
     color: var(--alarm);
     border-left: 3px solid #ff6b57;
     padding-left: 0.75rem;
+  }
+  .empty {
+    color: var(--muted);
+  }
+  .risk a {
+    color: inherit;
   }
   .risk {
     margin: 0 0 1.25rem;
@@ -370,8 +422,8 @@
   .command code {
     flex: 1 1 16rem;
     min-width: 0;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
+    overflow-x: auto;
+    white-space: pre;
     font:
       600 0.875rem/1.5 ui-monospace,
       'Cascadia Mono',

@@ -9,6 +9,7 @@ import { ActivitiesService } from '#src/services/activities.service';
 import { DurabilityService } from '#src/services/durability.service';
 import { FilesService } from '#src/services/files.service';
 import { effectRoutes } from '#src/http/effect';
+import { ZwiftAndroidService, zwiftAndroidChunkSize } from '#src/services/zwift-android.service';
 import { fileResponse } from '#src/http/file-response';
 import { RecordsService } from '#src/services/records.service';
 import { webConnectionRoutes } from '#src/http/web-connections';
@@ -76,8 +77,21 @@ export function createWebApp(runtime: HttpRuntime) {
   /** The Companion app upload: raw APK bytes, streamed to disk. */
   const companionUpload = (c: Context<WebEnv>) => c.req.method === 'PUT' && c.req.path === '/api/manage/companion/app';
 
+  /** One piece of a Zwift for Android upload: raw bytes, streamed to disk and counted there. */
+  const androidChunk = (c: Context<WebEnv>) =>
+    c.req.method === 'PUT' && /^\/api\/manage\/zwift-android\/uploads\/[^/]+$/.test(c.req.path);
+
   app.use('*', async (c: Context<WebEnv, string>, next: Next) => {
     const upload = c.req.method === 'POST' && c.req.path === '/api/me/import';
+
+    if (androidChunk(c)) {
+      if (Number(c.req.header('Content-Length')) > zwiftAndroidChunkSize) {
+        return c.json({ message: 'The upload chunk is too large.' }, 413);
+      }
+
+      // The service counts bytes while writing to disk, including requests without Content-Length.
+      return next();
+    }
 
     if (companionUpload(c)) {
       return bodyLimit({ maxSize: companionUploadLimit })(c, next);
@@ -128,7 +142,7 @@ export function createWebApp(runtime: HttpRuntime) {
       if (
         !(c.req.method === 'POST' && c.req.path === '/api/me/import'
           ? c.req.header('Content-Type')?.startsWith('multipart/form-data;')
-          : companionUpload(c)
+          : companionUpload(c) || androidChunk(c)
             ? c.req.header('Content-Type') === 'application/octet-stream'
             : c.req.method === 'PUT' &&
                 (c.req.path === '/api/me/avatar' || /^\/api\/manage\/users\/\d+\/avatar$/.test(c.req.path))
@@ -416,6 +430,110 @@ export function createWebApp(runtime: HttpRuntime) {
         'Content-Type': der ? 'application/pkix-cert' : 'application/x-pem-file',
         'Content-Disposition': `attachment; filename="${setupFileName(certificate, der ? 'cer' : 'crt')}"`,
       });
+    }),
+  );
+
+  appRoutes.get('/api/install/android', (c) =>
+    Effect.gen(function* () {
+      yield* sessions.require(c.get('sessionId'));
+      const android = yield* ZwiftAndroidService;
+
+      return c.json(yield* Effect.promise(() => android.status()));
+    }),
+  );
+
+  appRoutes.get('/api/install/android/app', (c) =>
+    Effect.gen(function* () {
+      const user = yield* sessions.require(c.get('sessionId'));
+      const android = yield* ZwiftAndroidService;
+      const app = yield* Effect.promise(() => android.download());
+
+      if (!app) {
+        throw new ApplicationError({ status: 404, message: 'There is no Zwift app for this server yet.' });
+      }
+      runtime.world.lifecycle.log.info('android.download', 'A rider downloaded Zwift for Zluggish', {
+        player: user.player_id,
+      });
+
+      return yield* fileResponse(c, app.path, {
+        'Content-Type': 'application/vnd.android.package-archive',
+        'Content-Disposition': `attachment; filename="${app.filename}"`,
+      });
+    }),
+  );
+
+  appRoutes.get('/api/manage/zwift-android', (c) =>
+    Effect.gen(function* () {
+      yield* sessions.require(c.get('sessionId'), true);
+      const android = yield* ZwiftAndroidService;
+
+      return c.json(yield* Effect.promise(() => android.adminStatus()));
+    }),
+  );
+
+  appRoutes.post('/api/manage/zwift-android/uploads', (c) =>
+    Effect.gen(function* () {
+      yield* sessions.require(c.get('sessionId'), true);
+      const android = yield* ZwiftAndroidService;
+      const input = Schema.decodeUnknownSync(Schema.Struct({ name: Schema.String, size: Schema.Number }))(
+        yield* Effect.promise(() => c.req.json()),
+      );
+
+      return c.json(yield* Effect.promise(() => android.begin(c.get('sessionId'), input.name, input.size)), 201);
+    }),
+  );
+
+  appRoutes.put('/api/manage/zwift-android/uploads/:id', (c) =>
+    Effect.gen(function* () {
+      yield* sessions.require(c.get('sessionId'), true);
+      const android = yield* ZwiftAndroidService;
+      const body = c.req.raw.body;
+      const offset = c.req.query('offset');
+
+      if (!body || offset === undefined) {
+        throw new ApplicationError({ status: 400, message: 'The upload chunk is missing its body or offset.' });
+      }
+
+      return c.json(
+        yield* Effect.promise(() => android.chunk(c.get('sessionId'), c.req.param('id'), Number(offset), body)),
+      );
+    }),
+  );
+
+  appRoutes.delete('/api/manage/zwift-android/uploads/:id', (c) =>
+    Effect.gen(function* () {
+      yield* sessions.require(c.get('sessionId'), true);
+      const android = yield* ZwiftAndroidService;
+      yield* Effect.promise(() => android.cancel(c.get('sessionId'), c.req.param('id')));
+
+      return c.json({ cancelled: true });
+    }),
+  );
+
+  appRoutes.post('/api/manage/zwift-android/rebuild', (c) =>
+    Effect.gen(function* () {
+      yield* sessions.require(c.get('sessionId'), true);
+      const android = yield* ZwiftAndroidService;
+
+      return c.json(yield* Effect.promise(() => android.rebuild()), 202);
+    }),
+  );
+
+  appRoutes.post('/api/manage/zwift-android/stop', (c) =>
+    Effect.gen(function* () {
+      yield* sessions.require(c.get('sessionId'), true);
+      const android = yield* ZwiftAndroidService;
+
+      return c.json(yield* Effect.promise(() => android.stop()));
+    }),
+  );
+
+  appRoutes.delete('/api/manage/zwift-android/app', (c) =>
+    Effect.gen(function* () {
+      yield* sessions.require(c.get('sessionId'), true);
+      const android = yield* ZwiftAndroidService;
+
+      return c.json(yield* Effect.promise(() => android.remove()));
     }),
   );
 

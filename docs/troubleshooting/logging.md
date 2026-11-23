@@ -29,7 +29,7 @@ At the default `INFO` level, the server logs:
 
 Routine HTTP requests show only at the `VERBOSE` level.
 
-Each line has a UTC timestamp, the level, an event name, a message and context. Logs use human-readable text, with error stacks and causes on separate lines.
+Each line has a UTC timestamp, the level, an event name, a message and optional context such as `component=server status=401`. Error stacks and causes appear on separate lines in the console.
 
 `INFO` and `VERBOSE` go to stdout. Warnings and errors go to stderr. Use your process manager to keep and rotate the logs.
 

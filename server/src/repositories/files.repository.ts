@@ -19,7 +19,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { link, mkdir, open, readdir, readFile, rename, rm, stat, unlink } from 'node:fs/promises';
+import { link, mkdir, open, readdir, readFile, rename, rm, stat, statfs, unlink } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 
 // A secondary close/cleanup failure must not replace the operation's original error.
@@ -190,6 +190,17 @@ export class AssetFiles {
         return null;
       }
       throw error;
+    }
+  }
+
+  /** The bytes an unprivileged process can still write on the disk that holds `path`, or null when it cannot tell. */
+  async freeBytesAsync(path: string) {
+    try {
+      const { bavail, bsize } = await statfs(path);
+
+      return bavail * bsize;
+    } catch {
+      return null;
     }
   }
 
