@@ -1,6 +1,9 @@
 <script lang="ts">
   import { t } from '../lib/i18n/index';
   import ActivityChart from './ActivityChart.svelte';
+  import { tick } from 'svelte';
+  import { slide } from 'svelte/transition';
+  import { ignored } from '../lib/api';
   import { z } from 'zod';
   import type { Api } from '../lib/api';
 
@@ -26,7 +29,6 @@
     avgSpeed: z.number(),
     maxSpeed: z.number(),
     fit: z.boolean(),
-    images: z.number(),
   });
 
   type Summary = z.infer<typeof summarySchema>;
@@ -109,6 +111,15 @@
 
   let page = $state(0);
   let showList = $state(false);
+
+  /** Deleting asks first, below the panel's actions. */
+  let confirming = $state(false);
+  let deleting = $state(false);
+  let deleteFailure = $state('');
+  let leaving = $state<string | null>(null);
+  let announcement = $state('');
+  let log = $state<HTMLElement>();
+  let panel = $state<HTMLElement>();
 
   const ordered = $derived(
     [...(activities ?? [])].sort((a, b) => (started(b)?.getTime() ?? -Infinity) - (started(a)?.getTime() ?? -Infinity)),
@@ -297,6 +308,7 @@
 
   function toggleChooser(list: Array<Upload>) {
     chooser = !chooser;
+    confirming = false;
     uploadFailure = '';
 
     // Services that do not have the activity yet start ticked; uploading again is a deliberate choice.
@@ -387,6 +399,9 @@
     void loadList(page);
   });
 
+  /** The upload button shares its row with delete; without it, delete stands alone at the bottom. */
+  const uploadButton = (a: Detail) => a.fit && a.endDate && uploads?.id === a.id && uploads.list.length > 0;
+
   /** Derived, so the chart polls that replace `detail` do not close the chooser. */
   const uploadable = $derived(detail?.fit ? detail.id : null);
 
@@ -419,11 +434,77 @@
   $effect(() => {
     const id = selectedId;
     failure = '';
+    confirming = false;
+    deleteFailure = '';
 
     if (id) {
       void loadDetail(id);
     }
   });
+
+  async function ask() {
+    confirming = true;
+    chooser = false;
+    deleteFailure = '';
+    await tick();
+    panel?.querySelector<HTMLElement>('[data-keep]')?.focus();
+  }
+
+  async function keep() {
+    confirming = false;
+    deleteFailure = '';
+    await tick();
+    panel?.querySelector<HTMLElement>('[data-delete]')?.focus();
+  }
+
+  function escape(event: KeyboardEvent) {
+    if (event.key === 'Escape' && !deleting) {
+      void keep();
+    }
+  }
+
+  async function remove(a: Detail) {
+    deleting = true;
+    deleteFailure = '';
+
+    try {
+      await api(ignored, `/api/me/activities/${a.id}`, 'DELETE');
+    } catch (error) {
+      deleting = false;
+      deleteFailure = error instanceof Error && error.message ? error.message : t('activity_delete_error');
+
+      return;
+    }
+
+    leaving = a.id;
+    deleting = false;
+    confirming = false;
+    detail = null;
+    uploads = null;
+    activities = (activities ?? []).filter((item) => item.id !== a.id);
+    announcement = t('activity_deleted', { value1: title(a) });
+
+    // Beside the list the newest activity opens in its place; on a phone the list comes back.
+    const narrow = matchMedia('(max-width: 61.99rem)').matches;
+    showList = narrow;
+    go('/activities');
+    await tick();
+    (narrow ? log : panel)?.focus();
+
+    // The next page moves up by one; an emptied last page steps back.
+    if (activities.length === 0 && page > 0) {
+      page--;
+    } else {
+      void loadList(page);
+    }
+  }
+
+  /** Only the deleted row folds away; rows that leave because the page changed go at once. */
+  function fold(node: Element, { id }: { id: string }) {
+    const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    return id === leaving && !still ? slide(node, { duration: 220 }) : { duration: 0 };
+  }
 
   function open(event: MouseEvent, href: string) {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
@@ -434,6 +515,46 @@
     go(href);
   }
 </script>
+
+{#snippet deleteButton()}
+  <button
+    type="button"
+    class="delete"
+    data-delete
+    aria-label={t('delete_activity')}
+    aria-expanded={confirming}
+    aria-controls="delete-activity"
+    disabled={deleting}
+    onclick={() => (confirming ? void keep() : void ask())}
+    ><svg viewBox="0 0 20 20" aria-hidden="true"
+      ><path d="M3.5 5.5h13M8 5.5V3.5h4v2M5 5.5l.8 11h8.4l.8-11M8.5 8.5v5.5M11.5 8.5v5.5" /></svg
+    >{t('delete')}</button
+  >
+{/snippet}
+
+{#snippet deleteQuestion(a: Detail)}
+  {#if confirming}
+    <div
+      id="delete-activity"
+      class="question"
+      role="group"
+      aria-labelledby="delete-question"
+      aria-describedby="delete-detail"
+    >
+      <p id="delete-question"><strong>{t('activity_delete_question')}</strong></p>
+      <p id="delete-detail" class="muted">{t('activity_delete_detail')}</p>
+      {#if deleteFailure}<p class="error" role="alert">{deleteFailure}</p>{/if}
+      <div class="choices">
+        <button type="button" data-keep disabled={deleting} onclick={() => void keep()} onkeydown={escape}
+          >{t('keep')}</button
+        >
+        <button type="button" class="danger" disabled={deleting} onclick={() => void remove(a)} onkeydown={escape}
+          >{deleting ? t('deleting') : t('delete')}</button
+        >
+      </div>
+    </div>
+  {/if}
+{/snippet}
 
 {#snippet uploader(a: Detail)}
   <div class="inset upload">
@@ -456,13 +577,17 @@
             value1: a.imageIds.length ? t('activities_upload_images_suffix') : '',
           })}
       </p>
-      <button
-        type="button"
-        class="toggle"
-        aria-expanded={chooser}
-        aria-controls="upload-chooser"
-        onclick={() => toggleChooser(list)}>{chooser ? t('close') : t('upload_to_integrations')}</button
-      >
+      <div class="actions">
+        <button
+          type="button"
+          class="toggle"
+          aria-expanded={chooser}
+          aria-controls="upload-chooser"
+          onclick={() => toggleChooser(list)}>{chooser ? t('close') : t('upload_to_integrations')}</button
+        >
+        {@render deleteButton()}
+      </div>
+      {@render deleteQuestion(a)}
       {#if chooser}
         <form
           id="upload-chooser"
@@ -527,6 +652,7 @@
 {/snippet}
 
 {#if failure}<p class="notice failed" role="alert">{failure}</p>{/if}
+<p class="visually-hidden" role="status">{announcement}</p>
 
 {#if activities === null}
   {#if !failure}<p class="delayed" role="status">{t('loading_activities')}</p>{/if}
@@ -536,7 +662,7 @@
   </section>
 {:else}
   <div class="activities" class:open={selectedId !== null}>
-    <div class="log">
+    <div class="log" bind:this={log} tabindex="-1">
       {#each months as month (month.key)}
         <section class="month" aria-labelledby="month-{month.key}">
           <div class="month-head">
@@ -552,7 +678,7 @@
           <ul class="plain">
             {#each month.activities as a (a.id)}
               {@const date = started(a)}
-              <li>
+              <li out:fold={{ id: a.id }}>
                 <a
                   class="activity"
                   href="/activities/{a.id}"
@@ -574,11 +700,6 @@
                           >{t('not_finished', {
                             value1: world(a) || a.sport === 'running' ? ', ' : '',
                           })}</span
-                        >{/if}{#if a.images}<span class="camera"
-                          ><span class="visually-hidden">, </span>{a.images}
-                          {a.images === 1
-                            ? t('activities_upload_image_singular')
-                            : t('activities_upload_image_plural')}</span
                         >{/if}</small
                     >
                   </span>
@@ -606,6 +727,7 @@
         class="panel"
         class:stale={loading && detail}
         id="activity-detail"
+        bind:this={panel}
         tabindex="-1"
         aria-labelledby="activity-name"
         aria-busy={loading}
@@ -717,6 +839,10 @@
           {/if}
 
           {#if detail.fit}{@render uploader(detail)}{/if}
+          {#if !uploadButton(detail)}
+            <div class="actions">{@render deleteButton()}</div>
+            {@render deleteQuestion(detail)}
+          {/if}
         {/if}
       </section>
     </div>
@@ -818,6 +944,9 @@
     .bar::after {
       width: 100%;
       opacity: 0.6;
+      animation: none;
+    }
+    .question {
       animation: none;
     }
   }
@@ -936,22 +1065,6 @@
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
-  }
-  .camera {
-    margin-left: 0.6rem;
-  }
-  .camera::before {
-    content: '';
-    display: inline-block;
-    width: 0.85rem;
-    height: 0.7rem;
-    margin-right: 0.3rem;
-    background: currentColor;
-    vertical-align: -0.05rem;
-    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 20'%3E%3Cpath d='M8 0 6 3H2a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h20a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-4l-2-3zm4 6a5 5 0 1 1 0 10 5 5 0 0 1 0-10z'/%3E%3C/svg%3E")
-      center / contain no-repeat;
-    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 20'%3E%3Cpath d='M8 0 6 3H2a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h20a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-4l-2-3zm4 6a5 5 0 1 1 0 10 5 5 0 0 1 0-10z'/%3E%3C/svg%3E")
-      center / contain no-repeat;
   }
   .how {
     text-align: right;
@@ -1112,8 +1225,88 @@
     font-size: 0.8125rem;
   }
 
-  .upload .toggle {
+  /* Upload is the everyday action; delete is rare, so it sits quietly at the far end of the same row. */
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 1rem;
+  }
+  .upload .actions {
     margin-top: 0;
+  }
+  .actions button {
+    margin: 0;
+  }
+  .actions .delete {
+    margin-left: auto;
+  }
+  .delete {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding-inline: 0.6rem;
+    border-color: transparent;
+    color: var(--muted);
+  }
+  .delete svg {
+    width: 1.05rem;
+    height: 1.05rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .delete:hover,
+  .delete[aria-expanded='true'] {
+    color: var(--alarm);
+    background: rgb(255 90 70 / 0.12);
+  }
+
+  /* The question opens under the button that asked it, tinted so it cannot pass for the upload chooser. */
+  .question {
+    margin: 0.85rem 0 0;
+    padding: 0.85rem 0.95rem;
+    border: 2px solid rgb(255 179 166 / 0.6);
+    border-radius: 10px;
+    background: rgb(120 40 34 / 0.38);
+    animation: arm 180ms ease-out;
+  }
+  @keyframes arm {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+  }
+  .question p {
+    margin: 0;
+  }
+  .question .muted {
+    margin-top: 0.2rem;
+    font-size: 0.875rem;
+  }
+  .question .error {
+    margin-top: 0.6rem;
+    font-size: 0.875rem;
+  }
+  .choices {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+  }
+  .choices button {
+    margin: 0;
+  }
+  button.danger {
+    border-color: rgb(255 179 166 / 0.75);
+    color: var(--alarm);
+  }
+  button.danger:hover {
+    background: rgb(255 90 70 / 0.14);
   }
   .upload .toggle[aria-expanded='true'] {
     border-color: var(--line);

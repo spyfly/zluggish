@@ -7,6 +7,7 @@ import { AccountsService } from '#src/services/auth.service';
 import { ManagementService } from '#src/services/management.service';
 import { WebSessionsService } from '#src/services/web-session.service';
 import { ActivitiesService } from '#src/services/activities.service';
+import { RideCompletionService } from '#src/services/ride-completion.service';
 import { DurabilityService } from '#src/services/durability.service';
 import { FilesService } from '#src/services/files.service';
 import { effectRoutes } from '#src/http/effect';
@@ -660,6 +661,26 @@ export function createWebApp(runtime: HttpRuntime) {
           Schema.decodeUnknownSync(activityId)(c.req.param('id')),
         ),
       );
+    }),
+  );
+  appRoutes.delete('/api/me/activities/:id', (c) =>
+    Effect.gen(function* () {
+      const webSessionsService = yield* WebSessionsService;
+
+      const activitiesService = yield* ActivitiesService;
+
+      const rideCompletionService = yield* RideCompletionService;
+
+      const player = (yield* webSessionsService.require(c.get('sessionId'))).player_id;
+      const id = BigInt(Schema.decodeUnknownSync(activityId)(c.req.param('id')));
+
+      // The game saves the ride again when it ends; deleting it underneath would lose the whole ride.
+      if (yield* rideCompletionService.riding(player, id)) {
+        throw new ApplicationError({ status: 409, message: t('activity_delete_in_progress') });
+      }
+      yield* activitiesService.deleteActivity(id, player);
+
+      return c.json({ deleted: true });
     }),
   );
   appRoutes.get('/api/me/activities/:id/fit', (c) =>

@@ -162,6 +162,11 @@ const make = Effect.gen(function* () {
     }
   }
 
+  /** Whether the game may still save this activity, so deleting it now would lose the ride. */
+  function riding(player: number, activity: bigint) {
+    return active.get(player)?.activity === activity || permissions.get(player)?.activity === activity;
+  }
+
   function permissionNow(player: number) {
     const permission = permissions.get(player);
 
@@ -273,6 +278,10 @@ const make = Effect.gen(function* () {
 
     cancel: Effect.fn('RideCompletionService.cancel')(function* (player: number, close: boolean = true) {
       return cancel(player, close);
+    }),
+
+    riding: Effect.fn('RideCompletionService.riding')(function* (player: number, activity: bigint) {
+      return riding(player, activity);
     }),
 
     permission: Effect.fn('RideCompletionService.permission')(function* (player: number) {
