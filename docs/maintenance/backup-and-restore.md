@@ -13,6 +13,8 @@ To create a backup at any time, sign in as an administrator and select **Manage 
 
 When Zluggish migrates legacy data, it also saves a snapshot of the original storage to the same backup directory before making changes. See [Migrate from zwift-offline](migrating.md) for rollback instructions.
 
+Backups skip `storage/companion/` and `storage/zwift-android/`, including their APKs, app metadata, and signing keys.
+
 ## Recover backups from an older Docker container
 
 Older versions wrote backups to `/usr/src/app/zluggish/backups` in the container. If you had a host bind mount for that path, you can still restore from the archives in the old host directory. If Docker stored the archives in a volume, copy them out before you update or remove the container.

@@ -18,24 +18,13 @@ export function excludedStorageEntry(name: string) {
       'storage-migration.json',
       backupManifest,
       'backups',
+      'companion',
+      'zwift-android',
     ].includes(name) ||
     name.startsWith('zluggish.db.migrating') ||
     name.startsWith('zluggish.db.restoring') ||
     legacyDatabases.some((database) => ['-shm', '-wal', '-journal'].some((suffix) => name === database + suffix))
   );
-}
-
-/** Files below the top level that backups leave out: the patched apps can be built again, and Zwift for Android
-with its saved upload would add several GB to every backup. The signing keys beside them are kept. Paths use forward
-slashes.
-*/
-export function excludedBackupPath(path: string) {
-  return [
-    'companion/zwift-companion.apk',
-    'zwift-android/zwift-zluggish.apk',
-    'zwift-android/originals',
-    'zwift-android/staging',
-  ].includes(path.replaceAll('\\', '/'));
 }
 
 export function nightlyBackupName(date: Date) {
