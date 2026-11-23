@@ -130,8 +130,7 @@ const make = Effect.gen(function* () {
     if (mode === 'legacy') {
       throw new ApplicationError({
         status: 409,
-        message:
-          'This server still uses the shared Zwift certificate. Generate a server certificate under Manage → Server first.',
+        message: 'Replace the shared Zwift certificate before building the Companion app.',
       });
     }
 

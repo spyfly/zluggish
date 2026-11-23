@@ -72,7 +72,7 @@
     publish: 1,
   };
 
-  const certificateReady = $derived(!!admin && admin.tlsMode !== 'disabled');
+  const certificateReady = $derived(admin?.tlsMode === 'managed' || admin?.tlsMode === 'custom');
   const apkMirror = 'https://www.apkmirror.com/apk/zwift-inc/zwift/';
   /** Short of the room a build needs. The upload still starts; the server refuses only one that cannot fit at all. */
   const lowSpace = $derived(!!admin && admin.disk.free !== null && admin.disk.free < admin.disk.recommended);
@@ -391,7 +391,11 @@
 
     {#if !certificateReady}
       <p class="stale">
-        The Zwift API serves plain HTTP on this server, so there is no certificate for Zwift to trust.
+        {#if admin.tlsMode === 'legacy'}
+          Replace the server certificate before building Zwift for Android.
+        {:else}
+          The Zwift API serves plain HTTP on this server, so there is no certificate for Zwift to trust.
+        {/if}
       </p>
     {:else if admin.app && !admin.app.current && admin.activity?.state !== 'running'}
       <p class="stale">

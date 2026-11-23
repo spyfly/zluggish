@@ -387,42 +387,38 @@ export function createWebApp(runtime: HttpRuntime) {
     }),
   );
 
-  /** The certificate that the server presents, without its key. While a server still uses the shared certificate,
-  riders can install that one too, with a warning, so that new computers connect until the administrator rotates it.
-  */
-  const installable = Effect.fn('web.tls.installable')(function* (c: Context<WebEnv>, download: string) {
+  /** The certificate that the server presents, without its key. */
+  const installable = Effect.fn('web.tls.installable')(function* (c: Context<WebEnv>) {
     const tls = yield* TlsService;
-    const user = yield* sessions.require(c.get('sessionId'));
+    yield* sessions.require(c.get('sessionId'));
     const status = yield* tls.status();
     const material = tls.material();
 
-    if (status.mode === 'disabled' || !status.certificate || !material) {
+    if (status.mode === 'legacy') {
+      throw new ApplicationError({
+        status: 409,
+        message: 'Replace the shared Zwift certificate before setting up clients.',
+      });
+    }
+
+    if (!status.certificate || !material) {
       throw new ApplicationError({ status: 409, message: 'This server has no certificate to install.' });
     }
 
-    // A configured file may hold a chain, and the shared one holds its key: take the first certificate only.
+    // A configured file may hold a chain. Take the first certificate only.
     const certificate = /-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/.exec(material.cert)?.[0];
 
     if (!certificate) {
       throw new ApplicationError({ status: 409, message: 'This server has no certificate to install.' });
     }
-    const pem = certificate + '\n';
 
-    if (status.mode === 'legacy') {
-      runtime.world.lifecycle.log.warn(
-        'tls.legacy_setup_download',
-        'A rider downloaded setup for the shared Zwift certificate, whose private key is public. Generate a server certificate under Manage → Server.',
-        { player: user.player_id, download },
-      );
-    }
-
-    return { pem, certificate: status.certificate };
+    return { pem: certificate + '\n', certificate: status.certificate };
   });
 
   appRoutes.get('/api/tls/certificate', (c) =>
     Effect.gen(function* () {
       const der = c.req.query('format') === 'der';
-      const { pem, certificate } = yield* installable(c, der ? 'certificate.cer' : 'certificate.crt');
+      const { pem, certificate } = yield* installable(c);
 
       const body = der ? Buffer.from(pem.replaceAll(/-----[A-Z ]+-----|\s/g, ''), 'base64') : Buffer.from(pem, 'utf8');
 
@@ -548,7 +544,7 @@ export function createWebApp(runtime: HttpRuntime) {
     Effect.gen(function* () {
       const platform = Schema.decodeUnknownSync(setupPlatform)(c.req.param('platform'));
       const address = Schema.decodeUnknownSync(setupAddress)(c.req.query('address') ?? '');
-      const { pem, certificate } = yield* installable(c, `${platform} script`);
+      const { pem, certificate } = yield* installable(c);
       const script = { pem, certificate, address, version: packageVersion(), now: new Date() };
 
       if (platform === 'windows') {

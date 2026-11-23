@@ -146,7 +146,14 @@ const make = Effect.gen(function* () {
     const material = tls.material();
     const pem = material && /-----BEGIN CERTIFICATE-----[\s\S]+?-----END CERTIFICATE-----/.exec(material.cert)?.[0];
 
-    if (tls.mode() === 'disabled' || !pem) {
+    if (tls.mode() === 'legacy') {
+      throw new ApplicationError({
+        status: 409,
+        message: 'Replace the shared Zwift certificate before building Zwift for Android.',
+      });
+    }
+
+    if (!pem) {
       throw new ApplicationError({
         status: 409,
         message: 'The Zwift API serves plain HTTP on this server, so there is no certificate for Zwift to trust.',

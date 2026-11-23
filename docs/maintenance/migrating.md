@@ -27,6 +27,7 @@ Back up your zwift-offline folder before you start.
 4. [Install the Zluggish server](../install/server.md) and start it. The server converts the storage when it starts.
 5. Follow [first-time setup](../install/server.md#first-time-setup). Select **Use an existing user** and select a migrated user that has a password. That user becomes the administrator.
 6. Set the passwords of the other users again.
+7. Set up each Zwift device again from **Apps**. With the default TLS settings, Zluggish generates a [new server certificate](../install/certificate.md) the first time it starts.
 
 Migrated users do not have passwords. Before a user without a password can become the administrator, set a password with [account recovery](../reference/cli/accounts.md#recover-a-local-account).
 

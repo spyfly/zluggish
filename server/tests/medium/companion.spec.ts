@@ -97,13 +97,8 @@ await test('the administrator patches the Companion app and every rider download
   assert.equal(await responseStatus(web.request('/api/manage/companion')), 403);
   assert.equal(await responseStatus(web.request('/api/manage/companion/app', 'PUT', patched)), 403);
 
-  // The shared certificate's key is public: an app that trusts it protects nothing.
-  const legacy = await admin.request('/api/manage/companion/app', 'PUT', patched);
-  assert.equal(legacy.status, 409);
-  const legacyBody = await legacy.json();
-  assert.match(legacyBody.message, /shared Zwift certificate/);
-
-  const first = await f.effects.runPromise(tls.rotate(crypto.randomUUID()));
+  await f.effects.runPromise(tls.start());
+  const first = await f.effects.runPromise(tls.status());
   const wrong = await admin.request('/api/manage/companion/app', 'PUT', otherApp);
   assert.equal(wrong.status, 400);
   const wrongBody = await wrong.json();
