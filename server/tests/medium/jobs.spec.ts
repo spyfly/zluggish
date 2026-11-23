@@ -7,7 +7,7 @@ import { ActivitySchema } from '#src/protocol/generated/activity_pb';
 import { JobsRepository } from '#src/repositories/jobs.repository';
 import { JobsService } from '#src/services/jobs.service';
 import { UploadsService } from '#src/services/uploads.service';
-import { binary, mediumFixture } from '#tests/medium/support';
+import { activityFolderOf, binary, mediumFixture } from '#tests/medium/support';
 import { create } from '@bufbuild/protobuf';
 import assert from 'node:assert/strict';
 import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
@@ -105,7 +105,7 @@ await test('an old handler after lease expiry and a new claim cannot commit or p
 
   // File results: an old claim's attempt-specific file is never published.
   const id = await completed(f);
-  const export_ = resolve(f.profiles.folder(f.rider.player_id), 'fit', `${id} - ride.fit`);
+  const export_ = resolve(activityFolderOf(f, id), 'activity.fit');
   await f.effects.runPromise(JobsService.use((service) => service.drain()));
   rmSync(export_);
   const repository = f.accounts.repositories.jobsRepository;

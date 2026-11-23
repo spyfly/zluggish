@@ -4,6 +4,14 @@ import type { ResolvedConfig } from '#src/config/index';
 import { immediate } from '#src/db/transaction';
 import { RiderDocumentName } from '#src/enum';
 import type { Repositories } from '#src/repositories';
+import {
+  ActivityStorage,
+  activitiesFolder,
+  activityDirectoryPattern,
+  activityFolder,
+  imagePath,
+  videoPath,
+} from '#src/activity-storage';
 import { JobsService } from '#src/services/jobs.service';
 import { RuntimeContext } from '#src/context';
 import { Context, Effect, Layer } from 'effect';
@@ -56,7 +64,13 @@ function cleanup({ repositories, retention, storage }: RetentionScope) {
       const info = await repositories.filesRepository.statAsync(path);
 
       if (info) {
-        files.push({ path, bytes: info.bytes, reason, identity: info.identity, owner });
+        files.push({
+          path,
+          bytes: info.directory ? await size(path) : info.bytes,
+          reason,
+          identity: info.identity,
+          owner,
+        });
       }
     };
 
@@ -70,63 +84,58 @@ function cleanup({ repositories, retention, storage }: RetentionScope) {
     ];
 
     for (const row of media) {
-      const folder = resolve(storage, String(row.player_id));
+      const stored = repositories.activitiesRepository.storageDirectory(row.activity_id);
+
+      if (!stored) {
+        continue;
+      }
+      const folder = activityFolder(resolve(storage, String(stored.player)), stored.directory);
 
       if (row.table === 'activity_image') {
-        await add(resolve(folder, 'images', `${row.id}.jpg`), t('abandoned_upload'), {
-          kind: 'images',
-          id: row.id,
-        });
+        await add(imagePath(folder, row.id), t('abandoned_upload'), { kind: 'images', id: row.id });
       } else {
-        for (const extension of ['mp4', 'mov']) {
-          await add(resolve(folder, 'medias', `${row.id}.${extension}`), t('abandoned_upload'), {
-            kind: 'media',
-            id: row.id,
-          });
+        for (const contentType of ['video/mp4', 'video/quicktime']) {
+          await add(videoPath(folder, row.id, contentType), t('abandoned_upload'), { kind: 'media', id: row.id });
         }
       }
     }
 
     const abandoned = new Set(media.map((row) => `${row.table}:${row.id}`));
 
-    for (const entry of await repositories.filesRepository.entriesAsync(resolve(storage, 'activities'))) {
-      if (entry.isFile() && /^\d+$/.test(entry.name) && !owners.charts.has(Number(entry.name))) {
-        await add(resolve(storage, 'activities', entry.name), t('orphaned_chart'), {
-          kind: 'charts',
-          id: Number(entry.name),
-        });
-      }
-    }
-
     for (const rider of await repositories.filesRepository.entriesAsync(storage)) {
       if (!rider.isDirectory() || !/^\d+$/.test(rider.name)) {
         continue;
       }
       const folder = resolve(storage, rider.name);
+      const activities = activitiesFolder(folder);
 
-      for (const entry of await repositories.filesRepository.entriesAsync(resolve(folder, 'fit'))) {
-        const activity = /^(\d+) - /.exec(entry.name)?.[1];
+      // Folders the migration could not match (activities/orphaned) are kept for the operator.
+      for (const entry of await repositories.filesRepository.entriesAsync(activities)) {
+        const activity = activityDirectoryPattern.exec(entry.name)?.[1];
 
-        if (activity !== undefined && !owners.activities.has(Number(activity))) {
-          await add(resolve(folder, 'fit', entry.name), 'orphaned FIT export', {
-            kind: 'activities',
-            id: Number(activity),
-          });
+        if (!entry.isDirectory() || activity === undefined) {
+          continue;
         }
-      }
+        const path = resolve(activities, entry.name);
 
-      for (const [directory, table, owned] of [
-        ['images', 'activity_image', owners.images],
-        ['medias', 'activity_media', owners.media],
-      ] as const) {
-        for (const entry of await repositories.filesRepository.entriesAsync(resolve(folder, directory))) {
-          const id = /^(\d+)\.\w+$/.exec(entry.name)?.[1];
+        if (!owners.activities.has(Number(activity))) {
+          await add(path, t('orphaned_activity_folder'), { kind: 'activities', id: Number(activity) });
+          continue;
+        }
 
-          if (id !== undefined && !owned.has(Number(id)) && !abandoned.has(`${table}:${id}`)) {
-            await add(resolve(folder, directory, entry.name), t('orphaned_media'), {
-              kind: table === 'activity_image' ? 'images' : 'media',
-              id: Number(id),
-            });
+        for (const [directory, table, owned] of [
+          [ActivityStorage.Images, 'activity_image', owners.images],
+          [ActivityStorage.Videos, 'activity_media', owners.media],
+        ] as const) {
+          for (const file of await repositories.filesRepository.entriesAsync(resolve(path, directory))) {
+            const id = /^(\d+)\.\w+$/.exec(file.name)?.[1];
+
+            if (id !== undefined && !owned.has(Number(id)) && !abandoned.has(`${table}:${id}`)) {
+              await add(resolve(path, directory, file.name), t('orphaned_media'), {
+                kind: table === 'activity_image' ? 'images' : 'media',
+                id: Number(id),
+              });
+            }
           }
         }
       }
@@ -291,16 +300,19 @@ function cleanup({ repositories, retention, storage }: RetentionScope) {
 
     const top = new Map<string, keyof StorageUsage>([
       ['backups', 'backups'],
-      ['activities', 'charts'],
       ['settings.db', 'legacy'],
     ]);
 
     const rider = new Map<string, keyof StorageUsage>([
-      ['images', 'media'],
-      ['medias', 'media'],
-      ['fit', 'fitExports'],
       ['ghosts', 'ghosts'],
       ['garth', 'legacy'],
+    ]);
+
+    const activity = new Map<string, keyof StorageUsage>([
+      [ActivityStorage.Fit, 'fitExports'],
+      [ActivityStorage.Chart, 'charts'],
+      [ActivityStorage.Images, 'media'],
+      [ActivityStorage.Videos, 'media'],
     ]);
 
     for (const entry of await repositories.filesRepository.entriesAsync(storage)) {
@@ -313,6 +325,21 @@ function cleanup({ repositories, retention, storage }: RetentionScope) {
       }
 
       for (const item of await repositories.filesRepository.entriesAsync(path)) {
+        if (item.name === ActivityStorage.Directory && item.isDirectory()) {
+          for (const folder of await repositories.filesRepository.entriesAsync(activitiesFolder(path))) {
+            const folderPath = resolve(activitiesFolder(path), folder.name);
+
+            if (folder.name === ActivityStorage.Orphaned || !folder.isDirectory()) {
+              usage[folder.name === ActivityStorage.Orphaned ? 'fitExports' : 'other'] += await size(folderPath);
+              continue;
+            }
+
+            for (const file of await repositories.filesRepository.entriesAsync(folderPath)) {
+              usage[activity.get(file.name) ?? 'other'] += await size(resolve(folderPath, file.name));
+            }
+          }
+          continue;
+        }
         usage[rider.get(item.name) ?? (legacy.has(item.name) ? 'legacy' : 'other')] += await size(
           resolve(path, item.name),
         );

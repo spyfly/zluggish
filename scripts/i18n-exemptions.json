@@ -453,5 +453,10 @@
     "file": "server/src/repositories/apk.repository.ts",
     "value": "const-string v6, \"/\"",
     "reason": "Android manifest or Dalvik bytecode syntax with fixed application branding."
+  },
+  {
+    "file": "server/src/migrations/activity-folders.ts",
+    "value": "NOT NULL",
+    "reason": "SQL syntax; must remain literal."
   }
 ]
