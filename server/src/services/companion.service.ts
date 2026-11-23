@@ -2,7 +2,7 @@ import { t } from '#src/i18n/index';
 import { RuntimeContext } from '#src/context';
 import { ApplicationError } from '#src/errors';
 import type { ApkSigner, ApkUpload } from '#src/repositories/apk.repository';
-import { ApkRepository } from '#src/repositories/apk.repository';
+import { ApkRepository, originalCompanionPackage, standaloneCompanionPackage } from '#src/repositories/apk.repository';
 import type { CertificateMaterial } from '#src/repositories/certificate.repository';
 import { CertificateRepository } from '#src/repositories/certificate.repository';
 import { CryptoRepository } from '#src/repositories/crypto.repository';
@@ -12,8 +12,6 @@ import { ToolchainRepository } from '#src/repositories/toolchain.repository';
 import { TlsService } from '#src/services/tls.service';
 import { Context, Effect, Layer, Schema } from 'effect';
 import { dirname, resolve } from 'node:path';
-
-const companionPackage = 'com.zwift.android.prod';
 
 /** The raw resource a rebuilt app reads the server certificate from. */
 const certificateResource = 'zluggish_server_cert';
@@ -46,10 +44,12 @@ export interface CompanionActivity {
 
 /** The patched app on this server, as companion.json in storage records it.
 
+`packageName` identifies builds that can be installed alongside the Play Store app. Older builds need a new upload.
 `certificate` is the SHA-256 fingerprint of the server certificate the app trusts. `method` is `rekey` when the
 upload already trusted a certificate, which was swapped, and `rebuild` when its resources were rebuilt.
 */
 const publishedSchema = Schema.Struct({
+  packageName: Schema.Literal(standaloneCompanionPackage),
   versionName: Schema.String,
   versionCode: Schema.Finite,
   bytes: Schema.Finite,
@@ -279,16 +279,17 @@ const make = Effect.gen(function* () {
     return output;
   }
 
-  async function publish(
-    output: string,
-    manifest: { versionName: string; versionCode: number },
-    fingerprint: string,
-    method: Published['method'],
-  ) {
+  async function publish(output: string, fingerprint: string, method: Published['method']) {
+    const manifest = await apk.manifest(output);
+    if (manifest.packageName !== standaloneCompanionPackage) {
+      throw new Error(`Expected the patched Companion app to use ${standaloneCompanionPackage}.`);
+    }
+
     advance('publish');
     await apk.publish(output, appPath);
 
     const record: Published = {
+      packageName: manifest.packageName,
       versionName: manifest.versionName,
       versionCode: manifest.versionCode,
       bytes: (await apk.size(appPath)) ?? 0,
@@ -318,12 +319,12 @@ const make = Effect.gen(function* () {
     }
     const manifest = await apk.manifest(path);
 
-    if (manifest.packageName !== companionPackage) {
+    if (manifest.packageName !== originalCompanionPackage && manifest.packageName !== standaloneCompanionPackage) {
       throw new ApplicationError({
         status: 400,
         message: t('companion_apk_app_mismatch', {
           value1: manifest.packageName || t('companion_unknown_app'),
-          value2: companionPackage,
+          value2: originalCompanionPackage,
         }),
       });
     }
@@ -335,7 +336,16 @@ const make = Effect.gen(function* () {
       });
     }
 
-    return { upload, rekey: await apk.trustedCertificates(path) };
+    if (manifest.packageName === originalCompanionPackage) {
+      return { upload, rekey: [] };
+    }
+    const rekey = await apk.trustedCertificates(path);
+
+    if (rekey.length === 0) {
+      throw new ApplicationError({ status: 400, message: 'This patched Companion APK is missing its certificate.' });
+    }
+
+    return { upload, rekey };
   }
 
   function stepsFor(plan: Plan): Array<CompanionStep> {
@@ -406,7 +416,7 @@ const make = Effect.gen(function* () {
       if (plan.rekey.length > 0) {
         advance('sign');
         const output = await sign(path, plan.rekey, pem, workspace);
-        await publish(output, await apk.manifest(output), fingerprint, 'rekey');
+        await publish(output, fingerprint, 'rekey');
         finish();
 
         return;
@@ -428,7 +438,7 @@ const make = Effect.gen(function* () {
         await toolchain.editor(['m', '-i', splits, '-o', source, '-f'], { cwd: workspace, signal });
         const merged = await apk.manifest(source);
 
-        if (merged.packageName !== companionPackage) {
+        if (merged.packageName !== originalCompanionPackage) {
           throw new Error(
             t('companion_bundle_app_mismatch', {
               value1: merged.packageName || t('companion_unknown_app'),
@@ -451,7 +461,7 @@ const make = Effect.gen(function* () {
       await toolchain.editor(['b', '-i', decoded, '-o', built, '-f'], { cwd: workspace, signal });
       advance('sign');
       const output = await sign(built, [], pem, workspace);
-      await publish(output, await apk.manifest(output), fingerprint, 'rebuild');
+      await publish(output, fingerprint, 'rebuild');
       finish();
     } catch (error) {
       log.warn('companion.patch_failed', 'Patching the Zwift Companion app failed', {
@@ -494,7 +504,7 @@ const make = Effect.gen(function* () {
     try {
       const inside = await apk.trustedCertificates(appPath);
       const output = await sign(appPath, inside, current.pem, workspace);
-      await publish(output, app, current.fingerprint, app.method);
+      await publish(output, current.fingerprint, app.method);
       finish();
     } catch (error) {
       log.warn('companion.rekey_failed', 'Updating the certificate in the Zwift Companion app failed', {

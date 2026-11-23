@@ -424,6 +424,10 @@
           })}</span
         >
       </label>
+      <p class="hint">
+        Play Store and zoffline builds need the Java tools to get the Zluggish app ID and icon. A Companion APK
+        previously built with the Zluggish app ID only needs a certificate swap.
+      </p>
     {/if}
     {#if uploadError}<p class="notice failed" role="alert">{uploadError}</p>{/if}
 

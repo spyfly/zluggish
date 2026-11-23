@@ -1,3 +1,4 @@
+import { packageRoot } from '#src/config/load';
 import { ApkRepository, isJarSignature } from '#src/repositories/apk.repository';
 import { CertificateRepository } from '#src/repositories/certificate.repository';
 import { CryptoRepository } from '#src/repositories/crypto.repository';
@@ -11,6 +12,7 @@ import { test } from 'node:test';
 import { binaryManifest, contents, listEntries, u32, zip } from '#tests/support/apk';
 
 const repository = new ApkRepository();
+const launcherIcon = readFileSync(resolve(packageRoot(), '../assets/android/zluggish-launcher.xml'));
 const crypto = new CryptoRepository();
 const certificates = new CertificateRepository();
 const signerMaterial = await certificates.createApkSigner({ serverId: '0123456789ab', years: 50, now: new Date() });
@@ -185,16 +187,42 @@ await test('swaps the trusted certificate, aligns stored entries and signs with 
 
 await test('points a decoded app at the certificate and declares the new resources', async () => {
   using space = workspace();
-  const res = resolve(space.folder, 'resources', 'package_1', 'res');
+  const resources = resolve(space.folder, 'resources', 'package_1');
+  const res = resolve(resources, 'res');
   mkdirSync(resolve(res, 'values'), { recursive: true });
   mkdirSync(resolve(res, 'xml'), { recursive: true });
+  const smali = resolve(space.folder, 'smali', 'classes');
+  mkdirSync(smali, { recursive: true });
+  const code = resolve(smali, 'Example.smali');
+  writeFileSync(
+    code,
+    [
+      'const-string v1, "android.resource://com.zwift.android.prod/"',
+      'const-string v1, "com.zwift.android.prod"',
+      'const-string/jumbo v1, "com.zwift.android.prod.MESSAGE"',
+      'const-string v1, "https://play.google.com/store/apps/details?id=com.zwift.android.prod"',
+    ].join('\n'),
+  );
+  writeFileSync(resolve(resources, 'package.json'), '{"package_name":"com.zwift.android.prod"}');
   writeFileSync(
     resolve(space.folder, 'AndroidManifest.xml'),
-    '<manifest package="com.zwift.android.prod">\n  <application android:networkSecurityConfig="@xml/network_security_config" android:label="Companion">\n  </application>\n</manifest>\n',
+    `<manifest package="com.zwift.android.prod">
+  <permission android:name="com.zwift.android.prod.PERMISSION" />
+  <uses-permission android:name="com.zwift.android.prod.PERMISSION" />
+  <application android:networkSecurityConfig="@xml/network_security_config" android:label="Companion" android:roundIcon="@mipmap/old">
+    <provider android:name=".Files" android:authorities="com.zwift.android.prod.files;com.example.other" />
+    <receiver android:name="Message"><intent-filter><action android:name="com.zwift.android.prod.MESSAGE" /></intent-filter></receiver>
+    <activity android:name="com.zwift.android.ui.Other" />
+    <activity-alias android:name=".Launcher" android:targetActivity="com.zwift.android.ui.Other" android:icon="@mipmap/old">
+      <intent-filter android:icon="@mipmap/old"><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
+      <intent-filter android:icon="@mipmap/link"><action android:name="android.intent.action.VIEW" /></intent-filter>
+    </activity-alias>
+  </application>
+</manifest>`,
   );
   writeFileSync(
     resolve(res, 'values', 'public.xml'),
-    '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n  <public id="0x7f130008" type="raw" name="ride_on" />\n  <public id="0x7f18000d" type="xml" name="network_security_config" />\n  <public id="0x7f18000e" type="xml" name="remote_config_defaults" />\n</resources>\n',
+    '<?xml version="1.0" encoding="utf-8"?>\n<resources package="com.zwift.android.prod">\n  <public id="0x7f130008" type="raw" name="ride_on" />\n  <public id="0x7f18000d" type="xml" name="network_security_config" />\n  <public id="0x7f18000e" type="xml" name="remote_config_defaults" />\n</resources>\n',
   );
   writeFileSync(
     resolve(res, 'xml', 'network_security_config.xml'),
@@ -207,15 +235,34 @@ await test('points a decoded app at the certificate and declares the new resourc
 
   await repository.patchDecoded(space.folder, server.cert, 'zluggish_server_cert');
 
+  const manifest = readFileSync(resolve(space.folder, 'AndroidManifest.xml'), 'utf8');
+  assert.match(manifest, /package="com\.zluggish\.companion"/);
+  assert.match(manifest, /<provider android:name="com\.zwift\.android\.prod\.Files"/);
+  assert.match(manifest, /android:authorities="com\.zluggish\.companion\.files;com\.example\.other"/);
+  assert.match(manifest, /<receiver android:name="com\.zwift\.android\.prod\.Message"/);
+  assert.match(manifest, /<uses-permission android:name="com\.zluggish\.companion\.PERMISSION"/);
+  assert.match(manifest, /<action android:name="com\.zluggish\.companion\.MESSAGE"/);
+  assert.equal(manifest.match(/android:icon="@drawable\/zluggish_launcher"/g)?.length, 2);
+  assert.match(manifest, /android:roundIcon="@drawable\/zluggish_launcher"/);
+  assert.doesNotMatch(manifest, /@mipmap\/old/);
+  assert.match(manifest, /<intent-filter android:icon="@mipmap\/link"/);
+  assert.deepEqual(readFileSync(resolve(res, 'drawable', 'zluggish_launcher.xml')), launcherIcon);
+  assert.match(readFileSync(resolve(resources, 'package.json'), 'utf8'), /"package_name":"com\.zluggish\.companion"/);
+  const references = readFileSync(code, 'utf8');
+  assert.match(references, /"android\.resource:\/\/com\.zluggish\.companion\/"/);
+  assert.match(references, /"com\.zluggish\.companion"/);
+  assert.match(references, /"com\.zluggish\.companion\.MESSAGE"/);
+  assert.match(references, /details\?id=com\.zwift\.android\.prod"/);
+
   assert.equal(readFileSync(resolve(res, 'raw', 'zluggish_server_cert.pem'), 'utf8'), server.cert);
   const config = readFileSync(resolve(res, 'xml', 'network_security_config.xml'), 'utf8');
   assert.match(config, /<certificates src="@raw\/zluggish_server_cert" \/>/);
   assert.match(config, /<certificates src="system" \/>/);
   assert.doesNotMatch(config, /pin-set|src="user"/);
-  assert.match(
-    readFileSync(resolve(res, 'values', 'public.xml'), 'utf8'),
-    /id="0x7f130009" type="raw" name="zluggish_server_cert"/,
-  );
+  const declared = readFileSync(resolve(res, 'values', 'public.xml'), 'utf8');
+  assert.match(declared, /<resources package="com\.zluggish\.companion"/);
+  assert.match(declared, /id="0x7f130009" type="raw" name="zluggish_server_cert"/);
+  assert.match(declared, /type="drawable" name="zluggish_launcher"/);
   assert.match(readFileSync(resolve(res, 'xml', 'remote_config_defaults.xml'), 'utf8'), /<value>true<\/value>/);
 
   await repository.patchDecoded(space.folder, server.cert, 'zluggish_server_cert');
@@ -228,7 +275,7 @@ await test('gives an app without a network security config a new one', async () 
   mkdirSync(resolve(res, 'values'), { recursive: true });
   writeFileSync(
     resolve(space.folder, 'AndroidManifest.xml'),
-    '<manifest>\n  <application android:label="Companion" />\n</manifest>\n',
+    '<manifest package="com.zwift.android.prod">\n  <application android:label="Companion" />\n</manifest>\n',
   );
   writeFileSync(
     resolve(res, 'values', 'public.xml'),
@@ -361,7 +408,7 @@ await test('gives the standalone Zwift build its own package and starts setup be
   assert.match(result, /android:icon="@drawable\/zluggish_launcher"/);
   assert.match(result, /android:roundIcon="@drawable\/zluggish_launcher"/);
   assert.match(readFileSync(publicXml, 'utf8'), /id="0x7f010002" type="drawable" name="zluggish_launcher"/);
-  assert.match(readFileSync(resolve(resources, 'res/drawable/zluggish_launcher.xml'), 'utf8'), /fillColor="#FF6200"/);
+  assert.deepEqual(readFileSync(resolve(resources, 'res/drawable/zluggish_launcher.xml')), launcherIcon);
   assert.match(result, /android:name="com\.zluggish\.zwift\.PRIVATE"/);
   assert.match(result, /android:name="com\.zwift\.zwiftgame\.App"/);
   assert.match(result, /android:authorities="com\.zluggish\.zwift\.files"/);
