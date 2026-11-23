@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
   import { z } from 'zod';
-  import type { CompanionActivity, CompanionAdminStatus, CompanionStep } from './companion';
+  import type { CompanionAdminStatus, CompanionStep } from './companion';
   import { companionAdminStatus, megabytes } from './companion';
+  import JobProgress from './JobProgress.svelte';
 
   let {
     api,
@@ -25,8 +26,14 @@
   let notice = $state('');
   let working = $state(false);
 
-  /** The upload, before the server's job takes over: its own first step on the tracker. */
-  let upload = $state<{ name: string; progress: number } | null>(null);
+  /** The upload, before the server's job takes over. Its bytes per second are a smoothed average. */
+  let upload = $state<{
+    name: string;
+    size: number;
+    sent: number;
+    rate: number | null;
+    startedAt: number;
+  } | null>(null);
   let uploadError = $state('');
   let dragging = $state(false);
   let fileInput = $state<HTMLInputElement>();
@@ -38,7 +45,7 @@
   const tools = $derived(admin ? !!admin.toolchain.java && admin.toolchain.editor : false);
 
   const labels: Record<CompanionStep, string> = {
-    upload: 'Uploading the file',
+    upload: 'Uploading',
     runtime: 'Downloading Java',
     editor: 'Downloading APKEditor',
     inspect: 'Checking the file',
@@ -50,22 +57,47 @@
     publish: 'Publishing',
   };
 
+  /** Rough shares of the whole job, for the width of each stretch of the bar. Rebuilding the app dominates. */
+  const weights: Record<CompanionStep, number> = {
+    upload: 4,
+    runtime: 4,
+    editor: 1,
+    inspect: 1,
+    merge: 2,
+    decode: 3,
+    patch: 1,
+    build: 4,
+    sign: 2,
+    publish: 1,
+  };
+
   const day = (iso: string) =>
     new Date(iso).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' });
 
-  /** What the tracker shows: the upload in flight, or the server's job with the upload done before it. */
-  const tracker = $derived.by((): (CompanionActivity & { upload?: boolean }) | null => {
+  /** One job from the first uploaded byte to the published app: the upload in flight, or the server's job. */
+  const job = $derived.by(() => {
     if (upload) {
+      // The server picks the steps once it has the file. A full rebuild is the usual case.
+      const bundle = !/\.apk$/i.test(upload.name);
+
       return {
-        kind: 'patch',
-        state: 'running',
-        steps: ['upload', 'inspect'],
-        step: 'upload',
-        progress: upload.progress,
+        kind: 'patch' as const,
+        state: 'running' as const,
+        steps: [
+          'upload',
+          'inspect',
+          ...(bundle ? (['merge'] as const) : []),
+          'decode',
+          'patch',
+          'build',
+          'sign',
+          'publish',
+        ] as Array<CompanionStep>,
+        step: 'upload' as CompanionStep,
+        progress: upload.size ? upload.sent / upload.size : 0,
         message: null,
-        startedAt: '',
+        startedAt: upload.startedAt,
         finishedAt: null,
-        upload: true,
       };
     }
 
@@ -75,31 +107,58 @@
       return null;
     }
 
-    return activity.kind === 'patch' ? { ...activity, steps: ['upload', ...activity.steps] } : activity;
+    return {
+      ...activity,
+      steps: activity.kind === 'patch' ? (['upload', ...activity.steps] as Array<CompanionStep>) : activity.steps,
+      startedAt: Date.parse(activity.startedAt),
+      finishedAt: activity.finishedAt ? Date.parse(activity.finishedAt) : null,
+    };
   });
 
-  const summary = $derived.by(() => {
-    const activity = tracker;
-
-    if (!activity) {
+  const headline = $derived.by(() => {
+    if (!job) {
       return '';
     }
 
-    if (activity.state === 'failed') {
-      return activity.message ?? 'The job failed.';
+    const tools = job.kind === 'toolchain';
+
+    switch (job.state) {
+      case 'waiting':
+        return 'Waiting for the Java tools';
+      case 'done':
+        return tools ? 'The Java tools are ready' : `Published Companion ${admin?.app?.versionName ?? ''}`;
+      case 'failed':
+        return tools ? 'The download stopped' : 'The patch stopped';
+      default:
+        if (upload) {
+          return `Uploading ${upload.name}`;
+        }
+
+        return tools
+          ? 'Downloading the Java tools'
+          : job.kind === 'rekey'
+            ? 'Adding the new certificate'
+            : 'Patching Companion for this server';
+    }
+  });
+
+  const detail = $derived.by(() => {
+    if (!job) {
+      return '';
     }
 
-    if (activity.state === 'waiting') {
-      return 'Waiting for the Java tools';
-    }
+    const tools = job.kind === 'toolchain';
 
-    if (activity.state === 'done') {
-      return activity.kind === 'toolchain'
-        ? 'The Java tools are ready.'
-        : `Published Companion ${admin?.app?.versionName ?? ''}. Riders can download it now.`;
+    switch (job.state) {
+      case 'waiting':
+        return 'The upload is saved. It continues once the server has the Java tools.';
+      case 'done':
+        return tools ? 'The server can rebuild apps from the Play Store.' : 'Riders can download it now.';
+      case 'failed':
+        return tools ? 'The download failed.' : 'The patch failed.';
+      default:
+        return upload ? 'Keep this page open until the upload finishes.' : `${labels[job.step]}…`;
     }
-
-    return `${labels[activity.step]}…`;
   });
 
   async function refresh() {
@@ -143,6 +202,26 @@
 
   const installTools = () => act(() => api(companionAdminStatus, '/api/manage/companion/toolchain', 'POST', {}));
 
+  let sample = { at: 0, bytes: 0 };
+
+  function sent(bytes: number) {
+    if (!upload) {
+      return;
+    }
+
+    const at = performance.now();
+    const seconds = (at - sample.at) / 1000;
+    let { rate } = upload;
+
+    if (seconds >= 0.5) {
+      const measured = (bytes - sample.bytes) / seconds;
+      rate = rate === null ? measured : rate * 0.8 + measured * 0.2;
+      sample = { at, bytes };
+    }
+
+    upload = { ...upload, sent: Math.max(upload.sent, bytes), rate };
+  }
+
   /** Send the file as raw bytes, so the server streams it to disk, with progress from the upload events. */
   function send(file: File) {
     uploadError = '';
@@ -160,18 +239,15 @@
       return;
     }
 
-    upload = { name: file.name, progress: 0 };
+    upload = { name: file.name, size: file.size, sent: 0, rate: null, startedAt: Date.now() };
+    sample = { at: performance.now(), bytes: 0 };
     const xhr = new XMLHttpRequest();
     request = xhr;
     xhr.open('PUT', '/api/manage/companion/app');
     xhr.setRequestHeader('Content-Type', 'application/octet-stream');
     xhr.setRequestHeader('X-CSRF-Token', csrf());
     xhr.responseType = 'json';
-    xhr.upload.onprogress = (event) => {
-      if (upload && event.lengthComputable) {
-        upload = { ...upload, progress: event.loaded / event.total };
-      }
-    };
+    xhr.upload.onprogress = (event) => sent(event.loaded);
 
     xhr.onload = () => {
       upload = null;
@@ -269,120 +345,87 @@
       <p class="lead">No app yet. Riders see the download under <strong>Apps</strong> once you upload one.</p>
     {/if}
 
-    <label
-      class="drop"
-      class:dragging
-      class:disabled={busy || !certificateReady}
-      ondragover={(event) => {
-        event.preventDefault();
-        dragging = !busy && certificateReady;
-      }}
-      ondragleave={() => (dragging = false)}
-      ondrop={dropped}
-    >
-      <input
-        bind:this={fileInput}
-        type="file"
-        accept={accepted}
-        disabled={busy || !certificateReady}
-        onchange={() => {
-          const file = fileInput?.files?.[0];
-
-          if (file) send(file);
-
-          if (fileInput) fileInput.value = '';
-        }}
-      />
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0-5 5m5-5 5 5M5 20h14" /></svg>
-      <span class="title">{admin.app ? 'Upload a newer version' : 'Upload Zwift Companion'}</span>
-      <span class="detail"
-        >Drop the file here or choose it. APK, APKS, XAPK or APKM, up to {megabytes(admin.uploadLimit)}.</span
-      >
-    </label>
-    <p class="hint">
-      An app already patched for zoffline, such as a zoffline-companion release, gets this server's certificate in
-      seconds. An app from the Play Store is rebuilt with Java, which the server asks before it downloads.
-    </p>
-    {#if uploadError}<p class="notice failed" role="alert">{uploadError}</p>{/if}
-
-    {#if tracker}
-      <div class="tracker" class:failed={tracker.state === 'failed'} aria-live="polite">
-        <ol class="segments" aria-label="Progress">
-          {#each tracker.steps as step, index (step)}
-            {@const at = tracker.steps.indexOf(tracker.step)}
-            {@const state =
-              tracker.state === 'done' || index < at
-                ? 'done'
-                : index === at
-                  ? tracker.state === 'failed'
-                    ? 'failed'
-                    : tracker.state === 'waiting'
-                      ? 'pending'
-                      : 'current'
-                  : 'pending'}
-            <li class={state} title={labels[step]}>
-              <span
-                class="fill"
-                class:indeterminate={state === 'current' && tracker.progress === null}
-                style:width={state === 'current' && tracker.progress !== null
-                  ? `${Math.round(tracker.progress * 100)}%`
-                  : undefined}
-              ></span>
-              <span class="visually-hidden">{labels[step]}: {state}</span>
-            </li>
-          {/each}
-        </ol>
-        <p class="now">
-          <span>{summary}</span>
-          {#if tracker.state === 'running'}
-            <span class="count">Step {tracker.steps.indexOf(tracker.step) + 1} of {tracker.steps.length}</span>
-          {/if}
-        </p>
-        {#if tracker.kind === 'toolchain' && tracker.state === 'running' && admin.pending}
-          <p class="hint">Your upload continues once they are ready.</p>
-        {/if}
-        {#if tracker.upload}
+    {#if job}
+      <JobProgress id="companion-job" {job} {labels} {weights} {headline} {detail} {upload}>
+        {#if upload}
           <button type="button" onclick={() => request?.abort()}>Stop upload</button>
-        {:else if tracker.state === 'running'}
+        {:else if job.state === 'running'}
+          {#if job.kind === 'toolchain' && admin.pending}
+            <p class="hint">Your upload continues once they are ready.</p>
+          {/if}
           <button
             type="button"
             disabled={working}
             onclick={() => act(() => api(companionAdminStatus, '/api/manage/companion/cancel', 'POST', {}))}
             >Stop</button
           >
+          <p class="hint">You can leave this page. The job continues on the server.</p>
+        {:else if admin.pending}
+          {#if admin.toolchain.supported}
+            <p class="ask">
+              The app comes straight from the Play Store, so the server rebuilds it with Java. It downloads
+              {admin.toolchain.java ? 'APKEditor' : 'a Java runtime from Eclipse Temurin and APKEditor'}, about
+              {megabytes(admin.toolchain.downloadBytes)}, and checks each file against a pinned checksum.
+            </p>
+            <button type="button" class="primary" disabled={working} onclick={installTools}
+              >Download Java tools and continue</button
+            >
+          {:else}
+            <p class="ask">
+              The app comes straight from the Play Store, so the server rebuilds it with Java. No Java runtime is
+              published for this server's system: install Java 11 or later on the server, then upload the app again.
+            </p>
+          {/if}
+          <button
+            type="button"
+            disabled={working}
+            onclick={() =>
+              act(
+                () => api(companionAdminStatus, '/api/manage/companion/pending', 'DELETE', {}),
+                'Discarded the upload.',
+              )}>Discard upload</button
+          >
         {/if}
-      </div>
+      </JobProgress>
     {/if}
 
-    {#if admin.pending && admin.activity?.state !== 'running'}
-      <div class="ask" role="group" aria-labelledby="companion-ask">
-        <h3 id="companion-ask">This app needs the Java tools</h3>
-        {#if admin.toolchain.supported}
-          <p>
-            It comes straight from the Play Store, so the server rebuilds it with Java. The server downloads
-            {admin.toolchain.java ? 'APKEditor' : 'a Java runtime from Eclipse Temurin and APKEditor'}, about
-            {megabytes(admin.toolchain.downloadBytes)}, and checks each file against a pinned checksum.
-          </p>
-          <button type="button" class="primary" disabled={working} onclick={installTools}
-            >Download Java tools and continue</button
-          >
-        {:else}
-          <p>
-            It comes straight from the Play Store, so the server rebuilds it with Java. No Java runtime is published for
-            this server's system: install Java 11 or later on the server, then upload the app again.
-          </p>
-        {/if}
-        <button
-          type="button"
-          disabled={working}
-          onclick={() =>
-            act(
-              () => api(companionAdminStatus, '/api/manage/companion/pending', 'DELETE', {}),
-              'Discarded the upload.',
-            )}>Discard upload</button
+    {#if !busy && !admin.pending}
+      <label
+        class="drop"
+        class:dragging
+        class:disabled={!certificateReady}
+        ondragover={(event) => {
+          event.preventDefault();
+          dragging = certificateReady;
+        }}
+        ondragleave={() => (dragging = false)}
+        ondrop={dropped}
+      >
+        <input
+          bind:this={fileInput}
+          type="file"
+          accept={accepted}
+          disabled={!certificateReady}
+          onchange={() => {
+            const file = fileInput?.files?.[0];
+
+            if (file) send(file);
+
+            if (fileInput) fileInput.value = '';
+          }}
+        />
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0-5 5m5-5 5 5M5 20h14" /></svg>
+        <span class="title">{admin.app ? 'Upload a newer version' : 'Upload Zwift Companion'}</span>
+        <span class="detail"
+          >Drop the file here or choose it. APK, APKS, XAPK or APKM, up to {megabytes(admin.uploadLimit)}.</span
         >
-      </div>
+      </label>
+      <p class="hint">
+        An app already patched for zoffline, such as a zoffline-companion release, gets this server's certificate in
+        seconds. An app from the Play Store is rebuilt with Java, which the server asks before it downloads.
+      </p>
     {/if}
+    {#if uploadError}<p class="notice failed" role="alert">{uploadError}</p>{/if}
 
     {#if admin.app}
       <button
@@ -542,97 +585,7 @@
     font-size: 0.875rem;
   }
 
-  .tracker {
-    margin: 1.25rem 0 0;
-  }
-  .segments {
-    display: flex;
-    gap: 4px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-  .segments li {
-    position: relative;
-    flex: 1;
-    height: 0.5rem;
-    overflow: hidden;
-    border-radius: 999px;
-    background: var(--line);
-  }
-  .segments .fill {
-    position: absolute;
-    inset: 0 auto 0 0;
-    width: 0;
-    background: var(--orange);
-    transition: width 0.4s ease-out;
-  }
-  .segments .done .fill {
-    width: 100%;
-  }
-  .segments .failed {
-    background: #ff6b57;
-  }
-  .segments .current .fill.indeterminate {
-    width: 40%;
-    animation: sweep 1.4s ease-in-out infinite;
-  }
-  @keyframes sweep {
-    from {
-      transform: translateX(-100%);
-    }
-    to {
-      transform: translateX(250%);
-    }
-  }
-  .now {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    gap: 0.25rem 1rem;
-    margin: 0.6rem 0 0;
-    font-weight: 700;
-  }
-  .tracker.failed .now {
-    color: var(--alarm);
-  }
-  .now .count {
-    color: var(--muted);
-    font-weight: 600;
-    font-size: 0.875rem;
-  }
-
   .ask {
     margin: 1rem 0 0;
-    padding: 1rem 1.1rem;
-    border: 2px solid var(--orange);
-    border-radius: 12px;
-    background: var(--well);
-  }
-  .ask h3 {
-    margin: 0 0 0.4rem;
-    font-size: 1rem;
-  }
-  .ask p {
-    margin: 0;
-  }
-
-  .visually-hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .segments .fill {
-      transition: none;
-    }
-    .segments .current .fill.indeterminate {
-      width: 50%;
-      animation: none;
-    }
   }
 </style>

@@ -946,8 +946,8 @@
         )}
         <div class="subgroup" role="group" aria-labelledby="menu-android-apps">
           <p class="group" id="menu-android-apps">Android apps</p>
-          {@render link('/manage/companion', 'Companion', path === '/manage/companion')}
           {@render link('/manage/zwift-android', 'Zwift', path === '/manage/zwift-android')}
+          {@render link('/manage/companion', 'Companion', path === '/manage/companion')}
         </div>
         {@render link('/manage/server', 'Server', path === '/manage/server')}
       {/if}
