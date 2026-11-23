@@ -9,11 +9,7 @@ import { ActivitiesService } from '#src/services/activities.service';
 import { DurabilityService } from '#src/services/durability.service';
 import { FilesService } from '#src/services/files.service';
 import { effectRoutes } from '#src/http/effect';
-import {
-  ZwiftAndroidService,
-  zwiftAndroidChunkSize,
-  zwiftAndroidUploadLimit,
-} from '#src/services/zwift-android.service';
+import { ZwiftAndroidService, zwiftAndroidChunkSize } from '#src/services/zwift-android.service';
 import { fileResponse } from '#src/http/file-response';
 import { RecordsService } from '#src/services/records.service';
 import { webConnectionRoutes } from '#src/http/web-connections';
@@ -81,21 +77,19 @@ export function createWebApp(runtime: HttpRuntime) {
   /** The Companion app upload: raw APK bytes, streamed to disk. */
   const companionUpload = (c: Context<WebEnv>) => c.req.method === 'PUT' && c.req.path === '/api/manage/companion/app';
 
-  const androidUpload = (c: Context<WebEnv>) => c.req.method === 'PUT' && c.req.path === '/api/install/android/obb';
-
+  /** One piece of a Zwift for Android upload: raw bytes, streamed to disk and counted there. */
   const androidChunk = (c: Context<WebEnv>) =>
-    c.req.method === 'PUT' && /^\/api\/manage\/android-upload\/[^/]+$/.test(c.req.path);
+    c.req.method === 'PUT' && /^\/api\/manage\/zwift-android\/uploads\/[^/]+$/.test(c.req.path);
 
   app.use('*', async (c: Context<WebEnv, string>, next: Next) => {
     const upload = c.req.method === 'POST' && c.req.path === '/api/me/import';
 
-    if (androidUpload(c) || androidChunk(c)) {
-      const limit = androidChunk(c) ? zwiftAndroidChunkSize : zwiftAndroidUploadLimit;
-      if (Number(c.req.header('Content-Length')) > limit) {
-        return c.json({ message: 'The request exceeds the Android upload limit.' }, 413);
+    if (androidChunk(c)) {
+      if (Number(c.req.header('Content-Length')) > zwiftAndroidChunkSize) {
+        return c.json({ message: 'The upload chunk is too large.' }, 413);
       }
 
-      // The patcher counts bytes while writing to disk, including requests without Content-Length.
+      // The service counts bytes while writing to disk, including requests without Content-Length.
       return next();
     }
 
@@ -148,7 +142,7 @@ export function createWebApp(runtime: HttpRuntime) {
       if (
         !(c.req.method === 'POST' && c.req.path === '/api/me/import'
           ? c.req.header('Content-Type')?.startsWith('multipart/form-data;')
-          : companionUpload(c) || androidUpload(c) || androidChunk(c)
+          : companionUpload(c) || androidChunk(c)
             ? c.req.header('Content-Type') === 'application/octet-stream'
             : c.req.method === 'PUT' &&
                 (c.req.path === '/api/me/avatar' || /^\/api\/manage\/users\/\d+\/avatar$/.test(c.req.path))
@@ -396,7 +390,7 @@ export function createWebApp(runtime: HttpRuntime) {
   /** The certificate that the server presents, without its key. While a server still uses the shared certificate,
   riders can install that one too, with a warning, so that new computers connect until the administrator rotates it.
   */
-  const installable = Effect.fn('web.tls.installable')(function* (c: Context<WebEnv>, download?: string) {
+  const installable = Effect.fn('web.tls.installable')(function* (c: Context<WebEnv>, download: string) {
     const tls = yield* TlsService;
     const user = yield* sessions.require(c.get('sessionId'));
     const status = yield* tls.status();
@@ -414,7 +408,7 @@ export function createWebApp(runtime: HttpRuntime) {
     }
     const pem = certificate + '\n';
 
-    if (status.mode === 'legacy' && download) {
+    if (status.mode === 'legacy') {
       runtime.world.lifecycle.log.warn(
         'tls.legacy_setup_download',
         'A rider downloaded setup for the shared Zwift certificate, whose private key is public. Generate a server certificate under Manage → Server.',
@@ -439,89 +433,59 @@ export function createWebApp(runtime: HttpRuntime) {
     }),
   );
 
-  appRoutes.get('/api/install/android/obb', (c) =>
+  appRoutes.get('/api/install/android', (c) =>
     Effect.gen(function* () {
-      const { pem } = yield* installable(c);
+      yield* sessions.require(c.get('sessionId'));
       const android = yield* ZwiftAndroidService;
 
-      return c.json(yield* Effect.promise(() => android.list(pem)));
+      return c.json(yield* Effect.promise(() => android.status()));
     }),
   );
 
-  appRoutes.get('/api/install/android/obb/:name', (c) =>
+  appRoutes.get('/api/install/android/app', (c) =>
     Effect.gen(function* () {
-      const { pem } = yield* installable(c, 'android.obb');
-      const name = c.req.param('name');
+      const user = yield* sessions.require(c.get('sessionId'));
       const android = yield* ZwiftAndroidService;
-      const path = yield* Effect.promise(() => android.download(pem, name));
+      const app = yield* Effect.promise(() => android.download());
 
-      if (!path) {
-        throw new ApplicationError({
-          status: 404,
-          message: 'This Zwift version is not available for the current server certificate.',
-        });
+      if (!app) {
+        throw new ApplicationError({ status: 404, message: 'There is no Zwift app for this server yet.' });
       }
+      runtime.world.lifecycle.log.info('android.download', 'A rider downloaded Zwift for Zluggish', {
+        player: user.player_id,
+      });
 
-      return yield* fileResponse(c, path, {
-        'Content-Type': name.endsWith('.apk') ? 'application/vnd.android.package-archive' : 'application/octet-stream',
-        'Content-Disposition': `attachment; filename="${name}"`,
+      return yield* fileResponse(c, app.path, {
+        'Content-Type': 'application/vnd.android.package-archive',
+        'Content-Disposition': `attachment; filename="${app.filename}"`,
       });
     }),
   );
 
-  appRoutes.put('/api/install/android/obb', (c) =>
+  appRoutes.get('/api/manage/zwift-android', (c) =>
     Effect.gen(function* () {
       yield* sessions.require(c.get('sessionId'), true);
-      const { pem } = yield* installable(c);
-      const body = c.req.raw.body;
-      const name = c.req.query('name') ?? '';
-
-      if (!body) {
-        throw new ApplicationError({ status: 400, message: 'Choose a Zwift expansion file to upload.' });
-      }
-
       const android = yield* ZwiftAndroidService;
-      yield* Effect.promise(() => android.publish(body, pem, name, c.req.raw.signal));
 
-      return c.body(null, 204);
+      return c.json(yield* Effect.promise(() => android.adminStatus()));
     }),
   );
 
-  appRoutes.post('/api/manage/android-upload', (c) =>
+  appRoutes.post('/api/manage/zwift-android/uploads', (c) =>
     Effect.gen(function* () {
       yield* sessions.require(c.get('sessionId'), true);
-      yield* installable(c);
       const android = yield* ZwiftAndroidService;
-      const input = Schema.decodeUnknownSync(
-        Schema.Struct({
-          name: Schema.String,
-          size: Schema.Number,
-          standalone: Schema.optional(Schema.Boolean),
-        }),
-      )(yield* Effect.promise(() => c.req.json()));
-
-      return c.json(
-        yield* Effect.promise(() =>
-          android.begin(c.get('sessionId'), input.name, input.size, input.standalone ?? false),
-        ),
-        201,
+      const input = Schema.decodeUnknownSync(Schema.Struct({ name: Schema.String, size: Schema.Number }))(
+        yield* Effect.promise(() => c.req.json()),
       );
+
+      return c.json(yield* Effect.promise(() => android.begin(c.get('sessionId'), input.name, input.size)), 201);
     }),
   );
 
-  appRoutes.get('/api/manage/android-upload/:id', (c) =>
+  appRoutes.put('/api/manage/zwift-android/uploads/:id', (c) =>
     Effect.gen(function* () {
       yield* sessions.require(c.get('sessionId'), true);
-      const android = yield* ZwiftAndroidService;
-
-      return c.json(android.status(c.get('sessionId'), c.req.param('id')));
-    }),
-  );
-
-  appRoutes.put('/api/manage/android-upload/:id', (c) =>
-    Effect.gen(function* () {
-      yield* sessions.require(c.get('sessionId'), true);
-      const { pem } = yield* installable(c);
       const android = yield* ZwiftAndroidService;
       const body = c.req.raw.body;
       const offset = c.req.query('offset');
@@ -530,14 +494,13 @@ export function createWebApp(runtime: HttpRuntime) {
         throw new ApplicationError({ status: 400, message: 'The upload chunk is missing its body or offset.' });
       }
 
-      const result = yield* Effect.promise(() =>
-        android.chunk(c.get('sessionId'), c.req.param('id'), Number(offset), body, pem),
+      return c.json(
+        yield* Effect.promise(() => android.chunk(c.get('sessionId'), c.req.param('id'), Number(offset), body)),
       );
-      return c.json(result);
     }),
   );
 
-  appRoutes.delete('/api/manage/android-upload/:id', (c) =>
+  appRoutes.delete('/api/manage/zwift-android/uploads/:id', (c) =>
     Effect.gen(function* () {
       yield* sessions.require(c.get('sessionId'), true);
       const android = yield* ZwiftAndroidService;
@@ -547,26 +510,30 @@ export function createWebApp(runtime: HttpRuntime) {
     }),
   );
 
-  appRoutes.get('/api/manage/android-originals', (c) =>
+  appRoutes.post('/api/manage/zwift-android/rebuild', (c) =>
     Effect.gen(function* () {
       yield* sessions.require(c.get('sessionId'), true);
       const android = yield* ZwiftAndroidService;
 
-      return c.json({ originals: yield* Effect.promise(() => android.originals()) });
+      return c.json(yield* Effect.promise(() => android.rebuild()), 202);
     }),
   );
 
-  appRoutes.post('/api/manage/android-originals/:id/rebuild', (c) =>
+  appRoutes.post('/api/manage/zwift-android/stop', (c) =>
     Effect.gen(function* () {
       yield* sessions.require(c.get('sessionId'), true);
-      const { pem } = yield* installable(c);
       const android = yield* ZwiftAndroidService;
-      const { standalone } = Schema.decodeUnknownSync(Schema.Struct({ standalone: Schema.Boolean }))(
-        yield* Effect.promise(() => c.req.json()),
-      );
-      const job = yield* Effect.promise(() => android.rebuild(c.get('sessionId'), c.req.param('id'), pem, standalone));
 
-      return c.json(job, 202);
+      return c.json(yield* Effect.promise(() => android.stop()));
+    }),
+  );
+
+  appRoutes.delete('/api/manage/zwift-android/app', (c) =>
+    Effect.gen(function* () {
+      yield* sessions.require(c.get('sessionId'), true);
+      const android = yield* ZwiftAndroidService;
+
+      return c.json(yield* Effect.promise(() => android.remove()));
     }),
   );
 

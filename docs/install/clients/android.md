@@ -7,26 +7,26 @@ description: Set up a non-rooted Android device to ride on your Zluggish server.
 
 This procedure is for a device that is not rooted. For a rooted device, see [Android (rooted)](android-rooted.md). In the web app, **Set up Android** on the **Apps** page shows the same steps with the address of the server filled in.
 
-Zwift from Google Play stores its certificate bundle in an expansion file. Patch your copy of that file with your Zluggish server’s certificate, then use Virtual Hosts or DNS to send Zwift to the server.
+Zwift from Google Play keeps the servers it trusts in its expansion file. The administrator uploads Zwift once, and the server publishes **Zwift for Zluggish**: a copy that trusts your server and installs next to Zwift from Google Play. Riders download it from the web app, then send it to the server with Virtual Hosts or DNS.
 
 ## Publish Zwift for Android
 
-An administrator opens **Apps → Zwift → Android → Publish Zwift for Android** and uploads an APKMirror `.apkm` labeled **BUNDLE 1 OBB**. Leave **Build a standalone APK** selected to publish **Zwift for Zluggish** under the application ID `com.zluggish.zwift`. The server downloads any missing Android build tools, rebuilds the APK, embeds the patched expansion and signs the result. After the upload, Zluggish retains the original file unchanged. Select it under **Saved original** and click **Rebuild from saved original** after a certificate change or patcher update. Uploads made before this feature may need to be uploaded once more. Clear the build option to publish an XAPK for APKMirror Installer instead.
+An administrator does this once per Zwift version.
 
-APKM uploads support up to 10 GB. The web uploader sends 16 MiB chunks so it can work through Cloudflare Tunnel. Keep the admin page open during the transfer so it can retry interrupted chunks. Patching and packaging continue in the background after all chunks arrive.
+1. Download the Zwift `.apkm` bundle that includes the expansion file, about 4 GB. On APKMirror it is the download marked **BUNDLE 1 OBB**.
+2. In the [web app](../../usage/web-app.md), open **Manage → Zwift Android** and drop the file on the upload area.
+3. Keep the page open until the upload finishes. It shows the progress, speed and time left.
+4. The server then builds the app in the background. The page shows each step; you can leave it.
+
+The first build downloads Java and APKEditor, about 60 MB, which the Companion app patcher shares. Uploads up to 10 GB are accepted, sent in 16 MiB pieces so that they pass proxies such as Cloudflare Tunnel.
+
+The server keeps the last upload. When you rotate the server certificate, it builds the app again on its own; **Build again** does the same by hand. The upload and the built app are left out of backups.
 
 ## Install on the phone
 
-1. On the Android device, sign in to Zluggish and open **Apps → Zwift → Android**.
-2. Download and open the **Zwift for Zluggish** APK. Allow installation from your browser if Android prompts you.
-3. Finish the server setup below, then open **Zwift for Zluggish**. The first launch copies the embedded expansion into the app’s own storage. Keep at least one additional expansion file’s worth of space free.
-4. If your routing rules apply to the whole device, turn them off before opening official Zwift.
-
-For an XAPK download, open it with [APKMirror Installer](https://play.google.com/store/apps/details?id=com.apkmirror.helper.prod).
-
-## Install manually with ADB
-
-Administrators can also upload a standalone `main.*.com.zwift.zwiftgame.obb` from a clean Google Play installation. Open **Install the expansion manually with ADB** to download the matching patched OBB and follow the copy instructions. Clear Zwift’s app storage before copying the file if Zwift has already unpacked the original expansion.
+1. On the Android device, sign in to the web app and open **Apps → Set up Android**.
+2. Select **Download Zwift**. Use Wi-Fi: the app is about 4 GB.
+3. Open the downloaded file. Allow your browser to install apps, then select **Install**. If Google Play Protect warns about an unknown app, select **Install anyway**.
 
 ## Send Zwift to Zluggish
 
@@ -41,4 +41,6 @@ To use Zluggish DNS, set `dns.enabled` to `true` in `zluggish.config.ts` and set
 
 1. Make sure that the Virtual Hosts button is on.
 2. Ask an administrator to make your user in the [web app](../../usage/web-app.md), under **Manage → Users**. Your user must have a password.
-3. In Zwift, sign in with your username and password.
+3. Open **Zwift for Zluggish** and sign in with your username and password. The first start unpacks the game files, which takes a few minutes.
+
+Turn Virtual Hosts off before you open Zwift from Google Play.

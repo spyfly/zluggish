@@ -1,24 +1,24 @@
 <script lang="ts">
-  import { onDestroy, onMount } from 'svelte';
-  import { z } from 'zod';
+  import { onMount } from 'svelte';
   import Fingerprint from '../components/Fingerprint.svelte';
-  import { ignored } from '../lib/api';
   import type { Api } from '../lib/api';
+  import { megabytes } from './companion';
+  import { detect } from './device';
   import { tlsStatus } from './tls';
   import type { TlsStatus } from './tls';
+  import { zwiftAndroidStatus } from './zwift-android';
+  import type { ZwiftAndroidStatus } from './zwift-android';
 
   let {
     api,
     path,
     navigate,
-    csrf,
     administrator,
   }: {
     api: Api;
     /** `/install/android`, `/install/android-rooted` or `/install/ios`. */
     path: string;
     navigate: (path: string) => Promise<void>;
-    csrf: () => string;
     administrator: boolean;
   } = $props();
 
@@ -41,216 +41,9 @@
       : `zluggish-zwift-${(status?.certificate?.thumbprint ?? '').slice(0, 8).toLowerCase()}.crt`,
   );
 
-  const obbFolder = '/sdcard/Android/obb/com.zwift.zwiftgame';
-  let upload = $state<{ name: string; progress: number | null } | null>(null);
-  let uploadError = $state('');
-  const publishedFiles = z.object({
-    apks: z.array(z.string().regex(/^zwift-\d{1,12}-zluggish\.apk$/)),
-    bundles: z.array(z.string().regex(/^zwift-\d{1,12}-zluggish\.xapk$/)),
-    files: z.array(z.string().regex(/^main\.\d{1,12}\.com\.zwift\.zwiftgame\.obb$/)),
-  });
-  let downloads = $state<z.infer<typeof publishedFiles> | null>(null);
-  let downloadError = $state('');
-  let selected = $state('');
-  let selectedBundle = $state('');
-  let selectedApk = $state('');
-  let standalone = $state(true);
-  const uploadEndpoint = '/api/manage/android-upload';
-  const originalsEndpoint = '/api/manage/android-originals';
-  const originalsStatus = z.object({
-    originals: z.array(
-      z.object({ id: z.uuid(), name: z.string(), bytes: z.int().nonnegative(), uploadedAt: z.number() }),
-    ),
-  });
-  let originals = $state<z.infer<typeof originalsStatus>['originals']>([]);
-  let originalsError = $state('');
-  let selectedOriginal = $state('');
-  const chunkSize = 16 * 1024 ** 2;
-  const uploadStatus = z.object({
-    id: z.uuid(),
-    offset: z.int().nonnegative(),
-    state: z.enum(['uploading', 'patching', 'done', 'failed']),
-    message: z.string().optional(),
-  });
-  let transfer: AbortController | undefined;
-
-  async function refreshDownloads() {
-    downloadError = '';
-
-    try {
-      const available = await api(publishedFiles, '/api/install/android/obb');
-      downloads = available;
-      if (!available.apks.includes(selectedApk)) {
-        selectedApk = available.apks.length === 1 ? (available.apks[0] ?? '') : '';
-      }
-      if (!available.files.includes(selected)) {
-        selected = available.files.length === 1 ? (available.files[0] ?? '') : '';
-      }
-      if (!available.bundles.includes(selectedBundle)) {
-        selectedBundle = available.bundles.length === 1 ? (available.bundles[0] ?? '') : '';
-      }
-    } catch (error) {
-      downloadError = error instanceof Error ? error.message : 'The available Zwift versions could not be loaded.';
-    }
-  }
-
-  async function refreshOriginals(preferred?: string) {
-    originalsError = '';
-
-    try {
-      const available = await api(originalsStatus, originalsEndpoint);
-      originals = available.originals;
-      if (preferred && originals.some(({ id }) => id === preferred)) {
-        selectedOriginal = preferred;
-      } else if (!originals.some(({ id }) => id === selectedOriginal)) {
-        selectedOriginal = originals[0]?.id ?? '';
-      }
-    } catch (error) {
-      originalsError = error instanceof Error ? error.message : 'The saved uploads could not be loaded.';
-    }
-  }
-
-  function sendChunk(url: string, file: File, offset: number, signal: AbortSignal) {
-    return new Promise<z.infer<typeof uploadStatus>>((resolve, reject) => {
-      signal.throwIfAborted();
-      const xhr = new XMLHttpRequest();
-      const abort = () => xhr.abort();
-      signal.addEventListener('abort', abort, { once: true });
-      xhr.open('PUT', `${url}?offset=${offset}`);
-      xhr.setRequestHeader('Content-Type', 'application/octet-stream');
-      xhr.setRequestHeader('X-CSRF-Token', csrf());
-      xhr.responseType = 'json';
-      xhr.upload.onprogress = (event) => {
-        upload = { name: file.name, progress: (offset + event.loaded) / file.size };
-      };
-      xhr.onloadend = () => signal.removeEventListener('abort', abort);
-      xhr.onload = () => {
-        const result = uploadStatus.safeParse(xhr.response);
-        if (xhr.status === 200 && result.success) {
-          resolve(result.data);
-        } else if (xhr.status === 409 || xhr.status >= 500) {
-          reject(new TypeError('The transfer was interrupted.'));
-        } else {
-          const response = z.object({ message: z.string() }).safeParse(xhr.response);
-          reject(new Error(response.data?.message ?? `The chunk upload failed (${xhr.status}).`));
-        }
-      };
-      xhr.onerror = () => reject(new TypeError('The transfer was interrupted.'));
-      xhr.onabort = () => reject(signal.reason);
-      xhr.send(file.slice(offset, offset + chunkSize));
-    });
-  }
-
-  const pause = (ms: number) =>
-    new Promise<void>((resolve) => {
-      setTimeout(resolve, ms);
-    });
-
-  async function waitForPatch(job: z.infer<typeof uploadStatus>, signal: AbortSignal) {
-    let progress = job;
-    while (progress.state === 'uploading' || progress.state === 'patching') {
-      await pause(1000);
-      signal.throwIfAborted();
-      progress = await api(uploadStatus, `${uploadEndpoint}/${job.id}`);
-    }
-    if (progress.state === 'failed') {
-      throw new Error(progress.message ?? 'The expansion file could not be patched.');
-    }
-    await refreshDownloads();
-  }
-
-  async function rebuild() {
-    const original = originals.find(({ id }) => id === selectedOriginal);
-    if (!original || upload) {
-      return;
-    }
-
-    uploadError = '';
-    transfer = new AbortController();
-    const { signal } = transfer;
-    upload = { name: original.name, progress: null };
-
-    try {
-      const job = await api(uploadStatus, `${originalsEndpoint}/${original.id}/rebuild`, 'POST', {
-        standalone: /\.apkm$/i.test(original.name) && standalone,
-      });
-      await waitForPatch(job, signal);
-    } catch (error) {
-      if (!signal.aborted) {
-        uploadError = error instanceof Error ? error.message : 'The rebuild failed.';
-      }
-    } finally {
-      upload = null;
-      transfer = undefined;
-    }
-  }
-
-  async function patch(file: File) {
-    uploadError = '';
-    const isBundle = /\.apkm$/i.test(file.name);
-    if (!isBundle && !/^main\.\d{1,12}\.com\.zwift\.zwiftgame\.obb$/.test(file.name)) {
-      uploadError = 'Choose a Zwift .obb file or an .apkm bundle with an OBB.';
-      return;
-    }
-    if (file.size > (isBundle ? 10_000_000_000 : 2 * 1024 ** 3)) {
-      uploadError = isBundle ? 'The upload is larger than 10 GB.' : 'The standalone .obb is larger than 2 GiB.';
-      return;
-    }
-
-    transfer = new AbortController();
-    const { signal } = transfer;
-    upload = { name: file.name, progress: 0 };
-    let url: string | undefined;
-    let receiving = true;
-    let originalId: string | undefined;
-
-    try {
-      let progress = await api(uploadStatus, uploadEndpoint, 'POST', {
-        name: file.name,
-        size: file.size,
-        standalone: isBundle && standalone,
-      });
-      originalId = progress.id;
-      url = `${uploadEndpoint}/${progress.id}`;
-      let retries = 0;
-
-      while (progress.offset < file.size) {
-        try {
-          progress = await sendChunk(url, file, progress.offset, signal);
-          retries = 0;
-        } catch (error) {
-          if (!(error instanceof TypeError) || signal.aborted || retries === 3) {
-            throw error;
-          }
-          await pause(500 * 2 ** retries++);
-        }
-      }
-
-      receiving = false;
-      upload = { name: file.name, progress: null };
-      await waitForPatch(progress, signal);
-    } catch (error) {
-      if (!signal.aborted) {
-        uploadError = error instanceof Error ? error.message : 'The expansion upload failed.';
-      }
-    } finally {
-      const cancelUrl = url;
-      if (cancelUrl && receiving) {
-        // An in-flight chunk may still be releasing its server-side lock.
-        await api(ignored, cancelUrl, 'DELETE', {}).catch(async () => {
-          await pause(1000);
-          await api(ignored, cancelUrl, 'DELETE', {}).catch(() => undefined);
-        });
-      }
-      if (!receiving && !signal.aborted) {
-        await refreshOriginals(originalId);
-      }
-      upload = null;
-      transfer = undefined;
-    }
-  }
-
-  onDestroy(() => transfer?.abort());
+  let zwift = $state<ZwiftAndroidStatus | null>(null);
+  let zwiftFailure = $state('');
+  const onAndroid = detect() === 'android';
 
   const data = '/data/data/com.zwift.zwiftgame/dataES';
 
@@ -265,9 +58,6 @@
       `adb push ${file} ${data}/zluggish.crt`,
       `adb shell "cat ${data}/zluggish.crt >> ${data}/cacert.pem"`,
     ].join('\n'),
-    listObb: `adb shell ls ${obbFolder}`,
-    pullObb: `adb pull ${obbFolder}/main.VERSION.com.zwift.zwiftgame.obb`,
-    pushObb: `adb push "${selected || 'main.VERSION.com.zwift.zwiftgame.obb'}" ${obbFolder}/`,
     etcHosts: `${address} us-or-rly101.zwift.com secure.zwift.com cdn.zwift.com`,
   });
 
@@ -286,12 +76,17 @@
     void navigate(to);
   }
 
+  const day = (iso: string) => new Date(iso).toLocaleDateString([], { year: 'numeric', month: 'long', day: 'numeric' });
+
   $effect(() => {
     if (platform === 'android' && status && status.mode !== 'disabled') {
-      void refreshDownloads();
-      if (administrator) {
-        void refreshOriginals();
-      }
+      api(zwiftAndroidStatus, '/api/install/android')
+        .then((body) => {
+          zwift = body;
+        })
+        .catch((error: unknown) => {
+          zwiftFailure = error instanceof Error ? error.message : 'Zwift for Android could not be loaded.';
+        });
     }
   });
 
@@ -322,30 +117,8 @@
   </p>
 {/snippet}
 
-{#snippet xapkDownload(bundles: Array<string>)}
-  <p>
-    Download the bundle on your Android device. Open it in
-    <a
-      href="https://play.google.com/store/apps/details?id=com.apkmirror.helper.prod"
-      target="_blank"
-      rel="noopener noreferrer">APKMirror Installer</a
-    >
-    and follow the install prompts. Finish the server setup below before opening Zwift.
-  </p>
-  {#if bundles.length > 1}
-    <label for="zwift-bundle">Zwift build</label>
-    <select id="zwift-bundle" bind:value={selectedBundle}>
-      <option value="">Choose a build</option>
-      {#each bundles as bundle (bundle)}
-        <option value={bundle}>{bundle.split('-')[1]}</option>
-      {/each}
-    </select>
-  {/if}
-  {#if selectedBundle}
-    <a class="download" href={`/api/install/android/obb/${selectedBundle}`} download={selectedBundle}
-      >Download Zwift install bundle</a
-    >
-  {/if}
+{#snippet manageLink()}
+  <a href="/manage/zwift-android" onclick={(event) => go(event, '/manage/zwift-android')}>Manage → Zwift for Android</a>
 {/snippet}
 
 {#if failure}<p class="notice failed" role="alert">{failure}</p>{/if}
@@ -388,137 +161,45 @@
         your Zwift traffic, your password included.
       </p>
     {/if}
-    {#if administrator}
-      <details class="admin-upload">
-        <summary>Publish Zwift for Android</summary>
-        <p>
-          Upload an APKMirror bundle labeled <strong>BUNDLE 1 OBB</strong> to publish Zwift for Zluggish. The first standalone
-          build may download the Android build tools on the server. Completed uploads are saved for future rebuilds.
-        </p>
-        <details>
-          <summary>Upload a standalone OBB for ADB setup</summary>
-          <p>Copy the original expansion from a clean Google Play install.</p>
-          {@render code('listObb')}
-          <p>Replace <code class="inline">VERSION</code> with the number in the filename.</p>
-          {@render code('pullObb')}
-        </details>
-        <label class="standalone-option">
-          <input type="checkbox" bind:checked={standalone} disabled={upload !== null} />
-          Build a standalone APK that can sit alongside official Zwift
-        </label>
-        <label for="zwift-obb">Zwift .obb or .apkm file</label>
-        <input
-          id="zwift-obb"
-          type="file"
-          accept=".obb,.apkm"
-          disabled={upload !== null}
-          onchange={(event) => {
-            const file = event.currentTarget.files?.[0];
-            if (file) void patch(file);
-            event.currentTarget.value = '';
-          }}
-        />
-        {#if originalsError}
-          <p class="notice failed" role="alert">{originalsError}</p>
-          <button type="button" onclick={() => void refreshOriginals()}>Retry saved uploads</button>
-        {:else if originals.length}
-          <label for="zwift-original">Saved original</label>
-          <select id="zwift-original" bind:value={selectedOriginal} disabled={upload !== null}>
-            {#each originals as original (original.id)}
-              <option value={original.id}>
-                {original.name} ({new Date(original.uploadedAt).toLocaleString()})
-              </option>
-            {/each}
-          </select>
-          <button type="button" disabled={!selectedOriginal || upload !== null} onclick={() => void rebuild()}>
-            Rebuild from saved original
-          </button>
-        {/if}
-        {#if upload}
-          <p role="status">
-            {upload.progress === null
-              ? 'Patching and preparing your download…'
-              : `Uploading ${upload.name} (${Math.round(upload.progress * 100)}%)…`}
-          </p>
-          {#if upload.progress !== null}
-            <button type="button" onclick={() => transfer?.abort()}>Cancel upload</button>
-          {/if}
-        {/if}
-        {#if uploadError}<p class="notice failed" role="alert">{uploadError}</p>{/if}
-      </details>
+    {#if zwift?.app && !zwift.app.current}
+      <p class="risk" role="status">
+        The server certificate changed after Zwift for Zluggish was built, so it cannot connect yet.
+        {#if administrator}Build it again under {@render manageLink()}.{:else}Ask the server administrator to build it
+          again.{/if}
+      </p>
     {/if}
+
     <ol class="walk">
       <li>
-        <h2>Install Zwift on your phone</h2>
-        {#if downloadError}
-          <p class="notice failed" role="alert">{downloadError}</p>
-        {:else if downloads === null}
-          <p role="status">Looking up available versions…</p>
-        {:else if downloads.apks.length}
+        <h2>Download Zwift for Zluggish</h2>
+        {#if zwiftFailure}
+          <p class="notice failed" role="alert">{zwiftFailure}</p>
+        {:else if zwift === null}
+          <p role="status">Loading…</p>
+        {:else if zwift.app?.current}
           <p>
-            Download the APK on Android and open it to install <strong>Zwift for Zluggish</strong>. Android may ask you
-            to allow installs from your browser. The first launch prepares the expansion file.
+            A copy of Zwift made for this server. It installs next to Zwift from Google Play, so you can keep both.
+            {#if !onAndroid}Open this page on your Android phone or tablet.{/if}
           </p>
-          {#if downloads.apks.length > 1}
-            <label for="zwift-apk">Zwift build</label>
-            <select id="zwift-apk" bind:value={selectedApk}>
-              <option value="">Choose a build</option>
-              {#each downloads.apks as apk (apk)}
-                <option value={apk}>{apk.split('-')[1]}</option>
-              {/each}
-            </select>
-          {/if}
-          {#if selectedApk}
-            <a class="download" href={`/api/install/android/obb/${selectedApk}`} download={selectedApk}
-              >Download Zwift for Zluggish</a
-            >
-          {/if}
-          <p class="hint">Finish the server setup below before launching the app.</p>
-          {#if downloads.bundles.length}
-            <details class="obb-fallback">
-              <summary>Install an XAPK with APKMirror Installer</summary>
-              {@render xapkDownload(downloads.bundles)}
-            </details>
-          {/if}
-        {:else if downloads.bundles.length}
-          {@render xapkDownload(downloads.bundles)}
-        {:else}
-          <p>
-            No phone-installable bundle is available yet.
-            {administrator
-              ? 'Upload the original APKM to publish one.'
-              : 'Ask your server administrator to publish one.'}
+          <a class="download" href="/api/install/android/app" download>Download Zwift {zwift.app.versionName}</a>
+          <p class="hint">
+            {megabytes(zwift.app.bytes)}, built on {day(zwift.app.createdAt)}. Use Wi-Fi, and keep twice that space
+            free.
+          </p>
+        {:else if !zwift.app}
+          <p class="empty">
+            There is no Zwift for Android on this server yet.
+            {#if administrator}Upload it under {@render manageLink()}.{:else}Ask the server administrator to add it.{/if}
           </p>
         {/if}
-
-        {#if downloads?.files.length}
-          <details class="obb-fallback">
-            <summary>Install the expansion manually with ADB</summary>
-            <p>
-              Install Zwift from Google Play and leave it closed. Enable USB debugging, connect the Android device to a
-              computer with ADB, and look up the expansion filename.
-            </p>
-            {@render code('listObb')}
-            <label for="zwift-version">Match your expansion filename</label>
-            <select id="zwift-version" bind:value={selected}>
-              <option value="">Choose a version</option>
-              {#each downloads.files as name (name)}
-                <option value={name}>{name}</option>
-              {/each}
-            </select>
-            {#if selected}
-              <a class="download" href={`/api/install/android/obb/${selected}`} download={selected}
-                >Download patched expansion file</a
-              >
-              <p>Keep the original filename and run this command from your download folder.</p>
-              {@render code('pushObb')}
-            {/if}
-            <p class="hint">
-              If you previously started Zwift, clear its app storage before copying the patched file back. Repeat this
-              setup after a Google Play update.
-            </p>
-          </details>
-        {/if}
+      </li>
+      <li>
+        <h2>Install it</h2>
+        <p>
+          Open the downloaded file. Android asks whether your browser may install apps: allow it, then select
+          <strong>Install</strong>.
+        </p>
+        <p class="hint">Google Play Protect may warn about an unknown app. Select <strong>Install anyway</strong>.</p>
       </li>
       <li>
         <h2>Send Zwift to this server</h2>
@@ -527,7 +208,7 @@
             href="https://github.com/x-falcon/Virtual-Hosts/releases/latest"
             target="_blank"
             rel="noopener noreferrer">Virtual Hosts</a
-          >. Save these lines as <strong>hosts.txt</strong> on the device and select the file in Virtual Hosts.
+          >, save these lines as <strong>hosts.txt</strong> on the device, and select the file in Virtual Hosts:
         </p>
         {@render code('hosts')}
         <p class="hint">
@@ -538,20 +219,14 @@
       <li>
         <h2>Ride</h2>
         <p>
-          Turn on Virtual Hosts, start {downloads?.apks.length ? 'Zwift for Zluggish' : 'Zwift'} and sign in with your account
-          on this server.
+          Turn on Virtual Hosts, open <strong>Zwift for Zluggish</strong> and sign in with your account on this server.
         </p>
-        {#if downloads?.apks.length}
-          <p class="hint">
-            If your hosts rules apply to the whole device, turn them off before opening official Zwift.
-          </p>
-        {/if}
+        <p class="hint">
+          The first start unpacks the game files, which takes a few minutes. Turn Virtual Hosts off before you open
+          Zwift from Google Play.
+        </p>
       </li>
     </ol>
-    <p class="hint">
-      Have a rooted device?
-      <a href="/install/android-rooted" onclick={(event) => go(event, '/install/android-rooted')}>Use rooted setup</a>.
-    </p>
   </section>
 {:else if status.certificate}
   <section class="panel" aria-label="Rooted Android setup steps">
@@ -601,17 +276,6 @@
 {/if}
 
 <style>
-  .standalone-option {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin: 0.75rem 0;
-  }
-
-  .obb-fallback {
-    margin-top: 0.75rem;
-  }
-
   .panel {
     background: var(--glass);
     border-radius: 12px;
@@ -633,6 +297,12 @@
     color: var(--alarm);
     border-left: 3px solid #ff6b57;
     padding-left: 0.75rem;
+  }
+  .empty {
+    color: var(--muted);
+  }
+  .risk a {
+    color: inherit;
   }
   .risk {
     margin: 0 0 1.25rem;
@@ -710,12 +380,6 @@
     margin: 0 0 0.4rem;
   }
 
-  input[type='file'] {
-    display: block;
-    max-width: 100%;
-    margin: 0.35rem 0;
-  }
-
   a.download {
     display: inline-block;
     margin: 0.5rem 0 0.25rem;
@@ -758,8 +422,8 @@
   .command code {
     flex: 1 1 16rem;
     min-width: 0;
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
+    overflow-x: auto;
+    white-space: pre;
     font:
       600 0.875rem/1.5 ui-monospace,
       'Cascadia Mono',

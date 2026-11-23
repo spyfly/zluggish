@@ -25,13 +25,17 @@ export function excludedStorageEntry(name: string) {
   );
 }
 
-/** Files below the top level that backups leave out: the patched Companion app can be patched again, and it
-would add about 180 MB to every backup. Its signing key beside it is kept. Paths use forward slashes.
+/** Files below the top level that backups leave out: the patched apps can be built again, and Zwift for Android
+with its saved upload would add several GB to every backup. The signing keys beside them are kept. Paths use forward
+slashes.
 */
 export function excludedBackupPath(path: string) {
-  return ['companion/zwift-companion.apk', 'zwift-android/staging', 'zwift-android/tools'].includes(
-    path.replaceAll('\\', '/'),
-  );
+  return [
+    'companion/zwift-companion.apk',
+    'zwift-android/zwift-zluggish.apk',
+    'zwift-android/originals',
+    'zwift-android/staging',
+  ].includes(path.replaceAll('\\', '/'));
 }
 
 export function nightlyBackupName(date: Date) {

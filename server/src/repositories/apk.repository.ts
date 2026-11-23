@@ -56,6 +56,8 @@ export interface RewriteOptions {
   readonly drop?: (name: string) => boolean;
   readonly replace?: ReadonlyMap<string, Uint8Array>;
   readonly store?: ReadonlyMap<string, string>;
+  /** Called with the share of the work done, from 0 to 1, as the archive is written and signed. */
+  readonly progress?: ((fraction: number) => void) | undefined;
 }
 
 /** What an uploaded file holds: one APK, or a bundle of split APKs (.apks, .xapk or .apkm). */
@@ -611,7 +613,13 @@ export class ApkRepository {
   }
 
   /** Extract one Zwift expansion from an APKM without extracting its APKs or trusting archive paths. */
-  async extractZwiftObb(path: string, output: string, limit: number, signal: AbortSignal) {
+  async extractZwiftObb(
+    path: string,
+    output: string,
+    limit: number,
+    signal: AbortSignal,
+    progress?: (fraction: number) => void,
+  ) {
     await using handle = await open(path, 'r');
     const entries = await centralDirectory(handle, true);
     const expansions = entries.filter((entry) =>
@@ -623,7 +631,7 @@ export class ApkRepository {
       throw new Error('Choose an APKM bundle with one main Zwift OBB. On APKMirror, select BUNDLE 1 OBB.');
     }
 
-    await this.extractBundleEntry(path, handle, expansion, output, limit, signal);
+    await this.extractBundleEntry(path, handle, expansion, output, limit, signal, progress);
 
     return expansion.name.slice(expansion.name.lastIndexOf('/') + 1);
   }
@@ -635,6 +643,7 @@ export class ApkRepository {
     output: string,
     limit: number,
     signal: AbortSignal,
+    progress?: (fraction: number) => void,
   ) {
     const start = await dataOffset(handle, entry);
     const { size } = await handle.stat();
@@ -656,6 +665,7 @@ export class ApkRepository {
       transform(chunk: Buffer, _encoding, next) {
         extracted += chunk.length;
         crc = crc32(chunk, crc);
+        progress?.(Math.min(1, extracted / entry.size));
         next(extracted > entry.size ? new Error('The APKM entry exceeds its declared size.') : null, chunk);
       },
     });
@@ -673,87 +683,6 @@ export class ApkRepository {
     }
   }
 
-  /** Build an installable XAPK without modifying the original, signed APK bytes. */
-  async bundleZwift(input: string, obb: string, obbName: string, output: string, signal: AbortSignal) {
-    await using handle = await open(input, 'r');
-    const entries = await centralDirectory(handle, true);
-    const apks = entries.filter((entry) => /^[\w.-]+\.apk$/.test(entry.name));
-    const parts: Array<{ entry: ZipEntry; manifest: Awaited<ReturnType<ApkRepository['manifestWithSplit']>> }> = [];
-    const scratch = resolve(dirname(output), 'inspect.apk');
-
-    if (apks.length === 0 || apks.length > 100) {
-      throw new Error('The APKM must contain a base Zwift APK and any split APKs.');
-    }
-    for (const entry of apks) {
-      await this.extractBundleEntry(input, handle, entry, scratch, 512 * 1024 ** 2, signal);
-      const manifest = await this.manifestWithSplit(scratch);
-      await rm(scratch);
-
-      if (manifest.packageName !== zwiftPackage) {
-        throw new Error(`The APKM contains an APK for ${manifest.packageName || 'an unknown app'}.`);
-      }
-
-      parts.push({ entry, manifest });
-    }
-
-    const bases = parts.filter(({ manifest }) => !manifest.split);
-    const [base] = bases;
-    if (
-      bases.length !== 1 ||
-      !base?.manifest.versionName ||
-      obbName !== `main.${base.manifest.versionCode}.${zwiftPackage}.obb`
-    ) {
-      throw new Error('The APKM needs one base APK with a version that matches the Zwift expansion filename.');
-    }
-    const { versionCode, versionName, minSdk } = base.manifest;
-    const files = [
-      { entry: base.entry, id: 'base', file: `${zwiftPackage}.apk` },
-      ...parts
-        .values()
-        .filter(({ manifest }) => manifest.split)
-        .map(({ entry, manifest }) => ({ entry, id: manifest.split, file: entry.name })),
-    ];
-    if (
-      new Set(files.map(({ id }) => id)).size !== files.length ||
-      new Set(files.map(({ file }) => file)).size !== files.length ||
-      parts.some(({ manifest }) => manifest.versionCode !== versionCode)
-    ) {
-      throw new Error('The APKM contains duplicate APKs or mixes Zwift versions.');
-    }
-
-    const expansionPath = `Android/obb/${zwiftPackage}/${obbName}`;
-    const { size } = await stat(obb);
-    const manifest = {
-      xapk_version: 2,
-      name: 'Zwift',
-      package_name: zwiftPackage,
-      version_code: String(versionCode),
-      version_name: versionName,
-      min_sdk_version: String(minSdk),
-      total_size: size + apks.reduce((total, entry) => total + entry.size, 0),
-      split_apks: files.map(({ id, file }) => ({ id, file })),
-      expansions: [{ file: expansionPath, install_location: 'EXTERNAL_STORAGE', install_path: expansionPath }],
-    };
-    let checksum = 0;
-    const expansionData: AsyncIterable<Uint8Array> = createReadStream(obb, { highWaterMark: chunkSize, signal });
-    for await (const chunk of expansionData) {
-      checksum = crc32(chunk, checksum);
-    }
-
-    await this.writeArchive(output, null, undefined, async (add) => {
-      const metadata = Buffer.from(JSON.stringify(manifest));
-      await add(newZipEntry('manifest.json', 0, metadata.length, metadata.length, crc32(metadata)), metadata);
-      for (const { entry, file } of files) {
-        const start = await dataOffset(handle, entry);
-        const data = createReadStream(input, { start, end: start + entry.compressedSize - 1, signal });
-        await add(newZipEntry(file, entry.method, entry.size, entry.compressedSize, entry.crc), data);
-      }
-      await add(newZipEntry(expansionPath, 0, size, size, checksum), createReadStream(obb, { signal }));
-    });
-
-    return `zwift-${versionCode}-zluggish.xapk`;
-  }
-
   async extractZwiftApks(input: string, folder: string, versionCode: number, signal: AbortSignal) {
     await using handle = await open(input, 'r');
     const entries = await centralDirectory(handle, true);
@@ -764,6 +693,7 @@ export class ApkRepository {
 
     await mkdir(folder, { recursive: true });
     const splits = new Set<string>();
+    let base: { path: string; manifest: ApkManifest } | undefined;
 
     for (const entry of apks) {
       const path = resolve(folder, entry.name);
@@ -773,13 +703,16 @@ export class ApkRepository {
         throw new Error('The APKM mixes Zwift versions or contains conflicting split APKs.');
       }
       splits.add(manifest.split);
+      if (!manifest.split) {
+        base = { path, manifest };
+      }
     }
 
-    if (!splits.has('')) {
+    if (!base) {
       throw new Error('The bundle is missing the base Zwift APK.');
     }
 
-    return apks.map((entry) => resolve(folder, entry.name));
+    return { base, parts: apks.map((entry) => resolve(folder, entry.name)) };
   }
 
   /** Keep Java class names intact while giving the installed application and its providers a separate identity. */
@@ -992,7 +925,13 @@ export class ApkRepository {
     }
   }
 
-  async signStandaloneZwift(input: string, output: string, obb: string, signer: ApkSigner) {
+  async signStandaloneZwift(
+    input: string,
+    output: string,
+    obb: string,
+    signer: ApkSigner,
+    progress?: (fraction: number) => void,
+  ) {
     await using handle = await open(input, 'r');
     const entries = await centralDirectory(handle);
     const dex = entries
@@ -1007,11 +946,12 @@ export class ApkRepository {
     await this.rewrite(input, output, signer, {
       replace: new Map([[`classes${next}.dex`, bootstrap]]),
       store: new Map([[zwiftExpansionAsset, obb]]),
+      progress,
     });
   }
 
   /** Zwift checks the Play Store expansion file's size before unpacking its assets. */
-  async patchZwiftObb(input: string, output: string, pem: string) {
+  async patchZwiftObb(input: string, output: string, pem: string, progress?: (fraction: number) => void) {
     const name = 'dataES/cacert.pem';
     const source = await open(input, 'r');
 
@@ -1037,7 +977,7 @@ export class ApkRepository {
       // Keep the existing trust roots, omitting the descriptive text between PEM blocks to save space.
       const updated = Buffer.from([...new Set([...certificates, pem.trim()])].join('\n') + '\n', 'ascii');
       const { size } = await source.stat();
-      await this.rewriteArchive(input, output, { replace: new Map([[name, updated]]) }, null, size);
+      await this.rewriteArchive(input, output, { replace: new Map([[name, updated]]), progress }, null, size);
     } finally {
       await source.close();
     }
@@ -1065,8 +1005,9 @@ export class ApkRepository {
     await using source = await open(input, 'r');
     const entries = await centralDirectory(source);
     const replace = options.replace ?? new Map<string, Uint8Array>();
+    const tick = await this.progressMeter(input, options, signer !== null);
 
-    await this.writeArchive(output, signer, archiveSize, async (add) => {
+    await this.writeArchive(output, signer, archiveSize, tick, async (add) => {
       for (const entry of entries) {
         if (
           replace.has(entry.name) ||
@@ -1110,16 +1051,45 @@ export class ApkRepository {
         const source: AsyncIterable<Uint8Array> = createReadStream(path, { highWaterMark: chunkSize });
         for await (const bytes of source) {
           crc = crc32(bytes, crc);
+          tick(bytes.length);
         }
         await add(newZipEntry(name, 0, size, size, crc), createReadStream(path, { highWaterMark: chunkSize }));
       }
     });
   }
 
+  /**
+  Count the bytes a rewrite reads and writes against an estimate of the whole: the copy of each entry, a checksum pass
+  over each stored file, and, when signing, the digest pass over everything written.
+  */
+  private async progressMeter(input: string, options: RewriteOptions, signing: boolean) {
+    const report = options.progress;
+
+    if (!report) {
+      return () => {};
+    }
+
+    let stored = 0;
+    for (const path of options.store?.values() ?? []) {
+      const { size } = await stat(path);
+      stored += size;
+    }
+    const { size } = await stat(input);
+    const written = size + stored;
+    const work = Math.max(1, written * (signing ? 2 : 1) + stored);
+    let done = 0;
+
+    return (bytes: number) => {
+      done += bytes;
+      report(Math.min(1, done / work));
+    };
+  }
+
   private async writeArchive(
     output: string,
     signer: ApkSigner | null,
     archiveSize: number | undefined,
+    tick: (bytes: number) => void,
     populate: (
       add: (entry: Omit<ZipEntry, 'localOffset'>, data: AsyncIterable<Uint8Array> | Uint8Array) => Promise<void>,
     ) => Promise<void>,
@@ -1142,6 +1112,7 @@ export class ApkRepository {
           throw new Error('Could not write the complete ZIP archive.');
         }
         position += data.length;
+        tick(data.length);
       };
 
       const add = async (entry: Omit<ZipEntry, 'localOffset'>, data: AsyncIterable<Uint8Array> | Uint8Array) => {
@@ -1242,7 +1213,7 @@ export class ApkRepository {
 
       if (signer) {
         // The digest covers the EOCD as if the directory started where the signing block will.
-        const digest = await this.digest(target, position, [directory, eocd(position)]);
+        const digest = await this.digest(target, position, [directory, eocd(position)], tick);
         await write(this.signingBlock(digest, signer));
       }
 
@@ -1256,7 +1227,12 @@ export class ApkRepository {
   }
 
   /** The CHUNKED_SHA256 digest of the zip entries (read from the file) and the given trailing sections. */
-  private async digest(handle: FileHandle, entriesLength: number, sections: ReadonlyArray<Buffer>) {
+  private async digest(
+    handle: FileHandle,
+    entriesLength: number,
+    sections: ReadonlyArray<Buffer>,
+    tick: (bytes: number) => void,
+  ) {
     const chunks: Array<Buffer> = [];
 
     const chunk = (bytes: Uint8Array) => {
@@ -1264,7 +1240,9 @@ export class ApkRepository {
     };
 
     for (let offset = 0; offset < entriesLength; offset += chunkSize) {
-      chunk(await readAt(handle, offset, Math.min(chunkSize, entriesLength - offset)));
+      const length = Math.min(chunkSize, entriesLength - offset);
+      chunk(await readAt(handle, offset, length));
+      tick(length);
     }
 
     for (const section of sections) {

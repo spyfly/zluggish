@@ -6,6 +6,8 @@
   import { detect, isComputer, isPhone } from './device';
   import { tlsStatus } from './tls';
   import type { TlsStatus } from './tls';
+  import { zwiftAndroidStatus } from './zwift-android';
+  import type { ZwiftAndroidStatus } from './zwift-android';
 
   let {
     api,
@@ -25,6 +27,7 @@
 
   let tls = $state<TlsStatus | null>(null);
   let companion = $state<CompanionStatus | null>(null);
+  let android = $state<ZwiftAndroidStatus | null>(null);
   let tlsFailure = $state('');
   let companionFailure = $state('');
   let loaded = $state(false);
@@ -53,7 +56,11 @@
     {
       to: '/install/android',
       name: 'Android',
-      detail: 'Install bundle or patched expansion file',
+      detail: !android?.app
+        ? 'Not added to this server yet'
+        : android.app.current
+          ? `Zwift ${android.app.versionName} for this server`
+          : `Zwift ${android.app.versionName}, made for an old certificate`,
       tag: mark('android', 'This device'),
       unavailable: tls?.mode === 'disabled',
     },
@@ -99,10 +106,16 @@
   const reason = (error: unknown, fallback: string) => (error instanceof Error ? error.message : fallback);
 
   onMount(async () => {
-    const [certificate, app] = await Promise.allSettled([
+    const [certificate, app, zwift] = await Promise.allSettled([
       api(tlsStatus, '/api/tls'),
       api(companionStatus, '/api/companion'),
+      api(zwiftAndroidStatus, '/api/install/android'),
     ]);
+
+    // Only the Android row's detail depends on it, so a failure leaves that row saying nothing is published.
+    if (zwift.status === 'fulfilled') {
+      android = zwift.value;
+    }
 
     if (certificate.status === 'fulfilled') {
       tls = certificate.value;
