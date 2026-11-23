@@ -2,32 +2,33 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import ts from '../server/node_modules/typescript/lib/typescript.js';
 import { candidates, files } from './i18n-source.mjs';
+import { readCatalog, compareCatalogs } from './i18n-catalog.mjs';
 
 process.chdir(fileURLToPath(new URL('..', import.meta.url)));
 const exemptions = JSON.parse(fs.readFileSync('scripts/i18n-exemptions.json', 'utf8'));
 const usedExemptions = new Set();
 const failures = [];
-for (const [roots, catalogPath] of [
-  [['web/src/app'], 'web/src/lib/i18n/en.ts'],
-  [['web/src/game'], 'web/src/lib/i18n/game-en.ts'],
-  [['web/src/components', 'web/src/lib'], 'web/src/lib/i18n/shared-en.ts'],
-  [['server/src'], 'server/src/i18n/en.ts'],
+const english = readCatalog('i18n/en.json');
+failures.push(...english.errors);
+if (!english.catalog) {
+  console.error(failures.join('\n'));
+  process.exit(1);
+}
+for (const file of fs
+  .readdirSync('i18n')
+  .filter((file) => file.endsWith('.json') && !['en.json', 'package.json'].includes(file))) {
+  const locale = readCatalog(`i18n/${file}`);
+  failures.push(...locale.errors);
+  if (locale.catalog) failures.push(...compareCatalogs(english.catalog, locale.catalog, `i18n/${file}`));
+}
+for (const [roots, section] of [
+  [['web/src/app'], 'app'],
+  [['web/src/game'], 'game'],
+  [['web/src/components', 'web/src/lib'], 'shared'],
+  [['server/src'], 'server'],
 ]) {
-  const source = fs.readFileSync(catalogPath, 'utf8');
-  const ast = ts.createSourceFile(catalogPath, source, ts.ScriptTarget.Latest, true);
-  const catalog = new Map();
-  function read(node) {
-    if (ts.isPropertyAssignment(node)) {
-      const key = node.name.text;
-      if (!ts.isStringLiteral(node.initializer)) failures.push(`${catalogPath}: ${key} must be a string`);
-      else {
-        if (catalog.has(key)) failures.push(`${catalogPath}: duplicate key ${key}`);
-        catalog.set(key, node.initializer.text);
-      }
-    }
-    ts.forEachChild(node, read);
-  }
-  read(ast);
+  const catalogPath = `i18n/en.json (${section})`;
+  const catalog = new Map(Object.entries(english.catalog[section]));
   const used = new Set();
   for (const file of roots.flatMap(files)) {
     const text = fs.readFileSync(file, 'utf8');

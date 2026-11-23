@@ -88,20 +88,28 @@ The shared ESLint, Oxlint, Prettier and mise configuration is in `server/`.
 
 ### Translations
 
-Runtime messages live in the English source catalogs:
-`web/src/lib/i18n/en.ts` for the app, `game-en.ts` for the launcher,
-and `shared-en.ts` for shared components; `server/src/i18n/en.ts`
-for server responses, validation, CLI output, and chat messages. English is the
-only locale for now.
+Runtime messages live in the root `i18n/en.json` catalog. There is one JSON
+file per language, with `app`, `game`, `shared`, and `server` sections. English
+is the only locale for now. Keep the existing message keys stable when editing copy.
 
-Add a stable, descriptive key to the appropriate catalog and call `t('key')`.
-Use named placeholders for dynamic values, for example
-`t('key', { value1: count })` with `"{value1} riders"` in the catalog. The helper
-checks keys and interpolation arguments with TypeScript; Svelte escapes the
-result as ordinary text. Keep complete sentences together where possible.
+Add a descriptive key to the appropriate section and call `t('key')` through
+the existing translation helper. Use named placeholders for dynamic values, for
+example `t('key', { value1: count })` with `"{value1} riders"` in the catalog.
+TypeScript checks message keys; the translation check validates interpolation
+arguments. Svelte escapes the result as ordinary text. Keep complete sentences
+together where possible.
+
+The shared workspace package `@zluggish/i18n` exposes the JSON directly to the
+server and source rendering. Vite includes only app/shared or game/shared
+messages in each browser bundle. Docker copies the catalog package into the
+runtime image. No generated translation files need to be maintained.
+
+To add a language, copy `i18n/en.json` to a new language file such as
+`i18n/sv.json` and translate the values. The check requires matching keys and
+placeholder names in every language. Locale selection is not implemented yet.
 
 Run `mise run i18n:check` (or `pnpm i18n:check`) from the repository root before
-committing. This validates missing and unused keys, duplicate catalog keys,
+committing. This validates missing and unused keys, duplicate JSON keys,
 interpolation arguments, and untranslated UI text. `mise run i18n:test` tests
 the checker and interpolation. GitHub Actions runs both tasks on pull requests
 and pushes to main.

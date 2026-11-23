@@ -43,6 +43,7 @@
     "@garmin/fitsdk": "^21.221.0",
     "@hono/node-server": "2.1.8",
     "@types/node": "^26.6.0",
+    "@zluggish/i18n": "workspace:*",
     "@zluggish/web": "workspace:*",
     "argon2": "^0.45.2",
     "discord.js": "^14.28.1",

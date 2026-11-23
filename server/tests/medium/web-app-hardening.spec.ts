@@ -294,7 +294,14 @@ await test('the game app bundle contains no web app code', () => {
   for (const file of bundles) {
     const text = readFileSync(file, 'utf8');
 
-    for (const marker of ['/api/manage', '/api/session', '/api/me', 'Confirm your password to manage']) {
+    for (const marker of [
+      '/api/manage',
+      '/api/session',
+      '/api/me',
+      'Confirm your password to manage',
+      'Activities.activities_could_not_be_loaded',
+      'accounts.login_without_password',
+    ]) {
       assert.equal(text.includes(marker), false, `${file} contains ${marker}`);
     }
   }
