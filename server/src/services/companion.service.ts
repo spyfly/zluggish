@@ -282,7 +282,7 @@ const make = Effect.gen(function* () {
   async function publish(output: string, fingerprint: string, method: Published['method']) {
     const manifest = await apk.manifest(output);
     if (manifest.packageName !== standaloneCompanionPackage) {
-      throw new Error(`Expected the patched Companion app to use ${standaloneCompanionPackage}.`);
+      throw new Error(t('companion_patched_app_package_expected', { value1: standaloneCompanionPackage }));
     }
 
     advance('publish');
@@ -342,7 +342,7 @@ const make = Effect.gen(function* () {
     const rekey = await apk.trustedCertificates(path);
 
     if (rekey.length === 0) {
-      throw new ApplicationError({ status: 400, message: 'This patched Companion APK is missing its certificate.' });
+      throw new ApplicationError({ status: 400, message: t('companion_patched_certificate_missing') });
     }
 
     return { upload, rekey };

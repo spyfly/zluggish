@@ -1300,7 +1300,7 @@ export class ApkRepository {
 
     const sourcePackage = manifestPackage.exec(manifest)?.[3];
     if (sourcePackage !== originalCompanionPackage && sourcePackage !== standaloneCompanionPackage) {
-      throw new Error('The decoded APK is not Zwift Companion.');
+      throw new Error(t('companion_decoded_app_mismatch'));
     }
 
     const identifiers = new Map([[originalCompanionPackage, standaloneCompanionPackage]]);

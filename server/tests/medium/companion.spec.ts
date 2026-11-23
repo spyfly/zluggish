@@ -31,6 +31,11 @@ const oldPackage = zip([
   ['res/raw/cert-zwift-com.pem', Buffer.from(legacyPem), true],
 ]);
 
+const unpatched = zip([
+  ['AndroidManifest.xml', binaryManifest('com.zwift.android.prod', '3.92.0', 2180, 28), true],
+  ['classes.dex', Buffer.alloc(2000, 1), true],
+]);
+
 const otherApp = zip([['AndroidManifest.xml', binaryManifest('com.example.other', '1.0', 1, 28), true]]);
 
 async function administrator(f: ReturnType<typeof runtimeFixture>) {
