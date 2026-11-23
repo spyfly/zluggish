@@ -119,7 +119,8 @@ await test('an explicitly supplied shared certificate still warns and cannot be 
 
   const owner = await administrator(f);
   const web = mediumWeb(f, owner);
-  assert.equal((await json(web.request('/api/tls'))).mode, 'legacy');
+  const status = await json(web.request('/api/tls'));
+  assert.equal(status.mode, 'legacy');
   assert.equal(await responseStatus(web.request('/api/tls/certificate')), 409);
   assert.equal(await responseStatus(web.request('/api/tls/setup/windows')), 409);
   assert.equal(await responseStatus(web.request('/api/manage/companion/app', 'PUT', Buffer.from('apk'))), 409);

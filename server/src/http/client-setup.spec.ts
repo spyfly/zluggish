@@ -73,8 +73,7 @@ await test(
     // The old setup appended the shared certificate with its private key.
     writeFileSync(bundle, `${other}\n${legacyPem.replaceAll('\n', '\r\n')}`);
 
-    const run = (path = file) =>
-      execFileSync('/bin/sh', [path, zwift], { env: { PATH: bin, HOME: root }, encoding: 'utf8' });
+    const run = () => execFileSync('/bin/sh', [file, zwift], { env: { PATH: bin, HOME: root }, encoding: 'utf8' });
 
     assert.match(run(), /Updated .*cacert\.pem/);
     const once = readFileSync(bundle, 'utf8');
