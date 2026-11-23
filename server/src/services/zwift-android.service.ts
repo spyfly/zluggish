@@ -1,5 +1,8 @@
 import { ApplicationError } from '#src/errors';
-import { ApkRepository } from '#src/repositories/apk.repository';
+import type { ApkSigner } from '#src/repositories/apk.repository';
+import { ApkRepository, standaloneZwiftPackage } from '#src/repositories/apk.repository';
+import { CertificateRepository } from '#src/repositories/certificate.repository';
+import { ToolchainRepository } from '#src/repositories/toolchain.repository';
 import { RuntimeContext } from '#src/context';
 import { CryptoRepository } from '#src/repositories/crypto.repository';
 import { AssetFiles } from '#src/repositories/files.repository';
@@ -9,6 +12,7 @@ import { resolve } from 'node:path';
 export const zwiftAndroidUploadLimit = 10_000_000_000;
 export const zwiftAndroidChunkSize = 16 * 1024 ** 2;
 const zwiftObbLimit = 2 * 1024 ** 3;
+const apkName = /^zwift-\d{1,12}-zluggish\.apk$/;
 const xapkName = /^zwift-\d{1,12}-zluggish\.xapk$/;
 const obbName = /^main\.\d{1,12}\.com\.zwift\.zwiftgame\.obb$/;
 
@@ -19,6 +23,7 @@ interface Upload {
   size: number;
   offset: number;
   workspace: string;
+  standalone: boolean;
   state: 'uploading' | 'patching' | 'done' | 'failed';
   message?: string;
 }
@@ -43,7 +48,11 @@ const make = Effect.gen(function* () {
   const apk = new ApkRepository();
   const files = new AssetFiles();
   const crypto = new CryptoRepository();
-  const staging = resolve(config.storageDir, 'zwift-android', 'staging');
+  const androidFolder = resolve(config.storageDir, 'zwift-android');
+  const staging = resolve(androidFolder, 'staging');
+  const signerPath = resolve(androidFolder, 'signer.pem');
+  const certificates = new CertificateRepository();
+  const toolchain = new ToolchainRepository(resolve(androidFolder, 'tools'));
   let busy = false;
   let upload: Upload | undefined;
   let writing = false;
@@ -99,14 +108,84 @@ const make = Effect.gen(function* () {
   // Only offer files built for the active certificate.
   const folder = (pem: string) => resolve(config.storageDir, 'zwift-android', crypto.sha256(pem));
   const pathFor = (pem: string, name: string) => {
-    if (!obbName.test(name) && !xapkName.test(name)) {
+    if (!obbName.test(name) && !xapkName.test(name) && !apkName.test(name)) {
       throw new ApplicationError({ status: 400, message: 'The Zwift download filename is invalid.' });
     }
 
     return resolve(folder(pem), name);
   };
 
-  async function patch(workspace: string, pem: string, name: string, signal: AbortSignal) {
+  async function signingKey(): Promise<ApkSigner> {
+    let material = certificates.read(signerPath);
+    if (!material) {
+      material = await certificates.createApkSigner({
+        serverId: crypto.randomBytes(6).toString('hex'),
+        years: 50,
+        now: new Date(),
+      });
+      await certificates.write(signerPath, material);
+    }
+
+    return {
+      key: material.key,
+      certificate: Buffer.from(material.cert.replaceAll(/-----[A-Z ]+-----|\s/g, ''), 'base64'),
+      publicKey: crypto.certificatePublicKey(material.cert),
+    };
+  }
+
+  async function standaloneApk(
+    source: string,
+    expansion: string,
+    filename: string,
+    directory: string,
+    signal: AbortSignal,
+  ) {
+    const versionCode = Number(filename.split('.', 2)[1]);
+    const splits = resolve(directory, 'splits');
+    const parts = await apk.extractZwiftApks(source, splits, versionCode, signal);
+    const [base] = parts;
+    if (!base) {
+      throw new Error('The APKM is missing the Zwift base APK.');
+    }
+
+    const tools = await toolchain.state();
+    if (!tools.java || !tools.editor) {
+      log.info('android.installing_tools', 'Installing the Java tools for the Zwift APK build');
+      await toolchain.install(signal, (step, fraction) => {
+        if (fraction === null) {
+          log.info('android.toolchain_progress', 'Preparing Android build tools', { step });
+        }
+      });
+    }
+
+    const options = { cwd: directory, signal };
+    let original = base;
+    if (parts.length > 1) {
+      original = resolve(directory, 'merged.apk');
+      await toolchain.editor(['m', '-i', splits, '-o', original, '-f'], options);
+    }
+    const manifest = await apk.manifest(original);
+    if (manifest.minSdk < 26) {
+      throw new Error('The standalone APK needs a Zwift build for Android 8.0 or later.');
+    }
+
+    const decoded = resolve(directory, 'decoded');
+    await toolchain.editor(['d', '-dex', '-i', original, '-o', decoded, '-f'], options);
+    await apk.configureDecodedZwift(decoded, versionCode);
+    const rebuilt = resolve(directory, 'renamed.apk');
+    await toolchain.editor(['b', '-i', decoded, '-o', rebuilt, '-f'], options);
+    const renamed = await apk.manifest(rebuilt);
+    if (renamed.packageName !== standaloneZwiftPackage || renamed.versionCode !== versionCode) {
+      throw new Error('The rebuilt APK has an unexpected application ID or version.');
+    }
+
+    const output = resolve(directory, 'patched.apk');
+    await apk.signStandaloneZwift(rebuilt, output, expansion, await signingKey());
+
+    return { output, name: `zwift-${versionCode}-zluggish.apk` };
+  }
+
+  async function patch(workspace: string, pem: string, name: string, signal: AbortSignal, standalone = false) {
     const apkm = /\.apkm$/i.test(name);
     const input = resolve(workspace, 'original.obb');
     const output = resolve(workspace, 'patched.obb');
@@ -136,29 +215,38 @@ const make = Effect.gen(function* () {
     await apk.patchZwiftObb(expansion, output, pem);
     signal.throwIfAborted();
 
-    let bundle: string | undefined;
-    const bundlePath = resolve(workspace, 'patched.xapk');
+    let bundle: { output: string; name: string } | undefined;
 
     if (apkm) {
       await files.removeAsync(input);
-      log.info('android.bundling', 'Building the Zwift Android install bundle', { filename, step: 3, steps });
-      bundle = await apk.bundleZwift(source, output, filename, bundlePath, signal);
+      log.info(
+        'android.bundling',
+        standalone ? 'Building the standalone Zwift APK' : 'Building the Zwift Android install bundle',
+        { filename, step: 3, steps },
+      );
+      if (standalone) {
+        bundle = await standaloneApk(source, output, filename, workspace, signal);
+      } else {
+        const bundlePath = resolve(workspace, 'patched.xapk');
+        const bundleName = await apk.bundleZwift(source, output, filename, bundlePath, signal);
+        bundle = { output: bundlePath, name: bundleName };
+      }
       await files.removeAsync(source);
     }
     signal.throwIfAborted();
     log.info('android.publishing', 'Publishing the patched Zwift Android downloads', {
       filename,
-      bundle,
+      bundle: bundle?.name,
       step: steps,
       steps,
     });
     await apk.publish(output, pathFor(pem, filename));
     if (bundle) {
-      await apk.publish(bundlePath, pathFor(pem, bundle));
+      await apk.publish(bundle.output, pathFor(pem, bundle.name));
     }
     log.info('android.published', 'Published the patched Zwift expansion', {
       filename,
-      bundle,
+      bundle: bundle?.name,
       bytes,
       durationMs: Math.round(performance.now() - startedAt),
     });
@@ -166,7 +254,7 @@ const make = Effect.gen(function* () {
 
   async function finish(session: Upload, pem: string) {
     try {
-      await patch(session.workspace, pem, session.name, new AbortController().signal);
+      await patch(session.workspace, pem, session.name, new AbortController().signal, session.standalone);
       session.state = 'done';
     } catch (error) {
       session.message = fail(error);
@@ -194,6 +282,7 @@ const make = Effect.gen(function* () {
       return {
         files: names.filter((name) => obbName.test(name)),
         bundles: names.filter((name) => xapkName.test(name)),
+        apks: names.filter((name) => apkName.test(name)),
       };
     },
     async download(pem: string, name: string) {
@@ -201,7 +290,7 @@ const make = Effect.gen(function* () {
 
       return (await apk.size(path)) === null ? null : path;
     },
-    async begin(owner: string, name: string, size: number) {
+    async begin(owner: string, name: string, size: number, standalone: boolean) {
       const limit = uploadLimit(name);
       if (!Number.isSafeInteger(size) || size < 1 || size > limit) {
         throw new ApplicationError({ status: 400, message: 'The expansion upload size is invalid.' });
@@ -219,6 +308,7 @@ const make = Effect.gen(function* () {
           size,
           offset: 0,
           workspace: await workspace(),
+          standalone,
           state: 'uploading',
         };
         expire(upload);

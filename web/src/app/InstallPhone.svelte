@@ -45,6 +45,7 @@
   let upload = $state<{ name: string; progress: number | null } | null>(null);
   let uploadError = $state('');
   const publishedFiles = z.object({
+    apks: z.array(z.string().regex(/^zwift-\d{1,12}-zluggish\.apk$/)),
     bundles: z.array(z.string().regex(/^zwift-\d{1,12}-zluggish\.xapk$/)),
     files: z.array(z.string().regex(/^main\.\d{1,12}\.com\.zwift\.zwiftgame\.obb$/)),
   });
@@ -52,6 +53,8 @@
   let downloadError = $state('');
   let selected = $state('');
   let selectedBundle = $state('');
+  let selectedApk = $state('');
+  let standalone = $state(true);
   const uploadEndpoint = '/api/manage/android-upload';
   const chunkSize = 16 * 1024 ** 2;
   const uploadStatus = z.object({
@@ -68,6 +71,9 @@
     try {
       const available = await api(publishedFiles, '/api/install/android/obb');
       downloads = available;
+      if (!available.apks.includes(selectedApk)) {
+        selectedApk = available.apks.length === 1 ? (available.apks[0] ?? '') : '';
+      }
       if (!available.files.includes(selected)) {
         selected = available.files.length === 1 ? (available.files[0] ?? '') : '';
       }
@@ -134,7 +140,11 @@
     let receiving = true;
 
     try {
-      let progress = await api(uploadStatus, uploadEndpoint, 'POST', { name: file.name, size: file.size });
+      let progress = await api(uploadStatus, uploadEndpoint, 'POST', {
+        name: file.name,
+        size: file.size,
+        standalone: isBundle && standalone,
+      });
       url = `${uploadEndpoint}/${progress.id}`;
       let retries = 0;
 
@@ -248,6 +258,32 @@
   </p>
 {/snippet}
 
+{#snippet xapkDownload(bundles: Array<string>)}
+  <p>
+    Download the bundle on your Android device. Open it in
+    <a
+      href="https://play.google.com/store/apps/details?id=com.apkmirror.helper.prod"
+      target="_blank"
+      rel="noopener noreferrer">APKMirror Installer</a
+    >
+    and follow the install prompts. Finish the server setup below before opening Zwift.
+  </p>
+  {#if bundles.length > 1}
+    <label for="zwift-bundle">Zwift build</label>
+    <select id="zwift-bundle" bind:value={selectedBundle}>
+      <option value="">Choose a build</option>
+      {#each bundles as bundle (bundle)}
+        <option value={bundle}>{bundle.split('-')[1]}</option>
+      {/each}
+    </select>
+  {/if}
+  {#if selectedBundle}
+    <a class="download" href={`/api/install/android/obb/${selectedBundle}`} download={selectedBundle}
+      >Download Zwift install bundle</a
+    >
+  {/if}
+{/snippet}
+
 {#if failure}<p class="notice failed" role="alert">{failure}</p>{/if}
 
 {#if platform === 'ios'}
@@ -292,7 +328,8 @@
       <details class="admin-upload">
         <summary>Publish Zwift for Android</summary>
         <p>
-          Upload an APKMirror bundle labeled <strong>BUNDLE 1 OBB</strong> to publish a phone-installable download.
+          Upload an APKMirror bundle labeled <strong>BUNDLE 1 OBB</strong> to publish Zwift for Zluggish. The first standalone
+          build may download the Android build tools on the server.
         </p>
         <details>
           <summary>Upload a standalone OBB for ADB setup</summary>
@@ -301,6 +338,10 @@
           <p>Replace <code class="inline">VERSION</code> with the number in the filename.</p>
           {@render code('pullObb')}
         </details>
+        <label class="standalone-option">
+          <input type="checkbox" bind:checked={standalone} disabled={upload !== null} />
+          Build a standalone APK that can sit alongside official Zwift
+        </label>
         <label for="zwift-obb">Zwift .obb or .apkm file</label>
         <input
           id="zwift-obb"
@@ -333,30 +374,34 @@
           <p class="notice failed" role="alert">{downloadError}</p>
         {:else if downloads === null}
           <p role="status">Looking up available versions…</p>
-        {:else if downloads.bundles.length}
+        {:else if downloads.apks.length}
           <p>
-            Download the bundle on your Android device. Open it in
-            <a
-              href="https://play.google.com/store/apps/details?id=com.apkmirror.helper.prod"
-              target="_blank"
-              rel="noopener noreferrer">APKMirror Installer</a
-            >
-            and follow the install prompts. Finish the server setup below before opening Zwift.
+            Download the APK on Android and open it to install <strong>Zwift for Zluggish</strong>. Android may ask you
+            to allow installs from your browser. The first launch prepares the expansion file.
           </p>
-          {#if downloads.bundles.length > 1}
-            <label for="zwift-bundle">Zwift build</label>
-            <select id="zwift-bundle" bind:value={selectedBundle}>
+          {#if downloads.apks.length > 1}
+            <label for="zwift-apk">Zwift build</label>
+            <select id="zwift-apk" bind:value={selectedApk}>
               <option value="">Choose a build</option>
-              {#each downloads.bundles as bundle (bundle)}
-                <option value={bundle}>{bundle.split('-')[1]}</option>
+              {#each downloads.apks as apk (apk)}
+                <option value={apk}>{apk.split('-')[1]}</option>
               {/each}
             </select>
           {/if}
-          {#if selectedBundle}
-            <a class="download" href={`/api/install/android/obb/${selectedBundle}`} download={selectedBundle}
-              >Download Zwift install bundle</a
+          {#if selectedApk}
+            <a class="download" href={`/api/install/android/obb/${selectedApk}`} download={selectedApk}
+              >Download Zwift for Zluggish</a
             >
           {/if}
+          <p class="hint">Finish the server setup below before launching the app.</p>
+          {#if downloads.bundles.length}
+            <details class="obb-fallback">
+              <summary>Install an XAPK with APKMirror Installer</summary>
+              {@render xapkDownload(downloads.bundles)}
+            </details>
+          {/if}
+        {:else if downloads.bundles.length}
+          {@render xapkDownload(downloads.bundles)}
         {:else}
           <p>
             No phone-installable bundle is available yet.
@@ -412,7 +457,15 @@
       </li>
       <li>
         <h2>Ride</h2>
-        <p>Turn on Virtual Hosts, start Zwift and sign in with your account on this server.</p>
+        <p>
+          Turn on Virtual Hosts, start {downloads?.apks.length ? 'Zwift for Zluggish' : 'Zwift'} and sign in with your account
+          on this server.
+        </p>
+        {#if downloads?.apks.length}
+          <p class="hint">
+            If your hosts rules apply to the whole device, turn them off before opening official Zwift.
+          </p>
+        {/if}
       </li>
     </ol>
     <p class="hint">
@@ -468,6 +521,13 @@
 {/if}
 
 <style>
+  .standalone-option {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0.75rem 0;
+  }
+
   .obb-fallback {
     margin-top: 0.75rem;
   }

@@ -29,9 +29,9 @@ export function excludedStorageEntry(name: string) {
 would add about 180 MB to every backup. Its signing key beside it is kept. Paths use forward slashes.
 */
 export function excludedBackupPath(path: string) {
-  const normalized = path.replaceAll('\\', '/');
-
-  return normalized === 'companion/zwift-companion.apk' || normalized === 'zwift-android/staging';
+  return ['companion/zwift-companion.apk', 'zwift-android/staging', 'zwift-android/tools'].includes(
+    path.replaceAll('\\', '/'),
+  );
 }
 
 export function nightlyBackupName(date: Date) {

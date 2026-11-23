@@ -1,3 +1,4 @@
+import { packageRoot } from '#src/config/load';
 import { CryptoRepository } from '#src/repositories/crypto.repository';
 import { createReadStream, createWriteStream } from 'node:fs';
 import type { FileHandle } from 'node:fs/promises';
@@ -54,10 +55,16 @@ export interface ApkSigner {
 export interface RewriteOptions {
   readonly drop?: (name: string) => boolean;
   readonly replace?: ReadonlyMap<string, Uint8Array>;
+  readonly store?: ReadonlyMap<string, string>;
 }
 
 /** What an uploaded file holds: one APK, or a bundle of split APKs (.apks, .xapk or .apkm). */
 export type ApkUpload = { kind: 'apk' } | { kind: 'bundle'; apks: ReadonlyArray<string> } | { kind: 'unknown' };
+
+const zwiftPackage = 'com.zwift.zwiftgame';
+export const standaloneZwiftPackage = 'com.zluggish.zwift';
+const zwiftSetupActivity = `${standaloneZwiftPackage}.bootstrap.SetupActivity`;
+const zwiftExpansionAsset = 'assets/zluggish/expansion.obb';
 
 const eocdSignature = 0x06_05_4b_50;
 const centralSignature = 0x02_01_4b_50;
@@ -109,6 +116,20 @@ const prefixed = (...parts: Array<Uint8Array>) => {
 /** True for the JAR signature files of a v1 signature, which a rebuilt APK must not keep. */
 export const isJarSignature = (name: string) =>
   name === 'META-INF/MANIFEST.MF' || /^META-INF\/[^/]+\.(?:SF|RSA|DSA|EC)$/i.test(name);
+
+function qualifyZwiftClass(name: string) {
+  if (name.startsWith('.')) {
+    return zwiftPackage + name;
+  }
+
+  return name.includes('.') ? name : `${zwiftPackage}.${name}`;
+}
+
+function renameZwiftIdentifier(name: string) {
+  return name === zwiftPackage || name.startsWith(`${zwiftPackage}.`)
+    ? standaloneZwiftPackage + name.slice(zwiftPackage.length)
+    : name;
+}
 
 function newZipEntry(name: string, method: number, size: number, compressedSize: number, crc: number) {
   const now = new Date();
@@ -615,7 +636,6 @@ export class ApkRepository {
 
   /** Build an installable XAPK without modifying the original, signed APK bytes. */
   async bundleZwift(input: string, obb: string, obbName: string, output: string, signal: AbortSignal) {
-    const zwiftPackage = 'com.zwift.zwiftgame';
     await using handle = await open(input, 'r');
     const entries = await centralDirectory(handle, true);
     const apks = entries.filter((entry) => /^[\w.-]+\.apk$/.test(entry.name));
@@ -695,6 +715,154 @@ export class ApkRepository {
     return `zwift-${versionCode}-zluggish.xapk`;
   }
 
+  async extractZwiftApks(input: string, folder: string, versionCode: number, signal: AbortSignal) {
+    await using handle = await open(input, 'r');
+    const entries = await centralDirectory(handle, true);
+    const apks = entries.filter((entry) => /^[\w.-]+\.apk$/.test(entry.name));
+    if (apks.length === 0 || apks.length > 100 || new Set(apks.map((entry) => entry.name)).size !== apks.length) {
+      throw new Error('The bundle must contain one base Zwift APK and uniquely named splits.');
+    }
+
+    await mkdir(folder, { recursive: true });
+    const splits = new Set<string>();
+
+    for (const entry of apks) {
+      const path = resolve(folder, entry.name);
+      await this.extractBundleEntry(input, handle, entry, path, 512 * 1024 ** 2, signal);
+      const manifest = await this.manifestWithSplit(path);
+      if (manifest.packageName !== zwiftPackage || manifest.versionCode !== versionCode || splits.has(manifest.split)) {
+        throw new Error('The APKM mixes Zwift versions or contains conflicting split APKs.');
+      }
+      splits.add(manifest.split);
+    }
+
+    if (!splits.has('')) {
+      throw new Error('The bundle is missing the base Zwift APK.');
+    }
+
+    return apks.map((entry) => resolve(folder, entry.name));
+  }
+
+  /** Keep Java class names intact while giving the installed application and its providers a separate identity. */
+  async configureDecodedZwift(folder: string, versionCode: number) {
+    const manifestPath = resolve(folder, 'AndroidManifest.xml');
+    const original = await readFile(manifestPath, 'utf8');
+    const originalPackage = /<manifest\s[^>]*?\bpackage=(["'])([^"']+)\1/.exec(original)?.[2];
+    if (originalPackage !== zwiftPackage) {
+      throw new Error('The decoded APK is not the original Zwift app.');
+    }
+
+    const appTag = /<application\b[^>]*>/;
+    let manifest = original
+      .replace(
+        /(<manifest\s[^>]*?\bpackage=)(["'])([^"']+)\2/,
+        (_, start: string) => `${start}"${standaloneZwiftPackage}"`,
+      )
+      .replaceAll(/<(?:application|activity(?:-alias)?|provider|receiver|service|instrumentation)\b[^>]*>/g, (tag) =>
+        tag.replaceAll(
+          /\bandroid:(name|targetActivity|parentActivityName|backupAgent|appComponentFactory|manageSpaceActivity|zygotePreloadName)=(["'])([^"']+)\2/g,
+          (_, attribute: string, quote: string, name: string) =>
+            `android:${attribute}=${quote}${qualifyZwiftClass(name)}${quote}`,
+        ),
+      )
+      .replaceAll(
+        /\bandroid:(authorities|permission|readPermission|writePermission|targetPackage)=(["'])([^"']+)\2/g,
+        (_, attribute: string, quote: string, value: string) =>
+          `android:${attribute}=${quote}${value
+            .split(';')
+            .map((part) => renameZwiftIdentifier(part))
+            .join(';')}${quote}`,
+      )
+      .replaceAll(/<(?:permission(?:-group|-tree)?|uses-permission(?:-sdk-23)?)\b[^>]*>/g, (tag) =>
+        tag.replace(
+          /\bandroid:name=(["'])([^"']+)\1/,
+          (_, quote: string, name: string) => `android:name=${quote}${renameZwiftIdentifier(name)}${quote}`,
+        ),
+      )
+      .replace(appTag, (tag) => {
+        const withoutLabel = tag.replace(/\s+android:label=(["'])[^"']*\1/, '');
+
+        return withoutLabel.replace('>', ' android:label="Zwift for Zluggish">');
+      });
+
+    const launchers = new Set<string>();
+    const launcherCategory = /<category\s+android:name=(["'])android\.intent\.category\.LAUNCHER\1\s*\/>/;
+    manifest = manifest.replaceAll(
+      /(<(activity(?:-alias)?)\b[^>]*[^/>]>)([\s\S]*?)(<\/\2\s*>)/g,
+      (_component, tag: string, _kind: string, body: string, close: string) => {
+        const redirected = body.replaceAll(/<intent-filter\b[^>]*>[\s\S]*?<\/intent-filter>/g, (filter) => {
+          if (!/android:name=(["'])android\.intent\.action\.MAIN\1/.test(filter) || !launcherCategory.test(filter)) {
+            return filter;
+          }
+
+          const activity = /\bandroid:name=(["'])([\w.$]+)\1/.exec(tag)?.[2];
+          if (activity) {
+            launchers.add(activity);
+          }
+
+          return filter.replace(launcherCategory, '');
+        });
+
+        return tag + redirected + close;
+      },
+    );
+
+    const [launcher] = launchers;
+    if (!launcher || launchers.size !== 1 || !/<\/application\s*>/.test(manifest)) {
+      throw new Error('Could not identify the Zwift launcher activity.');
+    }
+    const obb = `main.${versionCode}.${standaloneZwiftPackage}.obb`;
+    manifest = manifest.replace(/<\/application\s*>/, () =>
+      [
+        `  <activity android:name="${zwiftSetupActivity}" android:exported="true" android:launchMode="singleTop"`,
+        '            android:configChanges="keyboardHidden|orientation|screenSize">',
+        `    <meta-data android:name="zluggish.expansion" android:value="${obb}" />`,
+        `    <meta-data android:name="zluggish.launcher" android:value="${launcher}" />`,
+        '    <intent-filter>',
+        '      <action android:name="android.intent.action.MAIN" />',
+        '      <category android:name="android.intent.category.LAUNCHER" />',
+        '    </intent-filter>',
+        '  </activity>',
+        '</application>',
+      ].join('\n'),
+    );
+    await writeFile(manifestPath, manifest);
+
+    const resources = resolve(folder, 'resources');
+    for (const entry of await readdir(resources, { withFileTypes: true })) {
+      if (!entry.isDirectory() || !/^package_\d+$/.test(entry.name)) {
+        continue;
+      }
+      const packagePath = resolve(resources, entry.name, 'package.json');
+      const originalResources = await readFile(packagePath, 'utf8');
+      const updated = originalResources.replace(
+        /("package_name"\s*:\s*)"com\.zwift\.zwiftgame"/,
+        (_, key: string) => `${key}"${standaloneZwiftPackage}"`,
+      );
+      if (updated !== originalResources) {
+        await writeFile(packagePath, updated);
+      }
+    }
+  }
+
+  async signStandaloneZwift(input: string, output: string, obb: string, signer: ApkSigner) {
+    await using handle = await open(input, 'r');
+    const entries = await centralDirectory(handle);
+    const dex = entries
+      .values()
+      .map((entry) => /^classes(\d*)\.dex$/.exec(entry.name))
+      .filter((match) => match !== null)
+      .map((match) => Number(match[1] || 1))
+      .toArray();
+    const next = Math.max(1, ...dex) + 1;
+    const bootstrap = await readFile(resolve(packageRoot(), '../assets/android/zwift-setup.dex'));
+
+    await this.rewrite(input, output, signer, {
+      replace: new Map([[`classes${next}.dex`, bootstrap]]),
+      store: new Map([[zwiftExpansionAsset, obb]]),
+    });
+  }
+
   /** Zwift checks the Play Store expansion file's size before unpacking its assets. */
   async patchZwiftObb(input: string, output: string, pem: string) {
     const name = 'dataES/cacert.pem';
@@ -753,7 +921,12 @@ export class ApkRepository {
 
     await this.writeArchive(output, signer, archiveSize, async (add) => {
       for (const entry of entries) {
-        if (replace.has(entry.name) || options.drop?.(entry.name) || (signer && isJarSignature(entry.name))) {
+        if (
+          replace.has(entry.name) ||
+          options.store?.has(entry.name) ||
+          options.drop?.(entry.name) ||
+          (signer && isJarSignature(entry.name))
+        ) {
           continue;
         }
 
@@ -783,6 +956,15 @@ export class ApkRepository {
       for (const [name, data] of replace) {
         const compressed = deflateRawSync(data, { level: 9 });
         await add(newZipEntry(name, 8, data.length, compressed.length, crc32(data)), compressed);
+      }
+      for (const [name, path] of options.store ?? []) {
+        const { size } = await stat(path);
+        let crc = 0;
+        const source: AsyncIterable<Uint8Array> = createReadStream(path, { highWaterMark: chunkSize });
+        for await (const bytes of source) {
+          crc = crc32(bytes, crc);
+        }
+        await add(newZipEntry(name, 0, size, size, crc), createReadStream(path, { highWaterMark: chunkSize }));
       }
     });
   }

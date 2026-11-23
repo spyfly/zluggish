@@ -326,3 +326,72 @@ await test(
     assert.deepEqual(readFileSync(output), source);
   },
 );
+
+await test('gives the standalone Zwift build its own package and starts setup before the original launcher', async () => {
+  using space = workspace();
+  const manifest = resolve(space.folder, 'AndroidManifest.xml');
+  const resources = resolve(space.folder, 'resources/package_1');
+  mkdirSync(resources, { recursive: true });
+  writeFileSync(resolve(resources, 'package.json'), '{"package_name":"com.zwift.zwiftgame"}');
+  writeFileSync(
+    manifest,
+    `<manifest package="com.zwift.zwiftgame">
+  <permission android:name="com.zwift.zwiftgame.PRIVATE" />
+  <application android:name=".App" android:label="@string/app_name">
+    <provider android:name=".Files" android:authorities="com.zwift.zwiftgame.files" />
+    <activity android:name=".Game" android:exported="true">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+    </activity>
+  </application>
+</manifest>`,
+  );
+
+  await repository.configureDecodedZwift(space.folder, 169_052);
+
+  const result = readFileSync(manifest, 'utf8');
+  assert.match(result, /package="com\.zluggish\.zwift"/);
+  assert.match(result, /android:label="Zwift for Zluggish"/);
+  assert.match(result, /android:name="com\.zluggish\.zwift\.PRIVATE"/);
+  assert.match(result, /android:name="com\.zwift\.zwiftgame\.App"/);
+  assert.match(result, /android:authorities="com\.zluggish\.zwift\.files"/);
+  assert.match(result, /android:name="com\.zluggish\.zwift\.bootstrap\.SetupActivity"/);
+  assert.match(result, /android:name="zluggish\.launcher" android:value="com\.zwift\.zwiftgame\.Game"/);
+  assert.match(result, /android:name="zluggish\.expansion" android:value="main\.169052\.com\.zluggish\.zwift\.obb"/);
+  assert.equal(result.matchAll(/android\.intent\.category\.LAUNCHER/g).toArray().length, 1);
+  assert.match(readFileSync(resolve(resources, 'package.json'), 'utf8'), /"package_name":"com\.zluggish\.zwift"/);
+});
+
+await test('signs a standalone APK with the original dex, bootstrap dex and a stored OBB', async () => {
+  using space = workspace();
+  const input = resolve(space.folder, 'renamed.apk');
+  const output = resolve(space.folder, 'standalone.apk');
+  const obb = resolve(space.folder, 'patched.obb');
+  const gameDex = Buffer.from('game dex');
+  const expansionData = Buffer.from('patched expansion');
+  writeFileSync(
+    input,
+    zip([
+      ['AndroidManifest.xml', binaryManifest('com.zluggish.zwift', '1.126.0', 169_052, 28), false],
+      ['classes.dex', gameDex, true],
+    ]),
+  );
+  writeFileSync(obb, expansionData);
+
+  await repository.signStandaloneZwift(input, output, obb, signer);
+
+  const apk = readFileSync(output);
+  assert.deepEqual(verifyV2(apk), signer.publicKey);
+  assert.deepEqual(await repository.manifest(output), {
+    packageName: 'com.zluggish.zwift',
+    versionName: '1.126.0',
+    versionCode: 169_052,
+    minSdk: 28,
+  });
+  assert.deepEqual(contents(apk, 'classes.dex'), gameDex);
+  assert.match(contents(apk, 'classes2.dex').toString('ascii', 0, 8), /^dex\n/);
+  assert.deepEqual(contents(apk, 'assets/zluggish/expansion.obb'), expansionData);
+  assert.equal(listEntries(apk).get('assets/zluggish/expansion.obb')?.method, 0);
+});

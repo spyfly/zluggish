@@ -11,16 +11,18 @@ Zwift from Google Play stores its certificate bundle in an expansion file. Patch
 
 ## Publish Zwift for Android
 
-An administrator opens **Apps → Zwift → Android → Publish Zwift for Android** and uploads an APKMirror `.apkm` labeled **BUNDLE 1 OBB**. The server patches the expansion file and publishes an `.xapk` containing the original APKs and patched expansion. Upload the original APKM again if you published it before install bundles were available or if the server certificate changes.
+An administrator opens **Apps → Zwift → Android → Publish Zwift for Android** and uploads an APKMirror `.apkm` labeled **BUNDLE 1 OBB**. Leave **Build a standalone APK** selected to publish **Zwift for Zluggish** under the application ID `com.zluggish.zwift`. The server downloads any missing Android build tools, rebuilds the APK, embeds the patched expansion and signs the result. Upload the original APKM again when the server certificate changes. Clear the build option to publish an XAPK for APKMirror Installer instead.
 
 APKM uploads support up to 10 GB. The web uploader sends 16 MiB chunks so it can work through Cloudflare Tunnel. Keep the admin page open during the transfer so it can retry interrupted chunks. Patching and packaging continue in the background after all chunks arrive.
 
 ## Install on the phone
 
-1. On the Android device, install [APKMirror Installer](https://play.google.com/store/apps/details?id=com.apkmirror.helper.prod).
-2. Sign in to Zluggish and open **Apps → Zwift → Android**. Download the Zwift install bundle.
-3. Open the downloaded `.xapk` in APKMirror Installer and follow the Android installation prompts.
-4. Finish the server setup below before opening Zwift.
+1. On the Android device, sign in to Zluggish and open **Apps → Zwift → Android**.
+2. Download and open the **Zwift for Zluggish** APK. Allow installation from your browser if Android prompts you.
+3. Finish the server setup below, then open **Zwift for Zluggish**. The first launch copies the embedded expansion into the app’s own storage. Keep at least one additional expansion file’s worth of space free.
+4. If your routing rules apply to the whole device, turn them off before opening official Zwift.
+
+For an XAPK download, open it with [APKMirror Installer](https://play.google.com/store/apps/details?id=com.apkmirror.helper.prod).
 
 ## Install manually with ADB
 

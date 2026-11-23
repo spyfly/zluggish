@@ -103,7 +103,7 @@ await test('an administrator publishes expansion files for riders on matching Zw
 
   const available = await web.request(endpoint);
   const xapkName = 'zwift-124-zluggish.xapk';
-  assert.deepEqual(await available.json(), { files: [filename, secondFilename], bundles: [xapkName] });
+  assert.deepEqual(await available.json(), { files: [filename, secondFilename], bundles: [xapkName], apks: [] });
 
   const response = await web.request(`${endpoint}/${filename}`);
   assert.equal(response.status, 200);
@@ -149,7 +149,7 @@ await test('an administrator publishes expansion files for riders on matching Zw
   const tls = fixture.effects.runSync(TlsService);
   await fixture.effects.runPromise(tls.rotate(crypto.randomUUID()));
   const afterRotation = await web.request(endpoint);
-  assert.deepEqual(await afterRotation.json(), { files: [], bundles: [] });
+  assert.deepEqual(await afterRotation.json(), { files: [], bundles: [], apks: [] });
   const stale = await web.request(`${endpoint}/${filename}`);
   assert.equal(stale.status, 404);
   const staleBundle = await web.request(`${endpoint}/${xapkName}`);

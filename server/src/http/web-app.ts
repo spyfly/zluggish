@@ -463,7 +463,7 @@ export function createWebApp(runtime: HttpRuntime) {
       }
 
       return yield* fileResponse(c, path, {
-        'Content-Type': 'application/octet-stream',
+        'Content-Type': name.endsWith('.apk') ? 'application/vnd.android.package-archive' : 'application/octet-stream',
         'Content-Disposition': `attachment; filename="${name}"`,
       });
     }),
@@ -492,11 +492,20 @@ export function createWebApp(runtime: HttpRuntime) {
       yield* sessions.require(c.get('sessionId'), true);
       yield* installable(c);
       const android = yield* ZwiftAndroidService;
-      const input = Schema.decodeUnknownSync(Schema.Struct({ name: Schema.String, size: Schema.Number }))(
-        yield* Effect.promise(() => c.req.json()),
-      );
+      const input = Schema.decodeUnknownSync(
+        Schema.Struct({
+          name: Schema.String,
+          size: Schema.Number,
+          standalone: Schema.optional(Schema.Boolean),
+        }),
+      )(yield* Effect.promise(() => c.req.json()));
 
-      return c.json(yield* Effect.promise(() => android.begin(c.get('sessionId'), input.name, input.size)), 201);
+      return c.json(
+        yield* Effect.promise(() =>
+          android.begin(c.get('sessionId'), input.name, input.size, input.standalone ?? false),
+        ),
+        201,
+      );
     }),
   );
 
