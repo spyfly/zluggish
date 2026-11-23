@@ -56,6 +56,15 @@
   let selectedApk = $state('');
   let standalone = $state(true);
   const uploadEndpoint = '/api/manage/android-upload';
+  const originalsEndpoint = '/api/manage/android-originals';
+  const originalsStatus = z.object({
+    originals: z.array(
+      z.object({ id: z.uuid(), name: z.string(), bytes: z.int().nonnegative(), uploadedAt: z.number() }),
+    ),
+  });
+  let originals = $state<z.infer<typeof originalsStatus>['originals']>([]);
+  let originalsError = $state('');
+  let selectedOriginal = $state('');
   const chunkSize = 16 * 1024 ** 2;
   const uploadStatus = z.object({
     id: z.uuid(),
@@ -82,6 +91,22 @@
       }
     } catch (error) {
       downloadError = error instanceof Error ? error.message : 'The available Zwift versions could not be loaded.';
+    }
+  }
+
+  async function refreshOriginals(preferred?: string) {
+    originalsError = '';
+
+    try {
+      const available = await api(originalsStatus, originalsEndpoint);
+      originals = available.originals;
+      if (preferred && originals.some(({ id }) => id === preferred)) {
+        selectedOriginal = preferred;
+      } else if (!originals.some(({ id }) => id === selectedOriginal)) {
+        selectedOriginal = originals[0]?.id ?? '';
+      }
+    } catch (error) {
+      originalsError = error instanceof Error ? error.message : 'The saved uploads could not be loaded.';
     }
   }
 
@@ -121,6 +146,45 @@
       setTimeout(resolve, ms);
     });
 
+  async function waitForPatch(job: z.infer<typeof uploadStatus>, signal: AbortSignal) {
+    let progress = job;
+    while (progress.state === 'uploading' || progress.state === 'patching') {
+      await pause(1000);
+      signal.throwIfAborted();
+      progress = await api(uploadStatus, `${uploadEndpoint}/${job.id}`);
+    }
+    if (progress.state === 'failed') {
+      throw new Error(progress.message ?? 'The expansion file could not be patched.');
+    }
+    await refreshDownloads();
+  }
+
+  async function rebuild() {
+    const original = originals.find(({ id }) => id === selectedOriginal);
+    if (!original || upload) {
+      return;
+    }
+
+    uploadError = '';
+    transfer = new AbortController();
+    const { signal } = transfer;
+    upload = { name: original.name, progress: null };
+
+    try {
+      const job = await api(uploadStatus, `${originalsEndpoint}/${original.id}/rebuild`, 'POST', {
+        standalone: /\.apkm$/i.test(original.name) && standalone,
+      });
+      await waitForPatch(job, signal);
+    } catch (error) {
+      if (!signal.aborted) {
+        uploadError = error instanceof Error ? error.message : 'The rebuild failed.';
+      }
+    } finally {
+      upload = null;
+      transfer = undefined;
+    }
+  }
+
   async function patch(file: File) {
     uploadError = '';
     const isBundle = /\.apkm$/i.test(file.name);
@@ -138,6 +202,7 @@
     upload = { name: file.name, progress: 0 };
     let url: string | undefined;
     let receiving = true;
+    let originalId: string | undefined;
 
     try {
       let progress = await api(uploadStatus, uploadEndpoint, 'POST', {
@@ -145,6 +210,7 @@
         size: file.size,
         standalone: isBundle && standalone,
       });
+      originalId = progress.id;
       url = `${uploadEndpoint}/${progress.id}`;
       let retries = 0;
 
@@ -162,15 +228,7 @@
 
       receiving = false;
       upload = { name: file.name, progress: null };
-      while (progress.state === 'uploading' || progress.state === 'patching') {
-        await pause(1000);
-        signal.throwIfAborted();
-        progress = await api(uploadStatus, url);
-      }
-      if (progress.state === 'failed') {
-        throw new Error(progress.message ?? 'The expansion file could not be patched.');
-      }
-      await refreshDownloads();
+      await waitForPatch(progress, signal);
     } catch (error) {
       if (!signal.aborted) {
         uploadError = error instanceof Error ? error.message : 'The expansion upload failed.';
@@ -183,6 +241,9 @@
           await pause(1000);
           await api(ignored, cancelUrl, 'DELETE', {}).catch(() => undefined);
         });
+      }
+      if (!receiving && !signal.aborted) {
+        await refreshOriginals(originalId);
       }
       upload = null;
       transfer = undefined;
@@ -228,6 +289,9 @@
   $effect(() => {
     if (platform === 'android' && status && status.mode !== 'disabled') {
       void refreshDownloads();
+      if (administrator) {
+        void refreshOriginals();
+      }
     }
   });
 
@@ -329,7 +393,7 @@
         <summary>Publish Zwift for Android</summary>
         <p>
           Upload an APKMirror bundle labeled <strong>BUNDLE 1 OBB</strong> to publish Zwift for Zluggish. The first standalone
-          build may download the Android build tools on the server.
+          build may download the Android build tools on the server. Completed uploads are saved for future rebuilds.
         </p>
         <details>
           <summary>Upload a standalone OBB for ADB setup</summary>
@@ -354,6 +418,22 @@
             event.currentTarget.value = '';
           }}
         />
+        {#if originalsError}
+          <p class="notice failed" role="alert">{originalsError}</p>
+          <button type="button" onclick={() => void refreshOriginals()}>Retry saved uploads</button>
+        {:else if originals.length}
+          <label for="zwift-original">Saved original</label>
+          <select id="zwift-original" bind:value={selectedOriginal} disabled={upload !== null}>
+            {#each originals as original (original.id)}
+              <option value={original.id}>
+                {original.name} ({new Date(original.uploadedAt).toLocaleString()})
+              </option>
+            {/each}
+          </select>
+          <button type="button" disabled={!selectedOriginal || upload !== null} onclick={() => void rebuild()}>
+            Rebuild from saved original
+          </button>
+        {/if}
         {#if upload}
           <p role="status">
             {upload.progress === null

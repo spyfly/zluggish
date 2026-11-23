@@ -11,7 +11,7 @@ Zwift from Google Play stores its certificate bundle in an expansion file. Patch
 
 ## Publish Zwift for Android
 
-An administrator opens **Apps → Zwift → Android → Publish Zwift for Android** and uploads an APKMirror `.apkm` labeled **BUNDLE 1 OBB**. Leave **Build a standalone APK** selected to publish **Zwift for Zluggish** under the application ID `com.zluggish.zwift`. The server downloads any missing Android build tools, rebuilds the APK, embeds the patched expansion and signs the result. Upload the original APKM again when the server certificate changes. Clear the build option to publish an XAPK for APKMirror Installer instead.
+An administrator opens **Apps → Zwift → Android → Publish Zwift for Android** and uploads an APKMirror `.apkm` labeled **BUNDLE 1 OBB**. Leave **Build a standalone APK** selected to publish **Zwift for Zluggish** under the application ID `com.zluggish.zwift`. The server downloads any missing Android build tools, rebuilds the APK, embeds the patched expansion and signs the result. After the upload, Zluggish retains the original file unchanged. Select it under **Saved original** and click **Rebuild from saved original** after a certificate change or patcher update. Uploads made before this feature may need to be uploaded once more. Clear the build option to publish an XAPK for APKMirror Installer instead.
 
 APKM uploads support up to 10 GB. The web uploader sends 16 MiB chunks so it can work through Cloudflare Tunnel. Keep the admin page open during the transfer so it can retry interrupted chunks. Patching and packaging continue in the background after all chunks arrive.
 

@@ -547,6 +547,29 @@ export function createWebApp(runtime: HttpRuntime) {
     }),
   );
 
+  appRoutes.get('/api/manage/android-originals', (c) =>
+    Effect.gen(function* () {
+      yield* sessions.require(c.get('sessionId'), true);
+      const android = yield* ZwiftAndroidService;
+
+      return c.json({ originals: yield* Effect.promise(() => android.originals()) });
+    }),
+  );
+
+  appRoutes.post('/api/manage/android-originals/:id/rebuild', (c) =>
+    Effect.gen(function* () {
+      yield* sessions.require(c.get('sessionId'), true);
+      const { pem } = yield* installable(c);
+      const android = yield* ZwiftAndroidService;
+      const { standalone } = Schema.decodeUnknownSync(Schema.Struct({ standalone: Schema.Boolean }))(
+        yield* Effect.promise(() => c.req.json()),
+      );
+      const job = yield* Effect.promise(() => android.rebuild(c.get('sessionId'), c.req.param('id'), pem, standalone));
+
+      return c.json(job, 202);
+    }),
+  );
+
   const setupAddress = Schema.String.check(
     Schema.isMaxLength(45),
     satisfies((value: string) => value === '' || isIP(value) !== 0, 'Expected an IP address'),

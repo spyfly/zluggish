@@ -6,6 +6,8 @@ import { binaryManifest, contents, zip } from '#tests/support/apk';
 import { runtimeFixture } from '#tests/support/runtime';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 await test('an administrator publishes expansion files for riders on matching Zwift versions', async (t) => {
@@ -146,6 +148,23 @@ await test('an administrator publishes expansion files for riders on matching Zw
   const expired = await admin.request(pendingUrl);
   assert.equal(expired.status, 404);
 
+  const originals = '/api/manage/android-originals';
+  const riderOriginals = await web.request(originals);
+  assert.equal(riderOriginals.status, 403);
+  const list = await admin.request(originals);
+  assert.equal(list.status, 200);
+  const saved: unknown = await list.json();
+  assert.ok(saved && typeof saved === 'object' && 'originals' in saved);
+  assert.ok(Array.isArray(saved.originals));
+  assert.ok(
+    saved.originals.some(
+      (file: { id: string; name: string; bytes: number }) =>
+        file.id === id && file.name === metadata.name && file.bytes === apkm.length,
+    ),
+  );
+  const retainedPath = resolve(fixture.config.storageDir, 'zwift-android', 'originals', id, 'upload');
+  assert.deepEqual(await readFile(retainedPath), apkm);
+
   const tls = fixture.effects.runSync(TlsService);
   await fixture.effects.runPromise(tls.rotate(crypto.randomUUID()));
   const afterRotation = await web.request(endpoint);
@@ -154,4 +173,26 @@ await test('an administrator publishes expansion files for riders on matching Zw
   assert.equal(stale.status, 404);
   const staleBundle = await web.request(`${endpoint}/${xapkName}`);
   assert.equal(staleBundle.status, 404);
+  const rebuildPath = `${originals}/${id}/rebuild`;
+  const deniedRebuild = await web.request(rebuildPath, 'POST', { standalone: false });
+  assert.equal(deniedRebuild.status, 403);
+  const rebuild = await admin.request(rebuildPath, 'POST', { standalone: false });
+  assert.equal(rebuild.status, 202);
+  const job = await rebuild.json();
+  state = job.state;
+
+  for (let attempt = 0; attempt < 100 && state === 'patching'; attempt++) {
+    const progress = await admin.request(`${sessions}/${job.id}`);
+    assert.equal(progress.status, 200);
+    const result = await progress.json();
+    state = result.state;
+    if (state === 'patching') {
+      await sleep(20);
+    }
+  }
+
+  assert.equal(state, 'done');
+  assert.deepEqual(await readFile(retainedPath), apkm);
+  const republished = await web.request(endpoint);
+  assert.deepEqual(await republished.json(), { files: [secondFilename], bundles: [xapkName], apks: [] });
 });

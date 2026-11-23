@@ -14,6 +14,7 @@ export const zwiftAndroidChunkSize = 16 * 1024 ** 2;
 const zwiftObbLimit = 2 * 1024 ** 3;
 const apkName = /^zwift-\d{1,12}-zluggish\.apk$/;
 const xapkName = /^zwift-\d{1,12}-zluggish\.xapk$/;
+const originalId = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/;
 const obbName = /^main\.\d{1,12}\.com\.zwift\.zwiftgame\.obb$/;
 
 interface Upload {
@@ -50,6 +51,7 @@ const make = Effect.gen(function* () {
   const crypto = new CryptoRepository();
   const androidFolder = resolve(config.storageDir, 'zwift-android');
   const staging = resolve(androidFolder, 'staging');
+  const originalsFolder = resolve(androidFolder, 'originals');
   const signerPath = resolve(androidFolder, 'signer.pem');
   const certificates = new CertificateRepository();
   const toolchain = new ToolchainRepository(resolve(androidFolder, 'tools'));
@@ -66,6 +68,39 @@ const make = Effect.gen(function* () {
     }
 
     return apk.workspace(staging);
+  }
+
+  async function keepOriginal(directory: string, id: string, name: string) {
+    const retained = resolve(originalsFolder, id);
+    await files.writeDurableAsync(resolve(directory, 'name'), name);
+    await apk.retainUpload(directory, retained);
+    await files.syncDirectoryAsync(originalsFolder);
+    await files.syncDirectoryAsync(androidFolder);
+    log.info('android.original_retained', 'Saved the original Zwift Android upload', { upload: name, id });
+
+    return resolve(retained, 'upload');
+  }
+
+  async function readOriginal(id: string) {
+    if (!originalId.test(id)) {
+      return null;
+    }
+
+    const directory = resolve(originalsFolder, id);
+    const name = await files.readAsync(resolve(directory, 'name'));
+    const info = await files.statAsync(resolve(directory, 'upload'));
+
+    if (!name || !info || info.directory) {
+      return null;
+    }
+
+    return { id, name: name.toString('utf8'), bytes: info.bytes, uploadedAt: info.modified };
+  }
+
+  function requireIdle() {
+    if (busy || writing || upload?.state === 'uploading') {
+      throw new ApplicationError({ status: 409, message: 'An Android upload or patch is already in progress.' });
+    }
   }
 
   function current(owner: string, id: string) {
@@ -185,11 +220,17 @@ const make = Effect.gen(function* () {
     return { output, name: `zwift-${versionCode}-zluggish.apk` };
   }
 
-  async function patch(workspace: string, pem: string, name: string, signal: AbortSignal, standalone = false) {
+  async function patch(
+    workspace: string,
+    source: string,
+    pem: string,
+    name: string,
+    signal: AbortSignal,
+    standalone = false,
+  ) {
     const apkm = /\.apkm$/i.test(name);
     const input = resolve(workspace, 'original.obb');
     const output = resolve(workspace, 'patched.obb');
-    const source = resolve(workspace, 'upload');
     const startedAt = performance.now();
     let filename = name;
     const steps = apkm ? 4 : 2;
@@ -231,7 +272,6 @@ const make = Effect.gen(function* () {
         const bundleName = await apk.bundleZwift(source, output, filename, bundlePath, signal);
         bundle = { output: bundlePath, name: bundleName };
       }
-      await files.removeAsync(source);
     }
     signal.throwIfAborted();
     log.info('android.publishing', 'Publishing the patched Zwift Android downloads', {
@@ -252,9 +292,15 @@ const make = Effect.gen(function* () {
     });
   }
 
-  async function finish(session: Upload, pem: string) {
+  async function finish(session: Upload, pem: string, retained?: string) {
+    let directory = session.workspace;
+
     try {
-      await patch(session.workspace, pem, session.name, new AbortController().signal, session.standalone);
+      const source = retained ?? (await keepOriginal(directory, session.id, session.name));
+      if (!retained) {
+        directory = await workspace();
+      }
+      await patch(directory, source, pem, session.name, new AbortController().signal, session.standalone);
       session.state = 'done';
     } catch (error) {
       session.message = fail(error);
@@ -264,7 +310,7 @@ const make = Effect.gen(function* () {
       });
       session.state = 'failed';
     } finally {
-      await apk.removeTree(session.workspace).catch(reportCleanupFailure);
+      await apk.removeTree(directory).catch(reportCleanupFailure);
       busy = false;
       expire(session);
     }
@@ -290,14 +336,57 @@ const make = Effect.gen(function* () {
 
       return (await apk.size(path)) === null ? null : path;
     },
+    async originals() {
+      const entries = await files.entriesAsync(originalsFolder);
+      const saved = await Promise.all(
+        entries
+          .values()
+          .filter((entry) => entry.isDirectory())
+          .map((entry) => readOriginal(entry.name)),
+      );
+
+      return saved
+        .values()
+        .filter((entry) => entry !== null)
+        .toArray()
+        .sort((a, b) => b.uploadedAt - a.uploadedAt);
+    },
+    async rebuild(owner: string, id: string, pem: string, standalone: boolean) {
+      requireIdle();
+      busy = true;
+
+      try {
+        const original = await readOriginal(id);
+        if (!original) {
+          throw new ApplicationError({ status: 404, message: 'The original Zwift upload was not found.' });
+        }
+        uploadLimit(original.name);
+        const session: Upload = {
+          id: crypto.randomUUID(),
+          owner,
+          name: original.name,
+          size: original.bytes,
+          offset: original.bytes,
+          workspace: await workspace(),
+          standalone,
+          state: 'patching',
+        };
+        upload = session;
+        log.info('android.rebuild_started', 'Rebuilding Zwift from a saved original', { upload: original.name, id });
+        void finish(session, pem, resolve(originalsFolder, original.id, 'upload'));
+
+        return status(session);
+      } catch (error) {
+        busy = false;
+        throw error;
+      }
+    },
     async begin(owner: string, name: string, size: number, standalone: boolean) {
       const limit = uploadLimit(name);
       if (!Number.isSafeInteger(size) || size < 1 || size > limit) {
         throw new ApplicationError({ status: 400, message: 'The expansion upload size is invalid.' });
       }
-      if (busy || writing || upload?.state === 'uploading') {
-        throw new ApplicationError({ status: 409, message: 'An Android upload or patch is already in progress.' });
-      }
+      requireIdle();
 
       writing = true;
       try {
@@ -381,12 +470,7 @@ const make = Effect.gen(function* () {
     },
     async publish(body: ReadableStream<Uint8Array>, pem: string, name: string, signal: AbortSignal) {
       const limit = uploadLimit(name);
-      if (busy || writing || upload?.state === 'uploading') {
-        throw new ApplicationError({
-          status: 409,
-          message: 'Another Android expansion file is being processed. Try again shortly.',
-        });
-      }
+      requireIdle();
 
       busy = true;
       let directory: string | undefined;
@@ -394,7 +478,9 @@ const make = Effect.gen(function* () {
         directory = await workspace();
         const bytes = await apk.receive(body, resolve(directory, 'upload'), limit);
         log.info('android.upload_received', 'Received the Zwift Android upload', { upload: name, bytes });
-        await patch(directory, pem, name, signal);
+        const source = await keepOriginal(directory, crypto.randomUUID(), name);
+        directory = await workspace();
+        await patch(directory, source, pem, name, signal);
       } catch (error) {
         log.warn('android.patch_failed', 'Could not process the Zwift Android upload', {
           upload: name,

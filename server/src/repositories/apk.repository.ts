@@ -1319,6 +1319,17 @@ export class ApkRepository {
     }
   }
 
+  async retainUpload(workspace: string, destination: string) {
+    const source = await open(resolve(workspace, 'upload'), 'r+');
+    try {
+      await source.sync();
+    } finally {
+      await source.close();
+    }
+    await mkdir(dirname(destination), { recursive: true });
+    await rename(workspace, destination);
+  }
+
   /** Move a finished file into place, replacing what is there; copies when the folders are on different disks. */
   async publish(from: string, to: string) {
     await mkdir(dirname(to), { recursive: true });
