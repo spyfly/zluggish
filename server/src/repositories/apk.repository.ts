@@ -175,6 +175,17 @@ function declareAndroidResource(publicXml: string, type: string, name: string) {
   );
 }
 
+async function installAndroidLauncherIcon(res: string, publicXml: string) {
+  const drawable = resolve(res, 'drawable');
+  await mkdir(drawable, { recursive: true });
+  await copyFile(
+    resolve(packageRoot(), '../assets/android/zluggish-launcher.xml'),
+    resolve(drawable, `${androidLauncherIcon}.xml`),
+  );
+
+  return declareAndroidResource(publicXml, 'drawable', androidLauncherIcon);
+}
+
 function newZipEntry(name: string, method: number, size: number, compressedSize: number, crc: number) {
   const now = new Date();
 
@@ -813,12 +824,7 @@ export class ApkRepository {
     }
     const publicPath = resolve(res, 'values', 'public.xml');
     const publicXml = await readFile(publicPath, 'utf8');
-    await mkdir(resolve(res, 'drawable'), { recursive: true });
-    await copyFile(
-      resolve(packageRoot(), '../assets/android/zluggish-launcher.xml'),
-      resolve(res, 'drawable', `${androidLauncherIcon}.xml`),
-    );
-    await writeFile(publicPath, declareAndroidResource(publicXml, 'drawable', androidLauncherIcon));
+    await writeFile(publicPath, await installAndroidLauncherIcon(res, publicXml));
 
     const resources = resolve(folder, 'resources');
     for (const entry of await readdir(resources, { withFileTypes: true })) {
@@ -1348,10 +1354,20 @@ export class ApkRepository {
       .replace(/<application\b[^>]*>/, (tag) => withIcon(tag))
       .replaceAll(
         /(<(activity(?:-alias)?)\b[^>]*(?<!\/)>)([\s\S]*?<\/\2\s*>)/g,
-        (component, tag: string, _kind, body: string) =>
-          /<category\b[^>]*android:name=(["'])android\.intent\.category\.LAUNCHER\1/.test(body)
-            ? withIcon(tag) + body
-            : component,
+        (component, tag: string, _kind, body: string) => {
+          const launcherCategory = /<category\b[^>]*android:name=(["'])android\.intent\.category\.LAUNCHER\1/;
+          if (!launcherCategory.test(body)) {
+            return component;
+          }
+
+          const filters = body.replaceAll(/<intent-filter\b[^>]*>[\s\S]*?<\/intent-filter\s*>/g, (filter) =>
+            launcherCategory.test(filter)
+              ? filter.replace(/^(<intent-filter\b[^>]*)\s+android:icon=(["'])[^"']*\2/, '$1')
+              : filter,
+          );
+
+          return withIcon(tag) + filters;
+        },
       );
 
     const res = await this.resourceFolder(folder);
@@ -1370,7 +1386,7 @@ export class ApkRepository {
     const configName = config ?? 'zluggish_network_security_config';
 
     publicXml = declareAndroidResource(publicXml, 'raw', rawName);
-    publicXml = declareAndroidResource(publicXml, 'drawable', androidLauncherIcon);
+    publicXml = await installAndroidLauncherIcon(res, publicXml);
 
     if (!config) {
       publicXml = declareAndroidResource(publicXml, 'xml', configName);
@@ -1382,11 +1398,6 @@ export class ApkRepository {
 
     await mkdir(resolve(res, 'raw'), { recursive: true });
     await mkdir(resolve(res, 'xml'), { recursive: true });
-    await mkdir(resolve(res, 'drawable'), { recursive: true });
-    await copyFile(
-      resolve(packageRoot(), '../assets/android/zluggish-launcher.xml'),
-      resolve(res, 'drawable', `${androidLauncherIcon}.xml`),
-    );
     await writeFile(resolve(res, 'raw', `${rawName}.pem`), certificatePem);
     await writeFile(
       resolve(res, 'xml', `${configName}.xml`),

@@ -1,3 +1,4 @@
+import { packageRoot } from '#src/config/load';
 import { ApkRepository, isJarSignature } from '#src/repositories/apk.repository';
 import { CertificateRepository } from '#src/repositories/certificate.repository';
 import { CryptoRepository } from '#src/repositories/crypto.repository';
@@ -11,6 +12,7 @@ import { test } from 'node:test';
 import { binaryManifest, contents, listEntries, u32, zip } from '#tests/support/apk';
 
 const repository = new ApkRepository();
+const launcherIcon = readFileSync(resolve(packageRoot(), '../assets/android/zluggish-launcher.xml'));
 const crypto = new CryptoRepository();
 const certificates = new CertificateRepository();
 const signerMaterial = await certificates.createApkSigner({ serverId: '0123456789ab', years: 50, now: new Date() });
@@ -212,7 +214,8 @@ await test('points a decoded app at the certificate and declares the new resourc
     <receiver android:name="Message"><intent-filter><action android:name="com.zwift.android.prod.MESSAGE" /></intent-filter></receiver>
     <activity android:name="com.zwift.android.ui.Other" />
     <activity-alias android:name=".Launcher" android:targetActivity="com.zwift.android.ui.Other" android:icon="@mipmap/old">
-      <intent-filter><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
+      <intent-filter android:icon="@mipmap/old"><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
+      <intent-filter android:icon="@mipmap/link"><action android:name="android.intent.action.VIEW" /></intent-filter>
     </activity-alias>
   </application>
 </manifest>`,
@@ -242,7 +245,8 @@ await test('points a decoded app at the certificate and declares the new resourc
   assert.equal(manifest.match(/android:icon="@drawable\/zluggish_launcher"/g)?.length, 2);
   assert.match(manifest, /android:roundIcon="@drawable\/zluggish_launcher"/);
   assert.doesNotMatch(manifest, /@mipmap\/old/);
-  assert.match(readFileSync(resolve(res, 'drawable', 'zluggish_launcher.xml'), 'utf8'), /<vector\b/);
+  assert.match(manifest, /<intent-filter android:icon="@mipmap\/link"/);
+  assert.deepEqual(readFileSync(resolve(res, 'drawable', 'zluggish_launcher.xml')), launcherIcon);
   assert.match(readFileSync(resolve(resources, 'package.json'), 'utf8'), /"package_name":"com\.zluggish\.companion"/);
   const references = readFileSync(code, 'utf8');
   assert.match(references, /"android\.resource:\/\/com\.zluggish\.companion\/"/);
@@ -404,7 +408,7 @@ await test('gives the standalone Zwift build its own package and starts setup be
   assert.match(result, /android:icon="@drawable\/zluggish_launcher"/);
   assert.match(result, /android:roundIcon="@drawable\/zluggish_launcher"/);
   assert.match(readFileSync(publicXml, 'utf8'), /id="0x7f010002" type="drawable" name="zluggish_launcher"/);
-  assert.match(readFileSync(resolve(resources, 'res/drawable/zluggish_launcher.xml'), 'utf8'), /fillColor="#FF6200"/);
+  assert.deepEqual(readFileSync(resolve(resources, 'res/drawable/zluggish_launcher.xml')), launcherIcon);
   assert.match(result, /android:name="com\.zluggish\.zwift\.PRIVATE"/);
   assert.match(result, /android:name="com\.zwift\.zwiftgame\.App"/);
   assert.match(result, /android:authorities="com\.zluggish\.zwift\.files"/);
