@@ -2,7 +2,7 @@
 
 # Zluggish
 
-Zluggish is a self-hosted, open-source server for [Zwift](https://zwift.com), written in TypeScript. Run it on your own network and ride any world, with your own ghosts, pacers and pelotons, and a web app for the whole household.
+Zluggish is a self-hosted, open-source server for [Zwift](https://zwift.com), written in TypeScript. Run it on your own network and ride any world, with your own ghosts, pacers and pelotons. The community has also added a several features not available in the official app.
 
 **📖 Documentation: [docs.zluggish.com](https://docs.zluggish.com/)**
 
@@ -11,38 +11,34 @@ Zluggish is a self-hosted, open-source server for [Zwift](https://zwift.com), wr
 ## Features
 
 - **Offline play**: ride with no connection to the Zwift servers.
-- **Any world, any day**: pick the map yourself instead of following the official schedule.
+- **Play any map you want**: pick the map yourself instead of following the official schedule.
 - **[Ghosts](https://docs.zluggish.com/usage/features/ghosts/)**: race your previous efforts on the same route, and regroup them from chat.
 - **[RoboPacers](https://docs.zluggish.com/usage/features/robopacers/) and [pelotons](https://docs.zluggish.com/usage/features/pelotons/)**: build pacers from recorded rides and surround them with follower bots that ride in formation, stretch out on climbs and coast on descents.
-- **[Solo blob](https://docs.zluggish.com/usage/features/solo-blob/)**: summon a rotating group of bots around you with `.blob 20`, no pacer needed.
+- **[Solo blob](https://docs.zluggish.com/usage/features/solo-blob/)**: summon a rotating group of bots around you, no pacer needed.
 - **[Bookmarks](https://docs.zluggish.com/usage/features/bookmarks/)**: save named positions during a ride, start new sessions from them or teleport back.
-- **[Intervals.icu planned workouts](https://docs.zluggish.com/usage/integrations/intervals-icu/)**: today's scheduled workouts appear in the game, and finished rides sync back. TrainingPeaks `.zwo` exports work too.
-- **[Activity uploads](https://docs.zluggish.com/usage/sharing-activities/)** to Strava, Garmin Connect, Intervals.icu, Runalyze and your official Zwift account.
+- **[Integrate with Strava, Garmin, Intervals.icu, and TrainingPeaks](https://docs.zluggish.com/usage/integrations/)**: use it with your favorite services, we've even made it possible to share to Strava without a paid subscription.
 - **[Chat bridges](https://docs.zluggish.com/usage/chat-bridges/discord/)**: connect in-game chat to Discord or Matrix.
 - **[All-time leaderboards](https://docs.zluggish.com/usage/features/leaderboards/)** and **[equipment control](https://docs.zluggish.com/usage/features/entitlements/)**: keep records on your own server and unlock bikes and upgrades without the grind.
-- **Your data stays yours**: profiles, activities and recordings live in local storage that you can back up and inspect.
+- **Your data stays yours**: profiles, activities and recordings is not stored at some third party, you are in control.
 
 > [!NOTE]
-> Zluggish is offline only. It does not connect to the public Zwift world, so you cannot join official races, group rides, club events or global leaderboards, and local progress is separate from your Zwift account. You can still ride with family and friends on the same Zluggish server.
-
-Relay world listings require a signed-in rider, including JSON and protobuf requests to `/relay/worlds/:realm`.
+> Zluggish is offline only. It does not connect to the public Zwift world, so you cannot join official races, group rides, club events or global leaderboards, and your progress is not stored on Zwift.com. You can still ride with family and friends on the same Zluggish server.
 
 ## What's new compared to zwift-offline
 
 Zluggish is a rewrite of [zwift-offline](https://github.com/zoffline/zwift-offline) and [fatsbrown's fork](https://github.com/fatsbrown/zwift-offline). It keeps their features and adds:
 
-- **A web app for the household**: riders manage their profile, activities, imports, exports, integrations and settings in the browser. Administrators manage users and the server without editing files or using a CLI.
+- **A management web app**: manage your profile, activities, imports through the browser.
+- **Streamlined client setups**: Download setup scripts for desktop applications and automatic patching of Android apps.
+- **A real self-signed certificate**: Zluggish manages the TLS certificates for you so you don't have to use an insecure connection
 - **Activity browser**: rides by month with route map, elevation profile, power and heart rate stats, power curves, and FIT and image downloads.
 - **Climbs page**: every climb portal you have ridden, with ride count, best time and a link to its Strava segment. The launcher marks the climbs you have already done.
 - **A new game launcher**: each rider picks themselves on a _Who's riding?_ screen, then chooses a map and climb before starting Zwift.
-- **A certificate of its own**: each server generates its own key, instead of the shared zwift-offline certificate whose private key is public. Riders set up Windows, macOS and Linux computers with a script from the web app.
 - **Guided first-time setup** with a one-time setup key, and proper accounts with administrator roles.
 - **Automatic migration**: point Zluggish at your zwift-offline `storage` folder and it converts your storage on first start.
-- **One SQLite database** instead of scattered files, with durable activity saves and upload retries from the web app.
-- **A typed config file** (`zluggish.config.ts`) and an admin CLI for accounts, settings and storage.
+- **A typed config file** (`zluggish.config.ts`) instead of scattered text files.
 - **Docker Compose deployment**: one file, one command, no Python runtime.
-- **Matrix chat bridge** (experimental), next to the existing Discord bridge.
-- **Logging** that tracks logins, rides and uploads without logging credentials or personal data.
+- **Matrix chat bridge** (experimental).
 
 <table>
   <tr>
@@ -51,14 +47,9 @@ Zluggish is a rewrite of [zwift-offline](https://github.com/zoffline/zwift-offli
   </tr>
 </table>
 
-Game password sign-ins share a limit of 30 attempts per connecting peer and 10 per rider each minute.
-Excess attempts return HTTP 429 with a 60-second retry hint. At most four password checks run at once,
-with one per rider; remembered sign-ins and token exchanges remain available. These limits are local
-to each server process and use the direct connection address, not forwarded headers.
-
 ## Get started
 
-Zluggish needs some technical know-how to set up. You need a server that runs Docker (Linux, Windows or macOS; performance needs are very low) and a Zwift client on Windows, macOS or Android. iOS is not supported.
+Zluggish needs some technical know-how to set up. You need a server that runs Docker (Linux, Windows or macOS; performance needs are very low but 15 gigabytes of disk space recommended) and a Zwift client on Windows, macOS or Android. iOS/iPadOS is not supported.
 
 ```sh
 mkdir zluggish && cd zluggish
