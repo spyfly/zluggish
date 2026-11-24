@@ -26,4 +26,4 @@ tls: {
 
 When using custom certificates, you cannot rotate certs automatically.
 
-The legacy zoffline app used to have a built-in certificate whose private key was shared with all other installs. This is insecure, so we have explicitly blacklisted that certificate in Zluggish. If you attempt to use it, a warning is displayed both in the webapp and the game launcher.
+The legacy zwift-offline app used to have a built-in certificate whose private key was shared with all other installs. This is insecure, so we have explicitly blacklisted that certificate in Zluggish. If you attempt to use it, a warning is displayed both in the webapp and the game launcher.

@@ -5,9 +5,7 @@ description: Install the Zluggish server with Docker Compose.
 
 # Install the server
 
-If you use legacy zwift-offline now, do the steps in [Migrate from zwift-offline](../maintenance/migrating.md) first.
-
-## Install with Docker Compose
+If you currently use the legacy zwift-offline app, first read the [migration guide](../maintenance/migrating.md).
 
 1. Make an empty directory on the server, for example `/etc/zluggish`.
 2. Download the [Docker Compose file](https://github.com/zluggish/zluggish/blob/main/docker/docker-compose.yml) to that directory and name it `docker-compose.yml`.
@@ -24,13 +22,11 @@ If you use legacy zwift-offline now, do the steps in [Migrate from zwift-offline
    zluggish-1  | 2026-11-17T11:40:23.126Z INFO server.ready Zluggish is ready
    ```
 
-The server makes the `storage` directory on the first start. This directory holds the configuration, the users and the activities.
-
-Backups are saved in `storage/backups/` on the host through the existing storage mount.
-
-The [ports reference](../reference/ports.md) tells what each port is for.
+The server creates automatically creates the `storage` directory on first start which holds configuration, database, and any other files needed.
 
 ## Build from source
+
+We generally discourage this install method and prefer you use docker compose.
 
 1. Clone the [repository](https://github.com/zluggish/zluggish).
 2. From the repository root, run:
@@ -38,8 +34,6 @@ The [ports reference](../reference/ports.md) tells what each port is for.
    ```sh
    docker compose -f docker/docker-compose.yml up --build
    ```
-
-This setup uses the `storage` directory in the repository root.
 
 ## First-time setup
 
