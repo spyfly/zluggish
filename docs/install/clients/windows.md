@@ -30,7 +30,7 @@ Here is what the script does:
 - adds the certificate to `data\cacert.pem` in the Zwift folder,
 - points the Zwift host names at the server in `C:\Windows\System32\drivers\etc\hosts`.
 
-It saves the original files as `cacert.pem.zluggish-backup` and `hosts.zluggish-backup`. 
+It saves the original files as `cacert.pem.zluggish-backup` and `hosts.zluggish-backup`.
 
 ## Manual install
 
