@@ -19,12 +19,12 @@ To make the first administrator, do the [first-time setup](../install/server.md#
 
 All users have these pages in the menu:
 
-| Page         | Use                                                                                                                                                       |
-| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Profile      | Edit your profile and avatar, change your password, or use **Import / Export** to transfer your data.                                                     |
-| Activities   | Show saved activities by month, with route, elevation and stats. Download FIT files and images.                                                           |
-| Integrations | Connect Strava, Garmin, Intervals.icu and TrainingPeaks. Follow the status of activity uploads.                                                           |
-| Settings     | Turn ghosts on or off. Calculate the power curves again.                                                                                                  |
+| Page         | Use                                                                                                                                                                   |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Profile      | Edit your profile and avatar, change your password, or use **Import / Export** to transfer your data.                                                                 |
+| Activities   | Show saved activities by month, with route, elevation and stats. Download FIT files and images.                                                                       |
+| Integrations | Connect Strava, Garmin, Intervals.icu and TrainingPeaks. Follow the status of activity uploads.                                                                       |
+| Settings     | Turn ghosts on or off. Calculate the power curves again.                                                                                                              |
 | Apps         | Set up Zwift on a Windows, macOS or Linux computer or an Android device, and download the [Zwift Companion app](../install/clients/companion-android.md) for Android. |
 
 ![The Profile page with avatar, name, email and birthday](../../media/screenshots/webapp-profile.png)
