@@ -1,16 +1,18 @@
 ---
 sidebar_position: 5
-description: Install and connect Zwift Companion on an Android phone or tablet.
+description: Set up Zwift Companion on Android for Zluggish
 ---
 
 # Companion (Android)
+
+How to set up Zwift Companion on Android to talk to Zluggish.
 
 Use the patched Zwift Companion app from your Zluggish server. It trusts the server's certificate and has the
 Zluggish icon. You can keep the official Companion app installed alongside it. No root access is needed.
 
 ## Install the app
 
-1. On the Android device, sign in to the [web app](../../usage/web-app.md) and open **Apps**.
+1. On the Android device, sign in to the Zluggish web app and select **Apps** in the menu.
 2. Select **Android** under **Zwift Companion**. The setup page shows the server address and the available app version.
 3. Download the patched Companion app, then open the downloaded file.
 4. Allow your browser to install apps, then select **Install**. If Play Protect warns about an unknown app, select
