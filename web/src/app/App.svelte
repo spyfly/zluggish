@@ -909,19 +909,27 @@
             }
             await enter();
           } catch (error) {
-            if (error instanceof ConnectionError) retryStartup = true;
+            if (error instanceof ConnectionError) {
+              retryStartup = true;
+            }
             throw error;
           }
         },
         '',
         true,
       );
-      if (!alive) return;
+      if (!alive) {
+        return;
+      }
       loading = retryStartup;
-      if (retryStartup && !get(connection).unavailable) void start();
+      if (retryStartup && !get(connection).unavailable) {
+        void start();
+      }
     };
     const unsubscribe = connection.subscribe((state) => {
-      if (alive && retryStartup && !state.unavailable && !busy) void start();
+      if (alive && retryStartup && !state.unavailable && !busy) {
+        void start();
+      }
     });
     void start();
 

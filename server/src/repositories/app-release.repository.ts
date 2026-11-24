@@ -45,13 +45,13 @@ const pureHeaders = { ...browserHeaders, Referer: 'https://apkpure.com/' };
 /** The numeric parts of a version name; a part that is not a number counts as 0. */
 const versionParts = (version: string) => version.split(/[.-]/).map((part) => Number(part) || 0);
 
-const entities: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
+const entities = new Map(Object.entries({ amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" }));
 
 function decode(text: string) {
   return text
     .replace(/^<!\[CDATA\[([\s\S]*)\]\]>$/, '$1')
     .replaceAll(/&(amp|lt|gt|quot|apos|#\d+);/g, (_, name: string) =>
-      name.startsWith('#') ? String.fromCodePoint(Number(name.slice(1))) : (entities[name] ?? ''),
+      name.startsWith('#') ? String.fromCodePoint(Number(name.slice(1))) : (entities.get(name) ?? ''),
     )
     .trim();
 }
@@ -199,12 +199,9 @@ export class AppReleaseRepository {
       },
     });
 
-    await pipeline(
-      Readable.fromWeb(response.body as import('node:stream/web').ReadableStream<Uint8Array>),
-      count,
-      createWriteStream(output, { flags: 'wx', mode: 0o600 }),
-      { signal },
-    );
+    await pipeline(Readable.from(response.body), count, createWriteStream(output, { flags: 'wx', mode: 0o600 }), {
+      signal,
+    });
 
     if (length !== null && received !== length) {
       throw new Error(t('app_release_download_incomplete'));

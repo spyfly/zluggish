@@ -14,16 +14,18 @@ export type LogEntry = {
   truncated: boolean;
 };
 
-const severities: Record<string, LogSeverity> = {
-  NOTSET: 'verbose',
-  VERBOSE: 'verbose',
-  DEBUG: 'verbose',
-  INFO: 'info',
-  WARN: 'warning',
-  WARNING: 'warning',
-  ERROR: 'error',
-  CRITICAL: 'critical',
-};
+const severities = new Map<string, LogSeverity>(
+  Object.entries({
+    NOTSET: 'verbose',
+    VERBOSE: 'verbose',
+    DEBUG: 'verbose',
+    INFO: 'info',
+    WARN: 'warning',
+    WARNING: 'warning',
+    ERROR: 'error',
+    CRITICAL: 'critical',
+  } satisfies Record<string, LogSeverity>),
+);
 
 /** How much each severity weighs, for filtering and for the height of its bar. */
 export const rank: Record<LogSeverity, number> = { verbose: 0, info: 1, warning: 2, error: 3, critical: 4 };
@@ -53,8 +55,8 @@ function unquote(text: string) {
     .map((part) =>
       part
         .slice(1, -1)
-        .replaceAll(/\\n/g, '\n')
-        .replaceAll(/\\t/g, '\t')
+        .replaceAll(String.raw`\n`, '\n')
+        .replaceAll(String.raw`\t`, '\t')
         .replaceAll(/\\(['"`\\])/g, '$1'),
     )
     .join('');
@@ -69,7 +71,7 @@ function fieldsOf(text: string, truncated: boolean): Array<LogField> | null {
   field.lastIndex = 0;
 
   for (let match = field.exec(text); match; match = field.exec(text)) {
-    fields.push({ key: match[1]!.replaceAll("'", ''), value: unquote(match[2]!) });
+    fields.push({ key: match[1].replaceAll("'", ''), value: unquote(match[2]) });
     end = field.lastIndex;
 
     if (text[end] !== ' ') {
@@ -90,11 +92,11 @@ function fieldsOf(text: string, truncated: boolean): Array<LogField> | null {
     return null;
   }
 
-  const value = partial[2]!.replace(/^['"`]/, '');
-  return [...fields, { key: partial[1]!.replaceAll("'", ''), value: `${value}…` }];
+  const value = partial[2].replace(/^['"`]/, '');
+  return [...fields, { key: partial[1].replaceAll("'", ''), value: `${value}…` }];
 }
 
-function split(rest: string, truncated: boolean): { message: string; fields: Array<LogField> } {
+function split(rest: string, truncated: boolean) {
   const limit = Math.min(rest.length, messageLimit);
 
   for (let start = 0; start <= limit; start = rest.indexOf(' ', start) + 1) {
@@ -117,20 +119,20 @@ export function parseLogEntry(raw: string): LogEntry {
   const truncated = raw.endsWith(truncatedMark);
   const line = truncated ? raw.slice(0, -truncatedMark.length) : raw;
   const match = head.exec(line);
-  const severity = match ? severities[match[2]!] : undefined;
+  const severity = match ? severities.get(match[2]) : undefined;
 
   if (!match || !severity) {
     return { raw, time: null, severity: 'info', event: '', message: line, fields: [], truncated };
   }
 
-  const time = new Date(match[1]!);
-  const { message, fields } = split(match[4]!, truncated);
+  const time = new Date(match[1]);
+  const { message, fields } = split(match[4], truncated);
 
   return {
     raw,
     time: Number.isNaN(time.getTime()) ? null : time,
     severity,
-    event: match[3]!,
+    event: match[3],
     message,
     fields,
     truncated,

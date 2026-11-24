@@ -107,10 +107,8 @@ await test('refreshing a signed-in page does not show the sign-in heading while 
   await page.goto(`${f.webOrigin}/manage/companion`);
   await page.getByRole('heading', { name: 'Companion for Android', exact: true }).waitFor();
 
-  let release!: () => void;
-  let started!: () => void;
-  const paused = new Promise<void>((resolve) => (release = resolve));
-  const requested = new Promise<void>((resolve) => (started = resolve));
+  const { promise: paused, resolve: release } = Promise.withResolvers<void>();
+  const { promise: requested, resolve: started } = Promise.withResolvers<void>();
   await page.route('**/api/setup', async (route) => {
     started();
     await paused;
@@ -122,7 +120,7 @@ await test('refreshing a signed-in page does not show the sign-in heading while 
     assert.equal(await page.locator('.bar').isVisible(), false);
     assert.equal(await page.locator('p[role="status"]').count(), 0);
     assert.equal(await page.getByRole('heading', { name: 'Sign in', exact: true }).count(), 0);
-    await page.getByText('This is taking longer than expected. The server may still be starting.').waitFor();
+    await page.getByText("Loading… Please wait, or reload the page if it doesn't respond.").waitFor();
     assert.equal(await page.getByRole('button', { name: 'Reload this page' }).isVisible(), true);
   } finally {
     release();
@@ -136,10 +134,8 @@ await test('companion page stays quiet briefly and offers help if its status is 
   page.setDefaultTimeout(7000);
   const rider = await f.accounts.create('Companion Rider', 'test-password', 'companion');
   await webSignIn(page, f, rider);
-  let release!: () => void;
-  let started!: () => void;
-  const paused = new Promise<void>((resolve) => (release = resolve));
-  const requested = new Promise<void>((resolve) => (started = resolve));
+  const { promise: paused, resolve: release } = Promise.withResolvers<void>();
+  const { promise: requested, resolve: started } = Promise.withResolvers<void>();
   await page.route('**/api/manage/companion', async (route) => {
     started();
     await paused;
@@ -149,7 +145,7 @@ await test('companion page stays quiet briefly and offers help if its status is 
     await page.goto(`${f.webOrigin}/manage/companion`, { waitUntil: 'domcontentloaded' });
     await requested;
     assert.equal(await page.getByText('Loading…', { exact: true }).isVisible(), false);
-    await page.getByText('This is taking longer than expected. The server may still be starting.').waitFor();
+    await page.getByText("Loading… Please wait, or reload the page if it doesn't respond.").waitFor();
     assert.equal(await page.getByRole('button', { name: 'Reload this page' }).isVisible(), true);
   } finally {
     release();
@@ -163,10 +159,8 @@ await test('android management stays quiet during a short load and explains a sl
   page.setDefaultTimeout(7000);
   const rider = await f.accounts.create('Android Rider', 'test-password', 'android');
   await webSignIn(page, f, rider);
-  let release!: () => void;
-  let started!: () => void;
-  const paused = new Promise<void>((resolve) => (release = resolve));
-  const requested = new Promise<void>((resolve) => (started = resolve));
+  const { promise: paused, resolve: release } = Promise.withResolvers<void>();
+  const { promise: requested, resolve: started } = Promise.withResolvers<void>();
   await page.route('**/api/install/android', async (route) => {
     started();
     await paused;
@@ -176,7 +170,7 @@ await test('android management stays quiet during a short load and explains a sl
     await page.goto(`${f.webOrigin}/manage/android`, { waitUntil: 'domcontentloaded' });
     await requested;
     assert.equal(await page.getByText('Loading…', { exact: true }).isVisible(), false);
-    await page.getByText('This is taking longer than expected. The server may still be starting.').waitFor();
+    await page.getByText("Loading… Please wait, or reload the page if it doesn't respond.").waitFor();
     assert.equal(await page.getByRole('button', { name: 'Reload this page' }).isVisible(), true);
   } finally {
     release();
@@ -445,6 +439,9 @@ for (const app of ['webapp', 'launcher']) {
       await page.locator(`form:has(input[name=player_id][value="${rider.player_id}"]) button`).click();
     }
 
+    if (app === 'webapp') {
+      await page.goto(`${f.webOrigin}/profile`);
+    }
     const field = page.getByLabel(app === 'webapp' ? 'First name' : 'Password', { exact: true });
     await field.fill(app === 'webapp' ? 'Unsaved' : 'draft-password');
     await page.route('**/health', (route) =>

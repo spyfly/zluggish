@@ -2,7 +2,8 @@
   import { tick } from 'svelte';
   import { t } from '../lib/i18n/index';
   import SlowLoading from '../components/SlowLoading.svelte';
-  import { parseLogEntry, rank, type LogEntry, type LogSeverity } from './server-logs';
+  import { parseLogEntry, rank } from './server-logs';
+  import type { LogEntry, LogSeverity } from './server-logs';
 
   let { load }: { load: () => Promise<{ entries: Array<string> }> } = $props();
 

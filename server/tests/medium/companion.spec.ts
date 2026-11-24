@@ -273,18 +273,21 @@ await test('the administrator sees new releases and has the server download and 
   });
 
   assert.equal(await responseStatus(web.request('/api/manage/app-releases')), 403);
-  const checked = (await json(admin.request('/api/manage/app-releases/check', 'POST', {}))) as {
-    enabled: boolean;
-    checkedAt: string | null;
-    apps: Record<
-      string,
-      {
-        apkmirror: { versionName: string } | null;
-        apkpure: { versionName: string } | null;
-        errors: { apkpure: string | null };
-      }
-    >;
-  };
+  const release = Schema.NullOr(Schema.Struct({ versionName: Schema.String }));
+  const checked = Schema.decodeUnknownSync(
+    Schema.Struct({
+      enabled: Schema.Boolean,
+      checkedAt: Schema.NullOr(Schema.String),
+      apps: Schema.Record(
+        Schema.String,
+        Schema.Struct({
+          apkmirror: release,
+          apkpure: release,
+          errors: Schema.Struct({ apkpure: Schema.NullOr(Schema.String) }),
+        }),
+      ),
+    }),
+  )(await json(admin.request('/api/manage/app-releases/check', 'POST', {})));
   assert.equal(checked.enabled, true);
   assert.ok(checked.checkedAt);
   assert.equal(checked.apps.companion?.apkmirror?.versionName, '3.92.0');
@@ -293,14 +296,14 @@ await test('the administrator sees new releases and has the server download and 
   assert.equal(checked.apps.zwift?.errors.apkpure, 'APKPure answered with status 403.');
   assert.equal(feed.mock.callCount(), 2);
   assert.equal(pure.mock.callCount(), 2);
-  const stored = JSON.parse(readFileSync(resolve(f.config.storageDir, 'app-releases.json'), 'utf8')) as {
-    checkedAt: string;
-  };
+  const stored = Schema.decodeUnknownSync(Schema.Struct({ checkedAt: Schema.String }))(
+    JSON.parse(readFileSync(resolve(f.config.storageDir, 'app-releases.json'), 'utf8')),
+  );
   assert.equal(stored.checkedAt, checked.checkedAt);
 
-  const off = (await json(admin.request('/api/manage/app-releases/settings', 'PUT', { enabled: false }))) as {
-    enabled: boolean;
-  };
+  const off = Schema.decodeUnknownSync(Schema.Struct({ enabled: Schema.Boolean }))(
+    await json(admin.request('/api/manage/app-releases/settings', 'PUT', { enabled: false })),
+  );
   assert.equal(off.enabled, false);
 
   assert.equal(await responseStatus(admin.request('/api/manage/companion/download', 'POST', {})), 202);
