@@ -145,6 +145,7 @@
           {t('turn_off')} <strong>{t('private_dns')}</strong>
           {t('companion_hosts_private_dns_hint')}
         </p>
+        <p class="hint">{t('dns_override_alternatives_hint')}</p>
       </li>
       <li>
         <h2>{t('sign_in')}</h2>

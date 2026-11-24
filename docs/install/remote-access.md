@@ -82,14 +82,16 @@ The private range must not be the same on the Zwift device and at home. If the t
 
 1. Install the Cloudflare One Client and sign in to your Zero Trust organization.
 2. Connect the client.
-3. Set up the client as in [Windows](clients/windows.md), [macOS](clients/macos.md) or [Android](clients/android.md). Install the certificate and use the private IP address of the server as `<server-ip>` in the hosts file.
+3. Set up the client as in [Windows](clients/windows.md), [macOS](clients/macos.md) or [Android](clients/android.md). Install the certificate. To send the Zwift names to the server, use a [Gateway DNS policy](#redirect-the-zwift-names-with-gateway-dns), or use the private IP address of the server as `<server-ip>` in the hosts file.
 4. Start Zwift.
 
 To make sure that the tunnel works, open `http://<server-ip>:8080` on the Zwift device while the client is connected.
 
-### Optional: Redirect with Gateway DNS instead of the hosts file
+### Redirect the Zwift names with Gateway DNS
 
-When the Cloudflare One Client is connected, it sends DNS queries to Cloudflare Gateway. A Gateway DNS policy can send the Zwift names to your server. Then you do not have to change the hosts file on each device. This is useful on Android, where you cannot change the hosts file without root.
+When the Cloudflare One Client is connected, it sends DNS queries to Cloudflare Gateway. A Gateway DNS firewall policy with the **Override** action can answer the Zwift names with the address of your server. Then you do not have to change the hosts file on each device, and the redirect follows the device to any network.
+
+This is the recommended method on Android and for Companion. Android does not let you change the hosts file without root, and a VPN app such as Virtual Hosts cannot run at the same time as the Cloudflare One Client.
 
 1. Go to **Zero Trust** > **Traffic policies** > **Firewall policies** > **DNS**.
 2. Add a policy:
@@ -102,6 +104,8 @@ When the Cloudflare One Client is connected, it sends DNS queries to Cloudflare 
 To apply the policy only to some users, add an identity condition, for example `User Email` `in` the addresses of your riders.
 
 You must still install the certificate on each device. The DNS policy changes only the address.
+
+On Android, turn off **Private DNS** in the Android settings. Otherwise Android can send DNS queries past the client, and the override does not apply.
 
 :::warning
 

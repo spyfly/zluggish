@@ -188,6 +188,7 @@
           {t('turn_off')} <strong>{t('private_dns')}</strong>
           {t('android_settings_hint')}
         </p>
+        <p class="hint">{t('dns_override_alternatives_hint')}</p>
       </li>
       <li>
         <h2>{t('phone_setup_ride')}</h2>

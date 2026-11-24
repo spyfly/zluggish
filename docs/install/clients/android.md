@@ -20,22 +20,32 @@ If no download is available, ask the administrator to [publish Zwift for Android
 
 ## Point Zwift at Zluggish
 
+Android does not let you edit the hosts file without root. Send the Zwift names to the server with DNS instead. Use one of these, in order of preference:
+
+- **Zluggish DNS**: set `dns.enabled` to `true` in `zluggish.config.ts` and set the Wi-Fi connection's primary DNS server to the IP address of the Zluggish server. See [Configuration](../../reference/configuration.md).
+- **Router**: add the host records from **Apps → Zwift → Android** on a router that supports local DNS overrides.
+- **Cloudflare Gateway**: if the phone uses the Cloudflare One Client (WARP), a Gateway DNS policy can override the Zwift names. This also works on mobile data. See [Remote access](../remote-access.md#redirect-the-zwift-names-with-gateway-dns).
+- **Virtual Hosts**: use this only if none of the above works. See [Virtual Hosts](#virtual-hosts).
+
+In the Android settings, turn off **Private DNS**. Otherwise Android can skip the DNS server that has the Zluggish records.
+
+### Virtual Hosts
+
+[Virtual Hosts](https://github.com/x-falcon/Virtual-Hosts) is a VPN app that redirects host names without root. It is no longer updated: its latest release is several years old, and newer Android versions can warn about it or refuse to install it. You cannot use it together with another VPN, such as the Cloudflare One Client.
+
 1. Install `app-Github-release.apk` from the [Virtual Hosts releases](https://github.com/x-falcon/Virtual-Hosts/releases/latest).
 2. Copy the provided host entries from **Apps → Zwift → Android** into a file named `hosts.txt` on the device.
-3. In the Android settings, turn off **Private DNS**.
-4. Open Virtual Hosts and select `hosts.txt`.
-
-To use Zluggish DNS, set `dns.enabled` to `true` in `zluggish.config.ts` and set the Wi-Fi connection’s primary DNS server to the IP address of the Zluggish server. See [Configuration](../../reference/configuration.md). You can also set the host records on a router that supports local DNS overrides.
+3. Open Virtual Hosts, select `hosts.txt` and turn it on.
 
 ## Start Zwift
 
-1. Make sure that the Virtual Hosts button is on.
+1. Make sure that the DNS redirect is active: you are on the Wi-Fi network that uses Zluggish DNS or the router, the Cloudflare One Client is connected, or Virtual Hosts is on.
 2. Ask an administrator to make your user in the [web app](../../usage/web-app.md), under **Manage → Users**. Your user must have a password.
 3. Open **Zwift for Zluggish** and sign in with your username and password. The first start unpacks the game files, which takes a few minutes.
 
 You can now ride on Zluggish. Enjoy!
 
-Turn Virtual Hosts off before you open Zwift from Google Play.
+While the redirect is active, Zwift from Google Play also connects to Zluggish. Turn the redirect off before you use it with the official Zwift servers.
 
 ## Update the app
 

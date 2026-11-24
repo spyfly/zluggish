@@ -23,33 +23,47 @@ first. If it says the app was made for an old certificate, ask the administrator
 
 ## Point Companion at Zluggish
 
-1. Install `app-Github-release.apk` from the
-   [Virtual Hosts releases](https://github.com/x-falcon/Virtual-Hosts/releases/latest).
-2. Copy the host entries from the Companion setup page into a file named `hosts.txt` on the device. They look like
-   this; replace `<server-ip>` with the IP address of your Zluggish server:
+Companion needs these two names to point at the server. Replace `<server-ip>` with the IP address of your Zluggish
+server:
 
-   ```text
-   <server-ip> us-or-rly101.zwift.com
-   <server-ip> secure.zwift.com
-   ```
+```text
+<server-ip> us-or-rly101.zwift.com
+<server-ip> secure.zwift.com
+```
 
-3. Turn off **Private DNS** in Android settings.
-4. Open Virtual Hosts, select `hosts.txt` and turn it on.
+Android does not let you edit the hosts file without root. Use one of these, in order of preference:
+
+- **Zluggish DNS**: the administrator sets `dns.enabled: true` in `zluggish.config.ts`. Set the Wi-Fi connection's
+  primary DNS server to the Zluggish server's IP address. See [Configuration](../../reference/configuration.md).
+- **Router**: add the two host records on a router that supports local DNS overrides.
+- **Cloudflare Gateway**: if the phone uses the Cloudflare One Client (WARP), a Gateway DNS policy can override the
+  two names. This also works on mobile data. See
+  [Remote access](../remote-access.md#redirect-the-zwift-names-with-gateway-dns).
+- **Virtual Hosts**: use this only if none of the above works. See [Virtual Hosts](#virtual-hosts).
+
+Turn off **Private DNS** in Android settings. Otherwise Android can skip the DNS server that has the Zluggish records.
 
 :::warning
 
-Do not add `cdn.zwift.com` to the Companion hosts file. Companion downloads images from the official server.
+Do not point `cdn.zwift.com` at Zluggish for Companion. Companion downloads images from the official server.
 
 :::
 
-Instead of Virtual Hosts, the administrator can enable Zluggish DNS with `dns.enabled: true` in `zluggish.config.ts`.
-Set the Wi-Fi connection's primary DNS server to the Zluggish server's IP address. A router with local DNS overrides
-can also provide the two host records. See [Configuration](../../reference/configuration.md).
+### Virtual Hosts
+
+[Virtual Hosts](https://github.com/x-falcon/Virtual-Hosts) is a VPN app that redirects host names without root. It
+is no longer updated: its latest release is several years old, and newer Android versions can warn about it or refuse
+to install it. You cannot use it together with another VPN, such as the Cloudflare One Client.
+
+1. Install `app-Github-release.apk` from the
+   [Virtual Hosts releases](https://github.com/x-falcon/Virtual-Hosts/releases/latest).
+2. Copy the host entries from the Companion setup page into a file named `hosts.txt` on the device.
+3. Open Virtual Hosts, select `hosts.txt` and turn it on.
 
 ## Sign in
 
-Keep Virtual Hosts on, open Companion with the Zluggish icon and sign in with your Zluggish account, the same one
-you use in the web app and the game.
+Make sure that the DNS redirect is active, then open Companion with the Zluggish icon and sign in with your Zluggish
+account, the same one you use in the web app and the game.
 
 While the DNS override is active, both Companion installs on the device point at Zluggish. Turn it off before
 using the official Companion app with the official Zwift servers.
