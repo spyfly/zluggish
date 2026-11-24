@@ -8,25 +8,23 @@ description: Server and client requirements for Zluggish.
 Zluggish is for users with technical knowledge. It has two parts:
 
 - The **server** keeps your progress and runs the ride services.
-- The **client** is the device that runs the Zwift app.
+- The **client** is the device that runs the Zwift app, i.e. the game you see on screen.
 
-The server and the client can be on the same computer. They can also be on different computers on the same network.
+The server and the client can be on the same computer, but they don't have to.
 
 ## Server
 
-- A computer with Linux, Windows or macOS. The server needs very little performance.
+- A computer with Linux, Windows or macOS. Generally, performance requirements are low but we recommend 15gb of free space to host the Android apps.
 - Docker Compose. Zluggish runs as a container.
-
-To run from source without Docker, use Node.js 26 and pnpm 12. See [Run the CLI natively](../reference/cli/index.md#run-natively).
 
 ## Client
 
-You must patch the Zwift client. Windows, macOS and Linux have a setup script in the web app.
+You must patch the Zwift client to make it use Zluggish instead of the official servers. The webapp has automatic scripts to help you with that.
 
 - [Windows](clients/windows.md)
 - [macOS](clients/macos.md)
 - [Linux](clients/linux.md)
-- [Android](clients/android.md). Android needs manual patching.
+- [Android](clients/android.md)
 
 iPhone and iPad clients are not supported.
 

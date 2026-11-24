@@ -32,12 +32,6 @@
   let status = $state<TlsStatus | null>(null);
   let failure = $state('');
 
-  const sources = {
-    managed: t('generated_by_this_server'),
-    legacy: t('shared_zwift_certificate'),
-    custom: t('server_certificate_source_configured'),
-  };
-
   const day = (iso: string) =>
     new Date(iso).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' });
 
@@ -91,10 +85,6 @@
   {#if failure}<p class="failed" role="alert">{failure}</p>{/if}
   {#if status}
     <dl class="facts">
-      <div>
-        <dt>{t('source')}</dt>
-        <dd>{sources[status.mode]}</dd>
-      </div>
       {#if status.certificate}
         <div>
           <dt>{t('created')}</dt>
