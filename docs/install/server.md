@@ -23,7 +23,7 @@ The server is ready when the logs show `Zluggish is ready`. Compose mounts `../s
 1. Find **Setup key** in the logs. It is valid until you complete setup or stop the server. Keep it private.
 2. On the server computer, open [http://localhost:8080/setup](http://localhost:8080/setup). To use a browser on another device, see [web app access](../usage/web-app.md).
 3. Enter the key and select **Check key**.
-4. Enter your first name, last name, login name and password, then select **Complete setup**. This creates the first administrator.
+4. Enter your name and login name. Enter and confirm your password, then select **Complete setup** to create the first administrator.
 
 ## Connect a client
 

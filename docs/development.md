@@ -35,7 +35,7 @@ For backend changes, start with `server/src/http/app.ts` for the game API, `serv
 
 ## Run CI checks
 
-GitHub starts the [test workflow](https://github.com/zluggish/zluggish/blob/main/.github/workflows/tests.yml) when you open or push to a pull request and on pushes to `main`. Check the **Checks** tab of the pull request for results. The server job runs on Linux, Windows and macOS. The lint, translation, container and browser jobs run on Linux. Separate workflows check the PR title and build the public sites when relevant files change.
+GitHub starts the [test workflow](https://github.com/zluggish/zluggish/blob/main/.github/workflows/tests.yml) when you open or push to a pull request and on pushes to `main`. Check the **Checks** tab of the pull request for results. The server job runs on Linux, Windows and macOS. The lint, translation, container and browser jobs run on Linux. The PR title has its own check. The public-site workflows run when their inputs change.
 
 From the repository root, run the main checks locally:
 
