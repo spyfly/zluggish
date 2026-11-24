@@ -4,49 +4,21 @@ The CLI manages operator configuration, user settings, legacy migrations, and lo
 
 Run the commands below from the **repository root**. Replace sample paths and rider ID `1` with your own values. Stop every server using the target storage before running `accounts migrate`, `accounts recover`, `config migrate` (except `--dry-run`), `settings set/reset` (except `--dry-run`), or any `storage` or `uploads` command. These operations take an exclusive storage lock.
 
-## Run natively
+## Run from source
 
-Use Node **26.13 or later within the 26.x series** and **pnpm 12.18.0**. The admin CLI is part of the server package and operates directly on server storage.
-
-### macOS and Linux
-
-With the required Node version installed, enable the pinned pnpm version and build:
+See the [development guide](../docs/development.md) for Node and pnpm setup. From the repository root, use the TypeScript entry point:
 
 ```sh
-corepack enable
-corepack prepare pnpm@12.18.0 --activate
-pnpm install --frozen-lockfile
-pnpm build
-node server/dist/src/cli/bin.js --help
+mise run cli -- --help
+mise run cli --config ../examples/reference/zluggish.config.ts config validate
 ```
 
-The server build includes the CLI. Run a command using the compiled entry point:
+Paths passed to `mise run cli` resolve from `server/`, where the task runs. Use absolute paths for configuration and storage, or run the compiled CLI from the repository root:
 
 ```sh
-node server/dist/src/cli/bin.js --config ./examples/zluggish.config.ts config validate
+mise run build
+mise exec -- node server/dist/src/cli/bin.js --help
 ```
-
-Alternatively, run the TypeScript entry point without compiling:
-
-```sh
-pnpm --dir server cli --help
-pnpm --dir server cli --config ./examples/zluggish.config.ts config validate
-```
-
-### Windows (PowerShell)
-
-Native Windows execution is supported by the code, including Windows storage locks, but these instructions have not been verified on Windows. Install the same Node and pnpm versions, open PowerShell in the repository root, and run:
-
-```powershell
-corepack enable
-corepack prepare pnpm@12.18.0 --activate
-pnpm install --frozen-lockfile
-pnpm build
-node .\server\dist\src\cli\bin.js --help
-node .\server\dist\src\cli\bin.js --config .\server\zluggish.config.ts config validate
-```
-
-The TypeScript entry point also works with `pnpm --dir server cli --help`. Quote paths containing spaces, for example `--storage-dir 'C:\Zluggish Data\storage'`. If native dependency installation fails on your Windows architecture, use the Linux-container instructions below with Docker Desktop.
 
 ## Run with Docker Compose
 
@@ -75,7 +47,7 @@ You can also run the image directly against a storage directory:
 docker run --rm -v /absolute/path/to/storage:/usr/src/app/zluggish/storage ghcr.io/zluggish/zluggish:latest zluggish config validate
 ```
 
-These commands require an image built with the integrated CLI. For a local source checkout, build it with `docker compose -f docker/docker-compose.yml build zluggish` first. Config files are trusted code, and the CLI has full administrative access to mounted storage.
+The Compose file uses the published image. To build an image from source, use the [Docker build command in the development guide](../docs/development.md#container-smoke-tests). Config files are trusted code, and the CLI has full administrative access to mounted storage.
 
 ## Configuration and common options
 

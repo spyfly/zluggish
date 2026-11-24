@@ -5,27 +5,20 @@ description: Server and client requirements for Zluggish.
 
 # Requirements
 
-Zluggish is for users with technical knowledge. It has two parts:
-
-- The **server** keeps your progress and runs the ride services.
-- The **client** is the device that runs the Zwift app, i.e. the game you see on screen.
-
-The server and the client can be on the same computer, but they don't have to.
+You need a computer to run Zluggish and a device to run Zwift. They can be the same computer.
 
 ## Server
 
-- A computer with Linux, Windows or macOS. Generally, performance requirements are low but we recommend 15gb of free space to host the Android apps.
-- Docker Compose. Zluggish runs as a container.
+- Docker with Docker Compose on Linux, Windows or macOS.
+- Free disk space for your storage and backups. Plan for at least 10 GB of free build space if you [publish Zwift for Android](clients/android.md#publish-zwift-for-android), plus room for its download.
 
-## Client
+## Zwift client
 
-You must patch the Zwift client to make it use Zluggish instead of the official servers. The webapp has automatic scripts to help you with that.
+Set up Zwift from the **Apps** page of the Zluggish web app. Choose the guide for your device:
 
 - [Windows](clients/windows.md)
 - [macOS](clients/macos.md)
-- [Linux](clients/linux.md)
+- [Linux with Wine](clients/linux.md)
 - [Android](clients/android.md)
 
-iPhone and iPad clients are not supported.
-
-For the Zwift hardware requirements, see the [official system requirements](https://support.zwift.com/en_us/supported-devices-to-run-zwift-H1Cj9QbeB).
+For Zwift's hardware requirements, see [Zwift's supported devices](https://support.zwift.com/en_us/supported-devices-to-run-zwift-H1Cj9QbeB). Zluggish also supports [Companion on Android](clients/companion-android.md). Both apps are unsupported on iPhone and iPad.

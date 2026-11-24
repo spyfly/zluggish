@@ -126,8 +126,9 @@
       </li>
       <li>
         <h2>{t('companion_description')}</h2>
+        <p>{t('companion_dns_override_hint')}</p>
         <p>
-          {t('install')}
+          {t('install_virtual_hosts_if_needed')}
           <a href="https://github.com/x-falcon/Virtual-Hosts/releases/latest" target="_blank" rel="noopener noreferrer"
             >{t('virtual_hosts')}</a
           >{t('save_these_lines_as')} <strong>{t('hosts_txt')}</strong>
@@ -145,7 +146,6 @@
           {t('turn_off')} <strong>{t('private_dns')}</strong>
           {t('companion_hosts_private_dns_hint')}
         </p>
-        <p class="hint">{t('dns_override_alternatives_hint')}</p>
       </li>
       <li>
         <h2>{t('sign_in')}</h2>

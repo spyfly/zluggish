@@ -1,68 +1,43 @@
 ---
 sidebar_position: 1
-description: The Zluggish web app for users and administrators.
+description: Use the Zluggish web app to manage rides, accounts and the server.
 ---
 
 # Web app
 
-Users and administrators use the web app to work with Zluggish. The default address is `http://<server-ip>:8080`.
+On the server computer, open [http://localhost:8080](http://localhost:8080). For a browser on another device, use an HTTPS address through a [reverse proxy](#use-a-reverse-proxy) or [Cloudflare Tunnel](../install/remote-access.md#web-app). The web app uses browser features that require HTTPS or a loopback address such as `localhost`.
 
-:::warning
+To create the first administrator, follow [First-time setup](../install/server.md#first-time-setup).
 
-Use the web app only on a network that you trust. Without HTTPS, other devices on the network can read the passwords that users type.
+## Rider pages
 
-:::
-
-To make the first administrator, do the [first-time setup](../install/server.md#first-time-setup).
-
-## User pages
-
-All users have these pages in the menu:
-
-| Page         | Use                                                                                                                                                                   |
-| ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Profile      | Edit your profile and avatar, change your password, or use **Import / Export** to transfer your data.                                                                 |
-| Activities   | Show saved activities by month, with route, elevation and stats. Download FIT files and images.                                                                       |
-| Integrations | Connect Strava, Garmin, Intervals.icu and TrainingPeaks. Follow the status of activity uploads.                                                                       |
-| Settings     | Turn ghosts on or off. Calculate the power curves again.                                                                                                              |
-| Apps         | Set up Zwift on a Windows, macOS or Linux computer or an Android device, and download the [Zwift Companion app](../install/clients/companion-android.md) for Android. |
-
-![The Profile page with avatar, name, email and birthday](../../media/screenshots/webapp-profile.png)
-
-![The Settings page with the Ride with ghosts option and Regenerate power curves](../../media/screenshots/webapp-settings.png)
+| Page         | What you can do                                                                                                                |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| Activities   | Browse rides by month. View the route, elevation and ride statistics. Download FIT files and images.                           |
+| Profile      | Edit your profile and avatar, change your password, and use **Import / Export** to transfer data.                              |
+| Climbs       | See the climb portals you have ridden and your best times.                                                                     |
+| Integrations | Set up [activity uploads and workout imports](integrations/index.md).                                                          |
+| Settings     | Toggle ghosts and regenerate power curves.                                                                                     |
+| Apps         | Set up Zwift for Windows, macOS, Linux or Android, or [install Companion on Android](../install/clients/companion-android.md). |
 
 ## Administrator pages
 
-Administrators also have **Users**, **Server** and **Android apps** under **Manage**:
+Open **Manage** in the sidebar.
 
-- **Users**: make, enable, disable and delete users. Give or remove the administrator role. Set passwords, end sessions and edit the settings of a user.
-- **Android apps**: publish patched versions of [Zwift](../install/clients/android.md) and [Zwift Companion](../install/companion-app.md) for Android. Open **Companion** to download or upload the app and build it for this server.
-- **Server**: see and rotate the [server certificate](../install/certificate.md). Make a backup. Reload or control bots, and edit stored world settings, such as blob and peloton overrides. Edit and delete events. Show the effective configuration.
-
-Changes to `zluggish.config.ts` need a server restart.
-
-![The Users page listing five users, with an administrator, a disabled user and a user who is riding now](../../media/screenshots/webapp-users.png)
+- **Users** lets you create, disable or delete accounts, set passwords, change roles and end sessions.
+- **Android apps** lets you publish [Zwift](../install/clients/android.md#publish-zwift-for-android) and [Companion](../install/companion-app.md) builds for your server.
+- **Server** lets you rotate the [certificate](../install/certificate.md), [start a backup](../maintenance/backup-and-restore.md), read logs and manage bots, events and world settings.
 
 ## Use a reverse proxy
 
-1. Set `network.web.publicUrl` to the address that users open, for example `https://zluggish.example.com`.
-2. Start the server again.
+1. Configure your HTTPS proxy to forward requests to the web listener, which defaults to HTTP port 8080.
+2. Set `network.web.publicUrl` to the browser-facing origin, such as `https://zluggish.example.com`.
+3. Restart Zluggish and use that address to sign in.
 
-The web app then accepts requests only from that address. With an `https` address, the sign-in cookies get the `Secure` flag.
+Zluggish checks the origin on requests that change data. An HTTPS origin also makes session cookies secure. If you open the web app at a different address after setting `publicUrl`, sign-in and changes can fail.
 
-When the web app is enabled and `network.web.publicUrl` is set, the launcher shows a **Manage your account** link next to the logo on its sign-in and dashboard pages. It opens the web app in the browser.
+When the web app is enabled and has a public URL, the game launcher links to it with **Manage your account**.
 
 ## Turn off the web app
 
-The first-time setup and new users need the web app. After the setup, an administrator can turn it off.
-
-1. Set `network.web.enabled` to `false` in `zluggish.config.ts`.
-2. Start the server again.
-
-When the web app is off:
-
-- Nobody can make or manage users, show activities, or change settings and integrations.
-- Rides continue to work. Users with a password can sign in through the game launcher.
-- The server continues to save and upload activities.
-
-To turn it on again, set `network.web.enabled` to `true` and start the server again.
+Complete setup and create your riders first. Set `network.web.enabled` to `false` in `zluggish.config.ts` and restart the server. Riders with a password can still sign in through Zwift. The server continues to save rides and run configured activity uploads.
