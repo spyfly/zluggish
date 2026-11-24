@@ -1,5 +1,6 @@
 <script lang="ts">
   import { t } from '../lib/i18n/index';
+  import SlowLoading from '../components/SlowLoading.svelte';
   import { onMount } from 'svelte';
   import { z } from 'zod';
   import type { Api } from '../lib/api';
@@ -67,7 +68,7 @@
 
 {#if failure}<p class="notice failed" role="alert">{failure}</p>{/if}
 {#if climbs === null}
-  {#if !failure}<p class="delayed" role="status">{t('loading_climbs')}</p>{/if}
+  {#if !failure}<SlowLoading />{/if}
 {:else if climbs.length === 0}
   <section class="panel narrow">
     <h2>{t('climbs_empty')}</h2>
@@ -144,16 +145,6 @@
 {/if}
 
 <style>
-  .delayed {
-    animation: reveal 150ms ease-out 400ms both;
-  }
-  @keyframes reveal {
-    from {
-      opacity: 0;
-      visibility: hidden;
-    }
-  }
-
   /* Styles are scoped per component, so the glass panel of the other pages is repeated here. */
   .panel {
     background: var(--glass);

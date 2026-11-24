@@ -1,5 +1,6 @@
 <script lang="ts">
   import { t } from '../lib/i18n/index';
+  import SlowLoading from '../components/SlowLoading.svelte';
   import type { z } from 'zod';
   import { onMount } from 'svelte';
   import { companionStatus } from './companion';
@@ -64,7 +65,6 @@
           : t('zwift_needs_a_rebuild', { value1: android.app.versionName }),
       tag: mark('android', t('this_device')),
     },
-    { to: '/install/android-rooted', name: t('android_rooted'), detail: t('manual_setup_with_adb') },
     {
       to: '/install/ios',
       name: t('iphone_and_ipad'),
@@ -162,7 +162,7 @@
 {/snippet}
 
 {#if !loaded}
-  <p role="status">{t('loading')}</p>
+  <SlowLoading />
 {:else}
   <div class="apps">
     <section class="product zwift" aria-labelledby="apps-zwift">

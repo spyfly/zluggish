@@ -1,6 +1,7 @@
 import { t } from '#src/i18n/index';
 import { BackupService } from '#src/services/backup.service';
 import { TlsService } from '#src/services/tls.service';
+import { AppReleasesService } from '#src/services/app-releases.service';
 import { CompanionService, companionUploadLimit } from '#src/services/companion.service';
 import { linuxSetupScript, macosSetupScript, setupFileName, windowsSetupScript } from '#src/http/client-setup';
 import { AccountsService } from '#src/services/auth.service';
@@ -520,6 +521,15 @@ export function createWebApp(runtime: HttpRuntime) {
     }),
   );
 
+  appRoutes.post('/api/manage/zwift-android/download', (c) =>
+    Effect.gen(function* () {
+      yield* sessions.require(c.get('sessionId'), true);
+      const android = yield* ZwiftAndroidService;
+
+      return c.json(yield* Effect.promise(() => android.fetchLatest()), 202);
+    }),
+  );
+
   appRoutes.post('/api/manage/zwift-android/stop', (c) =>
     Effect.gen(function* () {
       yield* sessions.require(c.get('sessionId'), true);
@@ -969,7 +979,48 @@ export function createWebApp(runtime: HttpRuntime) {
         throw new ApplicationError({ status: 400, message: t('web_app_upload_file_required') });
       }
 
-      return c.json(yield* companion.upload(body), 202);
+      // The file's name, shown beside the saved upload. Only the last path segment, as browsers send.
+      const name = (c.req.query('name') ?? '').split(/[\\/]/).pop()?.slice(0, 255) || 'upload';
+
+      return c.json(yield* companion.upload(body, name), 202);
+    }),
+  );
+  appRoutes.post('/api/manage/companion/download', (c) =>
+    Effect.gen(function* () {
+      const companion = yield* CompanionService;
+
+      return c.json(yield* companion.fetchLatest(), 202);
+    }),
+  );
+  appRoutes.get('/api/manage/app-releases', (c) =>
+    Effect.gen(function* () {
+      const releases = yield* AppReleasesService;
+
+      return c.json(yield* releases.status());
+    }),
+  );
+  appRoutes.post('/api/manage/app-releases/check', (c) =>
+    Effect.gen(function* () {
+      const releases = yield* AppReleasesService;
+
+      return c.json(yield* releases.check());
+    }),
+  );
+  appRoutes.put('/api/manage/app-releases/settings', (c) =>
+    Effect.gen(function* () {
+      const input = Schema.decodeUnknownSync(Strict({ enabled: Schema.Boolean }))(
+        yield* Effect.promise(() => c.req.json()),
+      );
+      const releases = yield* AppReleasesService;
+
+      return c.json(yield* releases.setEnabled(input.enabled));
+    }),
+  );
+  appRoutes.post('/api/manage/companion/rebuild', (c) =>
+    Effect.gen(function* () {
+      const companion = yield* CompanionService;
+
+      return c.json(yield* companion.rebuild(), 202);
     }),
   );
   appRoutes.delete('/api/manage/companion/app', (c) =>
@@ -1099,6 +1150,7 @@ export function createWebApp(runtime: HttpRuntime) {
     '/setup',
     '/sign-in',
     '/settings',
+    '/profile',
     '/profile/:id',
     '/integrations',
     '/profile-data',

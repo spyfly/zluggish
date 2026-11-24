@@ -1,5 +1,6 @@
 <script lang="ts">
   import { t } from '../lib/i18n/index';
+  import SlowLoading from '../components/SlowLoading.svelte';
   import { onMount } from 'svelte';
   import Fingerprint from '../components/Fingerprint.svelte';
   import { tlsStatus } from './tls';
@@ -133,7 +134,7 @@
 
 {#if failure}<p class="notice failed" role="alert">{failure}</p>{/if}
 {#if status === null}
-  {#if !failure}<p role="status">{t('loading')}</p>{/if}
+  {#if !failure}<SlowLoading />{/if}
 {:else if status.mode === 'legacy'}
   <section class="panel">
     <p>{t('desktop_setup_certificate_shared_hint')}</p>
@@ -173,7 +174,6 @@
   <section class="panel" aria-label={`${platform.name} setup steps`}>
     <ol class="walk">
       <li>
-        <h2>{t('setup_script_download')}</h2>
         <div class="setup-actions">
           {#if addressError}
             <button class="primary" type="button" disabled>{t('download_setup_script')}</button>
@@ -256,10 +256,6 @@
         </p>
       </li>
     </ol>
-    <p class="elsewhere">
-      {t('desktop_setup_manual_title')}
-      <a href="/install/manual" onclick={(event) => go(event, '/install/manual')}>{t('manual_setup')}</a>
-    </p>
   </section>
 {/if}
 

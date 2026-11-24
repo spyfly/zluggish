@@ -167,7 +167,7 @@ for (const existing of [false, true]) {
         fail.resolve();
         await page.getByLabel('First name', { exact: true }).waitFor();
         await page.waitForFunction(() => !document.querySelector<HTMLButtonElement>('.sign-out')?.disabled);
-        assert.equal(new URL(page.url()).pathname, '/');
+        assert.equal(new URL(page.url()).pathname, '/profile');
         assert.equal(await page.getByRole('alert').count(), 0);
         await navigate('Settings');
         await ghosts.waitFor();

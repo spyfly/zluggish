@@ -33,7 +33,6 @@ description = 'Run lint, formatting checks, and tests'
 depends = ['i18n:check', 'lint', 'format', 'test']
 
 [tasks.dev]
-alias = 'server-dev'
 description = 'Run the full stack at http://localhost:5173 with hot updates'
 depends = ['dev:server', 'dev:web']
 

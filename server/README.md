@@ -215,7 +215,7 @@ A restored backup cannot know which deliveries the providers received after the 
 
 ## Development tools
 
-Run `mise dev` from `server/`, then open <http://localhost:5173>. This starts Vite with Svelte hot updates and the backend with automatic restarts. API requests are proxied to the backend on port 8080. The development config uses separate storage in `storage/dev` and unprivileged game ports (8787 and 8788). On first launch, use the setup key printed by the backend at <http://localhost:5173/setup>. Ctrl-C stops both processes. The existing `mise server-dev` command is also supported.
+Run `mise dev` from `server/`, then open <http://localhost:5173>. This starts Vite with Svelte hot updates and the backend with automatic restarts. API requests are proxied to the backend on port 8080. The development config uses separate storage in `storage/dev` and unprivileged game ports (8787 and 8788). On first launch, use the setup key printed by the backend at <http://localhost:5173/setup>. Ctrl-C stops both processes.
 
 Shared ESLint, Oxlint, Prettier, and mise configuration live in this folder. Run `mise run check` from `server/` to build, lint, typecheck, test, and check formatting for the server and its CLI. ESLint uses TypeScript-aware correctness rules, import checks and Unicorn conventions. Its starting configuration came from `immich-app/immich`'s `server/eslint.config.mjs`. Oxlint uses [`@cloudflare/oxlint-config`](https://github.com/cloudflare/oxlint-config) with type-aware rules; project exceptions and their reasons are recorded in `oxlint.config.ts`.
 

@@ -1,6 +1,7 @@
 import { Schema } from 'effect';
 import { ToolchainRepository } from '#src/repositories/toolchain.repository';
 import { ApkRepository } from '#src/repositories/apk.repository';
+import { AppReleaseRepository } from '#src/repositories/app-release.repository';
 import { ManagementService } from '#src/services/management.service';
 import { TlsService } from '#src/services/tls.service';
 import { mediumWeb } from '#tests/medium/support';
@@ -9,7 +10,7 @@ import { responseStatus } from '#tests/support/html';
 import { runtimeFixture } from '#tests/support/runtime';
 import assert from 'node:assert/strict';
 import { X509Certificate } from 'node:crypto';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -67,6 +68,7 @@ const companionAdminStatus = Schema.decodeUnknownSync(
       }),
     ),
     pending: Schema.Boolean,
+    original: Schema.NullOr(Schema.Struct({ name: Schema.String, bytes: Schema.Finite })),
   }),
 );
 
@@ -78,7 +80,10 @@ async function json(request: Response | Promise<Response>) {
   return body;
 }
 
-async function settled(admin: ReturnType<typeof mediumWeb>, kind: 'patch' | 'rekey' | 'toolchain') {
+async function settled(
+  admin: ReturnType<typeof mediumWeb>,
+  kind: 'patch' | 'rebuild' | 'download' | 'rekey' | 'toolchain',
+) {
   for (let attempt = 0; attempt < 200; attempt++) {
     const status = companionAdminStatus(await json(admin.request('/api/manage/companion')));
 
@@ -129,7 +134,8 @@ await test('the administrator patches the Companion app and every rider download
   assert.match(wrongBody.message, /com\.example\.other, not Zwift Companion/);
   assert.equal(await responseStatus(admin.request('/api/manage/companion/app', 'PUT', Buffer.from('not an apk'))), 400);
 
-  const started = await admin.request('/api/manage/companion/app', 'PUT', patched);
+  assert.equal(await responseStatus(admin.request('/api/manage/companion/rebuild', 'POST', {})), 404);
+  const started = await admin.request('/api/manage/companion/app?name=..%2Fcompanion-3.91.0.apk', 'PUT', patched);
   assert.equal(started.status, 202);
   const done = await settled(admin, 'patch');
   assert.ok(done.activity);
@@ -148,6 +154,16 @@ await test('the administrator patches the Companion app and every rider download
   const apk = Buffer.from(await download.arrayBuffer());
   const trusted = new X509Certificate(contents(apk, 'res/raw/cert-zwift-com.pem'));
   assert.equal(trusted.fingerprint256, first.certificate?.fingerprint256);
+
+  // The accepted upload is kept, so the app can be built again without a new one.
+  assert.deepEqual(done.original, { name: 'companion-3.91.0.apk', bytes: patched.length });
+  assert.equal(await responseStatus(web.request('/api/manage/companion/rebuild', 'POST', {})), 403);
+  assert.equal(await responseStatus(admin.request('/api/manage/companion/rebuild', 'POST', {})), 202);
+  const rebuilt = await settled(admin, 'rebuild');
+  assert.equal(rebuilt.activity?.state, 'done', rebuilt.activity?.message ?? 'The Companion rebuild did not complete');
+  assert.deepEqual(rebuilt.activity.steps, ['inspect', 'sign', 'publish']);
+  assert.equal(rebuilt.app?.versionName, '3.91.0');
+  assert.deepEqual(rebuilt.original, done.original, 'building again keeps the saved upload');
 
   // A rotation updates the published app on its own, with no Java and no new upload.
   const second = await f.effects.runPromise(tls.rotate(crypto.randomUUID()));
@@ -219,4 +235,82 @@ await test('the administrator patches the Companion app and every rider download
 
   assert.equal(await responseStatus(admin.request('/api/manage/companion/app', 'DELETE', {})), 200);
   assert.equal(await responseStatus(web.request('/api/companion/app')), 404);
+  const removed = companionAdminStatus(await json(admin.request('/api/manage/companion')));
+  assert.equal(removed.original?.name, 'upload', 'removing the app keeps the latest saved upload');
+});
+
+await test('the administrator sees new releases and has the server download and patch one', async (t) => {
+  const f = runtimeFixture(t);
+  const owner = await administrator(f);
+  const rider = await f.accounts.create('Regular Rider', 'test-password', 'rider');
+  const admin = mediumWeb(f, owner);
+  const web = mediumWeb(f, rider);
+  await f.effects.runPromise(f.effects.runSync(TlsService).start());
+
+  const feed = t.mock.method(AppReleaseRepository.prototype, 'apkmirror', (url: string) =>
+    Promise.resolve({
+      versionName: url.includes('companion') ? '3.92.0' : '1.126.0',
+      versionCode: null,
+      url: `${url}release/`,
+      publishedAt: null,
+    }),
+  );
+  const pure = t.mock.method(AppReleaseRepository.prototype, 'apkpure', (name: string) =>
+    name === 'com.zwift.android.prod'
+      ? Promise.resolve({
+          versionName: '3.91.0',
+          versionCode: null,
+          bytes: patched.length,
+          filename: 'Example Companion_3.91.0_APKPure.apk',
+          url: 'https://files.example.test/companion.apk',
+        })
+      : Promise.reject(new Error('APKPure answered with status 403.')),
+  );
+  t.mock.method(AppReleaseRepository.prototype, 'download', (_url: string, output: string) => {
+    writeFileSync(output, patched);
+
+    return Promise.resolve(patched.length);
+  });
+
+  assert.equal(await responseStatus(web.request('/api/manage/app-releases')), 403);
+  const release = Schema.NullOr(Schema.Struct({ versionName: Schema.String }));
+  const checked = Schema.decodeUnknownSync(
+    Schema.Struct({
+      enabled: Schema.Boolean,
+      checkedAt: Schema.NullOr(Schema.String),
+      apps: Schema.Record(
+        Schema.String,
+        Schema.Struct({
+          apkmirror: release,
+          apkpure: release,
+          errors: Schema.Struct({ apkpure: Schema.NullOr(Schema.String) }),
+        }),
+      ),
+    }),
+  )(await json(admin.request('/api/manage/app-releases/check', 'POST', {})));
+  assert.equal(checked.enabled, true);
+  assert.ok(checked.checkedAt);
+  assert.equal(checked.apps.companion?.apkmirror?.versionName, '3.92.0');
+  assert.equal(checked.apps.companion?.apkpure?.versionName, '3.91.0');
+  assert.equal(checked.apps.zwift?.apkpure, null);
+  assert.equal(checked.apps.zwift?.errors.apkpure, 'APKPure answered with status 403.');
+  assert.equal(feed.mock.callCount(), 2);
+  assert.equal(pure.mock.callCount(), 2);
+  const stored = Schema.decodeUnknownSync(Schema.Struct({ checkedAt: Schema.String }))(
+    JSON.parse(readFileSync(resolve(f.config.storageDir, 'app-releases.json'), 'utf8')),
+  );
+  assert.equal(stored.checkedAt, checked.checkedAt);
+
+  const off = Schema.decodeUnknownSync(Schema.Struct({ enabled: Schema.Boolean }))(
+    await json(admin.request('/api/manage/app-releases/settings', 'PUT', { enabled: false })),
+  );
+  assert.equal(off.enabled, false);
+
+  assert.equal(await responseStatus(admin.request('/api/manage/companion/download', 'POST', {})), 202);
+  const done = await settled(admin, 'download');
+  assert.equal(done.activity?.state, 'done', done.activity?.message ?? 'The Companion download did not complete');
+  assert.deepEqual(done.activity.steps, ['download', 'inspect', 'sign', 'publish']);
+  assert.equal(done.app?.versionName, '3.91.0');
+  assert.deepEqual(done.original, { name: 'Example Companion_3.91.0_APKPure.apk', bytes: patched.length });
+  assert.equal(companionStatus(await json(web.request('/api/companion'))).app?.current, true);
 });

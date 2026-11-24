@@ -1,5 +1,6 @@
 <script lang="ts">
   import { t } from '../lib/i18n/index';
+  import SlowLoading from '../components/SlowLoading.svelte';
   import type { z } from 'zod';
   import { onMount } from 'svelte';
   import type { CompanionStatus } from './companion';
@@ -76,7 +77,7 @@
 {#if failure}<p class="notice failed" role="alert">{failure}</p>{/if}
 
 {#if status === null}
-  {#if !failure}<p role="status">{t('loading')}</p>{/if}
+  {#if !failure}<SlowLoading />{/if}
 {:else if platform === 'ios'}
   <section class="panel" aria-labelledby="companion-ios">
     <h2 id="companion-ios">{t('companion_ios_unsupported')}</h2>
@@ -96,8 +97,7 @@
         <h2>{t('download_companion_for_zluggish')}</h2>
         {#if status.app}
           <p>
-            {t('companion_app_coexistence_hint')}
-            {t('companion_app_download_hint')}
+            {t('companion_app_coexistence')}
           </p>
           <a class="download" class:muted-action={!status.app.current} href="/api/companion/app" download
             >{t('download_companion', { value1: status.app.versionName })}</a

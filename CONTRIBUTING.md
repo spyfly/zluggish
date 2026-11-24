@@ -17,12 +17,12 @@ mise run check
 
 Other useful commands, run from `server/`:
 
-| Command               | Result                                                    |
-| --------------------- | --------------------------------------------------------- |
-| `mise run server-dev` | Start the server from source.                             |
-| `pnpm lint:fix`       | Fix lint problems.                                        |
-| `pnpm format:fix`     | Fix the formatting.                                       |
-| `pnpm codegen`        | Regenerate the protobuf codecs after you change `proto/`. |
+| Command           | Result                                                    |
+| ----------------- | --------------------------------------------------------- |
+| `mise dev`        | Start the server from source.                             |
+| `pnpm lint:fix`   | Fix lint problems.                                        |
+| `pnpm format:fix` | Fix the formatting.                                       |
+| `pnpm codegen`    | Regenerate the protobuf codecs after you change `proto/`. |
 
 The web app is in `web/`. Build it with `pnpm --dir web build` and typecheck it with `pnpm --dir web check`.
 

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { t } from '../lib/i18n/index';
+  import SlowLoading from '../components/SlowLoading.svelte';
   import { onMount } from 'svelte';
   import Fingerprint from '../components/Fingerprint.svelte';
   import type { Api } from '../lib/api';
@@ -118,7 +119,7 @@
     <p class="lead">{t('phone_setup_ios_description')}</p>
   </section>
 {:else if status === null}
-  {#if !failure}<p role="status">{t('loading')}</p>{/if}
+  {#if !failure}<SlowLoading />{/if}
 {:else if status.mode === 'legacy'}
   <section class="panel">
     <p>{t('phone_setup_certificate_shared_hint')}</p>
@@ -140,11 +141,10 @@
         {#if zwiftFailure}
           <p class="notice failed" role="alert">{zwiftFailure}</p>
         {:else if zwift === null}
-          <p role="status">{t('loading')}</p>
+          <SlowLoading />
         {:else if zwift.app?.current}
           <p>
-            {t('phone_setup_app_coexistence_hint')}
-            {#if !onAndroid}{t('phone_setup_app_download_hint')}{/if}
+            {t('phone_setup_app_coexistence')}
           </p>
           <a class="download" href="/api/install/android/app" download
             >{t('download_zwift', { value1: zwift.app.versionName })}</a

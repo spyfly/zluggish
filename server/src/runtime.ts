@@ -20,6 +20,7 @@ import { MatrixService } from '#src/services/matrix.service';
 import { MetricsService } from '#src/services/metrics.service';
 import { ImportsService } from '#src/services/profile-import.service';
 import { BackupService } from '#src/services/backup.service';
+import { AppReleasesService } from '#src/services/app-releases.service';
 import { TlsService } from '#src/services/tls.service';
 import { RetentionService } from '#src/services/retention.service';
 import { RideCompletionService } from '#src/services/ride-completion.service';
@@ -129,6 +130,7 @@ const acquireRuntime = Effect.fn('runtime.acquire')(function* (
   yield* effects.runSync(UploadsService).start();
   yield* effects.runSync(RetentionService).schedule();
   yield* effects.runSync(BackupService).schedule();
+  yield* effects.runSync(AppReleasesService).schedule();
   yield* jobs.start();
   checkpoints.start();
 

@@ -213,8 +213,8 @@ await test('points a decoded app at the certificate and declares the new resourc
     <provider android:name=".Files" android:authorities="com.zwift.android.prod.files;com.example.other" />
     <receiver android:name="Message"><intent-filter><action android:name="com.zwift.android.prod.MESSAGE" /></intent-filter></receiver>
     <activity android:name="com.zwift.android.ui.Other" />
-    <activity-alias android:name=".Launcher" android:targetActivity="com.zwift.android.ui.Other" android:icon="@mipmap/old">
-      <intent-filter android:icon="@mipmap/old"><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
+    <activity-alias android:name=".Launcher" android:targetActivity="com.zwift.android.ui.Other" android:label="@string/launcher" android:icon="@mipmap/old">
+      <intent-filter android:label="@string/launcher" android:icon="@mipmap/old"><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
       <intent-filter android:icon="@mipmap/link"><action android:name="android.intent.action.VIEW" /></intent-filter>
     </activity-alias>
   </application>
@@ -243,6 +243,9 @@ await test('points a decoded app at the certificate and declares the new resourc
   assert.match(manifest, /<uses-permission android:name="com\.zluggish\.companion\.PERMISSION"/);
   assert.match(manifest, /<action android:name="com\.zluggish\.companion\.MESSAGE"/);
   assert.equal(manifest.match(/android:icon="@drawable\/zluggish_launcher"/g)?.length, 2);
+  // Android names the launcher entry after the activity first, so the app and its launcher both say Zluggish.
+  assert.equal(manifest.match(/android:label="Companion for Zluggish"/g)?.length, 2);
+  assert.doesNotMatch(manifest, /android:label="Companion"|@string\/launcher/);
   assert.match(manifest, /android:roundIcon="@drawable\/zluggish_launcher"/);
   assert.doesNotMatch(manifest, /@mipmap\/old/);
   assert.match(manifest, /<intent-filter android:icon="@mipmap\/link"/);

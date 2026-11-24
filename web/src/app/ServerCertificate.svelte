@@ -1,5 +1,6 @@
 <script lang="ts">
   import { t } from '../lib/i18n/index';
+  import SlowLoading from '../components/SlowLoading.svelte';
   import { onMount } from 'svelte';
   import Fingerprint from '../components/Fingerprint.svelte';
   import { tlsStatus } from './tls';
@@ -123,7 +124,7 @@
       <p class="muted">{t('server_certificate_source_configured_hint')}</p>
     {/if}
   {:else if !failure}
-    <p role="status">{t('loading')}</p>
+    <SlowLoading />
   {/if}
 </section>
 

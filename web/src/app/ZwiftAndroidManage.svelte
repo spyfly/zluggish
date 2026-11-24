@@ -1,11 +1,13 @@
 <script lang="ts">
   import { t } from '../lib/i18n/index';
-  import { onDestroy, onMount } from 'svelte';
+  import SlowLoading from '../components/SlowLoading.svelte';
+  import { onDestroy, onMount, tick } from 'svelte';
   import { z } from 'zod';
   import type { Api } from '../lib/api';
   import { ignored } from '../lib/api';
   import { megabytes } from './companion';
   import JobProgress from './JobProgress.svelte';
+  import ReleaseNotice from './ReleaseNotice.svelte';
   import type { ZwiftAndroidAdminStatus, ZwiftAndroidStep } from './zwift-android';
   import { zwiftAndroidAdminStatus, zwiftAndroidUpload } from './zwift-android';
 
@@ -30,6 +32,8 @@
   let working = $state(false);
   let dragging = $state(false);
   let fileInput = $state<HTMLInputElement>();
+  /** Asked for a new upload while a published app is in place. */
+  let replacing = $state(false);
 
   /** The upload in flight. Its bytes per second come from a smoothed average, so the time left does not jump. */
   let upload = $state<{
@@ -44,6 +48,7 @@
 
   const labels: Record<Step, string> = {
     upload: t('zwift_android_build_uploading'),
+    download: t('release_downloading'),
     extract: t('game_files_unpack_progress'),
     certificate: t('zwift_android_build_build_adding_certificate'),
     inspect: t('app_validation_progress'),
@@ -60,6 +65,7 @@
   /** Rough shares of the whole job, for the width of each stretch of the bar. Copying gigabytes dominates. */
   const weights: Record<Step, number> = {
     upload: 8,
+    download: 8,
     extract: 3,
     certificate: 3,
     inspect: 1,
@@ -298,6 +304,7 @@
         }
       }
       finished = true;
+      replacing = false;
     } catch (error) {
       if (!signal.aborted) {
         uploadError = error instanceof Error ? error.message : t('zwift_android_build_upload_failure_notice');
@@ -319,6 +326,27 @@
   }
 
   const busy = $derived(!!upload || admin?.activity?.state === 'running');
+  /** Whether a job ran during this visit. One that finished before it has nothing new to say: the facts show its app. */
+  let watched = $state(false);
+
+  $effect(() => {
+    if (job && job.state !== 'done' && job.state !== 'failed') {
+      watched = true;
+    }
+  });
+  /** A published app keeps the upload behind a button, unless uploading is the only way to bring it up to date. */
+  const uploadOpen = $derived(!admin?.app || replacing || !!uploadError || (!admin.app.current && !admin.original));
+
+  async function openUpload() {
+    replacing = true;
+    await tick();
+    fileInput?.focus();
+  }
+
+  function closeUpload() {
+    replacing = false;
+    uploadError = '';
+  }
 
   function dropped(event: DragEvent) {
     event.preventDefault();
@@ -348,10 +376,9 @@
 {#if failure}<p class="notice failed" role="alert">{failure}</p>{/if}
 
 {#if admin === null}
-  {#if !failure}<p role="status">{t('loading')}</p>{/if}
+  {#if !failure}<SlowLoading />{/if}
 {:else}
-  <section class="panel" aria-labelledby="zwift-android-app">
-    <h2 id="zwift-android-app">{t('zwift_for_android')}</h2>
+  <section class="panel">
     <p class="lead">
       {t('zwift_android_build_description')}
       <a href="/apps" onclick={(event) => go(event, '/apps')}>{t('apps')}</a>.
@@ -392,7 +419,17 @@
       </dl>
     {/if}
 
-    {#if job}
+    {#if !busy}
+      <ReleaseNotice
+        {api}
+        app="zwift"
+        installed={admin.app?.versionName ?? null}
+        disabled={working || !certificateReady}
+        ondownload={() => act(() => api(zwiftAndroidAdminStatus, `${endpoint}/download`, 'POST', {}))}
+      />
+    {/if}
+
+    {#if job && (job.state !== 'done' || watched)}
       <JobProgress id="zwift-android-job" {job} {labels} {weights} {headline} {detail} {upload}>
         {#if upload}
           <button type="button" onclick={() => transfer?.abort()}>{t('stop_upload')}</button>
@@ -408,7 +445,12 @@
       </JobProgress>
     {/if}
 
-    {#if !busy}
+    {#if !busy && !uploadOpen}
+      <button type="button" class="replace" disabled={!certificateReady} onclick={() => void openUpload()}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0-5 5m5-5 5 5M5 20h14" /></svg>
+        {t('upload_a_newer_zwift')}
+      </button>
+    {:else if !busy}
       <ol class="fetch">
         <li>
           {t('open')}
@@ -465,6 +507,9 @@
       {/if}
       {#if !admin.tools.ready && !admin.tools.supported}
         <p class="stale">{t('zwift_android_build_toolchain_install_hint')}</p>
+      {/if}
+      {#if admin.app && replacing}
+        <button type="button" class="close" onclick={closeUpload}>{t('cancel')}</button>
       {/if}
     {/if}
     {#if uploadError}<p class="notice failed" role="alert">{uploadError}</p>{/if}
@@ -565,6 +610,28 @@
   }
   .facts dd.alarm {
     color: var(--alarm);
+  }
+
+  /* The way to a new upload once an app is published: one quiet action under the facts. */
+  button.replace {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  button.replace svg {
+    width: 1.1rem;
+    height: 1.1rem;
+    fill: none;
+    stroke: var(--orange);
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  button.replace:disabled svg {
+    stroke: currentColor;
+  }
+  button.close {
+    margin-top: 1rem;
   }
 
   .fetch {

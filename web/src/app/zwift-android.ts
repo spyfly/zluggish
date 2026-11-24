@@ -11,6 +11,7 @@ const app = z.object({
 export const zwiftAndroidStatus = z.object({ app: app.nullable() });
 
 const step = z.enum([
+  'download',
   'extract',
   'certificate',
   'inspect',
@@ -27,7 +28,7 @@ const step = z.enum([
 export const zwiftAndroidAdminStatus = zwiftAndroidStatus.extend({
   activity: z
     .object({
-      kind: z.enum(['upload', 'rebuild']),
+      kind: z.enum(['upload', 'rebuild', 'download']),
       state: z.enum(['running', 'done', 'failed']),
       steps: z.array(step),
       step,

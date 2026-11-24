@@ -1,22 +1,19 @@
 <script lang="ts">
   import { t } from '../lib/i18n/index';
-  import { onDestroy, onMount } from 'svelte';
+  import { onDestroy, onMount, tick } from 'svelte';
   import { z } from 'zod';
+  import type { Api } from '../lib/api';
   import type { CompanionAdminStatus, CompanionStep } from './companion';
   import { companionAdminStatus, megabytes } from './companion';
   import JobProgress from './JobProgress.svelte';
+  import ReleaseNotice from './ReleaseNotice.svelte';
 
   let {
     api,
     navigate,
     csrf,
   }: {
-    api: <Schema extends z.ZodType>(
-      schema: Schema,
-      url: string,
-      method?: string,
-      data?: Record<string, never>,
-    ) => Promise<z.output<Schema>>;
+    api: Api;
     navigate: (path: string) => Promise<void>;
     /** The current CSRF token, for the upload that bypasses the JSON helper to report progress. */
     csrf: () => string;
@@ -24,6 +21,7 @@
 
   let admin = $state<CompanionAdminStatus | null>(null);
   let failure = $state('');
+  let slowLoading = $state(false);
   let notice = $state('');
   let working = $state(false);
 
@@ -38,15 +36,17 @@
   let uploadError = $state('');
   let dragging = $state(false);
   let fileInput = $state<HTMLInputElement>();
+  /** Asked for a new upload while a published app is in place. */
+  let replacing = $state(false);
   let request: XMLHttpRequest | null = null;
 
   const accepted = '.apk,.apks,.xapk,.apkm';
   const failureMessage = z.object({ message: z.string() });
   const certificateReady = $derived(admin?.tlsMode === 'managed' || admin?.tlsMode === 'custom');
-  const tools = $derived(admin ? !!admin.toolchain.java && admin.toolchain.editor : false);
 
   const labels: Record<CompanionStep, string> = {
     upload: t('companion_build_uploading'),
+    download: t('release_downloading'),
     runtime: t('downloading_java'),
     editor: t('downloading_apkeditor'),
     inspect: t('file_validation_progress'),
@@ -61,6 +61,7 @@
   /** Rough shares of the whole job, for the width of each stretch of the bar. Rebuilding the app dominates. */
   const weights: Record<CompanionStep, number> = {
     upload: 4,
+    download: 4,
     runtime: 4,
     editor: 1,
     inspect: 1,
@@ -167,6 +168,7 @@
   async function refresh() {
     try {
       admin = await api(companionAdminStatus, '/api/manage/companion');
+      failure = '';
     } catch (error) {
       failure = error instanceof Error ? error.message : t('companion_build_load_error');
     }
@@ -246,7 +248,7 @@
     sample = { at: performance.now(), bytes: 0 };
     const xhr = new XMLHttpRequest();
     request = xhr;
-    xhr.open('PUT', '/api/manage/companion/app');
+    xhr.open('PUT', `/api/manage/companion/app?name=${encodeURIComponent(file.name)}`);
     xhr.setRequestHeader('Content-Type', 'application/octet-stream');
     xhr.setRequestHeader('X-CSRF-Token', csrf());
     xhr.responseType = 'json';
@@ -258,6 +260,7 @@
 
       // The job started, or waits for the Java tools: the next status shows which.
       if (xhr.status === 202) {
+        replacing = false;
         void refresh();
       } else {
         uploadError =
@@ -280,6 +283,27 @@
   }
 
   const busy = $derived(!!upload || admin?.activity?.state === 'running');
+  /** Whether a job ran during this visit. One that finished before it has nothing new to say: the facts show its app. */
+  let watched = $state(false);
+
+  $effect(() => {
+    if (job && job.state !== 'done' && job.state !== 'failed') {
+      watched = true;
+    }
+  });
+  /** A published app keeps the upload behind a button, unless uploading is the only way to bring it up to date. */
+  const uploadOpen = $derived(!admin?.app || !admin.app.current || replacing || !!uploadError);
+
+  async function openUpload() {
+    replacing = true;
+    await tick();
+    fileInput?.focus();
+  }
+
+  function closeUpload() {
+    replacing = false;
+    uploadError = '';
+  }
 
   function dropped(event: DragEvent) {
     event.preventDefault();
@@ -296,7 +320,12 @@
     void navigate(to);
   }
 
-  onMount(refresh);
+  onMount(() => {
+    const timeout = setTimeout(() => (slowLoading = true), 4000);
+    void refresh();
+
+    return () => clearTimeout(timeout);
+  });
 
   onDestroy(() => {
     if (timer) {
@@ -306,13 +335,19 @@
   });
 </script>
 
-{#if failure}<p class="notice failed" role="alert">{failure}</p>{/if}
+{#if failure}<p class="notice failed" role="alert">{failure}</p>
+  {#if admin === null}<button type="button" onclick={() => void refresh()}>{t('retry_now')}</button>{/if}
+{/if}
 
 {#if admin === null}
-  {#if !failure}<p role="status">{t('loading')}</p>{/if}
+  {#if !failure && slowLoading}
+    <div role="status">
+      <p>{t('loading_taking_longer')}</p>
+      <button type="button" onclick={() => location.reload()}>{t('reload_this_page')}</button>
+    </div>
+  {/if}
 {:else}
-  <section class="panel" aria-labelledby="companion-app">
-    <h2 id="companion-app">{t('companion_for_android')}</h2>
+  <section class="panel">
     <p class="lead">
       {t('companion_build_description')}
       <a href="/apps" onclick={(event) => go(event, '/apps')}>{t('apps')}</a>.
@@ -351,7 +386,17 @@
       </dl>
     {/if}
 
-    {#if job}
+    {#if !busy && !admin.pending}
+      <ReleaseNotice
+        {api}
+        app="companion"
+        installed={admin.app?.versionName ?? null}
+        disabled={working || !certificateReady}
+        ondownload={() => act(() => api(companionAdminStatus, '/api/manage/companion/download', 'POST', {}))}
+      />
+    {/if}
+
+    {#if job && (job.state !== 'done' || watched)}
       <JobProgress id="companion-job" {job} {labels} {weights} {headline} {detail} {upload}>
         {#if upload}
           <button type="button" onclick={() => request?.abort()}>{t('stop_upload')}</button>
@@ -391,7 +436,7 @@
       </JobProgress>
     {/if}
 
-    {#if !busy && !admin.pending}
+    {#if !busy && !admin.pending && uploadOpen}
       <label
         class="drop"
         class:dragging
@@ -424,51 +469,62 @@
           })}</span
         >
       </label>
-      <p class="hint">{t('companion_build_upload_toolchain_hint')}</p>
+      <p class="hint">
+        {t('companion_build_upload_toolchain_hint', { size: megabytes(admin.toolchain.downloadBytes) })}
+      </p>
     {/if}
     {#if uploadError}<p class="notice failed" role="alert">{uploadError}</p>{/if}
 
-    {#if admin.app}
-      <button
-        type="button"
-        disabled={working || busy}
-        onclick={() => act(() => api(companionAdminStatus, '/api/manage/companion/app', 'DELETE', {}), 'App removed.')}
-        >{t('app_remove_action')}</button
-      >
+    {#if admin.app && !busy && !admin.pending && !uploadOpen}
+      <button type="button" class="replace" disabled={!certificateReady} onclick={() => void openUpload()}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0-5 5m5-5 5 5M5 20h14" /></svg>
+        {t('upload_a_newer_companion')}
+      </button>
+    {:else if admin.app && !busy && !admin.pending && replacing}
+      <button type="button" onclick={closeUpload}>{t('cancel')}</button>
     {/if}
     {#if notice}<p class="hint" role="status">{notice}</p>{/if}
   </section>
 
-  <section class="panel" aria-labelledby="companion-tools">
-    <h2 id="companion-tools">{t('java_tools')}</h2>
-    {#if tools && admin.toolchain.java}
-      <p>
-        {t('ready_using', {
-          value1:
-            admin.toolchain.java.source === 'system'
-              ? t('server_java_version', { value1: admin.toolchain.java.version })
-              : t('java', { value1: admin.toolchain.java.version }),
-        })}
-      </p>
-      <p class="hint">{t('stored_in', { value1: admin.toolchain.folder })}</p>
-      <button
-        type="button"
-        disabled={working || busy}
-        onclick={() =>
-          act(() => api(companionAdminStatus, '/api/manage/companion/toolchain', 'DELETE', {}), 'Java tools removed.')}
-        >{t('remove_java_tools')}</button
-      >
-    {:else if !admin.toolchain.supported}
-      <p>{t('companion_build_toolchain_install_hint')}</p>
-    {:else}
-      <p>
-        {t('java_tools_installed_automatically', {
-          size: megabytes(admin.toolchain.downloadBytes),
-        })}
-      </p>
-      <p class="hint">{t('stored_in_outside_backups', { value1: admin.toolchain.folder })}</p>
-    {/if}
-  </section>
+  {#if admin.original || admin.app}
+    <section class="panel" aria-labelledby="companion-saved">
+      <h2 id="companion-saved">{t('saved_upload')}</h2>
+      {#if admin.original}
+        <p class="file">
+          <span class="name">{admin.original.name}</span>
+          <span class="meta"
+            >{t('companion_build_uploaded', {
+              value1: megabytes(admin.original.bytes),
+              value2: day(admin.original.uploadedAt),
+            })}</span
+          >
+        </p>
+        <p class="hint">{t('companion_build_upload_retention_hint')}</p>
+      {:else}
+        <p class="hint">{t('companion_build_upload_missing_hint')}</p>
+      {/if}
+      <div class="actions">
+        {#if admin.original}
+          <button
+            type="button"
+            class:primary={!!admin.app && !admin.app.current}
+            disabled={working || busy || !certificateReady}
+            onclick={() => act(() => api(companionAdminStatus, '/api/manage/companion/rebuild', 'POST', {}))}
+            >{t('build_again')}</button
+          >
+        {/if}
+        {#if admin.app}
+          <button
+            type="button"
+            disabled={working || busy}
+            onclick={() =>
+              act(() => api(companionAdminStatus, '/api/manage/companion/app', 'DELETE', {}), 'App removed.')}
+            >{t('app_remove_action')}</button
+          >
+        {/if}
+      </div>
+    </section>
+  {/if}
 {/if}
 
 <style>
@@ -504,6 +560,43 @@
     border-radius: 0 8px 8px 0;
     background: rgb(255 90 70 / 0.12);
     color: var(--alarm);
+  }
+
+  /* The way to a new upload once an app is published: one quiet action under the facts. */
+  button.replace {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  button.replace svg {
+    width: 1.1rem;
+    height: 1.1rem;
+    fill: none;
+    stroke: var(--orange);
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  button.replace:disabled svg {
+    stroke: currentColor;
+  }
+  .file {
+    display: grid;
+    gap: 0.1rem;
+    margin: 0;
+  }
+  .file .name {
+    font-weight: 800;
+    overflow-wrap: anywhere;
+  }
+  .file .meta {
+    color: var(--muted);
+    font-size: 0.875rem;
+  }
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
   }
 
   .facts {
