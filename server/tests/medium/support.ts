@@ -9,6 +9,8 @@ import { createWebApp } from '#src/http/web-app';
 import type { User } from '#src/repositories/accounts.repository';
 import type { JsonValue } from '#src/dtos/management.dto';
 import { activityFolder } from '#src/activity-storage';
+import { writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 export async function mediumFixture(t: TestContext, publicUrl: string | null = null, webEnabled = true) {
   const network = t.mock.method(globalThis, 'fetch', () => {
@@ -17,6 +19,16 @@ export async function mediumFixture(t: TestContext, publicUrl: string | null = n
 
   t.after(() => assert.equal(network.mock.callCount(), 0, 'External providers must be explicitly mocked'));
   const f = runtimeFixture(t, publicUrl, webEnabled);
+  // Runtime lifecycle tests must not schedule real release checks against external providers.
+  const empty = { apkmirror: null, apkpure: null, errors: { apkmirror: null, apkpure: null } };
+  writeFileSync(
+    resolve(f.config.storageDir, 'app-releases.json'),
+    JSON.stringify({
+      enabled: false,
+      checkedAt: null,
+      apps: { zwift: empty, companion: empty },
+    }),
+  );
   const rider = await f.accounts.create('Medium Rider', 'test-password');
   const other = await f.accounts.create('Other Rider', 'test-password');
   const headers = (user = rider) => ({ Authorization: `Bearer ${f.sessions.tokens(user, f.tokens).access_token}` });
