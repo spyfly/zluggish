@@ -15,7 +15,7 @@ The script installs the server certificate in the system trust store and patches
 
 ## If the script cannot find Zwift
 
-Pass the Zwift installation directory to the script. Replace the sample filename and path with your own:
+Run the script with your Zwift installation directory. Replace both paths in the command with your own.
 
 ```sh
 sh ~/Downloads/zluggish-zwift-XXXXXXXX.sh "$HOME/.wine/drive_c/Program Files (x86)/Zwift"

@@ -16,7 +16,7 @@ The script trusts the server certificate in the Local Computer root store and ad
 ## Manual setup
 
 1. Open **Apps → Zwift → Manual setup** and download the `.cer` and `.crt` files.
-2. In an administrator Command Prompt, import the `.cer` file. Substitute the downloaded filename:
+2. Open an administrator Command Prompt. Import the certificate using the filename you downloaded.
 
    ```bat
    certutil.exe -addstore Root zluggish-zwift-XXXXXXXX.cer

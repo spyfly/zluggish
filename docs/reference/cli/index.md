@@ -66,7 +66,7 @@ Config files are trusted code. The CLI has full administrator access to the moun
 
 ## Run from source
 
-Follow [Run locally](../../development.md#run-locally) through `mise run install`, then run these commands from the repository root:
+Follow [Run locally](../../development.md#run-locally) through `mise run install`. Build and run the CLI from the repository root.
 
 ```sh
 mise run build

@@ -5,7 +5,7 @@ description: Reach the Zluggish web app and game server remotely through Cloudfl
 
 # Remote access
 
-A Cloudflare Tunnel can reach Zluggish without forwarding ports on your router. Choose the setup based on what you need:
+Use Cloudflare Tunnel to reach Zluggish without forwarding ports on your router. Follow the setup for the access you need.
 
 | Access                    | What to set up                                                                                                                     |
 | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
@@ -41,9 +41,9 @@ If port 8080 is reachable over the private route and the web listener is enabled
 
 Use a [Gateway DNS policy](https://developers.cloudflare.com/cloudflare-one/traffic-controls/dns-policies/#override) to resolve the Zwift hostnames to the private IP.
 
-1. Match the following hostnames with the **Host** selector and **in** operator:
-   - Game: `secure.zwift.com`, `us-or-rly101.zwift.com`, `cdn.zwift.com` and `launcher.zwift.com`
-   - Companion only: `secure.zwift.com` and `us-or-rly101.zwift.com`
+1. Use the **Host** selector and **in** operator to match the hostnames for your app.
+   - For the game, match `secure.zwift.com`, `us-or-rly101.zwift.com`, `cdn.zwift.com` and `launcher.zwift.com`.
+   - For Companion alone, match `secure.zwift.com` and `us-or-rly101.zwift.com`.
 
 2. Set the action to **Override** and enter the server's private IP in **Override Hostname**.
 3. Scope the policy to your riders, for example with **User Email**. It redirects official Zwift traffic for devices that match it.

@@ -19,14 +19,14 @@ When the administrator publishes a new version or [rotates the certificate](../c
 
 ## Point Zwift at Zluggish
 
-Use the hostnames and server IP shown on the setup page. Pick one method:
+Choose one method to point the hostnames on the setup page at your server.
 
 - **Router DNS**. Add the hostnames as local DNS records on a router that supports overrides. Use the router's DNS on the Android device.
 - **Zluggish DNS**. [Enable the optional DNS listener](../../reference/ports.md#optional-dns-with-docker), then set the Android device's Wi-Fi DNS to the Zluggish server's LAN IP.
 - **Cloudflare One Client**. For remote play, use a [Gateway DNS override](../remote-access.md#redirect-the-zwift-names-with-gateway-dns).
 - **Virtual Hosts**. Use the app below for a redirect on a single device.
 
-If Android's **Private DNS** setting bypasses your chosen DNS server, turn it off for the setup. The redirect applies to both installed copies of Zwift. Disable it before using the official service.
+If Android's **Private DNS** setting bypasses your chosen DNS server, turn it off while you use the redirect. The redirect applies to both installed copies of Zwift. Disable it before using the official service.
 
 ### Virtual Hosts
 

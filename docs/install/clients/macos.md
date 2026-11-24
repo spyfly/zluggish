@@ -15,7 +15,7 @@ The script trusts the server certificate in the **System** keychain and adds it 
 
 ## If the script cannot find Zwift
 
-Pass the Zwift data folder to the script. Replace the sample filename with the name you downloaded:
+Run the script with your Zwift data folder. Replace the sample filename with the name you downloaded.
 
 ```sh
 sh ~/Downloads/zluggish-zwift-XXXXXXXX.sh "$HOME/Library/Application Support/Zwift"

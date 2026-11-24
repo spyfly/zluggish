@@ -9,7 +9,7 @@ If you already use zwift-offline, read the [migration guide](../maintenance/migr
 
 1. Create a directory for Zluggish and a `docker/` subdirectory inside it.
 2. Save the [Compose file](https://raw.githubusercontent.com/zluggish/zluggish/main/docker/docker-compose.yml) as `docker/docker-compose.yml`.
-3. From the `docker/` directory, start the server:
+3. Start the server and read its logs from the `docker/` directory.
 
    ```sh
    docker compose up -d

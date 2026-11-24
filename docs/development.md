@@ -7,7 +7,7 @@ description: Run Zluggish from source, find the code you need and reproduce CI c
 
 ## Run locally
 
-Install [mise](https://mise.jdx.dev/getting-started.html). The project uses Node.js 26.13 or later in the 26.x series and pnpm 12.18.0. From the repository root, run:
+Install [mise](https://mise.jdx.dev/getting-started.html). Run the setup commands from the repository root. The project uses Node.js 26.13 or later in the 26.x series and pnpm 12.18.0.
 
 ```sh
 mise install
@@ -37,13 +37,13 @@ For backend changes, start with `server/src/http/app.ts` for the game API, `serv
 
 GitHub starts the [test workflow](https://github.com/zluggish/zluggish/blob/main/.github/workflows/tests.yml) when you open or push to a pull request and on pushes to `main`. Check the **Checks** tab of the pull request for results. The server job runs on Linux, Windows and macOS. The lint, translation, container and browser jobs run on Linux. The PR title has its own check. The public-site workflows run when their inputs change.
 
-From the repository root, run the main checks locally:
+Run the main checks from the repository root.
 
 ```sh
 mise run check
 ```
 
-This builds the server and web app, runs server and CLI tests, lints the source, typechecks the server and web app, checks formatting and validates translations. Use these commands to rerun a specific check:
+This builds the server and web app, runs server and CLI tests, lints the source, typechecks the server and web app, checks formatting and validates translations. Use the table to rerun a specific check.
 
 | Command                                      | What it does                                                   |
 | -------------------------------------------- | -------------------------------------------------------------- |
@@ -64,7 +64,7 @@ mise run server-codegen
 git status --short --untracked-files=all -- server/src/protocol/generated
 ```
 
-To run the launcher tests on Linux, install the Chromium browser and its system dependencies, then run the browser suite:
+On Linux, install Chromium and its system dependencies before running the launcher tests.
 
 ```sh
 mise exec -- pnpm --dir server exec playwright install --with-deps chromium
@@ -85,13 +85,13 @@ docker run --rm -i --read-only --tmpfs /tmp --entrypoint node zluggish:test --in
 
 ### Documentation and landing site
 
-Run these from the root after `mise run install`:
+After installing dependencies, start a local docs preview from the repository root.
 
 ```sh
 mise exec -- pnpm --filter @zluggish/docs start
 ```
 
-To run the same build and packaging checks as GitHub Actions, stop the preview and run:
+Stop the preview before running the GitHub Actions build and packaging checks locally.
 
 ```sh
 mise exec -- pnpm --filter @zluggish/docs typecheck

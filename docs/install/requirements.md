@@ -14,7 +14,7 @@ You need a computer to run Zluggish and a device to run Zwift. They can be the s
 
 ## Zwift client
 
-Set up Zwift from the **Apps** page of the Zluggish web app. Choose the guide for your device:
+Set up Zwift from the **Apps** page of the Zluggish web app. Follow the guide for your device.
 
 - [Windows](clients/windows.md)
 - [macOS](clients/macos.md)

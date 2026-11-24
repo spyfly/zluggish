@@ -6,14 +6,14 @@ Run the commands below from the **repository root**. Replace sample paths and ri
 
 ## Run from source
 
-See the [development guide](../docs/development.md) for Node and pnpm setup. From the repository root, use the TypeScript entry point:
+Set up Node and pnpm with the [development guide](../docs/development.md). Run the TypeScript entry point from the repository root.
 
 ```sh
 mise run cli -- --help
 mise run cli --config ../examples/reference/zluggish.config.ts config validate
 ```
 
-Paths passed to `mise run cli` resolve from `server/`, where the task runs. Use absolute paths for configuration and storage, or run the compiled CLI from the repository root:
+Paths passed to `mise run cli` resolve from `server/`, where the task runs. Use absolute paths for configuration and storage. To use the compiled CLI, build and run it from the repository root.
 
 ```sh
 mise run build

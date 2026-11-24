@@ -24,10 +24,10 @@ Keep Zluggish on a local network that you trust. It is not designed for the publ
 
 ## Optional DNS with Docker
 
-The supplied Compose file leaves UDP port 53 unpublished. If you want Zluggish to resolve the Zwift hostnames:
+The supplied Compose file leaves UDP port 53 unpublished. Use these steps to resolve the Zwift hostnames with Zluggish.
 
 1. In `zluggish.config.ts`, set `dns.enabled` to `true` and `server.advertisedIp` to the server's LAN IP.
-2. Add a UDP port mapping under the `zluggish` service's existing `ports` list. Replace the example IP with the server's LAN IP:
+2. Add the UDP mapping to the `zluggish` service's existing `ports` list. Use the server's LAN IP in place of the example IP.
 
    ```yaml
    - '192.168.1.10:53:53/udp'
