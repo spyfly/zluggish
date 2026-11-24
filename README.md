@@ -106,9 +106,10 @@ Join the community [Discord server](https://discord.gg/GMdn8F8) and [Strava club
 Install [mise](https://mise.jdx.dev/getting-started.html), then run:
 
 ```sh
-cd server
 mise install
 mise run install
+mise dev
+# Run quality checks separately:
 mise run check
 ```
 

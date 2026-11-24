@@ -7,24 +7,27 @@ Thank you for helping out. Zluggish is maintained by a small team in our spare t
 You need [mise](https://mise.jdx.dev/getting-started.html). It installs the right versions of Node and pnpm for you. From the repository root, run:
 
 ```sh
-cd server
 mise install
 mise run install
+mise dev
+# Run quality checks separately:
 mise run check
 ```
 
-`mise run check` builds, lints, typechecks and tests the server and its CLI. It also checks the formatting. Run it before you open a pull request. CI runs the same checks on Linux, Windows and macOS.
+`mise run check` builds, lints, and typechecks the server, CLI, and web app, runs server and CLI tests, validates translations, and checks project formatting. Run it before you open a pull request. CI runs the same checks on Linux, Windows and macOS.
 
-Other useful commands, run from `server/`:
+Run these commands from the repository root (they also work from `server/`):
 
-| Command           | Result                                                    |
-| ----------------- | --------------------------------------------------------- |
-| `mise dev`        | Start the server from source.                             |
-| `pnpm lint:fix`   | Fix lint problems.                                        |
-| `pnpm format:fix` | Fix the formatting.                                       |
-| `pnpm codegen`    | Regenerate the protobuf codecs after you change `proto/`. |
-
-The web app is in `web/`. Build it with `pnpm --dir web build` and typecheck it with `pnpm --dir web check`.
+| Command               | Result                                                            |
+| --------------------- | ----------------------------------------------------------------- |
+| `mise dev`            | Start the full stack at <http://localhost:5173> with hot updates. |
+| `mise lint`           | Lint server and web sources.                                      |
+| `mise lint:fix`       | Fix lint problems.                                                |
+| `mise typecheck`      | Typecheck the server, CLI, and web app.                           |
+| `mise format`         | Check project formatting.                                         |
+| `mise format-fix`     | Fix project formatting.                                           |
+| `mise test`           | Build and run server and CLI tests.                               |
+| `mise server-codegen` | Regenerate the protobuf codecs after changing `proto/`.           |
 
 ## Talk to us first
 

@@ -1,35 +1,38 @@
 ---
 sidebar_position: 1
-description: Set up a Windows computer to ride on your Zluggish server.
+description: Set up a Windows client for Zluggish
 ---
 
 # Windows
 
-This procedure makes Windows and Zwift trust the [server certificate](../certificate.md) and redirects Zwift to Zluggish.
+How to setup a Windows Zwift client to talk to Zluggish.
 
-## Set up the client
+## Automatic install (recommended)
 
-1. Install Zwift, if it is not installed.
-2. Sign in to the Zluggish web app and select **Apps** in the menu.
-3. On a Windows computer, select **Set up Windows**. On another device, select **Other systems** under **Zwift**, then **Windows**.
-4. Check the IP address of the server, then select **Download setup script**. The address is `server.advertisedIp` from the server configuration.
+1. Install the official Zwift app
+2. Star the Zwift app and check if there are any updates, don't login
+3. Close the Zwift app
+4. Sign in to the Zluggish web app and select **Apps** in the menu.
+5. Download the setup batch script
 
    ![Windows setup in three steps: download the setup script, run it and start Zwift, with a Choose another system link at the top](../../../media/screenshots/webapp-install.png)
 
-5. Open the downloaded `.bat` file. Allow it to make changes when Windows asks. If SmartScreen stops it, select **More info**, then **Run anyway**.
-6. Wait until the window says **Done**.
+6. Open the downloaded `.bat` file and let it run. Allow it to make changes when Windows asks. If SmartScreen stops it, select **More info**, then **Run anyway**.
+7. Wait until the window says **Done**.
 
-The script:
+You can now start the Zwift app and it should show the Zluggish launcher. Enjoy!
 
-- trusts the server certificate in **Local Computer → Trusted Root Certification Authorities**, and removes the certificates that this server installed before and the old shared certificate,
-- adds the certificate to `data\cacert.pem` in the Zwift folder, and removes the old shared certificate there,
+You might need to re-download the script and run it again if Zwift updates.
+
+Here is what the script does:
+
+- trusts the server certificate in **Local Computer → Trusted Root Certification Authorities**, and removes any old Zluggish and legacy zwift-offline certificates
+- adds the certificate to `data\cacert.pem` in the Zwift folder,
 - points the Zwift host names at the server in `C:\Windows\System32\drivers\etc\hosts`.
 
-It saves the original files as `cacert.pem.zluggish-backup` and `hosts.zluggish-backup`. Run it again after a Zwift update, and after the administrator rotates the certificate.
+It saves the original files as `cacert.pem.zluggish-backup` and `hosts.zluggish-backup`. 
 
-To check the certificate, compare the thumbprint that the script shows with the thumbprint on the **Install** page.
-
-## Set up the client by hand
+## Manual install
 
 1. On the **Install** page, under **Check the certificate**, download the certificate as `.cer`.
 2. Open Command Prompt as an administrator, go to the directory with the file and import it:
@@ -48,7 +51,3 @@ To check the certificate, compare the thumbprint that the script shows with the 
 5. Save the file.
 
 If Zluggish and Zwift run on the same computer, use `127.0.0.1` as the IP address.
-
-## Next step
-
-Start Zwift, select your user and sign in. To stop using Zluggish, see [Uninstall](../../maintenance/uninstall.md).
