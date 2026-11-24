@@ -174,7 +174,6 @@
   <section class="panel" aria-label={`${platform.name} setup steps`}>
     <ol class="walk">
       <li>
-        <h2>{t('setup_script_download')}</h2>
         <div class="setup-actions">
           {#if addressError}
             <button class="primary" type="button" disabled>{t('download_setup_script')}</button>
@@ -257,10 +256,6 @@
         </p>
       </li>
     </ol>
-    <p class="elsewhere">
-      {t('desktop_setup_manual_title')}
-      <a href="/install/manual" onclick={(event) => go(event, '/install/manual')}>{t('manual_setup')}</a>
-    </p>
   </section>
 {/if}
 

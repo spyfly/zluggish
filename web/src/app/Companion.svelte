@@ -97,8 +97,7 @@
         <h2>{t('download_companion_for_zluggish')}</h2>
         {#if status.app}
           <p>
-            {t('companion_app_coexistence_hint')}
-            {t('companion_app_download_hint')}
+            {t('companion_app_coexistence')}
           </p>
           <a class="download" class:muted-action={!status.app.current} href="/api/companion/app" download
             >{t('download_companion', { value1: status.app.versionName })}</a

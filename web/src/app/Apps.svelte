@@ -65,7 +65,6 @@
           : t('zwift_needs_a_rebuild', { value1: android.app.versionName }),
       tag: mark('android', t('this_device')),
     },
-    { to: '/install/android-rooted', name: t('android_rooted'), detail: t('manual_setup_with_adb') },
     {
       to: '/install/ios',
       name: t('iphone_and_ipad'),

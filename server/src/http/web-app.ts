@@ -1150,6 +1150,7 @@ export function createWebApp(runtime: HttpRuntime) {
     '/setup',
     '/sign-in',
     '/settings',
+    '/profile',
     '/profile/:id',
     '/integrations',
     '/profile-data',

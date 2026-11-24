@@ -144,8 +144,7 @@
           <SlowLoading />
         {:else if zwift.app?.current}
           <p>
-            {t('phone_setup_app_coexistence_hint')}
-            {#if !onAndroid}{t('phone_setup_app_download_hint')}{/if}
+            {t('phone_setup_app_coexistence')}
           </p>
           <a class="download" href="/api/install/android/app" download
             >{t('download_zwift', { value1: zwift.app.versionName })}</a

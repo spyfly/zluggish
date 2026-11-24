@@ -175,7 +175,7 @@
   const androidApps = ['/manage/android', '/manage/zwift-android', '/manage/companion'];
   const crumb = $derived(
     setup
-      ? { href: '/apps', label: t('apps') }
+      ? { href: '/apps', label: t('apps_breadcrumb') }
       : path === '/manage/zwift-android' || path === '/manage/companion'
         ? { href: '/manage/android', label: t('android_apps') }
         : undefined,
@@ -242,7 +242,7 @@
                     ? label(selected)
                     : manage
                       ? t('users')
-                      : path === '/activities' || path.startsWith('/activities/')
+                      : path === '/' || path === '/activities' || path.startsWith('/activities/')
                         ? t('activities')
                         : path === '/profile-data/local'
                           ? t('import_local_files')
@@ -861,7 +861,7 @@
   onMount(() => {
     const slowTimer = window.setTimeout(() => {
       slowLoading = true;
-    }, 4000);
+    }, 400);
     const pop = () => {
       void navigate(location.pathname);
     };
@@ -971,8 +971,8 @@
       />
     </div>
     <nav class="menu" aria-label={t('main')}>
-      {@render link('/', 'Profile', !manage && title === 'Profile')}
       {@render link('/activities', 'Activities', title === 'Activities')}
+      {@render link('/profile', 'Profile', !manage && title === 'Profile')}
       {@render link('/climbs', 'Climbs', title === 'Climbs')}
       {@render link('/integrations', 'Integrations', path === '/integrations')}
       {@render link('/settings', 'Settings', path === '/settings')}
@@ -1556,7 +1556,7 @@
                   <h2>{t('password')}</h2>
                   <p class="muted">
                     {t('password_own_account_hint')}
-                    {@render link('/', 'your profile', false)}.
+                    {@render link('/profile', 'your profile', false)}.
                   </p>
                 </section>
               {/if}
@@ -1670,7 +1670,7 @@
               user = (await api(signedInResponse, '/api/me')).user;
             }}
           />{/key}
-      {:else if path === '/activities' || path.startsWith('/activities/')}
+      {:else if path === '/' || path === '/activities' || path.startsWith('/activities/')}
         <Activities {path} {api} {go} />
       {:else if path === '/climbs'}
         <Climbs {api} />

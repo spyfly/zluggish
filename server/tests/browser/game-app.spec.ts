@@ -62,7 +62,7 @@ async function webSignIn(page: Page, f: Awaited<ReturnType<typeof browserFixture
   await page.getByLabel('Login name', { exact: true }).fill(rider.username);
   await page.getByLabel('Password', { exact: true }).fill('test-password');
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-  await page.getByRole('heading', { name: 'Profile', exact: true }).waitFor();
+  await page.getByRole('heading', { name: 'Activities', exact: true }).waitFor();
 }
 
 async function signIn(page: Page, origin: string, id: number, password = 'test-password', remember = false) {
@@ -300,7 +300,7 @@ await test('import review requires source confirmation and cancel bypasses valid
   await page.getByLabel('Login name', { exact: true }).fill(rider.username);
   await page.getByLabel('Password', { exact: true }).fill('test-password');
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
-  await page.getByRole('heading', { name: 'Profile', exact: true }).waitFor();
+  await page.getByRole('heading', { name: 'Activities', exact: true }).waitFor();
 
   const buffer = Buffer.from(
     toBinary(PlayerProfileSchema, create(PlayerProfileSchema, { id: 999n, firstName: 'Remote', lastName: 'Source' })),

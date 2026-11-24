@@ -6,7 +6,7 @@
   let slow = $state(false);
 
   onMount(() => {
-    const timer = setTimeout(() => (slow = true), 4000);
+    const timer = setTimeout(() => (slow = true), 400);
     return () => clearTimeout(timer);
   });
 </script>
