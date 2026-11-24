@@ -25,7 +25,7 @@ All users have these pages in the menu:
 | Activities   | Show saved activities by month, with route, elevation and stats. Download FIT files and images.                                                           |
 | Integrations | Connect Strava, Garmin, Intervals.icu and TrainingPeaks. Follow the status of activity uploads.                                                           |
 | Settings     | Turn ghosts on or off. Calculate the power curves again.                                                                                                  |
-| Apps         | Set up Zwift on a Windows, macOS or Linux computer or an Android device, and download the [Zwift Companion app](../install/companion-app.md) for Android. |
+| Apps         | Set up Zwift on a Windows, macOS or Linux computer or an Android device, and download the [Zwift Companion app](../install/clients/companion-android.md) for Android. |
 
 ![The Profile page with avatar, name, email and birthday](../../media/screenshots/webapp-profile.png)
 
@@ -33,10 +33,10 @@ All users have these pages in the menu:
 
 ## Administrator pages
 
-Administrators also have **Users**, **Server** and **Companion** under **Manage**:
+Administrators also have **Users**, **Server** and **Android apps** under **Manage**:
 
 - **Users**: make, enable, disable and delete users. Give or remove the administrator role. Set passwords, end sessions and edit the settings of a user.
-- **Companion**: upload the Zwift Companion app and patch it for this server, and download or remove the Java tools it may need. See [Zwift Companion app](../install/companion-app.md).
+- **Android apps**: publish patched versions of [Zwift](../install/clients/android.md) and [Zwift Companion](../install/companion-app.md) for Android. Open **Companion** to download or upload the app and build it for this server.
 - **Server**: see and rotate the [server certificate](../install/certificate.md). Make a backup. Reload or control bots, and edit stored world settings, such as blob and peloton overrides. Edit and delete events. Show the effective configuration.
 
 Changes to `zluggish.config.ts` need a server restart.

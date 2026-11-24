@@ -1,11 +1,11 @@
 ---
 sidebar_position: 4
-description: Set up a non-rooted Android device to ride on your Zluggish server.
+description: Set up an Android device to ride on your Zluggish server.
 ---
 
 # Android
 
-This procedure is for a device that is not rooted. For a rooted device, see [Android (rooted)](android-rooted.md). In the web app, **Set up Android** on the **Apps** page shows the same steps with the address of the server filled in.
+In the web app, **Set up Android** on the **Apps** page shows the same steps with the address of the server filled in. No root access is needed.
 
 Zwift from Google Play keeps the servers it trusts in its expansion file. The administrator uploads Zwift once, and the server publishes **Zwift for Zluggish**: a copy that trusts your server and installs next to Zwift from Google Play. Riders download it from the web app, then send it to the server with Virtual Hosts or DNS.
 
