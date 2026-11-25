@@ -315,7 +315,7 @@
     });
   }
 
-  function sync(provider: 'intervals' | 'trainingpeaks') {
+  function sync(provider: 'intervals' | 'trainingpeaks' | 'garmin') {
     void run(async () => {
       message = (await api(z.object({ message: z.string() }), '/api/me/workouts/sync', 'POST', { provider })).message;
     });
@@ -611,6 +611,9 @@
         <div class="actions">
           <button disabled={busy || !connections.garmin.saved} onclick={() => authorize('garmin')}
             >{mfa ? t('verify_garmin') : t('authorize')}</button
+          >
+          <button disabled={busy || !connections.garmin.saved} onclick={() => sync('garmin')}
+            >{t('sync_workouts')}</button
           >
           {@render disconnectButton('garmin')}
         </div>

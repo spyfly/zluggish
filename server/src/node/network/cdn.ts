@@ -33,6 +33,15 @@ export function createCdn(runtime: Runtime) {
       ? c.body(readFileSync(file), 200, { 'Content-Type': 'application/xml' })
       : c.notFound();
   });
+  app.get('/tp-workouts/garmin/:id', (c) => {
+    const file = runtime.effects.runSync(
+      WorkoutsService.use((workouts) => workouts.file(c.req.param('id').replace(/\.zwo$/, ''))),
+    );
+
+    return file && existsSync(file)
+      ? c.body(readFileSync(file), 200, { 'Content-Type': 'application/xml' })
+      : c.notFound();
+  });
   app.get('*', async (c) => {
     const ip = getConnInfo(c).remote.address ?? '';
     const path = c.req.path;

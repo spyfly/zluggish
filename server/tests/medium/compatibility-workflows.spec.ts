@@ -265,7 +265,7 @@ await test('automatic home and Android login sync coalesce, preserve UUIDs and e
       }),
   );
   const controller = new AbortController();
-  const aborted = f.effects.runPromise(workouts.sync(user.player_id, controller.signal));
+  const aborted = f.effects.runPromise(workouts.sync(user.player_id, undefined, controller.signal));
   controller.abort();
   await assert.rejects(aborted);
   assert.deepEqual(readFileSync(f.effects.runSync(workouts.metadataFile(user.player_id))), before);

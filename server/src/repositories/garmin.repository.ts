@@ -78,6 +78,13 @@ class DocumentTokenStore implements TokenStore {
   }
 }
 
+export interface ScheduledGarminWorkout {
+  event_id: string;
+  name?: string;
+  schedule_date_local?: string;
+  record: unknown;
+}
+
 export class GarminRepository {
   tokenStore(documents: RiderDocuments, player: number): TokenStore {
     return new DocumentTokenStore(documents, player);
@@ -104,6 +111,68 @@ export class GarminRepository {
       throw new Error(t('missing_garmin_authorization'));
     }
     await store.save(tokens);
+  }
+
+  /** The rider's scheduled cycling workouts in a date window, with their full definitions.
+  Garmin Coach workouts come through the adaptive endpoint and carry no numeric workoutId;
+  plain scheduled workouts come through the regular one. */
+  async scheduledWorkouts(
+    store: TokenStore,
+    domain: string,
+    startdate: string,
+    enddate: string,
+  ): Promise<Array<ScheduledGarminWorkout>> {
+    const client = this.garminClient(store, domain);
+
+    if (!(await client.loadTokens())) {
+      throw new DeliveryRefusedError({ code: 'garmin_unauthorized' });
+    }
+
+    const garmin = new Garmin(client);
+
+    try {
+      const summaries = await garmin.getScheduledWorkoutSummaries(startdate, enddate);
+      const selected: Array<ScheduledGarminWorkout> = [];
+
+      for (const summary of summaries) {
+        if (summary.isRestDay || !summary.scheduleDate || summary.workoutType !== 'cycling') {
+          continue;
+        }
+        let event_id: string;
+        let record: unknown;
+
+        if (summary.workoutUuid === null) {
+          if (summary.workoutId === null) {
+            continue;
+          }
+          event_id = String(summary.workoutId);
+          record = await garmin.getWorkoutById(summary.workoutId);
+        } else {
+          event_id = summary.workoutUuid;
+          record = await garmin.getAdaptiveWorkout(summary.workoutUuid);
+        }
+
+        if (record === null || record === undefined) {
+          continue;
+        }
+        const entry = { event_id, schedule_date_local: summary.scheduleDate, record };
+
+        selected.push(summary.workoutName === null ? entry : { ...entry, name: summary.workoutName });
+      }
+
+      return selected;
+    } catch (error) {
+      if (error instanceof GarminAuthError) {
+        throw new DeliveryRefusedError({ code: 'garmin_unauthorized' });
+      }
+
+      const http = error instanceof GarminHttpError ? error : error instanceof Error ? error.cause : null;
+
+      if (http instanceof GarminHttpError && refused(http.status)) {
+        throw new DeliveryRefusedError({ code: `garmin_${http.status}` });
+      }
+      throw error;
+    }
   }
 
   /** Garmin rejects a duplicate import with 409: the activity is already there. */

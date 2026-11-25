@@ -165,7 +165,7 @@ export const configSchema = Schema.Struct({
   }),
   ghosts: section({ profileFile: optionalPath.pipe(withDefault('')) }),
   integrations: section({
-    garmin: section({ domain: listenerHost.pipe(withDefault('garmin.com')) }),
+    garmin: section({ domain: listenerHost.pipe(withDefault('garmin.com')), ftp: Schema.optional(PositiveInt) }),
     discord: section({
       enabled: flag(false),
       credentialsFile: optionalPath.pipe(withDefault('')),

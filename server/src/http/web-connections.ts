@@ -26,7 +26,7 @@ const credentials = Strict({
   secret: Schema.String.check(Schema.isMaxLength(10_000)),
 });
 
-const workoutProviders = { intervals: 'intervals-icu', trainingpeaks: 'trainingpeaks' } as const;
+const workoutProviders = { intervals: 'intervals-icu', trainingpeaks: 'trainingpeaks', garmin: 'garmin' } as const;
 
 const credential = Schema.Literals([
   'strava/api',
@@ -295,7 +295,7 @@ export function webConnectionRoutes(app: Hono<WebEnv>, runtime: HttpRuntime) {
       const user = yield* webSessionsService.require(id);
       const identity = runtime.effects.runSync(AccountsService).identityOf(user);
 
-      const input = Schema.decodeUnknownSync(Strict({ provider: Schema.Literals(['intervals', 'trainingpeaks']) }))(
+      const input = Schema.decodeUnknownSync(Strict({ provider: Schema.Literals(['intervals', 'trainingpeaks', 'garmin']) }))(
         yield* Effect.promise(() => c.req.json()),
       );
 
@@ -307,7 +307,7 @@ export function webConnectionRoutes(app: Hono<WebEnv>, runtime: HttpRuntime) {
       );
 
       const message = yield* workoutsService
-        .sync(user.player_id)
+        .sync(user.player_id, workoutProviders[input.provider])
         .pipe(asProviderFailure(runtime, 503, t('web_connections_workout_sync_failed')));
 
       if (!(yield* webSessionsService.current(id, identity))) {

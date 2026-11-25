@@ -91,7 +91,28 @@ export function workoutRoutes(app: Hono<RuntimeEnv>, runtime: Runtime) {
       });
     }),
   );
+  appRoutes.get('/tp-workouts/garmin/:id', (c) =>
+    Effect.gen(function* () {
+      const workoutsService = yield* WorkoutsService;
+
+      const filesService = yield* FilesService;
+
+      const file = yield* workoutsService.file(c.req.param('id').replace(/\.zwo$/, ''));
+
+      if (!file || !(yield* filesService.exists(file))) {
+        throw new HTTPException(404);
+      }
+
+      return c.body(yield* filesService.read(file), 200, {
+        'Content-Type': 'application/xml',
+      });
+    }),
+  );
   app.get('/api/assetcms/*', (c) =>
-    c.json(c.req.path.endsWith('/partner_name_map.json/download') ? { intervalsicu: t('intervals_icu') } : null),
+    c.json(
+      c.req.path.endsWith('/partner_name_map.json/download')
+        ? { intervalsicu: t('intervals_icu'), garmin: t('connections_garmin_title') }
+        : null,
+    ),
   );
 }

@@ -235,7 +235,9 @@ await test('web uploads, workout sync and Strava session tests stay with the sig
     'trainingpeaks',
   );
   assert.equal(f.effects.runSync(WorkoutsService.use((service) => service.provider(f.other.player_id))), null);
-  assert.equal(await responseStatus(web.request('/api/me/workouts/sync', 'POST', { provider: 'garmin' })), 400);
+  // Garmin is a real provider now: without a Garmin connection the sync reports the missing credentials.
+  const garmin = await web.request('/api/me/workouts/sync', 'POST', { provider: 'garmin' });
+  assert.deepEqual(await garmin.json(), { message: 'Garmin credentials are missing.' });
 });
 
 await test('web riders remove one stored credential and keep the rest', async (t) => {

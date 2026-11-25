@@ -3,7 +3,9 @@ import { isIntervalsAthleteId } from '#src/dtos/intervals.dto';
 import { uuid, metadataSchema, storedEntrySchema } from '#src/dtos/workout.dto';
 import type { StoredEntry } from '#src/dtos/workout.dto';
 import { RuntimeContext } from '#src/context';
-import { UnreadableCredentialsError } from '#src/errors';
+import { DeliveryRefusedError, UnreadableCredentialsError } from '#src/errors';
+import type { ScheduledGarminWorkout } from '#src/repositories/garmin.repository';
+import { GarminWorkoutConverter } from '#src/services/garmin-workout-converter';
 import { SettingsService } from '#src/services/settings.service';
 import { XMLBuilder, XMLParser, XMLValidator } from 'fast-xml-parser';
 import { resolve } from 'node:path';
@@ -176,6 +178,10 @@ const make = Effect.gen(function* () {
       available.push('trainingpeaks');
     }
 
+    if (repositories.riderDocuments.has(id, 'garth/oauth1_token.json')) {
+      available.push('garmin');
+    }
+
     const file = resolve(runtime.profiles.folder(id), 'active_workout_provider.txt');
 
     const saved = repositories.filesRepository.existsSync(file)
@@ -186,7 +192,7 @@ const make = Effect.gen(function* () {
   }
 
   function entriesOf(id: number) {
-    const file = resolve(runtime.profiles.folder(id), 'intervals_icu_workout.json');
+    const file = metadataFileOf(id);
 
     if (!repositories.filesRepository.existsSync(file)) {
       return [];
@@ -200,7 +206,11 @@ const make = Effect.gen(function* () {
   }
 
   function metadataFileOf(id: number) {
-    return resolve(runtime.profiles.folder(id), 'intervals_icu_workout.json');
+    return resolve(runtime.profiles.folder(id), providerOf(id) === 'garmin' ? 'garmin_workout.json' : 'intervals_icu_workout.json');
+  }
+
+  function garminMetadataFileOf(id: number) {
+    return resolve(runtime.profiles.folder(id), 'garmin_workout.json');
   }
 
   /** Unmodified stored entries, including fields the schema does not read. */
@@ -244,21 +254,20 @@ const make = Effect.gen(function* () {
     repositories.filesRepository.writeDurable(
       metadataFileOf(id),
       JSON.stringify({
-        ...(remaining[0] ?? { provider: 'intervals-icu' }),
+        ...(remaining[0] ?? { provider: providerOf(id) ?? 'intervals-icu' }),
         workouts: remaining,
       }),
       true,
     );
   }
 
-  function scheduled(id: number, now = new Date()) {
-    if (providerOf(id) !== 'intervals-icu') {
-      return [];
-    }
+  /** Builds the game schedule for one day from a provider's stored entries. */
+  function scheduledFor(id: number, now: Date, provider: string, entries: ReturnType<typeof entriesOf>) {
     const day = localDay(now);
+    const label = provider === 'garmin' ? 'garmin' : 'intervalsicu';
     const seen = new Set<string>();
 
-    return entriesOf(id).flatMap((metadata) => {
+    return entries.flatMap((metadata) => {
       const identity = Schema.decodeUnknownOption(uuid)(metadata.workout_id);
 
       if (Option.isNone(identity) || seen.has(identity.value)) {
@@ -268,7 +277,7 @@ const make = Effect.gen(function* () {
       const planned =
         metadata.start_date_local?.slice(0, 10) ?? (metadata.start_date ? localDay(new Date(metadata.start_date)) : '');
 
-      if (planned !== day || metadata.provider !== 'intervals-icu') {
+      if (planned !== day || metadata.provider !== provider) {
         return [];
       }
       const file = fileOf(identity.value);
@@ -289,9 +298,9 @@ const make = Effect.gen(function* () {
       }
       seen.add(identity.value);
 
-      const scheduleId = scheduleID(`zoffline:schedule:${id}:intervals-icu:${metadata.event_id}:${day}`);
+      const scheduleId = scheduleID(`zoffline:schedule:${id}:${provider}:${metadata.event_id}:${day}`);
 
-      const uri = `https://cdn.zwift.com/tp-workouts/intervalsicu/${identity.value}.zwo`;
+      const uri = `https://cdn.zwift.com/tp-workouts/${label}/${identity.value}.zwo`;
       const midnight = new Date(now);
       midnight.setHours(0, 0, 0, 0);
       const tomorrow = new Date(midnight);
@@ -317,7 +326,7 @@ const make = Effect.gen(function* () {
           scheduleId,
           workoutId: identity.value,
           workoutUri: uri,
-          trainingProviderId: 'intervalsicu',
+          trainingProviderId: label,
           availableAfter: Math.floor(midnight.getTime() / 1000),
           notAvailableAfter: Math.floor(tomorrow.getTime() / 1000) - 1,
           workoutSummary: summary,
@@ -337,7 +346,7 @@ const make = Effect.gen(function* () {
             explanation: null,
             expires: null,
             title: 'LOC_TODAY_LOWER',
-            provider: 'intervalsicu',
+            provider: label,
             providerProperties: null,
             metadata: [],
           },
@@ -346,16 +355,47 @@ const make = Effect.gen(function* () {
     });
   }
 
-  function fileOf(id: string) {
-    return Schema.is(uuid)(id) ? resolve(runtime.config.storageDir, 'tp-workouts/intervalsicu', `${id}.zwo`) : null;
+  function scheduled(id: number, now = new Date()) {
+    const provider = providerOf(id);
+
+    if (provider === 'garmin') {
+      return scheduledFor(id, now, 'garmin', entriesOf(id));
+    }
+
+    if (provider !== 'intervals-icu') {
+      return [];
+    }
+
+    return scheduledFor(id, now, 'intervals-icu', entriesOf(id));
   }
 
-  async function syncNow(id: number, signal: AbortSignal) {
+  /** Serves either provider's files: the intervals directory first, then Garmin's. */
+  function fileOf(id: string) {
+    if (!Schema.is(uuid)(id)) {
+      return null;
+    }
+    const intervals = resolve(runtime.config.storageDir, 'tp-workouts/intervalsicu', `${id}.zwo`);
+
+    return repositories.filesRepository.existsSync(intervals)
+      ? intervals
+      : resolve(runtime.config.storageDir, 'tp-workouts/garmin', `${id}.zwo`);
+  }
+
+  function garminFileOf(id: string) {
+    return Schema.is(uuid)(id) ? resolve(runtime.config.storageDir, 'tp-workouts/garmin', `${id}.zwo`) : null;
+  }
+
+  async function syncNow(id: number, signal: AbortSignal, requested?: string) {
     signal.throwIfAborted();
-    const provider = providerOf(id);
+    // An explicit request wins over the saved provider: the rider picked this provider on purpose.
+    const provider = requested ?? providerOf(id);
 
     if (provider === 'trainingpeaks') {
       return importBridge(id, signal);
+    }
+
+    if (provider === 'garmin') {
+      return syncGarmin(id, signal);
     }
 
     if (provider !== 'intervals-icu') {
@@ -506,6 +546,93 @@ const make = Effect.gen(function* () {
     return t('synced_intervals_icu_workouts', { value1: entries.length });
   }
 
+  /** Fetches the rider's scheduled Garmin cycling workouts and publishes today's-window entries. */
+  async function syncGarmin(id: number, signal: AbortSignal) {
+    signal.throwIfAborted();
+
+    if (!repositories.riderDocuments.has(id, 'garth/oauth1_token.json')) {
+      return t('workout_garmin_credentials_missing');
+    }
+
+    const today = localDay(new Date());
+    const horizon = localDay(new Date(Date.now() + 14 * 86_400_000));
+    let scheduled: Array<ScheduledGarminWorkout>;
+
+    try {
+      scheduled = await repositories.garminRepository.scheduledWorkouts(
+        repositories.garminRepository.tokenStore(repositories.riderDocuments, id),
+        runtime.config.integrations.garmin.domain,
+        today,
+        horizon,
+      );
+    } catch (error) {
+      if (error instanceof DeliveryRefusedError && error.code === 'garmin_unauthorized') {
+        return t('workout_garmin_unauthorized');
+      }
+
+      if (error instanceof DeliveryRefusedError) {
+        throw error;
+      }
+      throw new Error(t('workout_garmin_sync_failed'), { cause: error });
+    }
+    signal.throwIfAborted();
+
+    const previous = entriesOf(id);
+    const pendingFiles = new Map<string, string>();
+    const entries = [];
+
+    for (const item of scheduled) {
+      const record = GarminWorkoutConverter.normalizeWorkoutRecord(item.record);
+
+      if (!record) {
+        continue;
+      }
+      const old = previous.find((entry) => String(entry.event_id) === item.event_id);
+
+      const identity = Schema.is(uuid)(old?.workout_id)
+        ? Schema.decodeUnknownSync(Schema.String)(old?.workout_id)
+        : repositories.cryptoRepository.randomUUID();
+
+      const xml = GarminWorkoutConverter.garminWorkoutToZwo(record, identity, runtime.config.integrations.garmin.ftp);
+
+      if (!xml || !workoutDetails(xml)) {
+        continue;
+      }
+      const file = garminFileOf(identity);
+
+      if (!file) {
+        continue;
+      }
+      const planned = item.schedule_date_local ?? today;
+
+      pendingFiles.set(file, xml);
+      entries.push({
+        provider: 'garmin',
+        event_id: item.event_id,
+        workout_id: identity,
+        name: item.name ?? '',
+        description: record.description ?? '',
+        start_date_local: planned,
+        start_date: `${planned}T00:00:00`,
+        synced_at: new Date().toISOString(),
+      });
+    }
+
+    pendingFiles.set(
+      garminMetadataFileOf(id),
+      JSON.stringify({
+        ...(entries[0] ?? { provider: 'garmin' }),
+        workouts: entries,
+      }),
+    );
+    pendingFiles.set(resolve(runtime.profiles.folder(id), 'active_workout_provider.txt'), 'garmin');
+    signal.throwIfAborted();
+    // Publication is synchronous: no request can observe new metadata before all files exist.
+    repositories.workoutPublication.publish(pendingFiles);
+
+    return t('synced_garmin_workouts', { value1: entries.length });
+  }
+
   function importBridge(id: number, signal = AbortSignal.timeout(30_000)) {
     const settings = SettingsService.resolveRiderSettings(runtime.config.riderDefaults, runtime.settings.read(id));
 
@@ -635,8 +762,12 @@ const make = Effect.gen(function* () {
       return fileOf(id);
     }),
     /** Fetch today's workouts from the rider's provider and publish them. A failure is a defect. */
-    sync: Effect.fn('WorkoutsService.sync')(function* (id: number, signal: AbortSignal = AbortSignal.timeout(30_000)) {
-      return yield* Effect.promise(() => syncNow(id, signal));
+    sync: Effect.fn('WorkoutsService.sync')(function* (
+      id: number,
+      requested?: string,
+      signal: AbortSignal = AbortSignal.timeout(30_000),
+    ) {
+      return yield* Effect.promise(() => syncNow(id, signal, requested));
     }),
     /** Sync in the background of a request: failures are logged, and concurrent requests share one sync. */
     syncWorkoutsAutomatically: Effect.fn('WorkoutsService.syncWorkoutsAutomatically')(function* (

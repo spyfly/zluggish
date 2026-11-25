@@ -35,6 +35,21 @@
     "reason": "Protocol, generated script syntax, or external format identifier; must remain literal."
   },
   {
+    "file": "server/src/services/garmin-workout-converter.ts",
+    "value": "Warmup",
+    "reason": "Zwift .zwo XML tag name; must remain literal."
+  },
+  {
+    "file": "server/src/services/garmin-workout-converter.ts",
+    "value": "Cooldown",
+    "reason": "Zwift .zwo XML tag name; must remain literal."
+  },
+  {
+    "file": "server/src/services/garmin-workout-converter.ts",
+    "value": "Garmin",
+    "reason": "Author name written into generated .zwo files; must remain literal."
+  },
+  {
     "file": "server/src/services/workout.service.ts",
     "value": "Component.Card.Activity",
     "reason": "Protocol, generated script syntax, or external format identifier; must remain literal."
