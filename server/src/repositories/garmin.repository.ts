@@ -175,6 +175,29 @@ export class GarminRepository {
     }
   }
 
+  /** The rider's current cycling FTP from Garmin's biometric service, or null when Garmin exposes none.
+  Fetch failures other than a missing authorization degrade to null: a missing FTP must not break the sync. */
+  async cyclingFtp(store: TokenStore, domain: string): Promise<number | null> {
+    const client = this.garminClient(store, domain);
+
+    if (!(await client.loadTokens())) {
+      throw new DeliveryRefusedError({ code: 'garmin_unauthorized' });
+    }
+
+    try {
+      const latest = Schema.decodeUnknownSync(
+        Schema.Struct({ functionalThresholdPower: Schema.Finite }),
+      )(await client.connectapi('/biometric-service/biometric/latestFunctionalThresholdPower/CYCLING'));
+
+      return latest.functionalThresholdPower > 0 ? latest.functionalThresholdPower : null;
+    } catch (error) {
+      if (error instanceof GarminAuthError) {
+        throw new DeliveryRefusedError({ code: 'garmin_unauthorized' });
+      }
+      return null;
+    }
+  }
+
   /** Garmin rejects a duplicate import with 409: the activity is already there. */
   async uploadGarmin(store: TokenStore, domain: string, filename: string, fit: Uint8Array) {
     const client = this.garminClient(store, domain);

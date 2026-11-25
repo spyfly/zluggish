@@ -165,7 +165,12 @@ export const configSchema = Schema.Struct({
   }),
   ghosts: section({ profileFile: optionalPath.pipe(withDefault('')) }),
   integrations: section({
-    garmin: section({ domain: listenerHost.pipe(withDefault('garmin.com')), ftp: Schema.optional(PositiveInt) }),
+    garmin: section({
+      domain: listenerHost.pipe(withDefault('garmin.com')),
+      // Manual FTP override for Garmin Coach watt targets; when unset the sync fetches
+      // the rider's current cycling FTP from Garmin's biometric service instead.
+      ftp: Schema.optional(PositiveInt),
+    }),
     discord: section({
       enabled: flag(false),
       credentialsFile: optionalPath.pipe(withDefault('')),

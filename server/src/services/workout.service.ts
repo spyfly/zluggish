@@ -556,6 +556,21 @@ const make = Effect.gen(function* () {
 
     const today = localDay(new Date());
     const horizon = localDay(new Date(Date.now() + 14 * 86_400_000));
+    let ftp = runtime.config.integrations.garmin.ftp;
+
+    if (ftp === undefined) {
+      try {
+        ftp = (await repositories.garminRepository.cyclingFtp(
+          repositories.garminRepository.tokenStore(repositories.riderDocuments, id),
+          runtime.config.integrations.garmin.domain,
+        )) ?? undefined;
+      } catch (error) {
+        if (error instanceof DeliveryRefusedError && error.code === 'garmin_unauthorized') {
+          return t('workout_garmin_unauthorized');
+        }
+        throw error;
+      }
+    }
     let scheduled: Array<ScheduledGarminWorkout>;
 
     try {
@@ -593,7 +608,7 @@ const make = Effect.gen(function* () {
         ? Schema.decodeUnknownSync(Schema.String)(old?.workout_id)
         : repositories.cryptoRepository.randomUUID();
 
-      const xml = GarminWorkoutConverter.garminWorkoutToZwo(record, identity, runtime.config.integrations.garmin.ftp);
+      const xml = GarminWorkoutConverter.garminWorkoutToZwo(record, identity, ftp);
 
       if (!xml || !workoutDetails(xml)) {
         continue;
