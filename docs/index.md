@@ -21,6 +21,7 @@ Zluggish is a rewrite of [zwift-offline](https://github.com/zoffline/zwift-offli
 - **Custom RoboPacers and pelotons**: make pacers from recorded rides. Add followers and set group size, equipment, formation and rider strength.
 - **Bookmarks**: save named positions during a ride. Start a new session from a bookmark, or teleport to it.
 - **Intervals.icu planned workouts**: get scheduled workouts in the game launcher. Send completed activities back to Intervals.icu.
+- **Garmin planned workouts**: get scheduled cycling workouts, Garmin Coach plans included, in the game launcher.
 - **Web app**: manage users, settings, activities, integrations and the server from a browser.
 - **Local records and data**: keep profiles, activities and recordings in storage that you can back up. All-time leaderboards are optional.
 - **Equipment and progression control**: set the available equipment and Drop balances on your server.

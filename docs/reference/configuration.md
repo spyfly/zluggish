@@ -71,5 +71,6 @@ Most features have their settings on their own page:
 | `equipment`                       | [Entitlements](../usage/features/entitlements.md)          |
 | `proxy.mode`                      | [CDN proxy](../usage/features/cdn-proxy.md)                |
 | `integrations.garmin.domain`      | [Garmin Connect](../usage/integrations/garmin.md)          |
+| `integrations.garmin.ftp`         | [Garmin Connect](../usage/integrations/garmin.md)          |
 | `integrations.discord`            | [Discord bridge](../usage/chat-bridges/discord.md)         |
 | `integrations.matrix`             | [Matrix bridge](../usage/chat-bridges/matrix.md)           |

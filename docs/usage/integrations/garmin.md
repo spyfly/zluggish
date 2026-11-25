@@ -17,3 +17,10 @@ You can keep existing garth token files, `oauth1_token.json` and `oauth2_token.j
 For a Garmin account in China, set `integrations.garmin.domain: 'garmin.cn'` in `zluggish.config.ts`.
 
 Live Garmin login and upload are not fully verified yet.
+
+## Planned workouts (Garmin Coach)
+
+After you authorize Garmin (steps above), press **Sync workouts** on the Garmin card in the web app. Zluggish fetches the cycling workouts Garmin has scheduled for the next 14 days and serves them to the game. Garmin Coach plans and regular scheduled workouts both work.
+
+- Garmin Coach plans target absolute watt ranges. Zluggish converts them to %FTP using your current cycling FTP, which it fetches from Garmin Connect on every sync.
+- To pin an FTP instead, set `integrations.garmin.ftp` in `zluggish.config.ts`. Without it, or when Garmin exposes no FTP, steps without a zone number import without power targets.

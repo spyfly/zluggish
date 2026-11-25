@@ -17,6 +17,7 @@ Zluggish is a self-hosted, open-source server for [Zwift](https://zwift.com), wr
 - **[Solo blob](https://docs.zluggish.com/usage/features/solo-blob/)**: summon a rotating group of bots around you with `.blob 20`, no pacer needed.
 - **[Bookmarks](https://docs.zluggish.com/usage/features/bookmarks/)**: save named positions during a ride, start new sessions from them or teleport back.
 - **[Intervals.icu planned workouts](https://docs.zluggish.com/usage/integrations/intervals-icu/)**: today's scheduled workouts appear in the game, and finished rides sync back. TrainingPeaks `.zwo` exports work too.
+- **[Garmin planned workouts](https://docs.zluggish.com/usage/integrations/garmin/)**: scheduled cycling workouts, Garmin Coach plans included, appear in the game with correct power targets.
 - **[Activity uploads](https://docs.zluggish.com/usage/sharing-activities/)** to Strava, Garmin Connect, Intervals.icu, Runalyze and your official Zwift account.
 - **[Chat bridges](https://docs.zluggish.com/usage/chat-bridges/discord/)**: connect in-game chat to Discord or Matrix.
 - **[All-time leaderboards](https://docs.zluggish.com/usage/features/leaderboards/)** and **[equipment control](https://docs.zluggish.com/usage/features/entitlements/)**: keep records on your own server and unlock bikes and upgrades without the grind.
